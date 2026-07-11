@@ -1,0 +1,269 @@
+import { requireSupabase, supabase } from './supabase';
+import type {
+  DealPath,
+  LeadActivity,
+  LeadSource,
+  LeadStage,
+  SalesLead,
+  SalesTask,
+  TaskStatus,
+} from './types';
+
+export async function listLeads(): Promise<SalesLead[]> {
+  const { data, error } = await requireSupabase()
+    .from('sales_leads')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as SalesLead[];
+}
+
+export async function getLead(id: string): Promise<SalesLead | null> {
+  const { data, error } = await requireSupabase()
+    .from('sales_leads')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw error;
+  return data as SalesLead | null;
+}
+
+export type CreateLeadInput = {
+  name: string;
+  email?: string;
+  phone?: string;
+  company?: string;
+  deal_path?: DealPath;
+  source?: LeadSource;
+  notes?: string;
+  stage?: LeadStage;
+  next_action_at?: string | null;
+  assigned_rep_id?: string | null;
+};
+
+export async function createLead(input: CreateLeadInput): Promise<SalesLead> {
+  const client = requireSupabase();
+  const { data, error } = await client
+    .from('sales_leads')
+    .insert({
+      name: input.name.trim(),
+      email: (input.email ?? '').trim().toLowerCase(),
+      phone: (input.phone ?? '').trim(),
+      company: (input.company ?? '').trim(),
+      deal_path: input.deal_path ?? 'launch',
+      source: input.source ?? 'manual',
+      notes: input.notes ?? '',
+      stage: input.stage ?? 'new',
+      next_action_at: input.next_action_at ?? null,
+      assigned_rep_id: input.assigned_rep_id ?? null,
+    })
+    .select('*')
+    .single();
+  if (error) throw error;
+
+  await client.from('sales_lead_activities').insert({
+    lead_id: data.id,
+    activity_type: 'system',
+    summary: 'Lead created manually',
+    created_by: input.assigned_rep_id ?? null,
+  });
+
+  // Enroll New leads in nurture drip (best-effort; intake edge fn does the same)
+  if ((input.stage ?? 'new') === 'new') {
+    const { data: seq } = await client
+      .from('sales_drip_sequences')
+      .select('id')
+      .eq('slug', 'new-lead-nurture')
+      .eq('active', true)
+      .maybeSingle();
+    if (seq) {
+      await client.from('sales_drip_enrollments').upsert(
+        {
+          sequence_id: seq.id,
+          lead_id: data.id,
+          owner_id: input.assigned_rep_id ?? null,
+          status: 'active',
+          current_step: 0,
+          next_send_at: new Date().toISOString(),
+        },
+        { onConflict: 'sequence_id,lead_id' },
+      );
+      await client.from('sales_lead_activities').insert({
+        lead_id: data.id,
+        activity_type: 'drip_enrolled',
+        summary: 'Enrolled in new-lead-nurture',
+        created_by: input.assigned_rep_id ?? null,
+      });
+    }
+  }
+
+  return data as SalesLead;
+}
+
+export async function updateLeadViaEdge(
+  leadId: string,
+  patch: Partial<CreateLeadInput> & { stage?: LeadStage },
+): Promise<SalesLead> {
+  if (!supabase) throw new Error('Supabase is not configured');
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) throw new Error('Not signed in');
+
+  const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/update-lead`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ lead_id: leadId, ...patch }),
+  });
+
+  const body = await res.json();
+  if (!res.ok) {
+    throw new Error(body.error ?? 'Failed to update lead');
+  }
+  return body.lead as SalesLead;
+}
+
+export async function listTasks(opts?: {
+  status?: TaskStatus;
+  leadId?: string;
+}): Promise<SalesTask[]> {
+  let q = requireSupabase()
+    .from('sales_tasks')
+    .select('*, sales_leads(id, name, company)')
+    .order('due_at', { ascending: true, nullsFirst: false });
+
+  if (opts?.status) q = q.eq('status', opts.status);
+  if (opts?.leadId) q = q.eq('lead_id', opts.leadId);
+
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data ?? []) as SalesTask[];
+}
+
+export async function createTask(input: {
+  sales_user_id: string;
+  title: string;
+  notes?: string;
+  due_at?: string | null;
+  lead_id?: string | null;
+}): Promise<SalesTask> {
+  const client = requireSupabase();
+  const { data, error } = await client
+    .from('sales_tasks')
+    .insert({
+      sales_user_id: input.sales_user_id,
+      title: input.title.trim(),
+      notes: input.notes ?? '',
+      due_at: input.due_at ?? null,
+      lead_id: input.lead_id ?? null,
+      status: 'open',
+    })
+    .select('*, sales_leads(id, name, company)')
+    .single();
+  if (error) throw error;
+
+  if (input.lead_id) {
+    await client.from('sales_lead_activities').insert({
+      lead_id: input.lead_id,
+      activity_type: 'task_created',
+      summary: `Task: ${input.title.trim()}`,
+      created_by: input.sales_user_id,
+    });
+  }
+
+  return data as SalesTask;
+}
+
+export async function setTaskStatus(
+  taskId: string,
+  status: TaskStatus,
+): Promise<void> {
+  const { error } = await requireSupabase()
+    .from('sales_tasks')
+    .update({
+      status,
+      completed_at: status === 'done' ? new Date().toISOString() : null,
+    })
+    .eq('id', taskId);
+  if (error) throw error;
+}
+
+export async function listActivities(leadId: string): Promise<LeadActivity[]> {
+  const { data, error } = await requireSupabase()
+    .from('sales_lead_activities')
+    .select('*')
+    .eq('lead_id', leadId)
+    .order('created_at', { ascending: false })
+    .limit(100);
+  if (error) throw error;
+  return (data ?? []) as LeadActivity[];
+}
+
+export async function addLeadNote(
+  leadId: string,
+  summary: string,
+  createdBy: string,
+): Promise<void> {
+  const client = requireSupabase();
+  await client.from('sales_lead_activities').insert({
+    lead_id: leadId,
+    activity_type: 'note',
+    summary,
+    created_by: createdBy,
+  });
+  const { data: lead } = await client
+    .from('sales_leads')
+    .select('notes')
+    .eq('id', leadId)
+    .single();
+  const existing = lead?.notes?.trim() ? `${lead.notes.trim()}\n\n` : '';
+  await client
+    .from('sales_leads')
+    .update({ notes: `${existing}${summary}` })
+    .eq('id', leadId);
+}
+
+export async function listDripSequences() {
+  const { data, error } = await requireSupabase()
+    .from('sales_drip_sequences')
+    .select('*, sales_drip_steps(*)')
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function listDripEnrollments() {
+  const { data, error } = await requireSupabase()
+    .from('sales_drip_enrollments')
+    .select('*, sales_leads(id, name, company), sales_drip_sequences(name, slug)')
+    .order('enrolled_at', { ascending: false })
+    .limit(100);
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function runDripsNow(): Promise<{ processed: number; errors: string[] }> {
+  if (!supabase) throw new Error('Supabase is not configured');
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) throw new Error('Not signed in');
+
+  const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/process-drips`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+      'Content-Type': 'application/json',
+    },
+  });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body.error ?? 'Failed to process drips');
+  return { processed: body.processed ?? 0, errors: body.errors ?? [] };
+}
