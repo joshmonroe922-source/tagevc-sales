@@ -16,6 +16,7 @@ import { LeadsPage } from './pages/LeadsPage';
 import { LoginPage } from './pages/LoginPage';
 import { OpsHubPage } from './pages/OpsHubPage';
 import { ReportsPage } from './pages/ReportsPage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { SocialPage } from './pages/SocialPage';
 import { TasksPage } from './pages/TasksPage';
 
@@ -95,6 +96,14 @@ export default function App() {
       return;
     }
 
+    // Password recovery must keep the session so updateUser can run on /sales/reset-password.
+    // Do not sign the user out for allowlist checks until after they leave that flow.
+    if (window.location.pathname.startsWith('/sales/reset-password')) {
+      setSalesUser(null);
+      setAuthState('guest');
+      return;
+    }
+
     const user = await fetchSalesUser(session);
     if (!user) {
       await signOut();
@@ -136,10 +145,18 @@ export default function App() {
   }, [resolveAuth]);
 
   return (
-    <Protected
-      authState={authState}
-      salesUser={salesUser}
-      forbiddenMessage={forbiddenMessage}
-    />
+    <Routes>
+      <Route path="/sales/reset-password" element={<ResetPasswordPage />} />
+      <Route
+        path="*"
+        element={
+          <Protected
+            authState={authState}
+            salesUser={salesUser}
+            forbiddenMessage={forbiddenMessage}
+          />
+        }
+      />
+    </Routes>
   );
 }

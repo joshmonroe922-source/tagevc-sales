@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { signInWithMagicLink, signInWithPassword } from '../lib/auth';
+import {
+  resetPasswordForEmail,
+  signInWithMagicLink,
+  signInWithPassword,
+} from '../lib/auth';
 import { supabaseConfigured } from '../lib/supabase';
 import '../components/sales.css';
 
@@ -8,10 +12,12 @@ type Props = {
   forbiddenMessage?: string | null;
 };
 
+type Mode = 'password' | 'magic' | 'forgot';
+
 export function LoginPage({ forbiddenMessage }: Props) {
   const [email, setEmail] = useState('josh@tagevc.com');
   const [password, setPassword] = useState('');
-  const [mode, setMode] = useState<'password' | 'magic'>('password');
+  const [mode, setMode] = useState<Mode>('password');
   const [error, setError] = useState<string | null>(forbiddenMessage ?? null);
   const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -25,7 +31,11 @@ export function LoginPage({ forbiddenMessage }: Props) {
       if (!supabaseConfigured) {
         throw new Error('Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env.local');
       }
-      if (mode === 'password') {
+      if (mode === 'forgot') {
+        const { error: err } = await resetPasswordForEmail(email);
+        if (err) throw err;
+        setInfo('Check your email for a reset link.');
+      } else if (mode === 'password') {
         const { error: err } = await signInWithPassword(email, password);
         if (err) throw err;
       } else {
@@ -40,13 +50,24 @@ export function LoginPage({ forbiddenMessage }: Props) {
     }
   }
 
+  const submitLabel =
+    mode === 'forgot'
+      ? 'Send reset link'
+      : mode === 'password'
+        ? 'Sign in'
+        : 'Send magic link';
+
   return (
     <div className="login-page">
       <div className="login-card">
         <div className="login-brand">
           <div className="sales-mark lg">T</div>
           <h1>Tage VC</h1>
-          <p>Deal sourcing for Launch, Partner, and Exit theses.</p>
+          <p>
+            {mode === 'forgot'
+              ? 'Enter your email and we will send a password reset link.'
+              : 'Deal sourcing for Launch, Partner, and Exit theses.'}
+          </p>
         </div>
         {error ? <div className="banner error">{error}</div> : null}
         {info ? <div className="banner ok">{info}</div> : null}
@@ -74,16 +95,39 @@ export function LoginPage({ forbiddenMessage }: Props) {
             </label>
           ) : null}
           <button className="btn primary" type="submit" disabled={busy}>
-            {busy ? 'Working…' : mode === 'password' ? 'Sign in' : 'Send magic link'}
+            {busy ? 'Working…' : submitLabel}
           </button>
         </form>
-        <button
-          type="button"
-          className="btn link"
-          onClick={() => setMode(mode === 'password' ? 'magic' : 'password')}
-        >
-          {mode === 'password' ? 'Use magic link instead' : 'Use password instead'}
-        </button>
+        <div className="login-links">
+          {mode === 'password' ? (
+            <button
+              type="button"
+              className="btn link"
+              onClick={() => {
+                setMode('forgot');
+                setError(null);
+                setInfo(null);
+              }}
+            >
+              Forgot password?
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="btn link"
+            onClick={() => {
+              setMode(mode === 'password' ? 'magic' : 'password');
+              setError(null);
+              setInfo(null);
+            }}
+          >
+            {mode === 'password'
+              ? 'Use magic link instead'
+              : mode === 'magic'
+                ? 'Use password instead'
+                : 'Back to sign in'}
+          </button>
+        </div>
       </div>
     </div>
   );

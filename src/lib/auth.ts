@@ -36,6 +36,22 @@ export async function signInWithMagicLink(email: string) {
   });
 }
 
+export function passwordResetRedirectTo() {
+  return `${window.location.origin}/sales/reset-password`;
+}
+
+export async function resetPasswordForEmail(email: string) {
+  if (!supabase) throw new Error('Supabase is not configured');
+  return supabase.auth.resetPasswordForEmail(email.trim(), {
+    redirectTo: passwordResetRedirectTo(),
+  });
+}
+
+export async function updatePassword(password: string) {
+  if (!supabase) throw new Error('Supabase is not configured');
+  return supabase.auth.updateUser({ password });
+}
+
 export async function signOut() {
   if (!supabase) return;
   await supabase.auth.signOut();

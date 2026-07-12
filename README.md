@@ -72,13 +72,14 @@ The app is fully scaffolded. You still need cloud credentials:
 ### 2. Create Josh’s Auth user
 
 1. **Authentication → Users → Add user**  
-   - Email: `josh@tagevc.com` (must match `sales_users` seed)  
+   - Email: `josh@tagevc.com` or `joshmonroe@tagevc.com` (must match `sales_users` allowlist)  
    - Set a password (or use magic link later)
 2. Confirm the migration inserted:
 
 ```sql
 select email, role, active from sales_users;
 -- josh@tagevc.com | admin | true
+-- joshmonroe@tagevc.com | admin | true
 -- house@tagevc.com | rep | true (house account)
 ```
 
@@ -139,8 +140,25 @@ Use Supabase scheduled functions, GitHub Actions, or any cron. Admins can also c
 
 Supabase → **Authentication → URL Configuration**:
 
-- Site URL: your portal origin (local `http://localhost:5173` or Vercel URL)
-- Redirect URLs: same + `http://localhost:5173/**`
+- **Site URL:** portal origin — local `http://localhost:5173` or your production URL (e.g. `https://sales.tagevc.com`)
+- **Redirect URLs** (add all that apply):
+  - `http://localhost:5173/**`
+  - `http://localhost:5173/sales/reset-password` (password reset)
+  - `http://localhost:5173/sales/leads` (magic link)
+  - `https://YOUR_PRODUCTION_HOST/**`
+  - `https://YOUR_PRODUCTION_HOST/sales/reset-password`
+  - `https://YOUR_PRODUCTION_HOST/sales/leads`
+
+Password reset uses `resetPasswordForEmail` → email link → `/sales/reset-password` → `updateUser({ password })`.
+
+### 8. Auth email delivery (password reset / magic link)
+
+Supabase must be able to send Auth emails:
+
+- **Local / early testing:** Supabase built-in email works with rate limits (fine for a few reset tests).
+- **Production:** configure custom SMTP under **Project Settings → Authentication → SMTP** (e.g. Resend SMTP), or Auth emails may land in spam / hit caps.
+
+The portal UI does not depend on SMTP being configured — the forgot-password flow is built either way; without deliverable Auth email, the user simply never receives the link.
 
 ## Env vars (frontend)
 
@@ -166,7 +184,7 @@ Never commit `.env.local` or service-role keys.
 | **Content hub** | AI/template generate blog + social drafts; activity feed. |
 | **Blog** | SEO posts with schedule/publish; seeds in `content/seeds/*.md` + migration. Public site reads published rows (RLS). |
 | **Social** | Compose · Calendar · Queue · **Approvals** · Drafts · Published. Mock publish until OAuth phase 2. |
-| **Auth** | Supabase email/password or magic link; allowlist via `sales_users`. |
+| **Auth** | Supabase email/password, magic link, or forgot-password reset; allowlist via `sales_users`. |
 
 ## Content & Social → public website
 

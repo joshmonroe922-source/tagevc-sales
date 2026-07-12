@@ -13,9 +13,9 @@ body,
 }
 
 body {
-  font-family: 'Source Serif 4', 'Libre Baskerville', Georgia, serif;
-  background: #f3efe6;
-  color: #1a1a18;
+  font-family: 'Open Sans', 'Segoe UI', sans-serif;
+  background: #f4f2ee;
+  color: #1c2129;
   -webkit-font-smoothing: antialiased;
 }
 

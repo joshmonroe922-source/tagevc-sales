@@ -76,7 +76,7 @@ export function ReportsPage() {
           <div className="chart-box" style={{ height: 240 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={stageChart}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#ddd5c6" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#ddd8cf" />
                 <XAxis
                   dataKey="name"
                   tick={{ fontSize: 11 }}
@@ -87,7 +87,7 @@ export function ReportsPage() {
                 />
                 <YAxis allowDecimals={false} />
                 <Tooltip />
-                <Bar dataKey="count" fill="#1a3a2f" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="count" fill="#3b4559" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -97,11 +97,11 @@ export function ReportsPage() {
           <div className="chart-box" style={{ height: 240 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={pathChart}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#ddd5c6" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#ddd8cf" />
                 <XAxis dataKey="name" />
                 <YAxis allowDecimals={false} />
                 <Tooltip />
-                <Bar dataKey="count" fill="#8b6914" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="count" fill="#b2a384" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

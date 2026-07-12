@@ -3,8 +3,8 @@ export const TAGEVC_BRAND = {
   shortName: 'Tage VC',
   website: 'https://tagevc.com',
   colors: {
-    primary: '#1a3a2f',
-    accent: '#8b6914',
+    primary: '#3b4559',
+    accent: '#b2a384',
   },
   voice: [
     'Professional and direct',
