@@ -101,8 +101,8 @@ In Dashboard → **Edge Functions → Secrets** (or CLI):
 | Secret | Purpose |
 |--------|---------|
 | `RESEND_API_KEY` | Resend API key |
-| `RESEND_FROM_EMAIL` | e.g. `Tage VC <alerts@yourdomain.com>` (use `onboarding@resend.dev` for testing) |
-| `INTAKE_ALERT_EMAIL` | Josh’s alert inbox (default `josh@tagevc.com`) |
+| `RESEND_FROM_EMAIL` | e.g. `Tage Venture Capital <hello@tagevc.com>` (use `onboarding@resend.dev` for testing) |
+| `INTAKE_ALERT_EMAIL` | Inbox for new-lead alerts (default `hello@tagevc.com`) |
 | `SALES_PORTAL_URL` | e.g. `https://sales.tagevc.com` or Vercel URL |
 | `DRIP_CRON_SECRET` | Long random string — auth for `process-drips` cron |
 | `CONTENT_CRON_SECRET` | Long random string — auth for `process-scheduled-content` cron |
@@ -114,7 +114,7 @@ In Dashboard → **Edge Functions → Secrets** (or CLI):
 ### 5. Resend
 
 1. Create account at [resend.com](https://resend.com).
-2. For production, verify `tagevc.com` (or your sending domain).
+2. For production, verify `tagevc.com` (or your sending domain) and use `hello@tagevc.com`. See **`SETUP_EMAIL.md`**.
 3. Until then, Resend only delivers to your own signup email.
 
 ### 6. Schedule cron jobs

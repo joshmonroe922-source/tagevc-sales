@@ -1,4 +1,6 @@
 const ALLOWED_ORIGINS = [
+  'https://tageventurecapital.com',
+  'https://www.tageventurecapital.com',
   'https://tagevc.com',
   'https://www.tagevc.com',
   'https://tageglobal.com',
@@ -6,6 +8,7 @@ const ALLOWED_ORIGINS = [
   'http://localhost:5173',
   'http://localhost:3000',
   'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000',
 ];
 
 export function corsHeaders(origin: string | null): Record<string, string> {

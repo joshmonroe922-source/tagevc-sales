@@ -16,7 +16,7 @@ export async function sendResendEmail(opts: {
   const apiKey = Deno.env.get('RESEND_API_KEY');
   const from =
     Deno.env.get('RESEND_FROM_EMAIL') ??
-    'Tage Venture Capital <noreply@tagevc.com>';
+    'Tage Venture Capital <hello@tagevc.com>';
 
   if (!apiKey) {
     console.warn('RESEND_API_KEY not set — skipping email');

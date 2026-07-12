@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
     const alertTo =
       settings?.intake_alert_email ||
       Deno.env.get('INTAKE_ALERT_EMAIL') ||
-      'josh@tagevc.com';
+      'hello@tagevc.com';
 
     if (settings?.auto_emails_enabled !== false && alertTo) {
       const portalUrl =

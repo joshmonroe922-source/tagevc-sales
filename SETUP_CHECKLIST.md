@@ -12,7 +12,16 @@
 8. [ ] Confirm `sales_users` has Josh as admin
 9. [ ] Copy URL + anon key into `tagevc-sales/.env.local` and `tagevc-website/.env.local`
 10. [ ] Deploy edge functions: `intake-lead`, `process-drips`, `update-lead`, `generate-content`, `process-scheduled-content`
-11. [ ] Set secrets: `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `INTAKE_ALERT_EMAIL`, `SALES_PORTAL_URL`, `DRIP_CRON_SECRET`, `CONTENT_CRON_SECRET`
+11. [ ] Set secrets (see `SETUP_EMAIL.md`):
+       ```bash
+       supabase secrets set \
+         RESEND_API_KEY="re_..." \
+         RESEND_FROM_EMAIL="Tage Venture Capital <hello@tagevc.com>" \
+         INTAKE_ALERT_EMAIL="hello@tagevc.com" \
+         SALES_PORTAL_URL="https://YOUR_SALES_PORTAL" \
+         DRIP_CRON_SECRET="..." \
+         CONTENT_CRON_SECRET="..."
+       ```
 12. [ ] Optional: `OPENAI_API_KEY` (+ `OPENAI_MODEL`) for AI content generation
 13. [ ] Schedule cron POST to `process-drips` every 30 min (`x-drip-secret`)
 14. [ ] Schedule cron POST to `process-scheduled-content` every 15–30 min (`x-content-secret`)
