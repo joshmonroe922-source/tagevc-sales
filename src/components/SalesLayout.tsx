@@ -19,10 +19,12 @@ export function SalesLayout({ salesUser }: Props) {
   );
   const activeDef = activeSlug ? getPortalDefinition(activeSlug) : undefined;
   const navItems = activeDef?.nav ?? [];
+  const onCalendar = location.pathname.startsWith('/sales/calendar');
   const onPicker =
     location.pathname === '/sales' ||
     location.pathname === '/sales/' ||
     location.pathname.startsWith('/sales/admin');
+  const showBackToPortals = !onPicker;
 
   async function onSignOut() {
     await logAuditEvent({
@@ -42,12 +44,13 @@ export function SalesLayout({ salesUser }: Props) {
           <div>
             <div className="sales-brand-name">Tage Venture Capital</div>
             <div className="sales-brand-sub">
-              {activeDef?.name ?? (onPicker ? 'Portals' : 'Workspace')}
+              {activeDef?.name ??
+                (onCalendar ? 'Calendar' : onPicker ? 'Portals' : 'Workspace')}
             </div>
           </div>
         </Link>
         <nav className="sales-nav">
-          {!onPicker ? (
+          {showBackToPortals ? (
             <Link to="/sales" className="sales-nav-switch">
               ← Portals
             </Link>
@@ -73,6 +76,12 @@ export function SalesLayout({ salesUser }: Props) {
               {item.label}
             </NavLink>
           ))}
+          <NavLink
+            to="/sales/calendar"
+            className={({ isActive }) => (isActive ? 'active' : '')}
+          >
+            Calendar
+          </NavLink>
           {salesUser.role === 'admin' && onPicker ? (
             <>
               <NavLink

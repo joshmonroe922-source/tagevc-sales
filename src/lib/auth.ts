@@ -9,7 +9,7 @@ export async function fetchSalesUser(session: Session): Promise<SalesUser | null
   const email = session.user.email.trim().toLowerCase();
   const { data, error } = await supabase
     .from('sales_users')
-    .select('id, email, full_name, role, active, manager_id, is_house_account')
+    .select('id, email, work_email, full_name, role, active, manager_id, is_house_account')
     .eq('email', email)
     .eq('active', true)
     .maybeSingle();

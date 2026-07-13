@@ -1,11 +1,18 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
+  fetchAllEntitiesForAdmin,
+  fetchEntityAssignmentsForUser,
+  setUserEntityAssignment,
+} from '../lib/entityAssignmentApi';
+import {
   fetchAllPortals,
   fetchAssignmentsForUser,
   fetchSalesUsersForAdmin,
   setUserPortalAssignment,
 } from '../lib/portalApi';
+import type { OpsEntity } from '../lib/opsTypes';
+import { OPS_ENTITY_STATUS_LABELS, OPS_ENTITY_TYPE_LABELS } from '../lib/opsTypes';
 import type { SalesPortal, SalesUser } from '../lib/types';
 
 type Props = {
@@ -17,13 +24,30 @@ type UserRow = Pick<
   'id' | 'email' | 'full_name' | 'role' | 'active' | 'is_house_account'
 >;
 
+type EntityRow = Pick<
+  OpsEntity,
+  'id' | 'name' | 'slug' | 'entity_type' | 'status' | 'website_url'
+>;
+
+function entityCardDesc(ent: EntityRow): string {
+  const parts = [
+    OPS_ENTITY_TYPE_LABELS[ent.entity_type],
+    OPS_ENTITY_STATUS_LABELS[ent.status],
+  ];
+  if (ent.slug) parts.push('Portfolio');
+  return parts.join(' · ');
+}
+
 export function AdminPortalsPage({ salesUser }: Props) {
   const [portals, setPortals] = useState<SalesPortal[]>([]);
+  const [entities, setEntities] = useState<EntityRow[]>([]);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string>('');
-  const [assignedIds, setAssignedIds] = useState<Set<string>>(new Set());
+  const [assignedPortalIds, setAssignedPortalIds] = useState<Set<string>>(new Set());
+  const [assignedEntityIds, setAssignedEntityIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState<string | null>(null);
+  const [savingPortal, setSavingPortal] = useState<string | null>(null);
+  const [savingEntity, setSavingEntity] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -33,13 +57,15 @@ export function AdminPortalsPage({ salesUser }: Props) {
       setLoading(true);
       setError(null);
       try {
-        const [portalRows, userRows] = await Promise.all([
+        const [portalRows, userRows, entityRows] = await Promise.all([
           fetchAllPortals(),
           fetchSalesUsersForAdmin(),
+          fetchAllEntitiesForAdmin(),
         ]);
         if (!mounted) return;
         const people = userRows.filter((u) => !u.is_house_account);
         setPortals(portalRows);
+        setEntities(entityRows);
         setUsers(people);
         setSelectedUserId((prev) => prev || people[0]?.id || '');
       } catch (err) {
@@ -56,13 +82,18 @@ export function AdminPortalsPage({ salesUser }: Props) {
 
   const loadAssignments = useCallback(async (userId: string) => {
     if (!userId) {
-      setAssignedIds(new Set());
+      setAssignedPortalIds(new Set());
+      setAssignedEntityIds(new Set());
       return;
     }
     setError(null);
     try {
-      const ids = await fetchAssignmentsForUser(userId);
-      setAssignedIds(new Set(ids));
+      const [portalIds, entityIds] = await Promise.all([
+        fetchAssignmentsForUser(userId),
+        fetchEntityAssignmentsForUser(userId),
+      ]);
+      setAssignedPortalIds(new Set(portalIds));
+      setAssignedEntityIds(new Set(entityIds));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load assignments');
     }
@@ -74,22 +105,43 @@ export function AdminPortalsPage({ salesUser }: Props) {
 
   async function togglePortal(portalId: string, next: boolean) {
     if (!selectedUserId) return;
-    setSaving(portalId);
+    setSavingPortal(portalId);
     setNotice(null);
     setError(null);
     try {
       await setUserPortalAssignment(selectedUserId, portalId, next, salesUser.id);
-      setAssignedIds((prev) => {
+      setAssignedPortalIds((prev) => {
         const copy = new Set(prev);
         if (next) copy.add(portalId);
         else copy.delete(portalId);
         return copy;
       });
-      setNotice('Assignment updated.');
+      setNotice('Portal assignment updated.');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update assignment');
+      setError(err instanceof Error ? err.message : 'Failed to update portal assignment');
     } finally {
-      setSaving(null);
+      setSavingPortal(null);
+    }
+  }
+
+  async function toggleEntity(entityId: string, next: boolean) {
+    if (!selectedUserId) return;
+    setSavingEntity(entityId);
+    setNotice(null);
+    setError(null);
+    try {
+      await setUserEntityAssignment(selectedUserId, entityId, next, salesUser.id);
+      setAssignedEntityIds((prev) => {
+        const copy = new Set(prev);
+        if (next) copy.add(entityId);
+        else copy.delete(entityId);
+        return copy;
+      });
+      setNotice('Portfolio company assignment updated.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update entity assignment');
+    } finally {
+      setSavingEntity(null);
     }
   }
 
@@ -104,15 +156,20 @@ export function AdminPortalsPage({ salesUser }: Props) {
     );
   }
 
+  const selectedUser = users.find((u) => u.id === selectedUserId);
+  const selectedIsAdmin = selectedUser?.role === 'admin';
+
   return (
     <>
       <div className="page-header">
         <div>
-          <h1>Portal assignments</h1>
-          <p className="muted">Grant or revoke portal access for allowlisted users.</p>
+          <h1>Access assignments</h1>
+          <p className="muted">
+            Grant portals and portfolio companies for allowlisted users.
+          </p>
           <p className="muted admin-note">
-            Admins always have access to every portal in the app, even if assignment rows
-            are incomplete. Use this page for reps and managers.
+            Admins always have access to every portal and every entity in the app, even
+            if assignment rows are incomplete. Use this page for reps and managers.
           </p>
         </div>
         <div className="page-actions">
@@ -148,27 +205,76 @@ export function AdminPortalsPage({ salesUser }: Props) {
             </select>
           </label>
 
-          <ul className="admin-portal-list">
-            {portals.map((portal) => {
-              const checked = assignedIds.has(portal.id);
-              return (
-                <li key={portal.id}>
-                  <label className="admin-portal-row">
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      disabled={saving === portal.id}
-                      onChange={(e) => void togglePortal(portal.id, e.target.checked)}
-                    />
-                    <span>
-                      <strong>{portal.name}</strong>
-                      <span className="muted"> — {portal.description}</span>
-                    </span>
-                  </label>
-                </li>
-              );
-            })}
-          </ul>
+          {selectedIsAdmin ? (
+            <p className="muted admin-note">
+              This user is an admin — they already see all portals and companies. Checkboxes
+              still update assignment rows for consistency.
+            </p>
+          ) : null}
+
+          <section className="admin-assign-section">
+            <h2>Portals</h2>
+            <ul className="admin-portal-list">
+              {portals.map((portal) => {
+                const checked = assignedPortalIds.has(portal.id);
+                return (
+                  <li key={portal.id}>
+                    <label className="admin-portal-row">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={savingPortal === portal.id}
+                        onChange={(e) => void togglePortal(portal.id, e.target.checked)}
+                      />
+                      <span>
+                        <strong>{portal.name}</strong>
+                        <span className="muted"> — {portal.description}</span>
+                      </span>
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+
+          <section className="admin-assign-section">
+            <h2>Portfolio companies</h2>
+            <p className="muted small">
+              Controls which entities appear under Manage Portfolio (and deep links into
+              Entity Ops). Users also need the Manage Portfolio portal.
+            </p>
+            {entities.length === 0 ? (
+              <p className="muted">No entities yet.</p>
+            ) : (
+              <div className="portal-grid admin-entity-grid">
+                {entities.map((ent) => {
+                  const checked = assignedEntityIds.has(ent.id);
+                  const busy = savingEntity === ent.id;
+                  return (
+                    <button
+                      key={ent.id}
+                      type="button"
+                      className={`portal-card admin-entity-card${checked ? ' selected' : ''}`}
+                      disabled={busy}
+                      aria-pressed={checked}
+                      onClick={() => void toggleEntity(ent.id, !checked)}
+                    >
+                      <div className="portal-card-top">
+                        <span className="portal-card-name">{ent.name}</span>
+                        {ent.slug ? (
+                          <span className="portal-card-badge">Portfolio</span>
+                        ) : null}
+                      </div>
+                      <p className="portal-card-desc">{entityCardDesc(ent)}</p>
+                      <span className="portal-card-cta">
+                        {checked ? 'Assigned ✓' : 'Click to assign'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </section>
         </div>
       ) : null}
     </>

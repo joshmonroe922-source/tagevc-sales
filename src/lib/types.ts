@@ -100,6 +100,8 @@ export type SalesPortal = {
 export type SalesUser = {
   id: string;
   email: string;
+  /** Microsoft 365 mailbox for calendar OAuth (may differ from portal login). */
+  work_email: string | null;
   full_name: string | null;
   role: SalesRole;
   active: boolean;

@@ -14,6 +14,7 @@ import { AdminPortalsPage } from './pages/AdminPortalsPage';
 import { AutomationPage } from './pages/AutomationPage';
 import { BlogEditorPage } from './pages/BlogEditorPage';
 import { BlogPage } from './pages/BlogPage';
+import { CalendarPage } from './pages/CalendarPage';
 import { ContentHubPage } from './pages/ContentHubPage';
 import { DueDiligencePortalPage } from './pages/DueDiligencePortalPage';
 import { EntityDetailPage } from './pages/EntityDetailPage';
@@ -85,6 +86,8 @@ function Protected({
           <Route path="/sales/admin/portals" element={<AdminPortalsPage salesUser={salesUser} />} />
           <Route path="/sales/admin/audit" element={<AdminAuditPage salesUser={salesUser} />} />
           <Route path="/sales/admin/email" element={<AdminEmailPage salesUser={salesUser} />} />
+          {/* Global tool — all authenticated portal users (not portal-gated) */}
+          <Route path="/sales/calendar" element={<CalendarPage salesUser={salesUser} />} />
           <Route path="/sales/portals/:slug" element={<PortalStubPage salesUser={salesUser} />} />
 
           {/* Deal Sourcing (former standalone sales platform) */}

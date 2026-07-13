@@ -257,7 +257,10 @@ export function EntityDetailPage({ salesUser }: Props) {
   if (!entity) {
     return (
       <>
-        <div className="banner error">{error ?? 'Entity not found'}</div>
+        <div className="banner error">
+          {error ??
+            'Entity not found or you do not have access. Ask an admin to assign this company.'}
+        </div>
         <Link to="/sales/ops">Back to Manage Portfolio</Link>
       </>
     );

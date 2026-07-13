@@ -115,6 +115,7 @@ In Dashboard → **Edge Functions → Secrets** (or CLI):
 | `CONTENT_CRON_SECRET` | Long random string — auth for `process-scheduled-content` cron |
 | `OPENAI_API_KEY` | Optional — AI blog/social generation (template fallback if unset) |
 | `OPENAI_MODEL` | Optional — default `gpt-4o-mini` |
+| `MS_GRAPH_*` | Microsoft 365 calendar OAuth — see **`SETUP_CALENDAR.md`** |
 
 `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are injected automatically.
 
@@ -283,14 +284,17 @@ Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in the Vercel project env, 
 ```
 src/                      Multi-portal UI (/sales/*; Deal Sourcing under /sales/deal-sourcing/*)
 content/seeds/            Markdown export of SEO blog seeds
-supabase/migrations       0001 sales · 0002 content · 0003 public blog read · 0004 entity ops · 0007 portals
+supabase/migrations       0001 sales · … · 0014 microsoft calendar
 supabase/functions        intake-lead, process-drips, update-lead,
-                          generate-content, process-scheduled-content
+                          generate-content, process-scheduled-content,
+                          microsoft-calendar-* (Graph OAuth)
 ```
 
 ## Multi-portal access
 
 After login, `/sales` shows a **portal picker**. Users only see portals assigned in `sales_user_portals`. **Admins always get every portal** (UI + `user_has_portal()`), and migration `0007` seeds all active admins onto all portals.
+
+**Calendar** (`/sales/calendar`) is a **global tool** for every authenticated portal user (personal Microsoft 365 mailbox via Graph). See **`SETUP_CALENDAR.md`**.
 
 | Portal | Live routes | Notes |
 |--------|-------------|--------|
@@ -302,6 +306,7 @@ After login, `/sales` shows a **portal picker**. Users only see portals assigned
 | Reporting | `/sales/reports` | Deal-flow metrics |
 | Marketing | `/sales/content/*` | Blog + social |
 | Executive / Accounting / Legal / Technology / HR | `/sales/portals/:slug` | Stub shells |
+| *(global)* Calendar | `/sales/calendar` | Outlook / M365 via Microsoft Graph (per-user OAuth) |
 
 Assign portals: `/sales/admin/portals` (admin only). Production host: **`portal.tagevc.com`**.
 

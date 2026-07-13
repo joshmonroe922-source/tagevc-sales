@@ -24,3 +24,18 @@ verify_jwt = false
 
 [functions.send-tracked-email]
 verify_jwt = true
+
+[functions.microsoft-calendar-oauth-start]
+verify_jwt = true
+
+[functions.microsoft-calendar-oauth-callback]
+verify_jwt = false
+
+[functions.microsoft-calendar-status]
+verify_jwt = true
+
+[functions.microsoft-calendar-events]
+verify_jwt = true
+
+[functions.microsoft-calendar-disconnect]
+verify_jwt = true

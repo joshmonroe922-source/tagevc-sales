@@ -4,6 +4,7 @@ const ALLOWED_ORIGINS = [
   'https://tagevc.com',
   'https://www.tagevc.com',
   'https://portal.tagevc.com',
+  'https://tagevc-sales.vercel.app',
   'https://tageglobal.com',
   'https://www.tageglobal.com',
   'http://localhost:5173',

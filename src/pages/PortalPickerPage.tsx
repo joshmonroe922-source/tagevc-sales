@@ -20,6 +20,9 @@ export function PortalPickerPage({ salesUser }: Props) {
         </div>
         {salesUser.role === 'admin' ? (
           <div className="page-actions">
+            <Link to="/sales/calendar" className="btn ghost">
+              Calendar
+            </Link>
             <Link to="/sales/admin/portals" className="btn ghost">
               Manage assignments
             </Link>
@@ -30,7 +33,13 @@ export function PortalPickerPage({ salesUser }: Props) {
               Audit log
             </Link>
           </div>
-        ) : null}
+        ) : (
+          <div className="page-actions">
+            <Link to="/sales/calendar" className="btn ghost">
+              Calendar
+            </Link>
+          </div>
+        )}
       </div>
 
       {portals.length === 0 ? (

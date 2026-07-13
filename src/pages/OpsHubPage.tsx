@@ -78,7 +78,7 @@ export function OpsHubPage() {
         <div>
           <h1>Manage Portfolio</h1>
           <p className="muted">
-            Portfolio companies — open one for checklists, folders, and compliance.
+            Companies assigned to you — open one for checklists, folders, and compliance.
           </p>
         </div>
         <div className="page-actions">
@@ -100,15 +100,15 @@ export function OpsHubPage() {
             </div>
             {entities.length === 0 ? (
               <p className="muted">
-                No companies yet.{' '}
+                No companies assigned yet. Ask an admin to grant access, or{' '}
                 <Link to="/sales/ops/entities/new?template=start-business">
-                  Start a business
+                  start a business
                 </Link>{' '}
-                or{' '}
+                /{' '}
                 <Link to="/sales/ops/entities/new?template=acquire-business">
                   acquire one
                 </Link>{' '}
-                with a checklist template.
+                (you keep access to entities you create).
               </p>
             ) : (
               <div className="portal-grid">

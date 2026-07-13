@@ -1438,8 +1438,17 @@ a.ops-compliance-title:hover {
 }
 
 .admin-portals {
-  max-width: 40rem;
+  max-width: 48rem;
   font-family: var(--sans);
+}
+
+.admin-assign-section {
+  margin-top: 2rem;
+}
+
+.admin-assign-section h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1.05rem;
 }
 
 .admin-portal-list {
@@ -1459,6 +1468,28 @@ a.ops-compliance-title:hover {
   padding: 0.75rem 0;
   cursor: pointer;
   font-size: 0.9rem;
+}
+
+.admin-entity-grid {
+  margin-top: 1rem;
+}
+
+.admin-entity-card {
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.admin-entity-card.selected {
+  border-color: var(--gold, #c4a35a);
+  box-shadow: inset 0 0 0 1px var(--gold, #c4a35a);
+}
+
+.admin-entity-card:disabled {
+  opacity: 0.65;
+  cursor: wait;
 }
 
 .admin-note {
@@ -1586,4 +1617,190 @@ a.ops-compliance-title:hover {
   padding: 0.65rem 0;
   border-bottom: 1px solid var(--line);
   font-size: 0.9rem;
+}
+
+/* ---------------------------------------------------------------------------
+   Calendar (Microsoft 365)
+   --------------------------------------------------------------------------- */
+.calendar-layout {
+  grid-template-columns: minmax(0, 2fr) minmax(240px, 0.85fr);
+}
+
+.cal-meta {
+  margin: 1.25rem 0 0;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.cal-meta dt {
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin: 0;
+}
+
+.cal-meta dd {
+  font-family: var(--sans);
+  font-size: 0.875rem;
+  margin: 0.15rem 0 0;
+  color: var(--ink);
+}
+
+.cal-month {
+  margin-top: 0.25rem;
+}
+
+.cal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.35rem;
+  margin-bottom: 0.35rem;
+}
+
+.cal-weekday {
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  text-align: center;
+  padding: 0.25rem;
+}
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.cal-cell {
+  min-height: 6.5rem;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.35rem 0.4rem;
+}
+
+.cal-cell.today {
+  border-color: var(--gold);
+  box-shadow: inset 0 0 0 1px rgba(178, 163, 132, 0.45);
+}
+
+.cal-cell.muted-month {
+  opacity: 0.45;
+}
+
+.cal-cell-day {
+  font-family: var(--sans);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--brand);
+  margin-bottom: 0.25rem;
+}
+
+.cal-cell-events {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.cal-cell-events li {
+  font-family: var(--sans);
+  font-size: 0.7rem;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cal-cell-events a {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.cal-cell-events a:hover {
+  color: var(--brand);
+  text-decoration: underline;
+}
+
+.cal-time {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.cal-week {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.cal-week-day {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.75rem 0.85rem;
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.cal-week-day.today {
+  border-color: var(--gold);
+}
+
+.cal-week-label {
+  font-family: var(--sans);
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
+.cal-agenda-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.cal-agenda-list.large {
+  gap: 0.65rem;
+}
+
+.cal-agenda-item a,
+.cal-agenda-item > div {
+  display: grid;
+  gap: 0.1rem;
+  text-decoration: none;
+  color: inherit;
+  padding: 0.45rem 0.5rem;
+  border-radius: 4px;
+}
+
+.cal-agenda-item a:hover {
+  background: rgba(59, 69, 89, 0.06);
+}
+
+.cal-agenda-when {
+  font-family: var(--sans);
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.cal-agenda-title {
+  font-family: var(--sans);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+@media (max-width: 900px) {
+  .calendar-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .cal-cell {
+    min-height: 4.5rem;
+  }
 }

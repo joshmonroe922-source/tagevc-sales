@@ -229,11 +229,13 @@ const OPS_SHARED_PORTALS: PortalSlug[] = [
 ];
 
 export function pathRequiresPortal(pathname: string): PortalSlug | null {
-  // Admin + portal picker are not portal-scoped
+  // Admin + portal picker + global tools are not portal-scoped
   if (
     pathname === '/sales' ||
     pathname === '/sales/' ||
     pathname.startsWith('/sales/admin') ||
+    pathname === '/sales/calendar' ||
+    pathname.startsWith('/sales/calendar/') ||
     pathname === '/sales/portals' ||
     pathname === '/sales/portals/'
   ) {
