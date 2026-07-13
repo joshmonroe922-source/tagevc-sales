@@ -1,4 +1,5 @@
 import type { Session } from '@supabase/supabase-js';
+import { fetchAllPortals, fetchAssignedPortals } from './portalApi';
 import { supabase } from './supabase';
 import type { SalesUser } from './types';
 
@@ -18,7 +19,16 @@ export async function fetchSalesUser(session: Session): Promise<SalesUser | null
     return null;
   }
 
-  return data as SalesUser | null;
+  if (!data) return null;
+
+  const base = data as Omit<SalesUser, 'portals'>;
+  // Admins (Josh) always see every portal — assignment rows are still seeded for consistency.
+  const portals =
+    base.role === 'admin'
+      ? await fetchAllPortals().catch(async () => fetchAssignedPortals(base.id))
+      : await fetchAssignedPortals(base.id);
+
+  return { ...base, portals };
 }
 
 export async function signInWithPassword(email: string, password: string) {
@@ -31,7 +41,7 @@ export async function signInWithMagicLink(email: string) {
   return supabase.auth.signInWithOtp({
     email: email.trim(),
     options: {
-      emailRedirectTo: `${window.location.origin}/sales/leads`,
+      emailRedirectTo: `${window.location.origin}/sales`,
     },
   });
 }

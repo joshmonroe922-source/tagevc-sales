@@ -67,7 +67,7 @@ In the **Tage VC** Supabase project → **Project Settings → Edge Functions �
 | `RESEND_API_KEY` | `re_…` from Resend → API Keys |
 | `RESEND_FROM_EMAIL` | `Tage Venture Capital <hello@tagevc.com>` |
 | `INTAKE_ALERT_EMAIL` | Inbox that should **receive** new-lead alerts — `hello@tagevc.com` if that mailbox exists / forwards to you, otherwise your personal email |
-| `SALES_PORTAL_URL` | Your deployed sales portal URL (link in the alert email) |
+| `SALES_PORTAL_URL` | Production portal: `https://portal.tagevc.com` (link in alert emails) |
 
 Also ensure `intake-lead` is **deployed** for this project.
 
@@ -79,7 +79,7 @@ supabase secrets set \
   RESEND_API_KEY="re_..." \
   RESEND_FROM_EMAIL="Tage Venture Capital <hello@tagevc.com>" \
   INTAKE_ALERT_EMAIL="hello@tagevc.com" \
-  SALES_PORTAL_URL="https://YOUR_SALES_PORTAL"
+  SALES_PORTAL_URL="https://portal.tagevc.com"
 supabase functions deploy intake-lead
 ```
 
@@ -130,3 +130,64 @@ If the lead is created but no email arrives: check Supabase function logs for `R
 | From address | e.g. `notifications@instantnda.us` | `hello@tagevc.com` |
 | Where secrets live | Instant NDA Supabase project | **Tage VC** Supabase project |
 | Trigger | Sign / finalize functions | Website → `intake-lead` |
+
+---
+
+## Auth SMTP (password reset / magic link)
+
+Intake alerts use Resend **HTTP** via Edge Function secrets. **Supabase Auth** emails need **custom SMTP** (same Resend account/domain):
+
+- Host `smtp.resend.com`, port `465`, user `resend`, password = Resend API key
+- From: `Tage Venture Capital <hello@tagevc.com>`
+- Dashboard: project **Authentication → Emails → SMTP Settings**
+
+See README §8. Do not commit the API key.
+
+---
+
+## Email analytics (opens / clicks)
+
+Portal-sent mail (intake alerts, drip emails, **Send tracked email** on a lead) stores Resend message IDs and receives engagement via webhooks.
+
+### What Josh configures in Resend (dashboard)
+
+1. **Domain tracking** — [Resend → Domains](https://resend.com/domains) → your sending domain → enable **Open tracking** and **Click tracking**. Add the tracking CNAME Resend shows (e.g. `links.…`) and verify. Without this, webhooks for opens/clicks will not fire.
+2. **Webhook** — [Resend → Webhooks](https://resend.com/webhooks) → Add webhook:
+   - Endpoint: `https://YOUR_PROJECT_REF.supabase.co/functions/v1/resend-webhook`
+   - Events (at least): `email.sent`, `email.delivered`, `email.delivery_delayed`, `email.opened`, `email.clicked`, `email.bounced`, `email.complained`, `email.failed`, `email.suppressed`
+3. Copy the webhook **signing secret** (`whsec_…`) into Supabase Edge secrets as `RESEND_WEBHOOK_SECRET`.
+4. Deploy functions + migration:
+
+```bash
+supabase db push   # or apply 0012_email_analytics.sql
+supabase functions deploy resend-webhook send-tracked-email intake-lead process-drips
+supabase secrets set RESEND_WEBHOOK_SECRET="whsec_..."
+```
+
+### Where to view analytics
+
+- Admin UI: **`/sales/admin/email`** (Email in admin nav)
+- Per lead: Deal Sourcing → lead → **Send tracked email** panel (open/click counts)
+
+### Limits (honest)
+
+| Capability | Supported? |
+|------------|------------|
+| Who opened / how many times | Yes (pixel; image blockers under-count; some clients prefetch and over-count) |
+| Link clicks | Yes (Resend rewrites `https://` links when click tracking is on) |
+| True “forwarded to someone else” | **No** — industry-wide. Extra opens *might* mean a forwarder’s client loaded images, but you cannot prove it |
+| Attachment opened | **No** — Resend does not report attachment opens |
+| Outlook / M365 compose | **Not tracked** — see below |
+
+### Microsoft 365 / Outlook personal sends
+
+Mail composed in Outlook (any alias under your tenant) does **not** go through Resend, so open/click webhooks never fire.
+
+**Practical path (no HubSpot):**
+
+1. For deals you care about tracking, use **Send tracked email** on the lead in the portal (Resend + analytics).
+2. Keep Outlook for day-to-day / untracked correspondence.
+3. Optional later: Outlook add-in or Graph message-trace (delivery only, not opens) — not built in this repo.
+
+Auth password-reset / magic-link emails use Resend SMTP; if the same domain has tracking + webhooks enabled, delivery/open events may appear as `webhook` source rows when the send was not recorded by an edge function.
+

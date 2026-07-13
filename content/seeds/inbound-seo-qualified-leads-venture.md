@@ -18,7 +18,7 @@ For Tage Venture Capital, **search and content are the primary lead channel**. F
 1. **Path-specific pages** — Launch, Partner, and Exit content answers different questions. We do not mash them into one generic "contact us."
 2. **Depth over volume** — A smaller set of authoritative posts beats thin blogs no one reads.
 3. **Internal linking** — Every article routes to a clear CTA and the right intake form.
-4. **Sales + marketing alignment** — Blog and social content is managed in the same portal that runs deal flow and founder nurture.
+4. **Deal sourcing + marketing alignment** — Blog and social content is managed in the same portal that runs deal flow and founder nurture.
 
 ## From click to conversation
 

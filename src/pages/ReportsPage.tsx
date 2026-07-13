@@ -124,7 +124,7 @@ export function ReportsPage() {
               {stats.recentLeads.map((lead) => (
                 <tr key={lead.id}>
                   <td>
-                    <Link to={`/sales/leads/${lead.id}`}>{lead.name}</Link>
+                    <Link to={`/sales/deal-sourcing/leads/${lead.id}`}>{lead.name}</Link>
                     <div className="muted small">{lead.company || '—'}</div>
                   </td>
                   <td>{DEAL_PATH_LABELS[lead.deal_path]}</td>

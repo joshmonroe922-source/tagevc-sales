@@ -100,7 +100,7 @@ export function ResetPasswordPage() {
         <div className="login-brand">
           <div className="sales-mark lg">T</div>
           <h1>Reset password</h1>
-          <p>Choose a new password for your Tage VC sales account.</p>
+          <p>Choose a new password for your Tage VC portal account.</p>
         </div>
         {error ? <div className="banner error">{error}</div> : null}
         {info ? <div className="banner ok">{info}</div> : null}

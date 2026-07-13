@@ -164,7 +164,7 @@ export function LeadsPage({ salesUser }: Props) {
                     onDragEnd={() => setDraggingId(null)}
                     style={{ cursor: 'grab' }}
                   >
-                    <Link to={`/sales/leads/${lead.id}`} className="lead-card-name">
+                    <Link to={`/sales/deal-sourcing/leads/${lead.id}`} className="lead-card-name">
                       {lead.name}
                     </Link>
                     <div className="lead-card-meta">{lead.company || 'No company'}</div>
@@ -197,7 +197,7 @@ export function LeadsPage({ salesUser }: Props) {
               {leads.map((lead) => (
                 <tr key={lead.id}>
                   <td>
-                    <Link to={`/sales/leads/${lead.id}`}>{lead.name}</Link>
+                    <Link to={`/sales/deal-sourcing/leads/${lead.id}`}>{lead.name}</Link>
                     <div className="muted small">{lead.email || '—'}</div>
                   </td>
                   <td>{lead.company || '—'}</td>

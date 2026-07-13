@@ -1,5 +1,6 @@
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts';
-import { sendResendEmail } from '../_shared/email.ts';
+import { sendResendEmail, tagsFromRecord } from '../_shared/email.ts';
+import { recordOutboundEmail } from '../_shared/emailAnalytics.ts';
 import { enrollLeadInNewDrip } from '../_shared/drips.ts';
 import { createServiceClient } from '../_shared/supabase.ts';
 
@@ -113,9 +114,14 @@ Deno.serve(async (req) => {
           : dealPath === 'partner'
             ? 'Partner'
             : 'Exit';
-      await sendResendEmail({
+      const alertSubject = `[Tage VC] New lead: ${name}${company ? ` — ${company}` : ''}`;
+      const tags = tagsFromRecord({
+        source: 'intake_alert',
+        lead_id: lead.id,
+      });
+      const sent = await sendResendEmail({
         to: alertTo,
-        subject: `[Tage VC] New lead: ${name}${company ? ` — ${company}` : ''}`,
+        subject: alertSubject,
         html: `
           <p>New inbound lead for <strong>${pathLabel}</strong>.</p>
           <ul>
@@ -126,10 +132,22 @@ Deno.serve(async (req) => {
             <li><strong>Source:</strong> ${source}</li>
           </ul>
           ${notes ? `<p><strong>Notes:</strong> ${notes}</p>` : ''}
-          <p><a href="${portalUrl}/sales/leads/${lead.id}">Open in sales portal</a></p>
+          <p><a href="${portalUrl}/sales/deal-sourcing/leads/${lead.id}">Open in Deal Sourcing</a></p>
         `,
         replyTo: email || undefined,
+        tags,
       });
+      if (sent.ok && sent.id) {
+        await recordOutboundEmail(supabase, {
+          resendId: sent.id,
+          to: alertTo,
+          subject: alertSubject,
+          source: 'intake_alert',
+          leadId: lead.id,
+          replyTo: email || null,
+          tags,
+        });
+      }
     }
 
     return jsonResponse({ ok: true, lead_id: lead.id }, 201, origin);

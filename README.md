@@ -1,6 +1,6 @@
-# Tage VC — Deal sourcing, Entity Ops & content platform
+# Tage VC — Multi-portal ops app
 
-Venture capital **deal-sourcing** portal for **Tage Venture Capital**: deal flow, **Entity Ops** (portfolio checklists / folders / renewals), follow-ups, founder nurture, SEO blog, and social scheduling.  
+Internal **Tage Venture Capital** portals: **Deal Sourcing** (pipeline, follow-ups, nurture), **Due Diligence**, **New Start Up** / **New Mergers & Acquisitions** onboarding, **Manage Portfolio** (Entity Ops), **Reporting**, **Marketing** (blog/social), plus stub shells for Executive, Accounting, Legal, Technology, and HR.  
 Single-admin ready (Josh Monroe); schema supports multi-rep later. **No HubSpot.**
 
 Companion public site: [`tagevc-website`](../tagevc-website) (Next.js) — Launch / Partner / Exit landings + blog synced from published posts. Eventual domain: **tageventurecapital.com**.
@@ -19,7 +19,9 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:5173/sales/leads](http://localhost:5173/sales/leads) (Deal flow) or [http://localhost:5173/sales/ops](http://localhost:5173/sales/ops) (Entity Ops).
+Open [http://localhost:5173/sales](http://localhost:5173/sales) (portal picker) after sign-in. Open **Deal Sourcing** for pipeline tools, or go direct when assigned (e.g. [Deal flow](http://localhost:5173/sales/deal-sourcing/leads), [Entity Ops](http://localhost:5173/sales/ops)). Legacy `/sales/leads`, `/sales/tasks`, and `/sales/automation` redirect into Deal Sourcing.
+
+Production host: **`https://portal.tagevc.com`** (Vercel custom domain + DNS).
 
 ## Entity Ops
 
@@ -68,6 +70,9 @@ The app is fully scaffolded. You still need cloud credentials:
    - `supabase/migrations/0002_content_social.sql` — blog, social, content activity, SEO seed posts
    - `supabase/migrations/0003_blog_public_read.sql` — **anon SELECT** on published `blog_posts` (required for the public website)
    - `supabase/migrations/0004_entity_ops.sql` — Entity Ops tables, templates, default folders, RLS
+   - `supabase/migrations/0007_portals.sql` — portal catalog, user assignments, admin full-access seed
+   - `supabase/migrations/0008_new_start_acquire_portals.sql` — New Start Up + New Mergers & Acquisitions
+   - `supabase/migrations/0013_due_diligence_and_ma_rename.sql` — Due Diligence portal + M&A display rename
 
 ### 2. Create Josh’s Auth user
 
@@ -104,8 +109,9 @@ In Dashboard → **Edge Functions → Secrets** (or CLI):
 | `RESEND_API_KEY` | Resend API key |
 | `RESEND_FROM_EMAIL` | e.g. `Tage Venture Capital <hello@tagevc.com>` (use `onboarding@resend.dev` for testing) |
 | `INTAKE_ALERT_EMAIL` | Inbox for new-lead alerts (default `hello@tagevc.com`) |
-| `SALES_PORTAL_URL` | e.g. `https://sales.tagevc.com` or Vercel URL |
+| `SALES_PORTAL_URL` | Production: `https://portal.tagevc.com` (or Vercel preview URL for testing) |
 | `DRIP_CRON_SECRET` | Long random string — auth for `process-drips` cron |
+| `RESEND_WEBHOOK_SECRET` | Resend webhook signing secret (`whsec_…`) for open/click analytics — see **`SETUP_EMAIL.md`** |
 | `CONTENT_CRON_SECRET` | Long random string — auth for `process-scheduled-content` cron |
 | `OPENAI_API_KEY` | Optional — AI blog/social generation (template fallback if unset) |
 | `OPENAI_MODEL` | Optional — default `gpt-4o-mini` |
@@ -117,6 +123,7 @@ In Dashboard → **Edge Functions → Secrets** (or CLI):
 1. Create account at [resend.com](https://resend.com).
 2. For production, verify `tagevc.com` (or your sending domain) and use `hello@tagevc.com`. See **`SETUP_EMAIL.md`**.
 3. Until then, Resend only delivers to your own signup email.
+4. For open/click analytics: enable domain open + click tracking, add the `resend-webhook` endpoint, set `RESEND_WEBHOOK_SECRET`. View at `/sales/admin/email`.
 
 ### 6. Schedule cron jobs
 
@@ -140,25 +147,43 @@ Use Supabase scheduled functions, GitHub Actions, or any cron. Admins can also c
 
 Supabase → **Authentication → URL Configuration**:
 
-- **Site URL:** portal origin — local `http://localhost:5173` or your production URL (e.g. `https://sales.tagevc.com`)
+- **Site URL:** portal origin — local `http://localhost:5173` or production `https://portal.tagevc.com`
 - **Redirect URLs** (add all that apply):
   - `http://localhost:5173/**`
   - `http://localhost:5173/sales/reset-password` (password reset)
-  - `http://localhost:5173/sales/leads` (magic link)
-  - `https://YOUR_PRODUCTION_HOST/**`
-  - `https://YOUR_PRODUCTION_HOST/sales/reset-password`
-  - `https://YOUR_PRODUCTION_HOST/sales/leads`
+  - `http://localhost:5173/sales` (magic link → portal picker)
+  - `https://portal.tagevc.com/**`
+  - `https://portal.tagevc.com/sales/reset-password`
+  - `https://portal.tagevc.com/sales`
 
 Password reset uses `resetPasswordForEmail` → email link → `/sales/reset-password` → `updateUser({ password })`.
 
 ### 8. Auth email delivery (password reset / magic link)
 
-Supabase must be able to send Auth emails:
+**Auth emails** (password reset, magic link, confirmations) are separate from Edge Function mail (`RESEND_API_KEY` secrets). Auth uses **custom SMTP** on the Supabase project.
 
-- **Local / early testing:** Supabase built-in email works with rate limits (fine for a few reset tests).
-- **Production:** configure custom SMTP under **Project Settings → Authentication → SMTP** (e.g. Resend SMTP), or Auth emails may land in spam / hit caps.
+**Configured for `tagevc-sales` (`hqmobgtnedmhzipusert`):**
 
-The portal UI does not depend on SMTP being configured — the forgot-password flow is built either way; without deliverable Auth email, the user simply never receives the link.
+| Setting | Value |
+|--|--|
+| Provider | Resend SMTP |
+| Host | `smtp.resend.com` |
+| Port | `465` (SSL) |
+| Username | `resend` |
+| Password | Same Resend API key as `RESEND_API_KEY` (Auth SMTP password field — **not** readable via `supabase secrets list`) |
+| Sender | `Tage Venture Capital <hello@tagevc.com>` |
+
+Subject lines for recovery / confirmation / magic link mention **Tage Venture Capital**.
+
+**Dashboard path** (re-check or rotate the key):
+
+1. [Supabase Dashboard](https://supabase.com/dashboard/project/hqmobgtnedmhzipusert) → **Authentication** → **Emails** → **SMTP Settings**
+   (also under **Project Settings → Authentication → SMTP** on some UI versions)
+2. Enable custom SMTP; paste the Resend API key as the SMTP password; keep From email `hello@tagevc.com` / name `Tage Venture Capital`.
+
+**Verify:** Login → Forgot password → confirm the message From is `hello@tagevc.com` (not `supabase.co`).
+
+Edge Function alerts still use Resend HTTP + secrets (`RESEND_API_KEY`, `RESEND_FROM_EMAIL`) — see **`SETUP_EMAIL.md`**. Those do **not** replace Auth SMTP.
 
 ## Env vars (frontend)
 
@@ -249,19 +274,36 @@ npm i -g vercel
 vercel
 ```
 
-Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in the Vercel project env, then redeploy. Point a subdomain (e.g. `sales.tagevc.com`) at the deployment and add it to Supabase Auth redirect URLs + intake CORS if needed.
+Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in the Vercel project env, then redeploy. Point DNS **`portal.tagevc.com`** at the Vercel deployment (custom domain), then add `https://portal.tagevc.com` to Supabase Auth Site URL / Redirect URLs and ensure intake CORS includes it (already listed in `_shared/cors.ts`).
 
 `vercel.json` rewrites SPA routes to `index.html`.
 
 ## Project layout
 
 ```
-src/                      Deal-sourcing + Entity Ops UI (/sales/*)
+src/                      Multi-portal UI (/sales/*; Deal Sourcing under /sales/deal-sourcing/*)
 content/seeds/            Markdown export of SEO blog seeds
-supabase/migrations       0001 sales · 0002 content · 0003 public blog read · 0004 entity ops
+supabase/migrations       0001 sales · 0002 content · 0003 public blog read · 0004 entity ops · 0007 portals
 supabase/functions        intake-lead, process-drips, update-lead,
                           generate-content, process-scheduled-content
 ```
+
+## Multi-portal access
+
+After login, `/sales` shows a **portal picker**. Users only see portals assigned in `sales_user_portals`. **Admins always get every portal** (UI + `user_has_portal()`), and migration `0007` seeds all active admins onto all portals.
+
+| Portal | Live routes | Notes |
+|--------|-------------|--------|
+| Deal Sourcing | `/sales/deal-sourcing/leads`, `/tasks`, `/automation` | Former sales platform (pipeline + nurture). Old `/sales/leads` etc. redirect here. |
+| Due Diligence | `/sales/due-diligence` | Diligence workspace placeholder (checklist outline). |
+| New Start Up | `/sales/new-start-up` | Onboarding → Entity Ops `start-business` template. |
+| New Mergers & Acquisitions | `/sales/new-acquisition` | Onboarding → Entity Ops `acquire-business` (slug kept for URLs). |
+| Manage Portfolio | `/sales/ops/*` | Entity Ops |
+| Reporting | `/sales/reports` | Deal-flow metrics |
+| Marketing | `/sales/content/*` | Blog + social |
+| Executive / Accounting / Legal / Technology / HR | `/sales/portals/:slug` | Stub shells |
+
+Assign portals: `/sales/admin/portals` (admin only). Production host: **`portal.tagevc.com`**.
 
 ## Multi-rep later
 

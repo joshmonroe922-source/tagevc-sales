@@ -267,3 +267,41 @@ export async function runDripsNow(): Promise<{ processed: number; errors: string
   if (!res.ok) throw new Error(body.error ?? 'Failed to process drips');
   return { processed: body.processed ?? 0, errors: body.errors ?? [] };
 }
+
+export async function sendTrackedEmail(input: {
+  leadId: string;
+  to?: string;
+  subject: string;
+  html: string;
+  replyTo?: string;
+}): Promise<{ resend_id: string; to: string; subject: string }> {
+  if (!supabase) throw new Error('Supabase is not configured');
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) throw new Error('Not signed in');
+
+  const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-tracked-email`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      lead_id: input.leadId,
+      to: input.to,
+      subject: input.subject,
+      html: input.html,
+      reply_to: input.replyTo,
+    }),
+  });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body.error ?? 'Failed to send tracked email');
+  return {
+    resend_id: body.resend_id as string,
+    to: body.to as string,
+    subject: body.subject as string,
+  };
+}

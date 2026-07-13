@@ -1,3 +1,4 @@
+import { logAuditEvent } from './audit';
 import { requireSupabase } from './supabase';
 import type {
   ChecklistStatus,
@@ -62,6 +63,7 @@ export type CreateEntityInput = {
   lead_id?: string | null;
   jurisdiction?: string;
   formed_at?: string | null;
+  website_url?: string;
   notes?: string;
   created_by?: string | null;
   /** Template slug: start-business | acquire-business | omit for no checklist clone */
@@ -106,6 +108,7 @@ export async function createEntity(input: CreateEntityInput): Promise<OpsEntity>
       lead_id: input.lead_id ?? null,
       jurisdiction: (input.jurisdiction ?? '').trim(),
       formed_at: input.formed_at || null,
+      website_url: (input.website_url ?? '').trim(),
       notes: input.notes ?? '',
       created_by: input.created_by ?? null,
     })
@@ -154,6 +157,7 @@ export async function updateEntity(
     lead_id: string | null;
     jurisdiction: string;
     formed_at: string | null;
+    website_url: string;
     notes: string;
   }>,
 ): Promise<OpsEntity> {
@@ -304,6 +308,16 @@ export async function getDocumentSignedUrl(
     .storage.from(ENTITY_DOCS_BUCKET)
     .createSignedUrl(storagePath, expiresIn);
   if (error) return null;
+  if (data.signedUrl) {
+    void logAuditEvent({
+      eventType: 'download',
+      metadata: {
+        destination_url: data.signedUrl.split('?')[0],
+        storage_path: storagePath,
+        kind: 'signed_url',
+      },
+    });
+  }
   return data.signedUrl;
 }
 

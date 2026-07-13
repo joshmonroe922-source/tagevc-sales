@@ -96,7 +96,7 @@ export function TasksPage({ salesUser }: Props) {
                     {formatDate(task.due_at)}
                   </span>
                   {task.sales_leads ? (
-                    <Link to={`/sales/leads/${task.sales_leads.id}`}>
+                    <Link to={`/sales/deal-sourcing/leads/${task.sales_leads.id}`}>
                       {task.sales_leads.name}
                     </Link>
                   ) : (

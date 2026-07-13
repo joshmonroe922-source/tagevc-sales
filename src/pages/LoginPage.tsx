@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
+import { logAuditEvent } from '../lib/audit';
 import {
   resetPasswordForEmail,
   signInWithMagicLink,
@@ -37,10 +38,27 @@ export function LoginPage({ forbiddenMessage }: Props) {
         setInfo('Check your email for a reset link.');
       } else if (mode === 'password') {
         const { error: err } = await signInWithPassword(email, password);
-        if (err) throw err;
+        if (err) {
+          void logAuditEvent({
+            eventType: 'login_failed',
+            email,
+            path: '/sales/login',
+            metadata: { method: 'password', message: err.message },
+          });
+          throw err;
+        }
+        // Successful login is recorded via onAuthStateChange SIGNED_IN in App.
       } else {
         const { error: err } = await signInWithMagicLink(email);
-        if (err) throw err;
+        if (err) {
+          void logAuditEvent({
+            eventType: 'login_failed',
+            email,
+            path: '/sales/login',
+            metadata: { method: 'magic_link', message: err.message },
+          });
+          throw err;
+        }
         setInfo('Check your email for the magic link.');
       }
     } catch (err) {
@@ -66,7 +84,7 @@ export function LoginPage({ forbiddenMessage }: Props) {
           <p>
             {mode === 'forgot'
               ? 'Enter your email and we will send a password reset link.'
-              : 'Deal sourcing for Launch, Partner, and Exit theses.'}
+              : 'Sign in to open your assigned portals.'}
           </p>
         </div>
         {error ? <div className="banner error">{error}</div> : null}

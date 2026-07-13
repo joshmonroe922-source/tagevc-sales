@@ -3,6 +3,7 @@ const ALLOWED_ORIGINS = [
   'https://www.tageventurecapital.com',
   'https://tagevc.com',
   'https://www.tagevc.com',
+  'https://portal.tagevc.com',
   'https://tageglobal.com',
   'https://www.tageglobal.com',
   'http://localhost:5173',

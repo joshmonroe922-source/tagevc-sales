@@ -108,7 +108,7 @@ export function AutomationPage() {
                   <tr key={e.id}>
                     <td>
                       {e.sales_leads ? (
-                        <Link to={`/sales/leads/${e.sales_leads.id}`}>{e.sales_leads.name}</Link>
+                        <Link to={`/sales/deal-sourcing/leads/${e.sales_leads.id}`}>{e.sales_leads.name}</Link>
                       ) : (
                         e.lead_id
                       )}

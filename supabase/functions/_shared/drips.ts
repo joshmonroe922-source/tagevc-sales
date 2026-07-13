@@ -1,5 +1,6 @@
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
-import { renderTemplate, sendResendEmail } from './email.ts';
+import { renderTemplate, sendResendEmail, tagsFromRecord } from './email.ts';
+import { recordOutboundEmail } from './emailAnalytics.ts';
 
 type LeadRow = {
   id: string;
@@ -202,28 +203,108 @@ export async function processDueDrips(
           }
         }
       } else if (step.action_type === 'email_lead' && lead.email) {
+        const tags = tagsFromRecord({
+          source: 'drip_lead',
+          lead_id: lead.id,
+        });
         const sent = await sendResendEmail({
           to: lead.email,
           subject,
           html: body,
+          tags,
         });
         if (!sent.ok) errors.push(`email_lead ${lead.id}: ${sent.error}`);
         await supabase.from('sales_lead_activities').insert({
           lead_id: lead.id,
           activity_type: sent.ok ? 'email_sent' : 'email_queued',
           summary: `Drip email: ${subject}`,
-          metadata: { error: sent.error ?? null },
+          metadata: {
+            error: sent.error ?? null,
+            resend_id: sent.id ?? null,
+          },
           created_by: enrollment.owner_id,
         });
+        if (sent.ok && sent.id) {
+          await recordOutboundEmail(supabase, {
+            resendId: sent.id,
+            to: lead.email,
+            subject,
+            source: 'drip_lead',
+            leadId: lead.id,
+            tags,
+            sentBy: enrollment.owner_id,
+          });
+          let ownerEmail: string | null = null;
+          if (enrollment.owner_id) {
+            const { data: ownerRow } = await supabase
+              .from('sales_users')
+              .select('email')
+              .eq('id', enrollment.owner_id)
+              .maybeSingle();
+            ownerEmail = ownerRow?.email ?? null;
+          }
+          await supabase.rpc('insert_audit_event', {
+            p_user_id: enrollment.owner_id,
+            p_email: ownerEmail,
+            p_event_type: 'email_sent',
+            p_path: `/sales/deal-sourcing/leads/${lead.id}`,
+            p_metadata: {
+              to: lead.email,
+              subject,
+              source: 'drip',
+              lead_id: lead.id,
+              resend_id: sent.id,
+            },
+          });
+        }
       } else {
         // internal_reminder → email Josh
         if (alertTo) {
+          const tags = tagsFromRecord({
+            source: 'drip_reminder',
+            lead_id: lead.id,
+          });
+          const reminderSubject = `[Tage VC] ${subject}`;
           const sent = await sendResendEmail({
             to: alertTo,
-            subject: `[Tage VC] ${subject}`,
+            subject: reminderSubject,
             html: body,
+            tags,
           });
           if (!sent.ok) errors.push(`reminder ${lead.id}: ${sent.error}`);
+          if (sent.ok && sent.id) {
+            await recordOutboundEmail(supabase, {
+              resendId: sent.id,
+              to: alertTo,
+              subject: reminderSubject,
+              source: 'drip_reminder',
+              leadId: lead.id,
+              tags,
+              sentBy: enrollment.owner_id,
+            });
+            let ownerEmail: string | null = null;
+            if (enrollment.owner_id) {
+              const { data: ownerRow } = await supabase
+                .from('sales_users')
+                .select('email')
+                .eq('id', enrollment.owner_id)
+                .maybeSingle();
+              ownerEmail = ownerRow?.email ?? null;
+            }
+            await supabase.rpc('insert_audit_event', {
+              p_user_id: enrollment.owner_id,
+              p_email: ownerEmail,
+              p_event_type: 'email_sent',
+              p_path: `/sales/deal-sourcing/leads/${lead.id}`,
+              p_metadata: {
+                to: alertTo,
+                subject: reminderSubject,
+                source: 'drip_reminder',
+                lead_id: lead.id,
+                resend_id: sent.id,
+              },
+            });
+          }
         }
         await supabase.from('sales_lead_activities').insert({
           lead_id: lead.id,

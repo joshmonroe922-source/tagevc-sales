@@ -50,6 +50,12 @@
   align-items: center;
   gap: 0.75rem;
   min-width: 200px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.sales-brand:hover .sales-brand-name {
+  color: var(--gold);
 }
 
 .sales-mark {
@@ -1094,6 +1100,19 @@ textarea {
   grid-template-columns: 1.1fr 1fr;
 }
 
+.ops-portfolio-section {
+  margin-bottom: 1.5rem;
+  font-family: var(--sans);
+}
+
+.ops-portfolio-head {
+  margin-bottom: 0.85rem;
+}
+
+.ops-compliance-hub {
+  margin-top: 0.25rem;
+}
+
 .ops-detail-grid {
   grid-template-columns: 1.15fr 1fr;
 }
@@ -1283,4 +1302,288 @@ a.ops-compliance-title:hover {
   .ops-compliance-panel {
     grid-column: auto;
   }
+}
+
+/* ---- Multi-portal picker / stubs / admin ---- */
+.sales-nav-switch {
+  color: var(--muted);
+  text-decoration: none;
+  padding: 0.45rem 0.85rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.sales-nav-switch:hover {
+  color: var(--ink);
+  background: rgba(59, 69, 89, 0.06);
+}
+
+.portal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
+}
+
+.portal-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1.15rem 1.2rem;
+  background: rgba(250, 249, 246, 0.92);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  text-decoration: none;
+  color: inherit;
+  font-family: var(--sans);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.portal-card:hover {
+  border-color: var(--gold);
+  box-shadow: var(--shadow);
+}
+
+.portal-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.portal-card-name {
+  font-weight: 600;
+  font-size: 1.05rem;
+  color: var(--ink);
+}
+
+.portal-card-badge {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+}
+
+.portal-card-desc {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+  flex: 1;
+}
+
+.portal-card-cta {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--brand);
+}
+
+.portal-stub {
+  max-width: 36rem;
+  padding: 1.5rem 0;
+  font-family: var(--sans);
+}
+
+.portal-stub-eyebrow {
+  margin: 0 0 0.5rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--gold);
+  font-weight: 600;
+}
+
+.portal-stub h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.35rem;
+  font-weight: 600;
+}
+
+.dd-checklist {
+  list-style: none;
+  margin: 1.25rem 0 1.5rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.dd-checklist-section > strong {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.9rem;
+}
+
+.dd-checklist-section > ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.dd-check-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+  font-size: 0.9rem;
+  color: var(--muted, #6b7280);
+  cursor: default;
+}
+
+.dd-check-row input {
+  margin-top: 0.2rem;
+}
+
+.admin-portals {
+  max-width: 40rem;
+  font-family: var(--sans);
+}
+
+.admin-portal-list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+}
+
+.admin-portal-list li {
+  border-bottom: 1px solid var(--line);
+}
+
+.admin-portal-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem 0;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.admin-note {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+}
+
+.audit-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: flex-end;
+  margin: 0 0 1.25rem;
+  font-family: var(--sans);
+}
+
+.audit-filters .field {
+  min-width: 9rem;
+}
+
+.audit-filters-actions {
+  padding-bottom: 0.15rem;
+}
+
+.audit-table-wrap {
+  overflow-x: auto;
+  border-top: 1px solid var(--line);
+}
+
+.audit-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--sans);
+  font-size: 0.85rem;
+}
+
+.audit-table th,
+.audit-table td {
+  text-align: left;
+  padding: 0.65rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.audit-table th {
+  font-weight: 600;
+  color: var(--muted, #666);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.audit-when {
+  white-space: nowrap;
+}
+
+.audit-email {
+  word-break: break-all;
+}
+
+.audit-badge {
+  display: inline-block;
+  margin-left: 0.4rem;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted, #666);
+  border: 1px solid var(--line);
+  padding: 0.1rem 0.35rem;
+}
+
+.audit-path,
+.audit-meta {
+  max-width: 18rem;
+  word-break: break-word;
+  color: var(--muted, #555);
+}
+
+.email-kpi-row {
+  margin-bottom: 1.25rem;
+}
+
+.email-limits-note {
+  margin: 0 0 1rem;
+  max-width: 52rem;
+  line-height: 1.45;
+}
+
+.email-lead-link {
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.email-events-row td {
+  background: color-mix(in srgb, var(--bg, #fff) 92%, var(--line, #ddd));
+}
+
+.email-event-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
+}
+
+.email-event-list li + li {
+  margin-top: 0.35rem;
+}
+
+.email-click-url {
+  word-break: break-all;
+}
+
+.email-recent h2 {
+  font-size: 1.05rem;
+  margin: 1.5rem 0 0.75rem;
+}
+
+.email-lead-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+}
+
+.email-lead-list li {
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.9rem;
 }

@@ -1,5 +1,5 @@
-[project]
-id = "tagevc-sales"
+# A string used to distinguish different Supabase projects on the same host.
+project_id = "tagevc-sales"
 
 [api]
 enabled = true
@@ -18,3 +18,9 @@ verify_jwt = true
 
 [functions.process-scheduled-content]
 verify_jwt = false
+
+[functions.resend-webhook]
+verify_jwt = false
+
+[functions.send-tracked-email]
+verify_jwt = true

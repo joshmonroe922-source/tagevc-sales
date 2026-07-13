@@ -1,7 +1,7 @@
 # SEO blog seed — sync to public website at /blog/{slug}
 
 These five posts are also inserted by `supabase/migrations/0002_content_social.sql`.
-Edit in the sales portal under **Content → Blog**, or use the markdown files in this folder.
+Edit in the portal under **Marketing → Blog**, or use the markdown files in this folder.
 
 | File | Path | Topic |
 |------|------|-------|
@@ -25,7 +25,7 @@ const { data } = await supabase
   .single();
 ```
 
-Published posts in the sales portal appear on `tagevc-website` at `/blog/{slug}` after the public RLS policy is applied.
+Published posts in the Marketing portal appear on `tagevc-website` at `/blog/{slug}` after the public RLS policy is applied.
 
 ## Social promotion
 

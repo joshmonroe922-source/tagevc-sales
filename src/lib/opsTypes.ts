@@ -64,11 +64,14 @@ export const COMPLIANCE_CADENCE_LABELS: Record<ComplianceCadence, string> = {
 export type OpsEntity = {
   id: string;
   name: string;
+  /** Stable key for seeded portfolio companies; null for ad-hoc entities. */
+  slug: string | null;
   entity_type: OpsEntityType;
   status: OpsEntityStatus;
   lead_id: string | null;
   jurisdiction: string;
   formed_at: string | null;
+  website_url: string;
   notes: string;
   created_by: string | null;
   created_at: string;

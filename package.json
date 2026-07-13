@@ -2,7 +2,7 @@
   "name": "tagevc-sales",
   "private": true,
   "version": "1.0.0",
-  "description": "Tage Venture Capital sales portal — pipeline, tasks, drips, reports",
+  "description": "Tage Venture Capital portal — Deal Sourcing, Entity Ops, content, and more",
   "type": "module",
   "scripts": {
     "dev": "vite",

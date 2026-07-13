@@ -258,7 +258,7 @@ export function EntityDetailPage({ salesUser }: Props) {
     return (
       <>
         <div className="banner error">{error ?? 'Entity not found'}</div>
-        <Link to="/sales/ops">Back to Entity Ops</Link>
+        <Link to="/sales/ops">Back to Manage Portfolio</Link>
       </>
     );
   }
@@ -268,13 +268,27 @@ export function EntityDetailPage({ salesUser }: Props) {
       <div className="page-header">
         <div>
           <p className="crumb">
-            <Link to="/sales/ops">Entity Ops</Link> / {entity.name}
+            <Link to="/sales/ops">Manage Portfolio</Link> / {entity.name}
           </p>
           <h1>{entity.name}</h1>
           <p className="muted">
             {OPS_ENTITY_TYPE_LABELS[entity.entity_type]}
             {entity.jurisdiction ? ` · ${entity.jurisdiction}` : ''}
             {entity.formed_at ? ` · Formed ${formatDate(entity.formed_at)}` : ''}
+            {entity.website_url ? (
+              <>
+                {' · '}
+                <a href={entity.website_url} target="_blank" rel="noreferrer">
+                  {(() => {
+                    try {
+                      return new URL(entity.website_url).hostname.replace(/^www\./, '');
+                    } catch {
+                      return entity.website_url;
+                    }
+                  })()}
+                </a>
+              </>
+            ) : null}
           </p>
         </div>
         <div className="page-actions">
@@ -312,7 +326,7 @@ export function EntityDetailPage({ salesUser }: Props) {
           </select>
         </label>
         {entity.sales_leads ? (
-          <Link to={`/sales/leads/${entity.sales_leads.id}`} className="btn link">
+          <Link to={`/sales/deal-sourcing/leads/${entity.sales_leads.id}`} className="btn link">
             Open deal →
           </Link>
         ) : null}

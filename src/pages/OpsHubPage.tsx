@@ -10,6 +10,32 @@ import {
   OPS_ENTITY_TYPE_LABELS,
 } from '../lib/opsTypes';
 
+function entityCardDesc(ent: OpsEntity): string {
+  const parts = [
+    OPS_ENTITY_TYPE_LABELS[ent.entity_type],
+    OPS_ENTITY_STATUS_LABELS[ent.status],
+  ];
+  if (ent.jurisdiction) parts.push(ent.jurisdiction);
+  if (ent.website_url) {
+    try {
+      parts.push(new URL(ent.website_url).hostname.replace(/^www\./, ''));
+    } catch {
+      parts.push(ent.website_url);
+    }
+  }
+  return parts.join(' · ');
+}
+
+/** Portfolio companies (slugged operate) first, then by name. */
+function sortPortfolioEntities(ents: OpsEntity[]): OpsEntity[] {
+  return [...ents].sort((a, b) => {
+    const aPort = a.slug ? 0 : 1;
+    const bPort = b.slug ? 0 : 1;
+    if (aPort !== bPort) return aPort - bPort;
+    return a.name.localeCompare(b.name);
+  });
+}
+
 export function OpsHubPage() {
   const [entities, setEntities] = useState<OpsEntity[]>([]);
   const [compliance, setCompliance] = useState<OpsComplianceItem[]>([]);
@@ -27,7 +53,7 @@ export function OpsHubPage() {
           listUpcomingCompliance(),
         ]);
         if (!mounted) return;
-        setEntities(ents);
+        setEntities(sortPortfolioEntities(ents));
         setCompliance(comps);
       } catch (err) {
         if (!mounted) return;
@@ -50,9 +76,9 @@ export function OpsHubPage() {
     <>
       <div className="page-header">
         <div>
-          <h1>Entity Ops</h1>
+          <h1>Manage Portfolio</h1>
           <p className="muted">
-            Portfolio entities — checklists, folders, and compliance renewals.
+            Portfolio companies — open one for checklists, folders, and compliance.
           </p>
         </div>
         <div className="page-actions">
@@ -66,43 +92,47 @@ export function OpsHubPage() {
       {loading ? <p className="muted">Loading…</p> : null}
 
       {!loading && !error ? (
-        <div className="detail-grid ops-hub-grid">
-          <section className="panel">
-            <div className="panel-head">
-              <h2>Entities</h2>
+        <>
+          <section className="ops-portfolio-section">
+            <div className="panel-head ops-portfolio-head">
+              <h2>Companies</h2>
               <span className="muted small">{entities.length}</span>
             </div>
             {entities.length === 0 ? (
               <p className="muted">
-                No entities yet.{' '}
-                <Link to="/sales/ops/entities/new">Start a business</Link> or acquire one
+                No companies yet.{' '}
+                <Link to="/sales/ops/entities/new?template=start-business">
+                  Start a business
+                </Link>{' '}
+                or{' '}
+                <Link to="/sales/ops/entities/new?template=acquire-business">
+                  acquire one
+                </Link>{' '}
                 with a checklist template.
               </p>
             ) : (
-              <ul className="ops-entity-list">
+              <div className="portal-grid">
                 {entities.map((ent) => (
-                  <li key={ent.id}>
-                    <Link to={`/sales/ops/entities/${ent.id}`} className="ops-entity-row">
-                      <div>
-                        <div className="ops-entity-name">{ent.name}</div>
-                        <div className="muted small">
-                          {OPS_ENTITY_TYPE_LABELS[ent.entity_type]} ·{' '}
-                          {OPS_ENTITY_STATUS_LABELS[ent.status]}
-                          {ent.jurisdiction ? ` · ${ent.jurisdiction}` : ''}
-                          {ent.sales_leads
-                            ? ` · Deal: ${ent.sales_leads.name}`
-                            : ''}
-                        </div>
-                      </div>
-                      <span className="muted small">{formatDate(ent.updated_at)}</span>
-                    </Link>
-                  </li>
+                  <Link
+                    key={ent.id}
+                    to={`/sales/ops/entities/${ent.id}`}
+                    className="portal-card"
+                  >
+                    <div className="portal-card-top">
+                      <span className="portal-card-name">{ent.name}</span>
+                      {ent.slug ? (
+                        <span className="portal-card-badge">Portfolio</span>
+                      ) : null}
+                    </div>
+                    <p className="portal-card-desc">{entityCardDesc(ent)}</p>
+                    <span className="portal-card-cta">Open →</span>
+                  </Link>
                 ))}
-              </ul>
+              </div>
             )}
           </section>
 
-          <section className="panel">
+          <section className="panel ops-compliance-hub">
             <div className="panel-head">
               <h2>Compliance — next due</h2>
               {overdueCount > 0 ? (
@@ -113,8 +143,8 @@ export function OpsHubPage() {
             </div>
             {compliance.length === 0 ? (
               <p className="muted">
-                No upcoming compliance items. Add licenses and filings on an entity detail
-                page.
+                No upcoming compliance items. Add licenses and filings on a company
+                detail page.
               </p>
             ) : (
               <ul className="ops-compliance-list">
@@ -150,7 +180,7 @@ export function OpsHubPage() {
               </ul>
             )}
           </section>
-        </div>
+        </>
       ) : null}
     </>
   );

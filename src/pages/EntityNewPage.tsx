@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { listLeads } from '../lib/api';
 import { createEntity, listChecklistTemplates } from '../lib/opsApi';
 import type { OpsChecklistTemplate, OpsEntityType } from '../lib/opsTypes';
@@ -8,16 +8,24 @@ import {
   OPS_ENTITY_TYPES,
   OPS_ENTITY_TYPE_LABELS,
 } from '../lib/opsTypes';
+import { getPortalDefinition } from '../lib/portals';
 import type { SalesLead, SalesUser } from '../lib/types';
 
 type Props = { salesUser: SalesUser };
 
 export function EntityNewPage({ salesUser }: Props) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const templateFromQuery = searchParams.get('template')?.trim() || '';
+  const fromSlug = searchParams.get('from')?.trim() || '';
+  const fromPortal = fromSlug ? getPortalDefinition(fromSlug) : undefined;
+
   const [templates, setTemplates] = useState<OpsChecklistTemplate[]>([]);
   const [leads, setLeads] = useState<SalesLead[]>([]);
   const [name, setName] = useState('');
-  const [templateSlug, setTemplateSlug] = useState<string>('start-business');
+  const [templateSlug, setTemplateSlug] = useState<string>(
+    templateFromQuery || 'start-business',
+  );
   const [entityType, setEntityType] = useState<OpsEntityType | ''>('');
   const [jurisdiction, setJurisdiction] = useState('');
   const [leadId, setLeadId] = useState('');
@@ -34,16 +42,20 @@ export function EntityNewPage({ salesUser }: Props) {
         ]);
         setTemplates(tpls);
         setLeads(dealList);
-        if (tpls.some((t) => t.slug === 'start-business')) {
-          setTemplateSlug('start-business');
-        } else if (tpls[0]) {
-          setTemplateSlug(tpls[0].slug);
-        }
+
+        const preferred =
+          (templateFromQuery && tpls.some((t) => t.slug === templateFromQuery)
+            ? templateFromQuery
+            : null) ||
+          (tpls.some((t) => t.slug === 'start-business') ? 'start-business' : null) ||
+          tpls[0]?.slug ||
+          '';
+        setTemplateSlug(preferred);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load form');
       }
     })();
-  }, []);
+  }, [templateFromQuery]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -70,14 +82,23 @@ export function EntityNewPage({ salesUser }: Props) {
     }
   }
 
+  const backTo = fromPortal?.homePath ?? '/sales/ops';
+  const backLabel = fromPortal?.name ?? 'Entity Ops';
+  const title =
+    templateSlug === 'acquire-business'
+      ? 'Acquire a business'
+      : templateSlug === 'start-business'
+        ? 'Start a business'
+        : 'New entity';
+
   return (
     <>
       <div className="page-header">
         <div>
           <p className="crumb">
-            <Link to="/sales/ops">Entity Ops</Link> / New
+            <Link to={backTo}>{backLabel}</Link> / New
           </p>
-          <h1>New entity</h1>
+          <h1>{title}</h1>
           <p className="muted">
             Clone a start or acquire checklist, seed document folders, optionally link a
             deal.
@@ -166,7 +187,7 @@ export function EntityNewPage({ salesUser }: Props) {
         </label>
 
         <div className="form-actions">
-          <Link to="/sales/ops" className="btn ghost">
+          <Link to={backTo} className="btn ghost">
             Cancel
           </Link>
           <button type="submit" className="btn primary" disabled={saving}>

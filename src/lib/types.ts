@@ -70,6 +70,33 @@ export const TERMINAL_STAGES = new Set<LeadStage>([
 
 export type SalesRole = 'rep' | 'manager' | 'admin';
 
+export const PORTAL_SLUGS = [
+  'deal-sourcing',
+  'due-diligence',
+  'new-start-up',
+  'new-acquisition',
+  'manage-portfolio',
+  'executive-leadership',
+  'reporting',
+  'accounting-finance',
+  'legal',
+  'marketing',
+  'technology',
+  'human-resources',
+] as const;
+
+export type PortalSlug = (typeof PORTAL_SLUGS)[number];
+
+export type SalesPortal = {
+  id: string;
+  slug: PortalSlug;
+  name: string;
+  description: string;
+  icon: string;
+  sort_order: number;
+  active: boolean;
+};
+
 export type SalesUser = {
   id: string;
   email: string;
@@ -78,6 +105,8 @@ export type SalesUser = {
   active: boolean;
   manager_id: string | null;
   is_house_account: boolean;
+  /** Portals this user may open (from sales_user_portals). */
+  portals: SalesPortal[];
 };
 
 export type SalesLead = {
