@@ -11,9 +11,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Invoke process-morning-digest
+        env:
+          # Pass via env so shell metacharacters in the secret (quotes, &, <, etc.)
+          # are not interpolated into the script text (which caused exit code 2).
+          DIGEST_CRON_SECRET: ${{ secrets.DIGEST_CRON_SECRET }}
+          DIGEST_URL: https://hqmobgtnedmhzipusert.supabase.co/functions/v1/process-morning-digest
         run: |
-          curl -fsS -X POST \
-            "https://hqmobgtnedmhzipusert.supabase.co/functions/v1/process-morning-digest" \
-            -H "x-digest-secret: ${{ secrets.DIGEST_CRON_SECRET }}" \
+          set -euo pipefail
+          if [ -z "${DIGEST_CRON_SECRET:-}" ]; then
+            echo "::error::DIGEST_CRON_SECRET is empty. Add it under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          echo "POST ${DIGEST_URL}"
+          HTTP_CODE=$(curl -sS -o /tmp/digest-response.json -w "%{http_code}" -X POST \
+            "${DIGEST_URL}" \
+            -H "x-digest-secret: ${DIGEST_CRON_SECRET}" \
             -H "Content-Type: application/json" \
-            -d '{}'
+            -d '{}')
+          echo "HTTP status: ${HTTP_CODE}"
+          echo "Response body:"
+          head -c 2000 /tmp/digest-response.json || true
+          echo
+          if [ "${HTTP_CODE}" != "200" ]; then
+            echo "::error::process-morning-digest returned HTTP ${HTTP_CODE} (expected 200). If 401, GitHub DIGEST_CRON_SECRET does not match the Supabase Edge secret."
+            exit 1
+          fi

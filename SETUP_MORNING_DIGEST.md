@@ -41,7 +41,9 @@ Workflow: [`.github/workflows/morning-digest.yml`](../.github/workflows/morning-
 3. Value: same string as Supabase Edge secret `DIGEST_CRON_SECRET` (Dashboard → Edge Functions → Secrets, or your synced `.env.local`)
 4. Commit/push the workflow file (already in repo once merged), then smoke-test via **Run workflow**
 
-The workflow POSTs:
+The workflow POSTs with `DIGEST_CRON_SECRET` passed via `env:` (not inlined into the script). That matters when the secret contains shell metacharacters (`"`, `&`, `<`, etc.) — inlining `${{ secrets.DIGEST_CRON_SECRET }}` into the curl line causes bash exit code **2**.
+
+Equivalent local curl:
 
 ```bash
 curl -X POST "https://hqmobgtnedmhzipusert.supabase.co/functions/v1/process-morning-digest" \
