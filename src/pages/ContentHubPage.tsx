@@ -193,6 +193,10 @@ export function ContentHubPage() {
           ))}
         </ul>
       </div>
+
+      <p className="muted small portal-todo-hint">
+        Use <strong>Add To Do</strong> in the header to capture tasks in Microsoft To Do.
+      </p>
     </>
   );
 }

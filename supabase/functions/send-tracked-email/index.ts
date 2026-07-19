@@ -1,6 +1,14 @@
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts';
-import { sendResendEmail, tagsFromRecord } from '../_shared/email.ts';
 import { recordOutboundEmail } from '../_shared/emailAnalytics.ts';
+import { injectMailTracking } from '../_shared/mailTracking.ts';
+import {
+  getMsConfig,
+  getValidAccessToken,
+  preferredWorkEmail,
+  requireActiveSalesUser,
+  scopesInclude,
+  sendMailMessage,
+} from '../_shared/microsoftGraph.ts';
 import { createServiceClient, createUserClient } from '../_shared/supabase.ts';
 
 type Body = {
@@ -8,8 +16,11 @@ type Body = {
   to?: string;
   subject?: string;
   html?: string;
-  reply_to?: string;
 };
+
+function trackingToken(): string {
+  return crypto.randomUUID().replace(/-/g, '');
+}
 
 Deno.serve(async (req) => {
   const origin = req.headers.get('Origin');
@@ -37,15 +48,57 @@ Deno.serve(async (req) => {
     }
 
     const service = createServiceClient();
-    const { data: salesUser } = await service
-      .from('sales_users')
-      .select('id, role, active, email')
-      .eq('email', user.email.toLowerCase())
-      .eq('active', true)
-      .maybeSingle();
-
+    const salesUser = await requireActiveSalesUser(service, user.email);
     if (!salesUser) {
       return jsonResponse({ error: 'Forbidden' }, 403, origin);
+    }
+
+    const config = getMsConfig();
+    if (!config.configured) {
+      return jsonResponse(
+        {
+          error:
+            'Microsoft mail is not configured. Connect Outlook in Calendar settings first.',
+          needs_reconnect: true,
+        },
+        503,
+        origin,
+      );
+    }
+
+    let accessToken: string;
+    let microsoftEmail: string | null = null;
+    let connectionScopes: string | null = null;
+    try {
+      const result = await getValidAccessToken(service, config, salesUser.id);
+      accessToken = result.accessToken;
+      microsoftEmail = result.connection.microsoft_email;
+      connectionScopes = result.connection.scopes;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Not connected';
+      return jsonResponse(
+        {
+          error: `${message}. Connect Microsoft mail in Settings → Reconnect.`,
+          needs_reconnect: true,
+        },
+        401,
+        origin,
+      );
+    }
+
+    if (
+      !scopesInclude(connectionScopes, 'Mail.Send') ||
+      !scopesInclude(connectionScopes, 'Mail.ReadWrite')
+    ) {
+      return jsonResponse(
+        {
+          error:
+            'Mail.Send and Mail.ReadWrite are required. Reconnect Microsoft after admin consent.',
+          needs_reconnect: true,
+        },
+        403,
+        origin,
+      );
     }
 
     const body = (await req.json()) as Body;
@@ -53,7 +106,6 @@ Deno.serve(async (req) => {
     const subject = (body.subject ?? '').trim();
     const html = (body.html ?? '').trim();
     let to = (body.to ?? '').trim().toLowerCase();
-    const replyTo = (body.reply_to ?? '').trim() || undefined;
 
     if (!leadId) {
       return jsonResponse({ error: 'lead_id is required' }, 400, origin);
@@ -86,35 +138,26 @@ Deno.serve(async (req) => {
       );
     }
 
-    const tags = tagsFromRecord({
-      source: 'portal_tracked',
-      lead_id: lead.id,
-    });
+    const token = trackingToken();
+    const trackedHtml = injectMailTracking(html, token);
+    const fromAddress =
+      (microsoftEmail ?? preferredWorkEmail(salesUser)).trim().toLowerCase();
 
-    const sent = await sendResendEmail({
-      to,
+    await sendMailMessage(accessToken, {
       subject,
-      html,
-      replyTo,
-      tags,
+      bodyHtml: trackedHtml,
+      to: [to],
+      saveToSentItems: true,
     });
 
-    if (!sent.ok || !sent.id) {
-      return jsonResponse(
-        { error: sent.error ?? 'Failed to send email' },
-        502,
-        origin,
-      );
-    }
-
-    await recordOutboundEmail(service, {
-      resendId: sent.id,
+    const messageId = await recordOutboundEmail(service, {
+      trackingToken: token,
+      provider: 'graph',
       to,
       subject,
       source: 'portal_tracked',
       leadId: lead.id,
-      replyTo: replyTo ?? null,
-      tags,
+      fromAddress,
       sentBy: salesUser.id,
     });
 
@@ -123,9 +166,11 @@ Deno.serve(async (req) => {
       activity_type: 'email_sent',
       summary: `Tracked email: ${subject}`,
       metadata: {
-        resend_id: sent.id,
+        tracking_token: token,
         to,
+        from: fromAddress,
         source: 'portal_tracked',
+        provider: 'graph',
       },
       created_by: salesUser.id,
     });
@@ -138,16 +183,20 @@ Deno.serve(async (req) => {
       p_metadata: {
         to,
         subject,
+        from: fromAddress,
         source: 'portal_tracked',
         lead_id: lead.id,
-        resend_id: sent.id,
+        tracking_token: token,
+        provider: 'graph',
       },
     });
 
     return jsonResponse(
       {
         ok: true,
-        resend_id: sent.id,
+        message_id: messageId,
+        tracking_token: token,
+        from: fromAddress,
         to,
         subject,
       },

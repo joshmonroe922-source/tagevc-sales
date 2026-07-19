@@ -219,7 +219,7 @@ export function SocialPage({ salesUser }: Props) {
       {error ? <div className="banner error">{error}</div> : null}
       {message ? <div className="banner ok">{message}</div> : null}
 
-      <div className="seg mb">
+      <div className="seg seg-tabs mb">
         {TABS.map((t) => (
           <button
             key={t.id}

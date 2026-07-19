@@ -18,28 +18,6 @@ export function PortalPickerPage({ salesUser }: Props) {
             Choose a workspace. You only see portals you have been assigned to.
           </p>
         </div>
-        {salesUser.role === 'admin' ? (
-          <div className="page-actions">
-            <Link to="/sales/calendar" className="btn ghost">
-              Calendar
-            </Link>
-            <Link to="/sales/admin/portals" className="btn ghost">
-              Manage assignments
-            </Link>
-            <Link to="/sales/admin/email" className="btn ghost">
-              Email analytics
-            </Link>
-            <Link to="/sales/admin/audit" className="btn ghost">
-              Audit log
-            </Link>
-          </div>
-        ) : (
-          <div className="page-actions">
-            <Link to="/sales/calendar" className="btn ghost">
-              Calendar
-            </Link>
-          </div>
-        )}
       </div>
 
       {portals.length === 0 ? (

@@ -61,20 +61,90 @@ Deno.serve(async (req) => {
     const supabase = createServiceClient();
     const { data: assignedRepId } = await supabase.rpc('assign_lead_round_robin');
 
+    const accountName =
+      company || (name ? `Unknown / ${name}` : 'Unknown account');
+
+    let accountId: string | null = null;
+    const { data: existingAccount } = await supabase
+      .from('sales_accounts')
+      .select('id')
+      .ilike('name', accountName)
+      .is('archived_at', null)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (existingAccount?.id) {
+      accountId = existingAccount.id;
+    } else {
+      const { data: createdAccount } = await supabase
+        .from('sales_accounts')
+        .insert({
+          name: accountName,
+          notes: 'Created from website intake',
+          created_by: assignedRepId ?? null,
+        })
+        .select('id')
+        .single();
+      accountId = createdAccount?.id ?? null;
+    }
+
+    let contactId: string | null = null;
+    if (email) {
+      const { data: byEmail } = await supabase
+        .from('sales_contacts')
+        .select('id, account_id')
+        .ilike('primary_email', email)
+        .is('archived_at', null)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (byEmail?.id) {
+        contactId = byEmail.id;
+        if (!byEmail.account_id && accountId) {
+          await supabase
+            .from('sales_contacts')
+            .update({ account_id: accountId, company: accountName })
+            .eq('id', byEmail.id);
+        }
+      }
+    }
+
+    if (!contactId) {
+      const { data: createdContact } = await supabase
+        .from('sales_contacts')
+        .insert({
+          account_id: accountId,
+          full_name: name,
+          company: accountName,
+          primary_email: email,
+          primary_phone: phone,
+          emails: email ? [email] : [],
+          phones: phone ? [phone] : [],
+          notes: notes ? `Intake: ${notes.slice(0, 400)}` : '',
+          created_by: assignedRepId ?? null,
+        })
+        .select('id')
+        .single();
+      contactId = createdContact?.id ?? null;
+    }
+
     const { data: lead, error } = await supabase
       .from('sales_leads')
       .insert({
         name,
         email,
         phone,
-        company,
+        company: accountName,
         deal_path: dealPath,
         source,
         notes,
         stage: 'new',
         assigned_rep_id: assignedRepId ?? null,
+        account_id: accountId,
+        contact_id: contactId,
       })
-      .select('id, name, email, company, deal_path, assigned_rep_id, stage')
+      .select('id, name, email, company, deal_path, assigned_rep_id, stage, contact_id, account_id')
       .single();
 
     if (error || !lead) {
@@ -84,9 +154,10 @@ Deno.serve(async (req) => {
 
     await supabase.from('sales_lead_activities').insert({
       lead_id: lead.id,
+      contact_id: contactId,
       activity_type: 'intake',
       summary: `Website intake (${source})`,
-      metadata: { deal_path: dealPath, company },
+      metadata: { deal_path: dealPath, company: accountName },
       created_by: assignedRepId ?? null,
     });
 

@@ -3,6 +3,7 @@ import {
   getMsConfig,
   preferredWorkEmail,
   requireActiveSalesUser,
+  scopesInclude,
 } from '../_shared/microsoftGraph.ts';
 import { createServiceClient, createUserClient } from '../_shared/supabase.ts';
 
@@ -47,6 +48,40 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     const connected = Boolean(conn?.connected_at && !conn?.last_error?.includes('reconnect'));
+    const granted = conn?.scopes ?? '';
+    const canWriteCalendar = scopesInclude(granted, 'Calendars.ReadWrite');
+    const canTasks = scopesInclude(granted, 'Tasks.ReadWrite');
+    const canPeople = scopesInclude(granted, 'People.Read');
+    const canContacts = scopesInclude(granted, 'Contacts.Read');
+    const canChat = scopesInclude(granted, 'Chat.ReadWrite');
+    const canFiles = scopesInclude(granted, 'Files.ReadWrite');
+    const canMail =
+      scopesInclude(granted, 'Mail.ReadWrite') &&
+      scopesInclude(granted, 'Mail.Send');
+    const canMailboxSettings = scopesInclude(granted, 'MailboxSettings.ReadWrite');
+    const canOnlineMeetings = scopesInclude(granted, 'OnlineMeetings.ReadWrite');
+    const canDirectory =
+      scopesInclude(granted, 'User.ReadBasic.All') ||
+      scopesInclude(granted, 'User.Read.All');
+    const canRooms = scopesInclude(granted, 'Place.Read.All');
+    const needsScopeUpgrade =
+      Boolean(conn?.connected_at) &&
+      (!canWriteCalendar ||
+        !canTasks ||
+        !canPeople ||
+        !canChat ||
+        !canFiles ||
+        !canMail ||
+        !canMailboxSettings ||
+        !canOnlineMeetings ||
+        !canDirectory);
+
+    const defaultView =
+      salesUser.calendar_default_view === 'month' ||
+      salesUser.calendar_default_view === 'week' ||
+      salesUser.calendar_default_view === 'agenda'
+        ? salesUser.calendar_default_view
+        : 'agenda';
 
     return jsonResponse(
       {
@@ -61,11 +96,24 @@ Deno.serve(async (req) => {
         last_error: conn?.last_error ?? null,
         token_expires_at: conn?.token_expires_at ?? null,
         scopes: conn?.scopes ?? null,
+        calendar_default_view: defaultView,
+        needs_scope_upgrade: needsScopeUpgrade,
         capabilities: {
           list_events: true,
-          create_events: false,
+          create_events: canWriteCalendar,
           edit_events: false,
           delete_events: false,
+          todo: canTasks,
+          planner: canTasks,
+          chat: canChat,
+          files: canFiles,
+          mail: canMail,
+          mailbox_settings: canMailboxSettings,
+          online_meetings: canOnlineMeetings || canWriteCalendar,
+          directory_search: canDirectory,
+          people_search: canPeople || canContacts,
+          location_suggest: canWriteCalendar || scopesInclude(granted, 'Calendars.Read'),
+          room_finder: canRooms,
         },
         // Hint for UI when Azure secrets missing
         setup_hint: config.configured

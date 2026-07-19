@@ -1,27 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { PortfolioEntityNav } from '../components/PortfolioEntityNav';
 import { listLeads } from '../lib/api';
 import {
-  createComplianceItem,
   createDocumentLink,
   getDocumentSignedUrl,
   getEntity,
   listChecklistItems,
-  listComplianceForEntity,
   listDocuments,
   listFolders,
-  markComplianceComplete,
   setChecklistItemStatus,
-  updateComplianceItem,
   updateEntity,
   uploadDocument,
 } from '../lib/opsApi';
 import type {
   ChecklistStatus,
-  ComplianceCadence,
   OpsChecklistItem,
-  OpsComplianceItem,
   OpsDocument,
   OpsEntity,
   OpsEntityStatus,
@@ -30,10 +25,7 @@ import type {
 import {
   CHECKLIST_STATUS_LABELS,
   checklistProgress,
-  COMPLIANCE_CADENCE_LABELS,
-  COMPLIANCE_CADENCES,
   formatDate,
-  isComplianceOverdue,
   OPS_ENTITY_STATUS_LABELS,
   OPS_ENTITY_STATUSES,
   OPS_ENTITY_TYPE_LABELS,
@@ -48,7 +40,6 @@ export function EntityDetailPage({ salesUser }: Props) {
   const [checklist, setChecklist] = useState<OpsChecklistItem[]>([]);
   const [folders, setFolders] = useState<OpsFolder[]>([]);
   const [docs, setDocs] = useState<OpsDocument[]>([]);
-  const [compliance, setCompliance] = useState<OpsComplianceItem[]>([]);
   const [leads, setLeads] = useState<SalesLead[]>([]);
   const [phaseFilter, setPhaseFilter] = useState<string>('all');
   const [error, setError] = useState<string | null>(null);
@@ -61,28 +52,20 @@ export function EntityDetailPage({ salesUser }: Props) {
   const [docUrl, setDocUrl] = useState('');
   const [docFile, setDocFile] = useState<File | null>(null);
 
-  // Compliance form
-  const [compTitle, setCompTitle] = useState('');
-  const [compCadence, setCompCadence] = useState<ComplianceCadence>('annual');
-  const [compDue, setCompDue] = useState('');
-  const [compNotes, setCompNotes] = useState('');
-
   const refresh = useCallback(async () => {
     if (!id) return;
     setError(null);
-    const [ent, items, folds, documents, comps, dealList] = await Promise.all([
+    const [ent, items, folds, documents, dealList] = await Promise.all([
       getEntity(id),
       listChecklistItems(id),
       listFolders(id),
       listDocuments(id),
-      listComplianceForEntity(id),
       listLeads(),
     ]);
     setEntity(ent);
     setChecklist(items);
     setFolders(folds);
     setDocs(documents);
-    setCompliance(comps);
     setLeads(dealList);
   }, [id]);
 
@@ -226,26 +209,6 @@ export function EntityDetailPage({ salesUser }: Props) {
     }
   }
 
-  async function onAddCompliance(e: FormEvent) {
-    e.preventDefault();
-    if (!entity || !compTitle.trim()) return;
-    try {
-      await createComplianceItem({
-        entity_id: entity.id,
-        title: compTitle.trim(),
-        cadence: compCadence,
-        next_due_at: compDue || null,
-        notes: compNotes.trim(),
-      });
-      setCompTitle('');
-      setCompDue('');
-      setCompNotes('');
-      await refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Compliance create failed');
-    }
-  }
-
   if (loading) {
     return (
       <div className="login-wrap">
@@ -311,6 +274,8 @@ export function EntityDetailPage({ salesUser }: Props) {
 
       {error ? <div className="banner error">{error}</div> : null}
       {info ? <div className="banner warn">{info}</div> : null}
+
+      <PortfolioEntityNav entityId={entity.id} active="overview" />
 
       <div className="ops-meta-bar panel">
         <label>
@@ -514,114 +479,6 @@ export function EntityDetailPage({ salesUser }: Props) {
               Uploads require private Storage bucket <code>entity-docs</code>. Until then,
               use links.
             </p>
-          </form>
-        </section>
-
-        {/* Compliance */}
-        <section className="panel ops-compliance-panel">
-          <div className="panel-head">
-            <h2>Compliance</h2>
-            <span className="muted small">Licenses & filings</span>
-          </div>
-          {compliance.length === 0 ? (
-            <p className="muted">No compliance items yet.</p>
-          ) : (
-            <ul className="ops-compliance-list">
-              {compliance.map((item) => (
-                <li
-                  key={item.id}
-                  className={isComplianceOverdue(item) ? 'overdue' : ''}
-                >
-                  <div>
-                    <div className="ops-compliance-title">{item.title}</div>
-                    <div className="muted small">
-                      {COMPLIANCE_CADENCE_LABELS[item.cadence]}
-                      {item.last_completed_at
-                        ? ` · Last done ${formatDate(item.last_completed_at)}`
-                        : ''}
-                      {!item.active ? ' · Inactive' : ''}
-                    </div>
-                  </div>
-                  <div className="ops-compliance-actions">
-                    <span
-                      className={
-                        isComplianceOverdue(item) ? 'warn-text' : 'muted'
-                      }
-                    >
-                      {formatDate(item.next_due_at)}
-                    </span>
-                    {item.active ? (
-                      <button
-                        type="button"
-                        className="btn ghost"
-                        onClick={() =>
-                          void markComplianceComplete(item.id).then(refresh)
-                        }
-                      >
-                        Mark done
-                      </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      className="btn ghost"
-                      onClick={() =>
-                        void updateComplianceItem(item.id, {
-                          active: !item.active,
-                        }).then(refresh)
-                      }
-                    >
-                      {item.active ? 'Deactivate' : 'Activate'}
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          <form className="form-stack compact" onSubmit={onAddCompliance}>
-            <h3 className="subhead">Add compliance item</h3>
-            <label>
-              <span>Title</span>
-              <input
-                value={compTitle}
-                onChange={(e) => setCompTitle(e.target.value)}
-                placeholder="Annual report"
-                required
-              />
-            </label>
-            <label>
-              <span>Cadence</span>
-              <select
-                value={compCadence}
-                onChange={(e) =>
-                  setCompCadence(e.target.value as ComplianceCadence)
-                }
-              >
-                {COMPLIANCE_CADENCES.map((c) => (
-                  <option key={c} value={c}>
-                    {COMPLIANCE_CADENCE_LABELS[c]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span>Next due</span>
-              <input
-                type="date"
-                value={compDue}
-                onChange={(e) => setCompDue(e.target.value)}
-              />
-            </label>
-            <label>
-              <span>Notes</span>
-              <input
-                value={compNotes}
-                onChange={(e) => setCompNotes(e.target.value)}
-              />
-            </label>
-            <button type="submit" className="btn primary">
-              Add item
-            </button>
           </form>
         </section>
       </div>

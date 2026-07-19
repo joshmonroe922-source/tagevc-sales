@@ -1,0 +1,54 @@
+/**
+ * RingCentral Embeddable theme — Tage portal Open Sans.
+ * Loaded into the RC iframe via adapter ?stylesUri= (absolute URL of this file).
+ * Host-page badge/chrome Open Sans lives in sales.css (.rc-* / #rc-widget).
+ */
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
+
+:root {
+  --rc-font-sans: 'Open Sans', 'Segoe UI', Helvetica, Arial, sans-serif;
+}
+
+html,
+body,
+div,
+span,
+button,
+input,
+textarea,
+select,
+label,
+a,
+p,
+li,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--rc-font-sans) !important;
+}
+
+.Line_root,
+.Header_label,
+.TextInput_root input,
+.ActiveCallButton_buttonTitle,
+.IncomingCallPad_callButton text,
+.Message_alert,
+.ActiveCallsPanel_listTitle,
+.RegionSettingsPanel_hint,
+.LoginPanel_loginButton,
+.DropdownNavigationItem_labelHolder,
+.ContactDropdownList_contactItem,
+.RecipientsInput_container label,
+.ComposeTextPanel_senderSelect label,
+.CallIdSelect_root label {
+  font-family: var(--rc-font-sans) !important;
+}
+
+/* Dial pad digits stay Open Sans (readable) rather than a display serif */
+.DialButton_btnValue,
+.DialButton_btnText {
+  font-family: var(--rc-font-sans) !important;
+}

@@ -1,8 +1,12 @@
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 import type { ResendTag } from './email.ts';
 
+export type EmailProvider = 'resend' | 'graph';
+
 export type RecordOutboundEmailInput = {
-  resendId: string;
+  resendId?: string | null;
+  trackingToken?: string | null;
+  provider?: EmailProvider;
   to: string | string[];
   subject: string;
   source: string;
@@ -32,29 +36,35 @@ export async function recordOutboundEmail(
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
 
+  const provider = input.provider ?? (input.trackingToken ? 'graph' : 'resend');
   const from =
     input.fromAddress ??
-    Deno.env.get('RESEND_FROM_EMAIL') ??
-    'Tage Venture Capital <hello@tagevc.com>';
+    (provider === 'graph'
+      ? null
+      : Deno.env.get('RESEND_FROM_EMAIL') ?? 'Tage Venture Capital <hello@tagevc.com>');
+
+  const row: Record<string, unknown> = {
+    provider,
+    lead_id: input.leadId ?? null,
+    source: input.source,
+    from_address: from,
+    to_addresses: to,
+    subject: input.subject,
+    reply_to: input.replyTo ?? null,
+    tags: tagsToObject(input.tags),
+    status: input.status ?? 'sent',
+    sent_by: input.sentBy ?? null,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (input.resendId) row.resend_id = input.resendId;
+  if (input.trackingToken) row.tracking_token = input.trackingToken;
+
+  const conflictTarget = input.trackingToken ? 'tracking_token' : 'resend_id';
 
   const { data, error } = await supabase
     .from('sales_email_messages')
-    .upsert(
-      {
-        resend_id: input.resendId,
-        lead_id: input.leadId ?? null,
-        source: input.source,
-        from_address: from,
-        to_addresses: to,
-        subject: input.subject,
-        reply_to: input.replyTo ?? null,
-        tags: tagsToObject(input.tags),
-        status: input.status ?? 'sent',
-        sent_by: input.sentBy ?? null,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'resend_id' },
-    )
+    .upsert(row, { onConflict: conflictTarget })
     .select('id')
     .maybeSingle();
 

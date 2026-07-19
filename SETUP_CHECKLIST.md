@@ -31,7 +31,7 @@
 16. [ ] Schedule cron POST to `process-drips` every 30 min (`x-drip-secret`)
 17. [ ] Schedule cron POST to `process-scheduled-content` every 15–30 min (`x-content-secret`)
 18. [ ] `npm run dev` → sign in → `/sales` portal picker → open Deal Sourcing / Manage Portfolio
-19. [ ] Open **Manage Portfolio** → create entity from start/acquire template → check off items; add compliance
+19. [ ] Open **Manage Portfolio** → create entity from start/acquire template → check off items; open **Legal** to add compliance
 20. [ ] Test intake with curl (see README)
 21. [ ] Deploy portal to Vercel; set Vite env vars; attach custom domain **`portal.tagevc.com`**
 22. [ ] Supabase Auth Site URL + Redirect URLs include `https://portal.tagevc.com` (and `/sales`, `/sales/reset-password`)
@@ -52,3 +52,25 @@
 31. [ ] Submit contact form → deal appears in Deal flow + Josh alert email
 32. [ ] Deploy website to Vercel; set `NEXT_PUBLIC_SUPABASE_*` + intake URL/key
 33. [ ] Point `tageventurecapital.com` (eventual) at website; add origin to intake CORS if needed
+
+## RingCentral softphone + SMS
+
+34. [ ] Create RingCentral Developer app (SPA / PKCE) — see **`SETUP_RINGCENTRAL.md`**
+35. [ ] Add OAuth redirect URI:
+      `https://apps.ringcentral.com/integration/ringcentral-embeddable/latest/redirect.html`
+36. [ ] Set `VITE_RINGCENTRAL_CLIENT_ID` on Vercel (Production) and redeploy
+37. [ ] Confirm Embeddable login + microphone on `https://portal.tagevc.com`
+38. [ ] Confirm Contact / deal **Call** and **SMS** buttons
+39. [ ] US SMS: ensure SMS-capable number + **10DLC** brand/campaign when ready
+
+## Portfolio entity shell (Batch 2) — see `SETUP_PORTFOLIO_ENTITIES.md`
+
+40. [ ] Apply migration `0042_portfolio_entity_shell.sql`
+41. [ ] Deploy edge function `think-tank-chat`; set `XAI_API_KEY` (+ optional `XAI_MODEL`)
+42. [ ] Set `OWNER_OVERSIGHT_EMAIL` (Josh) for silent Think Tank journal oversight emails
+43. [ ] Confirm entity tabs (Leadership / Think Tank / Financial / KPIs / Platform) on all portfolio companies
+44. [ ] Confirm Instant NDA Platform → `https://instantnda.us/sales/login`
+45. [ ] Confirm Recruit 619 Platform SSO; Recruiters/Managers no longer in portfolio nav
+46. [ ] Morning digest: apply `0043_morning_digest_prefs.sql`; deploy `process-morning-digest`; set `DIGEST_CRON_SECRET` (see `SETUP_MORNING_DIGEST.md`)
+47. [ ] Schedule cron POST to `process-morning-digest` every **15 min** (`x-digest-secret`) — timezone-aware 6:00 AM Today briefing
+48. [ ] **Do not prod-deploy until Josh says “Deploy Batch 2”**

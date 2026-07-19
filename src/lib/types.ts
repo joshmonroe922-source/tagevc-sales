@@ -83,6 +83,7 @@ export const PORTAL_SLUGS = [
   'marketing',
   'technology',
   'human-resources',
+  'administrative',
 ] as const;
 
 export type PortalSlug = (typeof PORTAL_SLUGS)[number];
@@ -102,6 +103,19 @@ export type SalesUser = {
   email: string;
   /** Microsoft 365 mailbox for calendar OAuth (may differ from portal login). */
   work_email: string | null;
+  /** Preferred calendar UI: month | week | agenda (default agenda). */
+  calendar_default_view?: 'month' | 'week' | 'agenda' | null;
+  /** Portal Mail signature (HTML or plain text); not synced to Outlook desktop. */
+  mail_signature_html?: string | null;
+  /** When true, portal Mail appends mail_signature_html on send. */
+  mail_signature_enabled?: boolean | null;
+  /**
+   * IANA timezone for morning digest scheduling (and preferred display when set).
+   * Null = derive from Outlook mailbox / browser.
+   */
+  timezone?: string | null;
+  /** When true (default), 6:00 AM local Today digest email is sent. */
+  morning_digest_enabled?: boolean | null;
   full_name: string | null;
   role: SalesRole;
   active: boolean;
@@ -111,12 +125,62 @@ export type SalesUser = {
   portals: SalesPortal[];
 };
 
+export const ACCOUNT_TYPES = [
+  'prospect',
+  'partner',
+  'portfolio',
+  'acquisition',
+  'other',
+] as const;
+
+export type AccountType = (typeof ACCOUNT_TYPES)[number];
+
+export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
+  prospect: 'Prospect',
+  partner: 'Partner',
+  portfolio: 'Portfolio',
+  acquisition: 'Acquisition',
+  other: 'Other',
+};
+
+export type SalesAccount = {
+  id: string;
+  name: string;
+  website: string;
+  account_type: AccountType | string;
+  notes: string;
+  created_by: string | null;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SalesContact = {
+  id: string;
+  account_id: string | null;
+  full_name: string;
+  title: string;
+  company: string;
+  primary_email: string;
+  primary_phone: string;
+  emails: string[];
+  phones: string[];
+  notes: string;
+  created_by: string | null;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+  sales_accounts?: Pick<SalesAccount, 'id' | 'name' | 'account_type' | 'website'> | null;
+};
+
 export type SalesLead = {
   id: string;
   name: string;
   email: string;
   phone: string;
   company: string;
+  account_id: string | null;
+  contact_id: string | null;
   deal_path: DealPath;
   source: LeadSource;
   stage: LeadStage;
@@ -126,9 +190,62 @@ export type SalesLead = {
   closed_at: string | null;
   created_at: string;
   updated_at: string;
+  sales_contacts?: Pick<
+    SalesContact,
+    'id' | 'full_name' | 'primary_email' | 'primary_phone' | 'company' | 'title' | 'account_id'
+  > | null;
+  sales_accounts?: Pick<SalesAccount, 'id' | 'name' | 'account_type' | 'website'> | null;
+};
+
+/** Activity types including Phase 2 SMS/call logging hooks. */
+export const ACTIVITY_TYPES = [
+  'email_sent',
+  'email_queued',
+  'email_received',
+  'task_created',
+  'task_cleared',
+  'drip_enrolled',
+  'drip_step_sent',
+  'drip_completed',
+  'drip_cancelled',
+  'note',
+  'stage_change',
+  'system',
+  'intake',
+  'sms_sent',
+  'sms_received',
+  'call_logged',
+  'call_missed',
+] as const;
+
+export type ActivityType = (typeof ACTIVITY_TYPES)[number];
+
+/** Phase 2 stub — call list to dial/SMS down. */
+export type SalesCallList = {
+  id: string;
+  name: string;
+  description: string;
+  status: 'draft' | 'active' | 'archived';
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SalesCallListMember = {
+  id: string;
+  list_id: string;
+  contact_id: string;
+  sort_order: number;
+  status: 'pending' | 'called' | 'skipped' | 'sms_sent' | 'no_answer';
+  notes: string;
+  last_attempt_at: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
 };
 
 export type TaskStatus = 'open' | 'done';
+
+export type TaskImportance = 'low' | 'normal' | 'high';
 
 export type SalesTask = {
   id: string;
@@ -140,12 +257,23 @@ export type SalesTask = {
   status: TaskStatus;
   created_at: string;
   completed_at: string | null;
+  importance?: TaskImportance | string | null;
+  portal_slug?: PortalSlug | string | null;
+  ms_todo_list_id?: string | null;
+  ms_todo_task_id?: string | null;
   sales_leads?: Pick<SalesLead, 'id' | 'name' | 'company'> | null;
+};
+
+export type CreateTaskResult = {
+  task: SalesTask;
+  synced: boolean;
+  syncError?: string;
 };
 
 export type LeadActivity = {
   id: string;
-  lead_id: string;
+  lead_id: string | null;
+  contact_id: string | null;
   activity_type: string;
   summary: string;
   metadata: Record<string, unknown>;

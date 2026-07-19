@@ -1,6 +1,6 @@
 # Tage VC — Multi-portal ops app
 
-Internal **Tage Venture Capital** portals: **Deal Sourcing** (pipeline, follow-ups, nurture), **Due Diligence**, **New Start Up** / **New Mergers & Acquisitions** onboarding, **Manage Portfolio** (Entity Ops), **Reporting**, **Marketing** (blog/social), plus stub shells for Executive, Accounting, Legal, Technology, and HR.  
+Internal **Tage Venture Capital** portals: **Deal Sourcing** (pipeline, follow-ups, nurture), **Due Diligence**, **New Start Up** / **New Mergers & Acquisitions** onboarding, **Manage Portfolio** (Entity Ops), **Legal** (shared compliance), **Human Resources** (employees / onboarding / offboarding / HR compliance), **Reporting**, **Marketing** (blog/social), plus stub shells for Executive, Accounting, and Technology.  
 Single-admin ready (Josh Monroe); schema supports multi-rep later. **No HubSpot.**
 
 Companion public site: [`tagevc-website`](../tagevc-website) (Next.js) — Launch / Partner / Exit landings + blog synced from published posts. Eventual domain: **tageventurecapital.com**.
@@ -10,6 +10,8 @@ Stack: **Vite + React + TypeScript**, **Supabase** (Auth / Postgres / Storage / 
 **Git:** keep this repo **private** on GitHub (ops + deal data tooling).
 
 ## Quick start (local)
+
+See **[DEV_WORKFLOW.md](./DEV_WORKFLOW.md)** for local sandbox, staging previews, batch deploy rules, and Supabase migration order.
 
 ```bash
 cd /Users/joshmonroe/Projects/tagevc-sales
@@ -29,9 +31,10 @@ Internal module for portfolio entities Josh launches or acquires — **not** on 
 
 | Route | Purpose |
 |-------|---------|
-| `/sales/ops` | Hub: all entities + cross-entity compliance “next due” |
+| `/sales/ops` | Hub: portfolio companies (sales & operations) |
 | `/sales/ops/entities/new` | Create entity; clone start-business or acquire-business checklist |
-| `/sales/ops/entities/:id` | Checklist (filter by phase), folders/docs, compliance |
+| `/sales/ops/entities/:id` | Checklist (filter by phase), folders/docs |
+| `/sales/legal` | Legal shared services — cross-entity compliance (licenses & filings) |
 
 ### Migration
 
@@ -113,6 +116,8 @@ In Dashboard → **Edge Functions → Secrets** (or CLI):
 | `DRIP_CRON_SECRET` | Long random string — auth for `process-drips` cron |
 | `RESEND_WEBHOOK_SECRET` | Resend webhook signing secret (`whsec_…`) for open/click analytics — see **`SETUP_EMAIL.md`** |
 | `CONTENT_CRON_SECRET` | Long random string — auth for `process-scheduled-content` cron |
+| `DIGEST_CRON_SECRET` | Long random string — auth for `process-morning-digest` cron (see **`SETUP_MORNING_DIGEST.md`**) |
+| `XAI_API_KEY` | Grok — Think Tank + morning digest win-the-day note |
 | `OPENAI_API_KEY` | Optional — AI blog/social generation (template fallback if unset) |
 | `OPENAI_MODEL` | Optional — default `gpt-4o-mini` |
 | `MS_GRAPH_*` | Microsoft 365 calendar OAuth — see **`SETUP_CALENDAR.md`** |
@@ -143,6 +148,17 @@ curl -X POST "https://<PROJECT_REF>.supabase.co/functions/v1/process-scheduled-c
 ```
 
 Use Supabase scheduled functions, GitHub Actions, or any cron. Admins can also click **Run due drips now** / **Run scheduler** in the portal.
+
+**Morning digest** (Today briefing + Grok win-the-day) — every **15 minutes** (sends only when local time is ~6:00–6:14):
+
+```bash
+curl -X POST "https://<PROJECT_REF>.supabase.co/functions/v1/process-morning-digest" \
+  -H "x-digest-secret: $DIGEST_CRON_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+See **`SETUP_MORNING_DIGEST.md`** for timezone logic, opt-out, and sandbox test commands.
 
 ### 7. Auth redirect URLs
 
@@ -193,6 +209,7 @@ See `.env.example`:
 ```
 VITE_SUPABASE_URL=
 VITE_SUPABASE_ANON_KEY=
+VITE_RINGCENTRAL_CLIENT_ID=   # optional — softphone/SMS; see SETUP_RINGCENTRAL.md
 ```
 
 Never commit `.env.local` or service-role keys.
@@ -203,7 +220,7 @@ Never commit `.env.local` or service-role keys.
 |------|----------|
 | **Deal flow** | UI maps `sales_leads` → deals. Stages: New → Qualified → Call Booked → Diligence → Term Sheet → Closed Won / Lost / Passed. Pipeline + list. Theses: **Launch / Partner / Exit**. |
 | **Deal detail** | Edit fields, stage moves (`update-lead`), notes, follow-ups, activity. |
-| **Entity Ops** | Portfolio entities: start/acquire checklists, folders, docs (Storage or URL), compliance renewals hub. Optional link to a deal. |
+| **Entity Ops** | Portfolio entities: start/acquire checklists, folders, docs (Storage or URL). Optional link to a deal. Compliance lives under **Legal**. |
 | **Follow-ups** | Per-deal + standalone; due dates; complete/incomplete. |
 | **Founder nurture** | `new-lead-nurture`: Day 0 internal reminder, Day 2 follow-up task, Day 7 nurture reminder. Enrollment on website intake. |
 | **Deal flow reports** | Counts by stage/thesis, win rate, charts, recent deals. |
@@ -277,6 +294,8 @@ vercel
 
 Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in the Vercel project env, then redeploy. Point DNS **`portal.tagevc.com`** at the Vercel deployment (custom domain), then add `https://portal.tagevc.com` to Supabase Auth Site URL / Redirect URLs and ensure intake CORS includes it (already listed in `_shared/cors.ts`).
 
+**RingCentral (softphone + SMS):** after creating a Developer Console app, set `VITE_RINGCENTRAL_CLIENT_ID` on Vercel and redeploy. Register redirect URI `https://apps.ringcentral.com/integration/ringcentral-embeddable/latest/redirect.html`. Full steps: **`SETUP_RINGCENTRAL.md`**. Until the client ID is set, Call/SMS stay disabled with a soft “not configured” hint.
+
 `vercel.json` rewrites SPA routes to `index.html`.
 
 ## Project layout
@@ -284,17 +303,17 @@ Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in the Vercel project env, 
 ```
 src/                      Multi-portal UI (/sales/*; Deal Sourcing under /sales/deal-sourcing/*)
 content/seeds/            Markdown export of SEO blog seeds
-supabase/migrations       0001 sales · … · 0014 microsoft calendar
+supabase/migrations       0001 sales · … · 0016 calendar prefs / tasks
 supabase/functions        intake-lead, process-drips, update-lead,
                           generate-content, process-scheduled-content,
-                          microsoft-calendar-* (Graph OAuth)
+                          microsoft-calendar-* · microsoft-todo · microsoft-planner · microsoft-chat
 ```
 
 ## Multi-portal access
 
 After login, `/sales` shows a **portal picker**. Users only see portals assigned in `sales_user_portals`. **Admins always get every portal** (UI + `user_has_portal()`), and migration `0007` seeds all active admins onto all portals.
 
-**Calendar** (`/sales/calendar`) is a **global tool** for every authenticated portal user (personal Microsoft 365 mailbox via Graph). See **`SETUP_CALENDAR.md`**.
+**Calendar** (`/sales/calendar`), **To Do** (`/sales/todo`), **Planner** (`/sales/planner`), **Teams chat** (`/sales/chat`), **Files** (`/sales/files`), and **Mail** (`/sales/mail`) are **global tools** for every authenticated portal user (Outlook meetings, To Do, Planner, Teams chat, OneDrive, and Outlook mailbox via Graph). See **`SETUP_CALENDAR.md`**. Desktop alerts (Browser Notification API) cover meeting/task reminders, incoming Teams chat, and new Inbox mail portal-wide while a portal tab stays open.
 
 | Portal | Live routes | Notes |
 |--------|-------------|--------|
@@ -305,8 +324,15 @@ After login, `/sales` shows a **portal picker**. Users only see portals assigned
 | Manage Portfolio | `/sales/ops/*` | Entity Ops |
 | Reporting | `/sales/reports` | Deal-flow metrics |
 | Marketing | `/sales/content/*` | Blog + social |
-| Executive / Accounting / Legal / Technology / HR | `/sales/portals/:slug` | Stub shells |
-| *(global)* Calendar | `/sales/calendar` | Outlook / M365 via Microsoft Graph (per-user OAuth) |
+| Legal | `/sales/legal` | Cross-entity compliance |
+| Human Resources | `/sales/hr/*` | Employees, onboarding/offboarding, HR compliance (see `SETUP_HR.md`) |
+| Executive / Accounting / Technology | `/sales/portals/:slug` | Stub shells |
+| *(global)* Calendar | `/sales/calendar` | Outlook meetings (per-user OAuth; New Meeting + Teams link) |
+| *(global)* To Do | `/sales/todo` | Microsoft To Do (`/sales/to-do` redirects here) |
+| *(global)* Planner | `/sales/planner` | Microsoft Planner |
+| *(global)* Chat | `/sales/chat` | Teams 1:1 / group chat + Start/schedule video (`OnlineMeetings.ReadWrite`; Reconnect after Azure consent) |
+| *(global)* Files | `/sales/files` | OneDrive browse / preview / share (same OAuth; downloads disabled; needs `Files.ReadWrite` + Reconnect) |
+| *(global)* Mail | `/sales/mail` | Outlook inbox / compose / reply; **Outlook Settings** (portal signature + OOO). Needs `Mail.ReadWrite` + `Mail.Send` + `MailboxSettings.ReadWrite` + Reconnect |
 
 Assign portals: `/sales/admin/portals` (admin only). Production host: **`portal.tagevc.com`**.
 

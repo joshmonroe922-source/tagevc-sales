@@ -25,6 +25,9 @@ verify_jwt = false
 [functions.send-tracked-email]
 verify_jwt = true
 
+[functions.mail-tracking]
+verify_jwt = false
+
 [functions.microsoft-calendar-oauth-start]
 verify_jwt = true
 
@@ -37,5 +40,50 @@ verify_jwt = true
 [functions.microsoft-calendar-events]
 verify_jwt = true
 
+[functions.microsoft-calendar-feeds]
+verify_jwt = true
+
 [functions.microsoft-calendar-disconnect]
 verify_jwt = true
+
+[functions.microsoft-calendar-create-event]
+verify_jwt = true
+
+[functions.microsoft-calendar-people-search]
+verify_jwt = true
+
+[functions.microsoft-calendar-location-suggest]
+verify_jwt = true
+
+[functions.microsoft-todo]
+verify_jwt = true
+
+[functions.microsoft-planner]
+verify_jwt = true
+
+[functions.microsoft-chat]
+verify_jwt = true
+
+[functions.microsoft-online-meetings]
+verify_jwt = true
+
+[functions.microsoft-files]
+verify_jwt = true
+
+[functions.microsoft-mail]
+verify_jwt = true
+
+[functions.salesforce-resume-sync]
+verify_jwt = true
+
+[functions.portal-ticket-notify]
+verify_jwt = true
+
+[functions.talentdesk-sso]
+verify_jwt = true
+
+[functions.think-tank-chat]
+verify_jwt = true
+
+[functions.process-morning-digest]
+verify_jwt = false

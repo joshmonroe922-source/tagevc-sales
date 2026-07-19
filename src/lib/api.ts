@@ -1,18 +1,23 @@
 import { requireSupabase, supabase } from './supabase';
 import type {
+  CreateTaskResult,
   DealPath,
   LeadActivity,
   LeadSource,
   LeadStage,
   SalesLead,
   SalesTask,
+  TaskImportance,
   TaskStatus,
 } from './types';
+
+const LEAD_SELECT =
+  '*, sales_contacts(id, full_name, primary_email, primary_phone, company, title, account_id), sales_accounts(id, name, account_type, website)';
 
 export async function listLeads(): Promise<SalesLead[]> {
   const { data, error } = await requireSupabase()
     .from('sales_leads')
-    .select('*')
+    .select(LEAD_SELECT)
     .order('created_at', { ascending: false });
   if (error) throw error;
   return (data ?? []) as SalesLead[];
@@ -21,7 +26,7 @@ export async function listLeads(): Promise<SalesLead[]> {
 export async function getLead(id: string): Promise<SalesLead | null> {
   const { data, error } = await requireSupabase()
     .from('sales_leads')
-    .select('*')
+    .select(LEAD_SELECT)
     .eq('id', id)
     .maybeSingle();
   if (error) throw error;
@@ -33,6 +38,10 @@ export type CreateLeadInput = {
   email?: string;
   phone?: string;
   company?: string;
+  /** Required for new deals — pick/create a contact first. */
+  contact_id: string;
+  /** Strongly preferred — from contact.account_id or explicit picker. */
+  account_id?: string | null;
   deal_path?: DealPath;
   source?: LeadSource;
   notes?: string;
@@ -42,6 +51,9 @@ export type CreateLeadInput = {
 };
 
 export async function createLead(input: CreateLeadInput): Promise<SalesLead> {
+  if (!input.contact_id) {
+    throw new Error('A contact is required to create a deal');
+  }
   const client = requireSupabase();
   const { data, error } = await client
     .from('sales_leads')
@@ -50,6 +62,8 @@ export async function createLead(input: CreateLeadInput): Promise<SalesLead> {
       email: (input.email ?? '').trim().toLowerCase(),
       phone: (input.phone ?? '').trim(),
       company: (input.company ?? '').trim(),
+      contact_id: input.contact_id,
+      account_id: input.account_id ?? null,
       deal_path: input.deal_path ?? 'launch',
       source: input.source ?? 'manual',
       notes: input.notes ?? '',
@@ -57,12 +71,13 @@ export async function createLead(input: CreateLeadInput): Promise<SalesLead> {
       next_action_at: input.next_action_at ?? null,
       assigned_rep_id: input.assigned_rep_id ?? null,
     })
-    .select('*')
+    .select(LEAD_SELECT)
     .single();
   if (error) throw error;
 
   await client.from('sales_lead_activities').insert({
     lead_id: data.id,
+    contact_id: input.contact_id,
     activity_type: 'system',
     summary: 'Lead created manually',
     created_by: input.assigned_rep_id ?? null,
@@ -90,6 +105,7 @@ export async function createLead(input: CreateLeadInput): Promise<SalesLead> {
       );
       await client.from('sales_lead_activities').insert({
         lead_id: data.id,
+        contact_id: input.contact_id,
         activity_type: 'drip_enrolled',
         summary: 'Enrolled in new-lead-nurture',
         created_by: input.assigned_rep_id ?? null,
@@ -145,27 +161,84 @@ export async function listTasks(opts?: {
   return (data ?? []) as SalesTask[];
 }
 
+/** Next open sales_tasks row per lead (earliest due_at). One query for the deal board. */
+export async function mapNextOpenFollowUpByLead(): Promise<Record<string, SalesTask>> {
+  const tasks = await listTasks({ status: 'open' });
+  const map: Record<string, SalesTask> = {};
+  for (const task of tasks) {
+    const leadId = task.lead_id?.trim();
+    if (!leadId || map[leadId]) continue;
+    map[leadId] = task;
+  }
+  return map;
+}
+
+export const SALES_TODO_SAVED_EVENT = 'sales-todo-saved';
+
+export function notifySalesTodoSaved(): void {
+  window.dispatchEvent(new CustomEvent(SALES_TODO_SAVED_EVENT));
+}
+
 export async function createTask(input: {
   sales_user_id: string;
   title: string;
   notes?: string;
   due_at?: string | null;
   lead_id?: string | null;
-}): Promise<SalesTask> {
+  /** undefined → deal-sourcing; null or 'personal' → Tage · Personal (unscoped). */
+  portal_slug?: string | null;
+  importance?: TaskImportance | string | null;
+  sync_ms_todo?: boolean;
+}): Promise<CreateTaskResult> {
   const client = requireSupabase();
-  const { data, error } = await client
-    .from('sales_tasks')
-    .insert({
-      sales_user_id: input.sales_user_id,
-      title: input.title.trim(),
-      notes: input.notes ?? '',
-      due_at: input.due_at ?? null,
-      lead_id: input.lead_id ?? null,
-      status: 'open',
-    })
-    .select('*, sales_leads(id, name, company)')
-    .single();
-  if (error) throw error;
+  const importanceRaw = (input.importance ?? 'normal').toString().toLowerCase();
+  const importance: TaskImportance =
+    importanceRaw === 'low' || importanceRaw === 'high' || importanceRaw === 'normal'
+      ? importanceRaw
+      : 'normal';
+
+  let portalSlug: string | null;
+  if (input.portal_slug === undefined) {
+    portalSlug = 'deal-sourcing';
+  } else if (input.portal_slug === null || input.portal_slug === 'personal') {
+    portalSlug = 'personal';
+  } else {
+    portalSlug = input.portal_slug;
+  }
+
+  const row = {
+    sales_user_id: input.sales_user_id,
+    title: input.title.trim(),
+    notes: input.notes ?? '',
+    due_at: input.due_at ?? null,
+    lead_id: input.lead_id ?? null,
+    portal_slug: portalSlug,
+    importance,
+    status: 'open' as const,
+  };
+
+  let data: SalesTask | null = null;
+  {
+    const first = await client
+      .from('sales_tasks')
+      .insert(row)
+      .select('*, sales_leads(id, name, company)')
+      .single();
+    if (first.error && /portal_slug|ms_todo|importance/i.test(first.error.message)) {
+      const { portal_slug: _p, importance: _i, ...legacy } = row;
+      const second = await client
+        .from('sales_tasks')
+        .insert(legacy)
+        .select('*, sales_leads(id, name, company)')
+        .single();
+      if (second.error) throw second.error;
+      data = second.data as SalesTask;
+    } else if (first.error) {
+      throw first.error;
+    } else {
+      data = first.data as SalesTask;
+    }
+  }
 
   if (input.lead_id) {
     await client.from('sales_lead_activities').insert({
@@ -176,14 +249,134 @@ export async function createTask(input: {
     });
   }
 
-  return data as SalesTask;
+  let task = data as SalesTask;
+  if (input.sync_ms_todo === false) {
+    return { task, synced: false, syncError: undefined };
+  }
+
+  const { syncFollowUpCreatedToMs } = await import('./portalTodoSync');
+  const sync = await syncFollowUpCreatedToMs(task);
+  return {
+    task: sync.task,
+    synced: sync.synced,
+    syncError: sync.syncError,
+  };
+}
+
+/** Map Microsoft To Do task ids → deal cards for “Open deal” links. */
+export async function listTodoLeadLinks(): Promise<
+  Record<string, { lead_id: string; label: string }>
+> {
+  const { data, error } = await requireSupabase()
+    .from('sales_tasks')
+    .select('ms_todo_task_id, lead_id, sales_leads(id, name, company)')
+    .not('ms_todo_task_id', 'is', null)
+    .not('lead_id', 'is', null);
+  if (error) throw error;
+
+  const out: Record<string, { lead_id: string; label: string }> = {};
+  for (const row of data ?? []) {
+    const taskId = (row.ms_todo_task_id as string | null)?.trim();
+    const leadId = (row.lead_id as string | null)?.trim();
+    if (!taskId || !leadId) continue;
+    const leadRaw = row.sales_leads as unknown;
+    const lead = (Array.isArray(leadRaw) ? leadRaw[0] : leadRaw) as
+      | { id: string; name: string; company: string | null }
+      | null
+      | undefined;
+    const label = lead?.name
+      ? lead.company
+        ? `${lead.name} · ${lead.company}`
+        : lead.name
+      : 'Open deal';
+    out[taskId] = { lead_id: leadId, label };
+  }
+  return out;
+}
+
+/**
+ * Persist (or clear) the deal card linked to a Microsoft To Do task so “Open deal” works.
+ * Creates/updates a sales_tasks row keyed by ms_todo_task_id.
+ */
+export async function linkMsTodoToLead(input: {
+  sales_user_id: string;
+  ms_todo_list_id: string;
+  ms_todo_task_id: string;
+  title: string;
+  due_at?: string | null;
+  importance?: TaskImportance | string | null;
+  portal_slug?: string | null;
+  lead_id: string | null;
+}): Promise<void> {
+  const client = requireSupabase();
+  const taskId = input.ms_todo_task_id.trim();
+  if (!taskId) return;
+
+  const importanceRaw = (input.importance ?? 'normal').toString().toLowerCase();
+  const importance: TaskImportance =
+    importanceRaw === 'low' || importanceRaw === 'high' || importanceRaw === 'normal'
+      ? importanceRaw
+      : 'normal';
+
+  const portalSlug =
+    input.portal_slug === null || input.portal_slug === 'personal'
+      ? 'personal'
+      : input.portal_slug === 'master'
+        ? 'master'
+        : (input.portal_slug ?? (input.lead_id ? 'deal-sourcing' : 'personal'));
+
+  const { data: existing } = await client
+    .from('sales_tasks')
+    .select('id')
+    .eq('ms_todo_task_id', taskId)
+    .maybeSingle();
+
+  if (existing?.id) {
+    const patch: Record<string, unknown> = {
+      lead_id: input.lead_id,
+      title: input.title.trim(),
+      importance,
+      portal_slug: portalSlug,
+      ms_todo_list_id: input.ms_todo_list_id,
+      ms_todo_task_id: taskId,
+    };
+    if (input.due_at !== undefined) {
+      patch.due_at = input.due_at;
+    }
+    const { error } = await client.from('sales_tasks').update(patch).eq('id', existing.id);
+    if (error) throw error;
+    return;
+  }
+
+  if (!input.lead_id) return;
+
+  const { error } = await client.from('sales_tasks').insert({
+    sales_user_id: input.sales_user_id,
+    title: input.title.trim(),
+    notes: '',
+    due_at: input.due_at ?? null,
+    lead_id: input.lead_id,
+    portal_slug: portalSlug,
+    importance,
+    status: 'open',
+    ms_todo_list_id: input.ms_todo_list_id,
+    ms_todo_task_id: taskId,
+  });
+  if (error) throw error;
 }
 
 export async function setTaskStatus(
   taskId: string,
   status: TaskStatus,
 ): Promise<void> {
-  const { error } = await requireSupabase()
+  const client = requireSupabase();
+  const { data: existing } = await client
+    .from('sales_tasks')
+    .select('ms_todo_list_id, ms_todo_task_id, portal_slug')
+    .eq('id', taskId)
+    .maybeSingle();
+
+  const { error } = await client
     .from('sales_tasks')
     .update({
       status,
@@ -191,6 +384,17 @@ export async function setTaskStatus(
     })
     .eq('id', taskId);
   if (error) throw error;
+
+  if (existing) {
+    const { syncFollowUpStatusToMs } = await import('./portalTodoSync');
+    await syncFollowUpStatusToMs(
+      existing as Pick<
+        SalesTask,
+        'ms_todo_list_id' | 'ms_todo_task_id' | 'portal_slug'
+      >,
+      status,
+    );
+  }
 }
 
 export async function listActivities(leadId: string): Promise<LeadActivity[]> {
@@ -210,17 +414,18 @@ export async function addLeadNote(
   createdBy: string,
 ): Promise<void> {
   const client = requireSupabase();
+  const { data: lead } = await client
+    .from('sales_leads')
+    .select('notes, contact_id')
+    .eq('id', leadId)
+    .single();
   await client.from('sales_lead_activities').insert({
     lead_id: leadId,
+    contact_id: lead?.contact_id ?? null,
     activity_type: 'note',
     summary,
     created_by: createdBy,
   });
-  const { data: lead } = await client
-    .from('sales_leads')
-    .select('notes')
-    .eq('id', leadId)
-    .single();
   const existing = lead?.notes?.trim() ? `${lead.notes.trim()}\n\n` : '';
   await client
     .from('sales_leads')
@@ -273,8 +478,13 @@ export async function sendTrackedEmail(input: {
   to?: string;
   subject: string;
   html: string;
-  replyTo?: string;
-}): Promise<{ resend_id: string; to: string; subject: string }> {
+}): Promise<{
+  message_id: string | null;
+  tracking_token: string;
+  from: string;
+  to: string;
+  subject: string;
+}> {
   if (!supabase) throw new Error('Supabase is not configured');
   const {
     data: { session },
@@ -294,13 +504,14 @@ export async function sendTrackedEmail(input: {
       to: input.to,
       subject: input.subject,
       html: input.html,
-      reply_to: input.replyTo,
     }),
   });
   const body = await res.json();
   if (!res.ok) throw new Error(body.error ?? 'Failed to send tracked email');
   return {
-    resend_id: body.resend_id as string,
+    message_id: (body.message_id as string | null) ?? null,
+    tracking_token: body.tracking_token as string,
+    from: body.from as string,
     to: body.to as string,
     subject: body.subject as string,
   };

@@ -28,11 +28,70 @@ const EVENT_FILTER_OPTIONS = [
   'print',
   'email_sent',
   'permission_request',
+  'calendar_connect',
+  'calendar_disconnect',
+  'calendar_view',
+  'meeting_create',
+  'people_search',
+  'location_suggest',
+  'todo_create',
+  'todo_update',
+  'todo_complete',
+  'planner_create',
+  'planner_complete',
+  'planner_view',
+  'chat_list',
+  'chat_open',
+  'chat_send',
+  'chat_create',
+  'chat_hide',
+  'chat_search',
+  'online_meeting_create',
+  'online_meeting_list',
+  'files_browse',
+  'files_open',
+  'files_download',
+  'files_upload',
+  'files_mkdir',
+  'files_rename',
+  'files_delete',
+  'files_share',
+  'mail_folders',
+  'mail_list',
+  'mail_open',
+  'mail_send',
+  'mail_delete',
+  'mail_move',
+  'mail_search',
+  'mail_attachment_view',
+  'notification_permission',
+  'notification_sent',
+  'audit_control_reviewed',
+  'audit_control_status',
+  'audit_task_complete',
+  'finance_close_item_complete',
+  'finance_close_period_complete',
+  'hr_checklist_item_update',
+  'hr_checklist_complete',
+  'ops_compliance_complete',
 ] as const;
 
 type UserOption = Pick<SalesUser, 'id' | 'email' | 'full_name'>;
 
 function metaPreview(meta: Record<string, unknown>): string {
+  const title = meta.title;
+  const fromStatus = meta.from_status;
+  const toStatus = meta.to_status;
+  if (
+    typeof title === 'string' &&
+    title &&
+    (typeof toStatus === 'string' || typeof fromStatus === 'string')
+  ) {
+    const from = typeof fromStatus === 'string' && fromStatus ? fromStatus : '—';
+    const to = typeof toStatus === 'string' && toStatus ? toStatus : '—';
+    const portal = typeof meta.portal === 'string' ? meta.portal : '';
+    return `${portal ? `${portal}: ` : ''}${title} (${from} → ${to})`.slice(0, 120);
+  }
   const dest = meta.destination_url;
   if (typeof dest === 'string' && dest) return dest;
   const portal = meta.portal;
@@ -41,6 +100,22 @@ function metaPreview(meta: Record<string, unknown>): string {
   if (typeof entity === 'string') return `id: ${entity}`;
   const mins = meta.session_minutes;
   if (typeof mins === 'number') return `${mins}m in session`;
+  const kind = meta.kind;
+  if (kind === 'teams_chat') {
+    const chatId = typeof meta.chat_id === 'string' ? meta.chat_id.slice(0, 18) : '';
+    return chatId ? `teams chat: ${chatId}…` : 'teams chat alert';
+  }
+  const chatId = meta.chat_id;
+  if (typeof chatId === 'string' && chatId) {
+    const preview = typeof meta.preview === 'string' ? meta.preview.slice(0, 40) : '';
+    const query = typeof meta.query === 'string' ? meta.query.slice(0, 40) : '';
+    if (preview) return `chat …${preview}`;
+    if (query) {
+      const scope = typeof meta.scope === 'string' ? meta.scope : 'search';
+      return `${scope}: “${query}”`;
+    }
+    return `chat_id: ${chatId.slice(0, 24)}`;
+  }
   const keys = Object.keys(meta).filter((k) => k !== 'user_agent' && k !== 'language');
   if (!keys.length) return '—';
   try {
@@ -130,7 +205,7 @@ export function AdminAuditPage({ salesUser }: Props) {
         </div>
         <div className="page-actions">
           <Link to="/sales/admin/email" className="btn ghost">
-            Email analytics
+            Email Analytics
           </Link>
           <Link to="/sales/admin/portals" className="btn ghost">
             Assignments
@@ -201,8 +276,8 @@ export function AdminAuditPage({ salesUser }: Props) {
                 <th>When</th>
                 <th>User</th>
                 <th>Event</th>
-                <th>Path</th>
-                <th>Detail</th>
+                <th className="hide-sm">Path</th>
+                <th className="hide-sm">Detail</th>
               </tr>
             </thead>
             <tbody>
@@ -218,8 +293,8 @@ export function AdminAuditPage({ salesUser }: Props) {
                     ) : null}
                   </td>
                   <td>{AUDIT_EVENT_TYPE_LABELS[ev.event_type] ?? ev.event_type}</td>
-                  <td className="audit-path">{ev.path ?? '—'}</td>
-                  <td className="audit-meta">{metaPreview(ev.metadata ?? {})}</td>
+                  <td className="audit-path hide-sm">{ev.path ?? '—'}</td>
+                  <td className="audit-meta hide-sm">{metaPreview(ev.metadata ?? {})}</td>
                 </tr>
               ))}
             </tbody>

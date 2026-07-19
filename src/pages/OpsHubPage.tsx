@@ -1,14 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { listEntities, listUpcomingCompliance } from '../lib/opsApi';
-import type { OpsComplianceItem, OpsEntity } from '../lib/opsTypes';
-import {
-  formatDate,
-  isComplianceDueSoon,
-  isComplianceOverdue,
-  OPS_ENTITY_STATUS_LABELS,
-  OPS_ENTITY_TYPE_LABELS,
-} from '../lib/opsTypes';
+import { listEntities } from '../lib/opsApi';
+import type { OpsEntity } from '../lib/opsTypes';
+import { OPS_ENTITY_STATUS_LABELS, OPS_ENTITY_TYPE_LABELS } from '../lib/opsTypes';
 
 function entityCardDesc(ent: OpsEntity): string {
   const parts = [
@@ -38,7 +32,6 @@ function sortPortfolioEntities(ents: OpsEntity[]): OpsEntity[] {
 
 export function OpsHubPage() {
   const [entities, setEntities] = useState<OpsEntity[]>([]);
-  const [compliance, setCompliance] = useState<OpsComplianceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,13 +41,9 @@ export function OpsHubPage() {
       setLoading(true);
       setError(null);
       try {
-        const [ents, comps] = await Promise.all([
-          listEntities(),
-          listUpcomingCompliance(),
-        ]);
+        const ents = await listEntities();
         if (!mounted) return;
         setEntities(sortPortfolioEntities(ents));
-        setCompliance(comps);
       } catch (err) {
         if (!mounted) return;
         setError(err instanceof Error ? err.message : 'Failed to load Entity Ops');
@@ -67,18 +56,14 @@ export function OpsHubPage() {
     };
   }, []);
 
-  const overdueCount = useMemo(
-    () => compliance.filter((c) => isComplianceOverdue(c)).length,
-    [compliance],
-  );
-
   return (
     <>
       <div className="page-header">
         <div>
           <h1>Manage Portfolio</h1>
           <p className="muted">
-            Companies assigned to you — open one for checklists, folders, and compliance.
+            Companies assigned to you — open one for sales and operations (checklists and
+            folders). Compliance lives under Legal.
           </p>
         </div>
         <div className="page-actions">
@@ -92,96 +77,51 @@ export function OpsHubPage() {
       {loading ? <p className="muted">Loading…</p> : null}
 
       {!loading && !error ? (
-        <>
-          <section className="ops-portfolio-section">
-            <div className="panel-head ops-portfolio-head">
-              <h2>Companies</h2>
-              <span className="muted small">{entities.length}</span>
+        <section className="ops-portfolio-section">
+          <div className="panel-head ops-portfolio-head">
+            <h2>Companies</h2>
+            <span className="muted small">{entities.length}</span>
+          </div>
+          {entities.length === 0 ? (
+            <p className="muted">
+              No companies assigned yet. Ask an admin to grant access, or{' '}
+              <Link to="/sales/ops/entities/new?template=start-business">
+                start a business
+              </Link>{' '}
+              /{' '}
+              <Link to="/sales/ops/entities/new?template=acquire-business">
+                acquire one
+              </Link>{' '}
+              (you keep access to entities you create).
+            </p>
+          ) : (
+            <div className="portal-grid">
+              {entities.map((ent) => (
+                <Link
+                  key={ent.id}
+                  to={`/sales/ops/entities/${ent.id}`}
+                  className="portal-card"
+                >
+                  <div className="portal-card-top">
+                    <span className="portal-card-name">{ent.name}</span>
+                    {ent.slug ? (
+                      <span className="portal-card-badge">Portfolio</span>
+                    ) : null}
+                  </div>
+                  <p className="portal-card-desc">{entityCardDesc(ent)}</p>
+                  <span className="portal-card-cta">Open →</span>
+                </Link>
+              ))}
             </div>
-            {entities.length === 0 ? (
-              <p className="muted">
-                No companies assigned yet. Ask an admin to grant access, or{' '}
-                <Link to="/sales/ops/entities/new?template=start-business">
-                  start a business
-                </Link>{' '}
-                /{' '}
-                <Link to="/sales/ops/entities/new?template=acquire-business">
-                  acquire one
-                </Link>{' '}
-                (you keep access to entities you create).
-              </p>
-            ) : (
-              <div className="portal-grid">
-                {entities.map((ent) => (
-                  <Link
-                    key={ent.id}
-                    to={`/sales/ops/entities/${ent.id}`}
-                    className="portal-card"
-                  >
-                    <div className="portal-card-top">
-                      <span className="portal-card-name">{ent.name}</span>
-                      {ent.slug ? (
-                        <span className="portal-card-badge">Portfolio</span>
-                      ) : null}
-                    </div>
-                    <p className="portal-card-desc">{entityCardDesc(ent)}</p>
-                    <span className="portal-card-cta">Open →</span>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section className="panel ops-compliance-hub">
-            <div className="panel-head">
-              <h2>Compliance — next due</h2>
-              {overdueCount > 0 ? (
-                <span className="warn-text small">{overdueCount} overdue</span>
-              ) : (
-                <span className="muted small">Sorted by due date</span>
-              )}
-            </div>
-            {compliance.length === 0 ? (
-              <p className="muted">
-                No upcoming compliance items. Add licenses and filings on a company
-                detail page.
-              </p>
-            ) : (
-              <ul className="ops-compliance-list">
-                {compliance.map((item) => {
-                  const overdue = isComplianceOverdue(item);
-                  const soon = isComplianceDueSoon(item);
-                  return (
-                    <li
-                      key={item.id}
-                      className={overdue ? 'overdue' : soon ? 'due-soon' : ''}
-                    >
-                      <div>
-                        <Link
-                          to={`/sales/ops/entities/${item.entity_id}`}
-                          className="ops-compliance-title"
-                        >
-                          {item.title}
-                        </Link>
-                        <div className="muted small">
-                          {item.ops_entities?.name ?? 'Entity'} · {item.cadence}
-                        </div>
-                      </div>
-                      <span
-                        className={
-                          overdue ? 'warn-text' : soon ? 'gold-text' : 'muted'
-                        }
-                      >
-                        {formatDate(item.next_due_at)}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </section>
-        </>
+          )}
+        </section>
       ) : null}
+
+      <p className="muted small portal-todo-hint">
+        Use <strong>Add To Do</strong> in the header to capture tasks in Microsoft To Do.
+        Licenses and filings:{' '}
+        <Link to="/sales/legal">Legal → Corporate audit</Link>.
+      </p>
     </>
   );
 }

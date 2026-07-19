@@ -21,7 +21,53 @@ export type AuditEventType =
   | 'export'
   | 'print'
   | 'email_sent'
-  | 'permission_request';
+  | 'permission_request'
+  | 'calendar_connect'
+  | 'calendar_disconnect'
+  | 'calendar_view'
+  | 'meeting_create'
+  | 'people_search'
+  | 'location_suggest'
+  | 'todo_create'
+  | 'todo_update'
+  | 'todo_complete'
+  | 'planner_create'
+  | 'planner_complete'
+  | 'planner_view'
+  | 'chat_list'
+  | 'chat_open'
+  | 'chat_send'
+  | 'chat_create'
+  | 'chat_hide'
+  | 'chat_search'
+  | 'online_meeting_create'
+  | 'online_meeting_list'
+  | 'files_browse'
+  | 'files_open'
+  | 'files_download'
+  | 'files_upload'
+  | 'files_mkdir'
+  | 'files_rename'
+  | 'files_delete'
+  | 'files_share'
+  | 'mail_folders'
+  | 'mail_list'
+  | 'mail_open'
+  | 'mail_send'
+  | 'mail_delete'
+  | 'mail_move'
+  | 'mail_search'
+  | 'mail_attachment_view'
+  | 'notification_permission'
+  | 'notification_sent'
+  | 'audit_control_reviewed'
+  | 'audit_control_status'
+  | 'audit_task_complete'
+  | 'finance_close_item_complete'
+  | 'finance_close_period_complete'
+  | 'hr_checklist_item_update'
+  | 'hr_checklist_complete'
+  | 'ops_compliance_complete';
 
 export type AuditEvent = {
   id: string;
@@ -43,6 +89,46 @@ export type LogAuditInput = {
   email?: string | null;
   userId?: string | null;
 };
+
+/** Structured metadata for compliance / checklist completion events. */
+export type AuditCompletionLogInput = {
+  eventType:
+    | 'audit_control_reviewed'
+    | 'audit_control_status'
+    | 'audit_task_complete'
+    | 'finance_close_item_complete'
+    | 'finance_close_period_complete'
+    | 'hr_checklist_item_update'
+    | 'hr_checklist_complete'
+    | 'ops_compliance_complete';
+  portal: string;
+  entityType: string;
+  entityId: string;
+  title?: string | null;
+  fromStatus?: string | null;
+  toStatus: string;
+  completedAt?: string | null;
+  extra?: Record<string, unknown>;
+  path?: string | null;
+};
+
+/** Fire-and-forget completion / status-change audit row (actor via session). */
+export function logAuditCompletion(input: AuditCompletionLogInput): void {
+  void logAuditEvent({
+    eventType: input.eventType,
+    path: input.path,
+    metadata: {
+      portal: input.portal,
+      entity_type: input.entityType,
+      entity_id: input.entityId,
+      title: input.title ?? null,
+      from_status: input.fromStatus ?? null,
+      to_status: input.toStatus,
+      completed_at: input.completedAt ?? null,
+      ...(input.extra ?? {}),
+    },
+  });
+}
 
 export function auditActorIsProtected(
   email?: string | null,
@@ -178,4 +264,50 @@ export const AUDIT_EVENT_TYPE_LABELS: Record<string, string> = {
   print: 'Print',
   email_sent: 'Outbound email',
   permission_request: 'Permission request',
+  calendar_connect: 'Calendar connected',
+  calendar_disconnect: 'Calendar disconnected',
+  calendar_view: 'Calendar viewed',
+  meeting_create: 'Meeting created',
+  people_search: 'People search',
+  location_suggest: 'Location suggestions',
+  todo_create: 'To Do task created',
+  todo_update: 'To Do task updated',
+  todo_complete: 'To Do task completed',
+  planner_create: 'Planner task created',
+  planner_complete: 'Planner task completed',
+  planner_view: 'Planner viewed',
+  chat_list: 'Teams chats listed',
+  chat_open: 'Teams chat opened',
+  chat_send: 'Teams message sent',
+  chat_create: 'Teams chat created',
+  chat_hide: 'Teams chat removed from list',
+  chat_search: 'Teams chat search',
+  online_meeting_create: 'Teams online meeting created',
+  online_meeting_list: 'Teams online meetings listed',
+  files_browse: 'OneDrive folder browsed',
+  files_open: 'OneDrive file opened (in-portal preview)',
+  files_download: 'OneDrive file downloaded (disabled)',
+  files_upload: 'OneDrive file uploaded',
+  files_mkdir: 'OneDrive folder created',
+  files_rename: 'OneDrive item renamed',
+  files_delete: 'OneDrive item deleted',
+  files_share: 'OneDrive item shared',
+  mail_folders: 'Mail folders listed',
+  mail_list: 'Mail folder listed',
+  mail_open: 'Mail message opened',
+  mail_send: 'Mail sent',
+  mail_delete: 'Mail deleted',
+  mail_move: 'Mail moved / archived',
+  mail_search: 'Mail searched',
+  mail_attachment_view: 'Mail attachment previewed',
+  notification_permission: 'Desktop notification permission',
+  notification_sent: 'Desktop notification sent',
+  audit_control_reviewed: 'Audit control marked reviewed',
+  audit_control_status: 'Audit control status changed',
+  audit_task_complete: 'Audit task completed',
+  finance_close_item_complete: 'Finance close item completed',
+  finance_close_period_complete: 'Finance close period closed',
+  hr_checklist_item_update: 'HR checklist item updated',
+  hr_checklist_complete: 'HR checklist completed',
+  ops_compliance_complete: 'Ops compliance item completed',
 };

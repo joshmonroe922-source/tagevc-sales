@@ -1,5 +1,6 @@
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts';
 import { requireActiveSalesUser } from '../_shared/microsoftGraph.ts';
+import { auditMsAction } from '../_shared/msAudit.ts';
 import { createServiceClient, createUserClient } from '../_shared/supabase.ts';
 
 Deno.serve(async (req) => {
@@ -46,6 +47,13 @@ Deno.serve(async (req) => {
       .from('microsoft_oauth_states')
       .delete()
       .eq('sales_user_id', salesUser.id);
+
+    await auditMsAction(service, {
+      userId: salesUser.id,
+      email: salesUser.email,
+      eventType: 'calendar_disconnect',
+      path: '/sales/calendar',
+    });
 
     return jsonResponse({ ok: true }, 200, origin);
   } catch (err) {

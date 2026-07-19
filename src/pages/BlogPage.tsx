@@ -94,9 +94,9 @@ export function BlogPage({ salesUser }: Props) {
           <thead>
             <tr>
               <th>Title</th>
-              <th>Path</th>
+              <th className="hide-sm">Path</th>
               <th>Status</th>
-              <th>Slug</th>
+              <th className="hide-sm">Slug</th>
               <th>Updated</th>
             </tr>
           </thead>
@@ -107,11 +107,11 @@ export function BlogPage({ salesUser }: Props) {
                   <Link to={`/sales/content/blog/${p.id}`}>{p.title}</Link>
                   <div className="muted small">{p.excerpt.slice(0, 80)}…</div>
                 </td>
-                <td>{p.deal_path ? DEAL_PATH_LABELS[p.deal_path] : '—'}</td>
+                <td className="hide-sm">{p.deal_path ? DEAL_PATH_LABELS[p.deal_path] : '—'}</td>
                 <td>
                   <span className="stage-pill">{p.status}</span>
                 </td>
-                <td>
+                <td className="hide-sm">
                   <code className="small">{p.slug}</code>
                 </td>
                 <td>{formatDateTime(p.updated_at)}</td>

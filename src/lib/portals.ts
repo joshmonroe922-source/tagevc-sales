@@ -5,6 +5,8 @@ export type PortalNavItem = {
   label: string;
   /** Match nested routes (e.g. /sales/deal-sourcing/leads/:id) */
   matchPrefix?: string;
+  /** Only highlight on exact path (e.g. Legal Overview at /sales/legal) */
+  end?: boolean;
 };
 
 export type PortalDefinition = {
@@ -45,8 +47,18 @@ export const PORTAL_DEFINITIONS: PortalDefinition[] = [
         matchPrefix: '/sales/deal-sourcing/leads',
       },
       {
+        to: '/sales/deal-sourcing/accounts',
+        label: 'Accounts',
+        matchPrefix: '/sales/deal-sourcing/accounts',
+      },
+      {
+        to: '/sales/deal-sourcing/contacts',
+        label: 'Contacts',
+        matchPrefix: '/sales/deal-sourcing/contacts',
+      },
+      {
         to: '/sales/deal-sourcing/tasks',
-        label: 'Follow-ups',
+        label: 'Deal tasks',
         matchPrefix: '/sales/deal-sourcing/tasks',
       },
       {
@@ -110,7 +122,7 @@ export const PORTAL_DEFINITIONS: PortalDefinition[] = [
   {
     slug: 'manage-portfolio',
     name: 'Manage Portfolio',
-    description: 'Portfolio companies, checklists, folders, and compliance.',
+    description: 'Portfolio companies, checklists, folders, and operations.',
     homePath: '/sales/ops',
     stub: false,
     pathPrefixes: ['/sales/ops'],
@@ -147,37 +159,107 @@ export const PORTAL_DEFINITIONS: PortalDefinition[] = [
   {
     slug: 'accounting-finance',
     name: 'Accounting and Finance',
-    description: 'Finance workspace (coming soon).',
-    homePath: '/sales/portals/accounting-finance',
-    stub: true,
-    pathPrefixes: ['/sales/portals/accounting-finance'],
+    description:
+      'Accounting & finance audit, month/year-end close, Intuit Suite controls, and open finance tasks across parent + subsidiaries.',
+    homePath: '/sales/finance',
+    stub: false,
+    pathPrefixes: ['/sales/finance', '/sales/portals/accounting-finance'],
     nav: [
+      { to: '/sales/finance', label: 'Overview', end: true },
       {
-        to: '/sales/portals/accounting-finance',
-        label: 'Overview',
-        matchPrefix: '/sales/portals/accounting-finance',
+        to: '/sales/finance/controls',
+        label: 'Compliance',
+        matchPrefix: '/sales/finance/controls',
+      },
+      {
+        to: '/sales/finance/month-end',
+        label: 'Month End Close',
+        matchPrefix: '/sales/finance/month-end',
+      },
+      {
+        to: '/sales/finance/year-end',
+        label: 'Year End Close',
+        matchPrefix: '/sales/finance/year-end',
+      },
+      {
+        to: '/sales/finance/tasks',
+        label: 'Tasks',
+        matchPrefix: '/sales/finance/tasks',
+      },
+      {
+        to: '/sales/finance/tickets',
+        label: 'Tickets',
+        matchPrefix: '/sales/finance/tickets',
       },
     ],
   },
   {
     slug: 'legal',
     name: 'Legal',
-    description: 'Legal workspace (coming soon).',
-    homePath: '/sales/portals/legal',
-    stub: true,
-    pathPrefixes: ['/sales/portals/legal'],
+    description:
+      'Corporate legal audit, filings, and open tasks across parent + subsidiaries.',
+    homePath: '/sales/legal',
+    stub: false,
+    pathPrefixes: ['/sales/legal', '/sales/portals/legal'],
     nav: [
-      { to: '/sales/portals/legal', label: 'Overview', matchPrefix: '/sales/portals/legal' },
+      { to: '/sales/legal', label: 'Overview', end: true },
+      {
+        to: '/sales/legal/controls',
+        label: 'Corporate audit',
+        matchPrefix: '/sales/legal/controls',
+      },
+      {
+        to: '/sales/legal/tasks',
+        label: 'Tasks',
+        matchPrefix: '/sales/legal/tasks',
+      },
+      {
+        to: '/sales/legal/filings',
+        label: 'Filings',
+        matchPrefix: '/sales/legal/filings',
+      },
+      {
+        to: '/sales/legal/contracts',
+        label: 'Contracts',
+        matchPrefix: '/sales/legal/contracts',
+      },
+      {
+        to: '/sales/legal/ra-notices',
+        label: 'RA notices',
+        matchPrefix: '/sales/legal/ra-notices',
+      },
+      {
+        to: '/sales/legal/tickets',
+        label: 'Tickets',
+        matchPrefix: '/sales/legal/tickets',
+      },
     ],
   },
   {
     slug: 'marketing',
     name: 'Marketing',
-    description: 'Blog, social, and content operations.',
-    homePath: '/sales/content',
+    description:
+      'Marketing plan & audit across parent + subsidiaries, plus blog/social content ops.',
+    homePath: '/sales/marketing',
     stub: false,
-    pathPrefixes: ['/sales/content'],
+    pathPrefixes: ['/sales/marketing', '/sales/content', '/sales/portals/marketing'],
     nav: [
+      { to: '/sales/marketing', label: 'Overview', end: true },
+      {
+        to: '/sales/marketing/controls',
+        label: 'Plan & audit',
+        matchPrefix: '/sales/marketing/controls',
+      },
+      {
+        to: '/sales/marketing/tasks',
+        label: 'Tasks',
+        matchPrefix: '/sales/marketing/tasks',
+      },
+      {
+        to: '/sales/marketing/tickets',
+        label: 'Tickets',
+        matchPrefix: '/sales/marketing/tickets',
+      },
       { to: '/sales/content', label: 'Content hub', matchPrefix: '/sales/content' },
       { to: '/sales/content/blog', label: 'Blog', matchPrefix: '/sales/content/blog' },
       { to: '/sales/content/social', label: 'Social', matchPrefix: '/sales/content/social' },
@@ -186,30 +268,95 @@ export const PORTAL_DEFINITIONS: PortalDefinition[] = [
   {
     slug: 'technology',
     name: 'Technology',
-    description: 'Technology workspace (coming soon).',
-    homePath: '/sales/portals/technology',
-    stub: true,
-    pathPrefixes: ['/sales/portals/technology'],
+    description:
+      'Technology plan & audit across parent + subsidiaries — hybrid IT, Suite integrations, and security.',
+    homePath: '/sales/technology',
+    stub: false,
+    pathPrefixes: ['/sales/technology', '/sales/portals/technology'],
     nav: [
+      { to: '/sales/technology', label: 'Overview', end: true },
       {
-        to: '/sales/portals/technology',
-        label: 'Overview',
-        matchPrefix: '/sales/portals/technology',
+        to: '/sales/technology/controls',
+        label: 'Plan & audit',
+        matchPrefix: '/sales/technology/controls',
+      },
+      {
+        to: '/sales/technology/tasks',
+        label: 'Tasks',
+        matchPrefix: '/sales/technology/tasks',
+      },
+      {
+        to: '/sales/technology/tickets',
+        label: 'Tickets',
+        matchPrefix: '/sales/technology/tickets',
+      },
+    ],
+  },
+  {
+    slug: 'administrative',
+    name: 'Administrative',
+    description:
+      'Office operations, facilities, vendor management, and general admin shared services across parent + subsidiaries.',
+    homePath: '/sales/administrative',
+    stub: false,
+    pathPrefixes: ['/sales/administrative', '/sales/portals/administrative'],
+    nav: [
+      { to: '/sales/administrative', label: 'Overview', end: true },
+      {
+        to: '/sales/administrative/controls',
+        label: 'Plan & audit',
+        matchPrefix: '/sales/administrative/controls',
+      },
+      {
+        to: '/sales/administrative/tasks',
+        label: 'Tasks',
+        matchPrefix: '/sales/administrative/tasks',
+      },
+      {
+        to: '/sales/administrative/tickets',
+        label: 'Tickets',
+        matchPrefix: '/sales/administrative/tickets',
       },
     ],
   },
   {
     slug: 'human-resources',
     name: 'Human Resources',
-    description: 'HR workspace (coming soon).',
-    homePath: '/sales/portals/human-resources',
-    stub: true,
-    pathPrefixes: ['/sales/portals/human-resources'],
+    description:
+      'Employee files + company HR compliance (parent and portfolio) — shared services only.',
+    homePath: '/sales/hr/employees',
+    stub: false,
+    pathPrefixes: ['/sales/hr', '/sales/portals/human-resources'],
     nav: [
       {
-        to: '/sales/portals/human-resources',
-        label: 'Overview',
-        matchPrefix: '/sales/portals/human-resources',
+        to: '/sales/hr/employees',
+        label: 'Employee files',
+        matchPrefix: '/sales/hr/employees',
+      },
+      {
+        to: '/sales/hr/talent-acquisition',
+        label: 'Talent acquisition',
+        matchPrefix: '/sales/hr/talent-acquisition',
+      },
+      {
+        to: '/sales/hr/onboarding',
+        label: 'Onboarding',
+        matchPrefix: '/sales/hr/onboarding',
+      },
+      {
+        to: '/sales/hr/offboarding',
+        label: 'Offboarding',
+        matchPrefix: '/sales/hr/offboarding',
+      },
+      {
+        to: '/sales/hr/compliance',
+        label: 'Compliance',
+        matchPrefix: '/sales/hr/compliance',
+      },
+      {
+        to: '/sales/hr/tickets',
+        label: 'Tickets',
+        matchPrefix: '/sales/hr/tickets',
       },
     ],
   },
@@ -233,9 +380,27 @@ export function pathRequiresPortal(pathname: string): PortalSlug | null {
   if (
     pathname === '/sales' ||
     pathname === '/sales/' ||
-    pathname.startsWith('/sales/admin') ||
+    pathname.startsWith('/sales/admin/') ||
+    pathname === '/sales/today' ||
+    pathname.startsWith('/sales/today/') ||
     pathname === '/sales/calendar' ||
     pathname.startsWith('/sales/calendar/') ||
+    pathname === '/sales/todo' ||
+    pathname.startsWith('/sales/todo/') ||
+    pathname === '/sales/to-do' ||
+    pathname.startsWith('/sales/to-do/') ||
+    pathname === '/sales/planner' ||
+    pathname.startsWith('/sales/planner/') ||
+    pathname === '/sales/chat' ||
+    pathname.startsWith('/sales/chat/') ||
+    pathname === '/sales/meetings' ||
+    pathname.startsWith('/sales/meetings/') ||
+    pathname === '/sales/files' ||
+    pathname.startsWith('/sales/files/') ||
+    pathname === '/sales/mail' ||
+    pathname.startsWith('/sales/mail/') ||
+    pathname === '/sales/tickets' ||
+    pathname.startsWith('/sales/tickets/') ||
     pathname === '/sales/portals' ||
     pathname === '/sales/portals/'
   ) {

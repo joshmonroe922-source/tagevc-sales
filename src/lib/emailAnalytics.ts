@@ -3,7 +3,9 @@ import { formatDateTime } from './types';
 
 export type EmailMessage = {
   id: string;
-  resend_id: string;
+  resend_id: string | null;
+  tracking_token: string | null;
+  provider: string;
   message_id: string | null;
   lead_id: string | null;
   source: string;
@@ -29,7 +31,8 @@ export type EmailMessage = {
 export type EmailEvent = {
   id: string;
   message_id: string | null;
-  resend_id: string;
+  resend_id: string | null;
+  tracking_token: string | null;
   svix_id: string | null;
   event_type: string;
   recipient: string | null;

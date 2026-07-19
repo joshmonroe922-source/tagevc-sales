@@ -5,6 +5,8 @@ import {
   getMsConfig,
   portalBaseUrl,
 } from '../_shared/microsoftGraph.ts';
+import { ensurePortalVault } from '../_shared/documentVault.ts';
+import { auditMsAction } from '../_shared/msAudit.ts';
 import { createServiceClient } from '../_shared/supabase.ts';
 
 function redirect(to: string, status = 302): Response {
@@ -143,6 +145,42 @@ Deno.serve(async (req) => {
       return portalRedirect(stateRow.redirect_path || '/sales/calendar', {
         calendar_error: upsertErr.message || 'Failed to save connection',
       });
+    }
+
+    const { data: salesRow } = await service
+      .from('sales_users')
+      .select('email')
+      .eq('id', stateRow.sales_user_id)
+      .maybeSingle();
+
+    await auditMsAction(service, {
+      userId: stateRow.sales_user_id,
+      email: salesRow?.email ?? msEmail ?? '',
+      eventType: 'calendar_connect',
+      path: stateRow.redirect_path || '/sales/calendar',
+      metadata: {
+        microsoft_email: msEmail || null,
+        scopes: tokens.scope ?? '',
+      },
+    });
+
+    // Best-effort: create Tage Portal/Downloads (+ company Resumes if configured)
+    try {
+      const vault = await ensurePortalVault(tokens.access_token, tokens.scope ?? null);
+      await auditMsAction(service, {
+        userId: stateRow.sales_user_id,
+        email: salesRow?.email ?? msEmail ?? '',
+        eventType: 'files_vault_ensure',
+        path: stateRow.redirect_path || '/sales/files',
+        metadata: {
+          source: 'oauth_callback',
+          downloads_id: vault.downloads.item_id,
+          company_available: vault.company.available,
+          company_mode: vault.company.mode,
+        },
+      });
+    } catch (vaultErr) {
+      console.warn('oauth ensurePortalVault', vaultErr);
     }
 
     return portalRedirect(stateRow.redirect_path || '/sales/calendar', {

@@ -41,7 +41,8 @@ export function PortalStubPage({ salesUser }: Props) {
         <h2>This portal is ready for access control</h2>
         <p className="muted">
           You are assigned to <strong>{def.name}</strong>. Feature modules for this area have not
-          shipped yet — the shell is gated so only assigned users can open it.
+          shipped yet — the shell is gated so only assigned users can open it. Use{' '}
+          <strong>Add To Do</strong> in the header to park work in Microsoft To Do.
         </p>
       </div>
     </>

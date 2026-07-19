@@ -1,12 +1,35 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { createLead, listLeads, updateLeadViaEdge } from '../lib/api';
-import type { DealPath, LeadSource, LeadStage, SalesLead, SalesUser } from '../lib/types';
+import { useAddTodo } from '../components/AddTodoProvider';
+import {
+  DealPartyFields,
+  dealSnapshotsFromParty,
+  emptyDealParty,
+  type DealPartyValue,
+} from '../components/DealPartyFields';
+import {
+  createLead,
+  listLeads,
+  mapNextOpenFollowUpByLead,
+  SALES_TODO_SAVED_EVENT,
+  updateLeadViaEdge,
+} from '../lib/api';
+import {
+  leadContactEmail,
+  leadContactName,
+  leadContactPhone,
+  writeLeadContactIdentity,
+} from '../lib/contactsApi';
+import { importanceLabel } from '../lib/msTaskUtils';
+import { STAGE_GUIDANCE } from '../lib/stageGuidance';
+import type { DealPath, LeadSource, LeadStage, SalesLead, SalesTask, SalesUser } from '../lib/types';
 import {
   DEAL_PATH_LABELS,
   DEAL_PATH_THESES,
   DEAL_PATHS,
+  formatDate,
+  isTaskOverdue,
   KANBAN_COLUMNS,
   LEAD_SOURCES,
   SOURCE_LABELS,
@@ -16,27 +39,155 @@ import {
 type Props = { salesUser: SalesUser };
 
 type Draft = {
-  name: string;
-  email: string;
-  phone: string;
-  company: string;
   deal_path: DealPath;
   source: LeadSource;
   notes: string;
+  party: DealPartyValue;
 };
 
 const emptyDraft = (): Draft => ({
-  name: '',
-  email: '',
-  phone: '',
-  company: '',
   deal_path: 'launch',
   source: 'manual',
   notes: '',
+  party: emptyDealParty(),
 });
 
+type IdentityField = 'name' | 'phone' | 'email';
+
+function InlineIdentityCell({
+  lead,
+  field,
+  value,
+  createdBy,
+  onSaved,
+  onError,
+}: {
+  lead: SalesLead;
+  field: IdentityField;
+  value: string;
+  createdBy: string;
+  onSaved: (updated: SalesLead) => void;
+  onError: (message: string) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setDraft(value);
+  }, [value, lead.id]);
+
+  async function commit() {
+    const next = draft.trim();
+    const prev = value.trim();
+    if (next === prev) return;
+    setSaving(true);
+    try {
+      const patch =
+        field === 'name'
+          ? { name: next }
+          : field === 'phone'
+            ? { phone: next }
+            : { email: next };
+      onSaved(await writeLeadContactIdentity(lead, patch, { createdBy }));
+    } catch (err) {
+      setDraft(value);
+      onError(err instanceof Error ? err.message : 'Failed to update contact');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <input
+      className="list-identity-input"
+      type={field === 'email' ? 'email' : 'text'}
+      value={draft}
+      disabled={saving}
+      aria-label={field === 'name' ? 'Name' : field === 'phone' ? 'number' : 'email'}
+      placeholder={field === 'name' ? 'Name' : field === 'phone' ? 'Phone' : 'Email'}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => void commit()}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.currentTarget.blur();
+        }
+      }}
+    />
+  );
+}
+
+function FollowUpControl({
+  lead,
+  followUp,
+  onOpen,
+}: {
+  lead: SalesLead;
+  followUp: SalesTask | undefined;
+  onOpen: (lead: SalesLead) => void;
+}) {
+  if (!followUp) {
+    return (
+      <button
+        type="button"
+        className="btn ghost lead-card-followup"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onOpen(lead);
+        }}
+      >
+        Follow Up / Next Action
+      </button>
+    );
+  }
+
+  const imp = (followUp.importance ?? 'normal').toString().toLowerCase();
+  const showImp = imp === 'high' || imp === 'low';
+  const overdue = isTaskOverdue(followUp);
+
+  return (
+    <div className="lead-card-followup lead-card-followup--scheduled">
+      <button
+        type="button"
+        className="lead-card-followup-main"
+        title="Add or edit follow-up"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onOpen(lead);
+        }}
+      >
+        <span className="lead-card-followup-title">{followUp.title}</span>
+        <span className="lead-card-followup-meta">
+          <span className={overdue ? 'warn-text' : undefined}>
+            {followUp.due_at ? formatDate(followUp.due_at) : 'No due date'}
+          </span>
+          {showImp ? (
+            <span className={`cal-task-importance imp-${imp}`}>{importanceLabel(imp)}</span>
+          ) : null}
+        </span>
+      </button>
+      <button
+        type="button"
+        className="btn ghost lead-card-followup-add"
+        title="Add follow-up"
+        aria-label="Add follow-up"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onOpen(lead);
+        }}
+      >
+        Add
+      </button>
+    </div>
+  );
+}
+
 export function LeadsPage({ salesUser }: Props) {
+  const { openAddTodo } = useAddTodo();
   const [leads, setLeads] = useState<SalesLead[]>([]);
+  const [followUpsByLead, setFollowUpsByLead] = useState<Record<string, SalesTask>>({});
   const [view, setView] = useState<'kanban' | 'list'>('kanban');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -44,11 +195,33 @@ export function LeadsPage({ salesUser }: Props) {
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [draggingId, setDraggingId] = useState<string | null>(null);
 
+  function followUpDeal(lead: SalesLead) {
+    const name = leadContactName(lead) || lead.name;
+    const company = lead.sales_accounts?.name || lead.company;
+    openAddTodo({
+      leadId: lead.id,
+      dealName: company ? `${name} · ${company}` : name,
+    });
+  }
+
+  async function refreshFollowUps() {
+    try {
+      setFollowUpsByLead(await mapNextOpenFollowUpByLead());
+    } catch {
+      /* board still usable without follow-up chips */
+    }
+  }
+
   async function refresh() {
     setLoading(true);
     setError(null);
     try {
-      setLeads(await listLeads());
+      const [nextLeads, followUps] = await Promise.all([
+        listLeads(),
+        mapNextOpenFollowUpByLead().catch(() => ({}) as Record<string, SalesTask>),
+      ]);
+      setLeads(nextLeads);
+      setFollowUpsByLead(followUps);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load deal flow');
     } finally {
@@ -58,6 +231,14 @@ export function LeadsPage({ salesUser }: Props) {
 
   useEffect(() => {
     void refresh();
+  }, []);
+
+  useEffect(() => {
+    const onSaved = () => {
+      void refreshFollowUps();
+    };
+    window.addEventListener(SALES_TODO_SAVED_EVENT, onSaved);
+    return () => window.removeEventListener(SALES_TODO_SAVED_EVENT, onSaved);
   }, []);
 
   const byColumn = useMemo(() => {
@@ -74,9 +255,23 @@ export function LeadsPage({ salesUser }: Props) {
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
+    if (!draft.party.contactId) {
+      setError('Pick or add a contact before creating the deal.');
+      return;
+    }
     try {
+      const snap = dealSnapshotsFromParty(draft.party);
+      if (!snap.name) {
+        setError('Contact needs a name.');
+        return;
+      }
       await createLead({
-        ...draft,
+        ...snap,
+        contact_id: snap.contact_id!,
+        account_id: snap.account_id,
+        deal_path: draft.deal_path,
+        source: draft.source,
+        notes: draft.notes,
         assigned_rep_id: salesUser.id,
       });
       setShowNew(false);
@@ -151,8 +346,13 @@ export function LeadsPage({ salesUser }: Props) {
               }}
             >
               <div className="kanban-col-head">
-                <span>{STAGE_LABELS[col]}</span>
-                <span className="count">{byColumn[col]?.length ?? 0}</span>
+                <div className="kanban-col-title">
+                  <span>{STAGE_LABELS[col]}</span>
+                  <span className="count">{byColumn[col]?.length ?? 0}</span>
+                </div>
+                <p className="kanban-col-tip" title={STAGE_GUIDANCE[col].focus}>
+                  {STAGE_GUIDANCE[col].cardTip}
+                </p>
               </div>
               <div className="kanban-cards">
                 {(byColumn[col] ?? []).map((lead) => (
@@ -165,10 +365,22 @@ export function LeadsPage({ salesUser }: Props) {
                     style={{ cursor: 'grab' }}
                   >
                     <Link to={`/sales/deal-sourcing/leads/${lead.id}`} className="lead-card-name">
-                      {lead.name}
+                      {leadContactName(lead) || lead.name}
                     </Link>
-                    <div className="lead-card-meta">{lead.company || 'No company'}</div>
-                    <div className="lead-card-foot">{DEAL_PATH_LABELS[lead.deal_path]}</div>
+                    <div className="lead-card-meta">
+                      {lead.sales_accounts?.name || lead.company || 'No account'}
+                    </div>
+                    <div className="lead-card-foot">
+                      <span>{DEAL_PATH_LABELS[lead.deal_path]}</span>
+                      <span className="lead-card-tip" title={STAGE_GUIDANCE[col].focus}>
+                        {STAGE_GUIDANCE[col].decision}
+                      </span>
+                    </div>
+                    <FollowUpControl
+                      lead={lead}
+                      followUp={followUpsByLead[lead.id]}
+                      onOpen={followUpDeal}
+                    />
                   </div>
                 ))}
                 {(byColumn[col] ?? []).length === 0 ? (
@@ -185,30 +397,99 @@ export function LeadsPage({ salesUser }: Props) {
           <table className="data-table">
             <thead>
               <tr>
+                <th>Deal</th>
+                <th>Account</th>
                 <th>Name</th>
-                <th>Company</th>
-                <th>Path</th>
+                <th>number</th>
+                <th className="hide-sm">email</th>
+                <th className="hide-sm">Path</th>
                 <th>Stage</th>
-                <th>Source</th>
-                <th>Created</th>
+                <th className="hide-sm">Source</th>
+                <th className="hide-sm">Follow Up / Next Action</th>
+                <th className="hide-sm">Created</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
-              {leads.map((lead) => (
-                <tr key={lead.id}>
-                  <td>
-                    <Link to={`/sales/deal-sourcing/leads/${lead.id}`}>{lead.name}</Link>
-                    <div className="muted small">{lead.email || '—'}</div>
-                  </td>
-                  <td>{lead.company || '—'}</td>
-                  <td>{DEAL_PATH_LABELS[lead.deal_path]}</td>
-                  <td>
-                    <span className="stage-pill">{STAGE_LABELS[lead.stage]}</span>
-                  </td>
-                  <td>{SOURCE_LABELS[lead.source]}</td>
-                  <td>{new Date(lead.created_at).toLocaleDateString()}</td>
-                </tr>
-              ))}
+              {leads.map((lead) => {
+                const followUp = followUpsByLead[lead.id];
+                const name = leadContactName(lead);
+                const phone = leadContactPhone(lead);
+                const email = leadContactEmail(lead);
+                return (
+                  <tr key={lead.id}>
+                    <td>
+                      <Link to={`/sales/deal-sourcing/leads/${lead.id}`}>
+                        {name || lead.name}
+                      </Link>
+                    </td>
+                    <td>{lead.sales_accounts?.name || lead.company || '—'}</td>
+                    <td>
+                      <InlineIdentityCell
+                        lead={lead}
+                        field="name"
+                        value={name}
+                        createdBy={salesUser.id}
+                        onSaved={(updated) =>
+                          setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)))
+                        }
+                        onError={setError}
+                      />
+                    </td>
+                    <td>
+                      <InlineIdentityCell
+                        lead={lead}
+                        field="phone"
+                        value={phone}
+                        createdBy={salesUser.id}
+                        onSaved={(updated) =>
+                          setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)))
+                        }
+                        onError={setError}
+                      />
+                    </td>
+                    <td className="hide-sm">
+                      <InlineIdentityCell
+                        lead={lead}
+                        field="email"
+                        value={email}
+                        createdBy={salesUser.id}
+                        onSaved={(updated) =>
+                          setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)))
+                        }
+                        onError={setError}
+                      />
+                    </td>
+                    <td className="hide-sm">{DEAL_PATH_LABELS[lead.deal_path]}</td>
+                    <td>
+                      <span className="stage-pill">{STAGE_LABELS[lead.stage]}</span>
+                    </td>
+                    <td className="hide-sm">{SOURCE_LABELS[lead.source]}</td>
+                    <td className="hide-sm">
+                      {followUp ? (
+                        <div className="list-followup">
+                          <div className="list-followup-title">{followUp.title}</div>
+                          <div className={`muted small ${isTaskOverdue(followUp) ? 'warn-text' : ''}`}>
+                            {followUp.due_at ? formatDate(followUp.due_at) : 'No due date'}
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
+                    <td className="hide-sm">{new Date(lead.created_at).toLocaleDateString()}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="btn ghost"
+                        onClick={() => followUpDeal(lead)}
+                      >
+                        {followUp ? 'Add' : 'Follow Up / Next Action'}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           {leads.length === 0 ? (
@@ -221,40 +502,16 @@ export function LeadsPage({ salesUser }: Props) {
 
       {showNew ? (
         <div className="modal-backdrop" onClick={() => setShowNew(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
+          <div className="modal modal-wide" onClick={(e) => e.stopPropagation()}>
             <h2>New deal</h2>
             <form className="stack-form" onSubmit={(e) => void onCreate(e)}>
+              <DealPartyFields
+                value={draft.party}
+                createdBy={salesUser.id}
+                requireContact
+                onChange={(party) => setDraft({ ...draft, party })}
+              />
               <div className="form-grid">
-                <label>
-                  Founder / contact
-                  <input
-                    required
-                    value={draft.name}
-                    onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                  />
-                </label>
-                <label>
-                  Company
-                  <input
-                    value={draft.company}
-                    onChange={(e) => setDraft({ ...draft, company: e.target.value })}
-                  />
-                </label>
-                <label>
-                  Email
-                  <input
-                    type="email"
-                    value={draft.email}
-                    onChange={(e) => setDraft({ ...draft, email: e.target.value })}
-                  />
-                </label>
-                <label>
-                  Phone
-                  <input
-                    value={draft.phone}
-                    onChange={(e) => setDraft({ ...draft, phone: e.target.value })}
-                  />
-                </label>
                 <label>
                   Thesis / path
                   <select
@@ -305,6 +562,11 @@ export function LeadsPage({ salesUser }: Props) {
           </div>
         </div>
       ) : null}
+
+      <p className="muted small portal-todo-hint">
+        Use <strong>Add To Do</strong> in the header, or <strong>Follow Up / Next Action</strong> on
+        a deal card, to capture tasks in Microsoft To Do.
+      </p>
     </>
   );
 }

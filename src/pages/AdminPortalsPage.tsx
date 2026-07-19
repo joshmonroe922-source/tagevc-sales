@@ -174,7 +174,7 @@ export function AdminPortalsPage({ salesUser }: Props) {
         </div>
         <div className="page-actions">
           <Link to="/sales/admin/email" className="btn ghost">
-            Email analytics
+            Email Analytics
           </Link>
           <Link to="/sales/admin/audit" className="btn ghost">
             Audit log

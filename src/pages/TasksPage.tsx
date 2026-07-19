@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { createTask, listTasks, setTaskStatus } from '../lib/api';
-import type { SalesTask, SalesUser } from '../lib/types';
+import { importanceLabel } from '../lib/msTaskUtils';
+import type { SalesTask, SalesUser, TaskImportance } from '../lib/types';
 import { dueAtFromDateInput, formatDate, isTaskOverdue } from '../lib/types';
 
 type Props = { salesUser: SalesUser };
@@ -12,7 +13,9 @@ export function TasksPage({ salesUser }: Props) {
   const [filter, setFilter] = useState<'open' | 'done' | 'all'>('open');
   const [title, setTitle] = useState('');
   const [due, setDue] = useState('');
+  const [importance, setImportance] = useState<TaskImportance>('normal');
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   async function refresh() {
     setError(null);
@@ -20,7 +23,7 @@ export function TasksPage({ salesUser }: Props) {
       const all = await listTasks(filter === 'all' ? undefined : { status: filter });
       setTasks(all);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load follow-ups');
+      setError(err instanceof Error ? err.message : 'Failed to load deal tasks');
     }
   }
 
@@ -30,14 +33,23 @@ export function TasksPage({ salesUser }: Props) {
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
+    setNotice(null);
     try {
-      await createTask({
+      const result = await createTask({
         sales_user_id: salesUser.id,
         title: title.trim(),
         due_at: due ? dueAtFromDateInput(due) : null,
+        importance,
+        portal_slug: 'deal-sourcing',
       });
       setTitle('');
       setDue('');
+      setImportance('normal');
+      setNotice(
+        result.synced
+          ? 'Synced to To Do (Tage · Deal Sourcing).'
+          : (result.syncError ?? 'Saved locally — connect Microsoft to sync.'),
+      );
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Create failed');
@@ -48,8 +60,12 @@ export function TasksPage({ salesUser }: Props) {
     <>
       <div className="page-header">
         <div>
-          <h1>Follow-ups</h1>
-          <p className="muted">Deal-linked and standalone founder/operator follow-ups.</p>
+          <h1>Deal tasks</h1>
+          <p className="muted">
+            Deal-linked tasks sync to Microsoft list “Tage · Deal Sourcing”. Prefer{' '}
+            <Link to="/sales/todo">master To Do</Link> (header <strong>Add To Do</strong> / deal{' '}
+            <strong>Follow Up / Next Action</strong>) for new items.
+          </p>
         </div>
         <div className="page-actions">
           <div className="seg">
@@ -67,6 +83,9 @@ export function TasksPage({ salesUser }: Props) {
         </div>
       </div>
 
+      {notice ? (
+        <div className={`banner ${notice.startsWith('Synced') ? 'ok' : 'warn'}`}>{notice}</div>
+      ) : null}
       {error ? <div className="banner error">{error}</div> : null}
 
       <div className="detail-grid">
@@ -92,25 +111,40 @@ export function TasksPage({ salesUser }: Props) {
                   <span>{task.title}</span>
                 </label>
                 <div className="task-meta">
+                  <span
+                    className={`cal-task-importance imp-${
+                      (task.importance ?? 'normal') === 'high' ||
+                      (task.importance ?? 'normal') === 'low'
+                        ? task.importance
+                        : 'normal'
+                    }`}
+                  >
+                    {importanceLabel(task.importance)}
+                  </span>
                   <span className={isTaskOverdue(task) ? 'warn-text' : 'muted'}>
                     {formatDate(task.due_at)}
                   </span>
+                  {task.ms_todo_task_id ? (
+                    <span className="muted small todo-sync-badge">Synced to To Do</span>
+                  ) : (
+                    <span className="muted small todo-sync-badge local-only">Local only</span>
+                  )}
                   {task.sales_leads ? (
                     <Link to={`/sales/deal-sourcing/leads/${task.sales_leads.id}`}>
-                      {task.sales_leads.name}
+                      Open deal
                     </Link>
                   ) : (
-                    <span className="muted">Standalone</span>
+                    <span className="muted">Unscoped</span>
                   )}
                 </div>
               </li>
             ))}
           </ul>
-          {tasks.length === 0 ? <p className="muted">No follow-ups in this view.</p> : null}
+          {tasks.length === 0 ? <p className="muted">No tasks in this view.</p> : null}
         </div>
 
         <div className="panel">
-          <h2>New standalone follow-up</h2>
+          <h2>New Deal Sourcing task</h2>
           <form className="stack-form" onSubmit={(e) => void onCreate(e)}>
             <label>
               Title
@@ -120,8 +154,19 @@ export function TasksPage({ salesUser }: Props) {
               Due date
               <input type="date" value={due} onChange={(e) => setDue(e.target.value)} />
             </label>
+            <label>
+              Importance
+              <select
+                value={importance}
+                onChange={(e) => setImportance(e.target.value as TaskImportance)}
+              >
+                <option value="low">Low</option>
+                <option value="normal">Normal</option>
+                <option value="high">High</option>
+              </select>
+            </label>
             <button type="submit" className="btn primary">
-              Create follow-up
+              Create task
             </button>
           </form>
         </div>

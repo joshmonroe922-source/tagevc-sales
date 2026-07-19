@@ -1,4 +1,4 @@
-import { logAuditEvent } from './audit';
+import { logAuditCompletion, logAuditEvent } from './audit';
 import { requireSupabase } from './supabase';
 import type {
   ChecklistStatus,
@@ -333,14 +333,13 @@ export async function listComplianceForEntity(
   return (data ?? []) as OpsComplianceItem[];
 }
 
+/** Cross-entity compliance for Legal shared services (active + inactive). */
 export async function listUpcomingCompliance(): Promise<OpsComplianceItem[]> {
   const { data, error } = await requireSupabase()
     .from('ops_compliance_items')
     .select('*, ops_entities(id, name)')
-    .eq('active', true)
-    .not('next_due_at', 'is', null)
-    .order('next_due_at', { ascending: true })
-    .limit(50);
+    .order('next_due_at', { ascending: true, nullsFirst: false })
+    .limit(200);
   if (error) throw error;
   return (data ?? []) as OpsComplianceItem[];
 }
@@ -419,5 +418,22 @@ export async function markComplianceComplete(id: string): Promise<OpsComplianceI
     last_completed_at: today,
     next_due_at: nextDue,
     active: cadence === 'one_time' ? false : existing.active,
+  }).then((item) => {
+    logAuditCompletion({
+      eventType: 'ops_compliance_complete',
+      portal: 'legal',
+      entityType: 'ops_compliance_item',
+      entityId: id,
+      title: existing.title,
+      fromStatus: null,
+      toStatus: 'completed',
+      completedAt: today,
+      extra: {
+        entity_id: existing.entity_id,
+        cadence,
+        next_due_at: nextDue,
+      },
+    });
+    return item;
   });
 }

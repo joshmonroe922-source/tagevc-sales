@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
+import { PasswordField } from '../components/PasswordField';
 import { logAuditEvent } from '../lib/audit';
 import {
   resetPasswordForEmail,
@@ -15,8 +16,11 @@ type Props = {
 
 type Mode = 'password' | 'magic' | 'forgot';
 
+/** Intended portal login email — was previously hardcoded as josh@tagevc.com. */
+const DEFAULT_LOGIN_EMAIL = 'joshmonroe@tagevc.com';
+
 export function LoginPage({ forbiddenMessage }: Props) {
-  const [email, setEmail] = useState('josh@tagevc.com');
+  const [email, setEmail] = useState(DEFAULT_LOGIN_EMAIL);
   const [password, setPassword] = useState('');
   const [mode, setMode] = useState<Mode>('password');
   const [error, setError] = useState<string | null>(forbiddenMessage ?? null);
@@ -103,8 +107,7 @@ export function LoginPage({ forbiddenMessage }: Props) {
           {mode === 'password' ? (
             <label>
               Password
-              <input
-                type="password"
+              <PasswordField
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

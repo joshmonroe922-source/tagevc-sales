@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { PasswordField } from '../components/PasswordField';
 import { signOut, updatePassword } from '../lib/auth';
 import { supabase, supabaseConfigured } from '../lib/supabase';
 import '../components/sales.css';
@@ -121,8 +122,7 @@ export function ResetPasswordPage() {
           <form className="login-form" onSubmit={(e) => void onSubmit(e)}>
             <label>
               New password
-              <input
-                type="password"
+              <PasswordField
                 autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -132,8 +132,7 @@ export function ResetPasswordPage() {
             </label>
             <label>
               Confirm password
-              <input
-                type="password"
+              <PasswordField
                 autoComplete="new-password"
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}

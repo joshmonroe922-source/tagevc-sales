@@ -113,12 +113,12 @@ export function ReportsPage() {
         <div className="table-wrap">
           <table className="data-table">
             <thead>
-              <tr>
-                <th>Deal</th>
-                <th>Thesis</th>
-                <th>Stage</th>
-                <th>Updated</th>
-              </tr>
+            <tr>
+              <th>Deal</th>
+              <th className="hide-sm">Thesis</th>
+              <th>Stage</th>
+              <th>Updated</th>
+            </tr>
             </thead>
             <tbody>
               {stats.recentLeads.map((lead) => (
@@ -127,7 +127,7 @@ export function ReportsPage() {
                     <Link to={`/sales/deal-sourcing/leads/${lead.id}`}>{lead.name}</Link>
                     <div className="muted small">{lead.company || '—'}</div>
                   </td>
-                  <td>{DEAL_PATH_LABELS[lead.deal_path]}</td>
+                  <td className="hide-sm">{DEAL_PATH_LABELS[lead.deal_path]}</td>
                   <td>
                     <span className="stage-pill">{STAGE_LABELS[lead.stage]}</span>
                   </td>
@@ -139,6 +139,10 @@ export function ReportsPage() {
         </div>
         {stats.recentLeads.length === 0 ? <p className="muted">No deals yet.</p> : null}
       </div>
+
+      <p className="muted small portal-todo-hint">
+        Use <strong>Add To Do</strong> in the header to capture tasks in Microsoft To Do.
+      </p>
     </>
   );
 }

@@ -147,7 +147,17 @@ See README §8. Do not commit the API key.
 
 ## Email analytics (opens / clicks)
 
-Portal-sent mail (intake alerts, drip emails, **Send tracked email** on a lead) stores Resend message IDs and receives engagement via webhooks.
+**Deal tracked email** (Send tracked email on a lead) sends via **Microsoft Graph** from the user’s connected mailbox, saves to **Sent Items**, and records opens/clicks with a portal tracking pixel + link redirects (`mail-tracking` edge function). Replies land in Outlook and appear in the deal mail thread.
+
+**Resend** analytics still applies to intake alerts, drips, and auth SMTP — those use Resend webhooks.
+
+### Deal tracked email (Graph)
+
+1. User must **connect Microsoft** with `Mail.ReadWrite` + `Mail.Send` (see `SETUP_CALENDAR.md`). After scope changes: admin consent + **Reconnect**.
+2. Deploy migration `0039_mail_graph_tracking.sql` and functions `send-tracked-email`, `mail-tracking`.
+3. No Resend setup required for deal tracked sends.
+
+### Resend webhooks (intake / drips / auth)
 
 ### What Josh configures in Resend (dashboard)
 
@@ -159,8 +169,8 @@ Portal-sent mail (intake alerts, drip emails, **Send tracked email** on a lead) 
 4. Deploy functions + migration:
 
 ```bash
-supabase db push   # or apply 0012_email_analytics.sql
-supabase functions deploy resend-webhook send-tracked-email intake-lead process-drips
+supabase db push   # includes 0012 + 0039_mail_graph_tracking.sql
+supabase functions deploy mail-tracking send-tracked-email resend-webhook intake-lead process-drips
 supabase secrets set RESEND_WEBHOOK_SECRET="whsec_..."
 ```
 
@@ -177,17 +187,14 @@ supabase secrets set RESEND_WEBHOOK_SECRET="whsec_..."
 | Link clicks | Yes (Resend rewrites `https://` links when click tracking is on) |
 | True “forwarded to someone else” | **No** — industry-wide. Extra opens *might* mean a forwarder’s client loaded images, but you cannot prove it |
 | Attachment opened | **No** — Resend does not report attachment opens |
-| Outlook / M365 compose | **Not tracked** — see below |
+| Outlook / M365 compose (untracked) | **Not tracked** — use **Send tracked email** on the lead for Graph + analytics |
+| Deal tracked email (portal) | **Yes** — Graph send from your mailbox + portal pixel/link tracking |
 
-### Microsoft 365 / Outlook personal sends
+### Microsoft 365 / Outlook
 
-Mail composed in Outlook (any alias under your tenant) does **not** go through Resend, so open/click webhooks never fire.
+**Send tracked email** on a deal sends as your connected `@tagevc.com` (or work) address via Graph. Replies go to your Outlook inbox and sync into the deal mail panel.
 
-**Practical path (no HubSpot):**
-
-1. For deals you care about tracking, use **Send tracked email** on the lead in the portal (Resend + analytics).
-2. Keep Outlook for day-to-day / untracked correspondence.
-3. Optional later: Outlook add-in or Graph message-trace (delivery only, not opens) — not built in this repo.
+Untracked mail composed directly in Outlook does not get open/click analytics.
 
 Auth password-reset / magic-link emails use Resend SMTP; if the same domain has tracking + webhooks enabled, delivery/open events may appear as `webhook` source rows when the send was not recorded by an edge function.
 

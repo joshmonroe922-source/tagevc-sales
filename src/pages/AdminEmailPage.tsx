@@ -102,10 +102,10 @@ export function AdminEmailPage({ salesUser }: Props) {
     <>
       <div className="page-header">
         <div>
-          <h1>Email analytics</h1>
+          <h1>Email Analytics</h1>
           <p className="muted">
-            Opens, clicks, and delivery for portal-sent mail via Resend. Outlook/M365
-            personal sends are not tracked unless you send from this portal.
+            Opens, clicks, and delivery for portal-sent mail. Deal tracked emails use Graph +
+            portal tracking; intake/drips use Resend webhooks.
           </p>
         </div>
         <div className="page-actions">
@@ -217,8 +217,8 @@ export function AdminEmailPage({ salesUser }: Props) {
                 <th>Sent</th>
                 <th>To</th>
                 <th>Subject</th>
-                <th>Source</th>
-                <th>Status</th>
+                <th className="hide-sm">Source</th>
+                <th className="hide-sm">Status</th>
                 <th>Opens</th>
                 <th>Clicks</th>
                 <th />
@@ -244,8 +244,8 @@ export function AdminEmailPage({ salesUser }: Props) {
                       ) : null}
                     </td>
                     <td>{m.subject || '—'}</td>
-                    <td>{EMAIL_SOURCE_LABELS[m.source] ?? m.source}</td>
-                    <td>{m.status}</td>
+                    <td className="hide-sm">{EMAIL_SOURCE_LABELS[m.source] ?? m.source}</td>
+                    <td className="hide-sm">{m.status}</td>
                     <td>
                       {m.open_count}
                       {m.last_opened_at ? (
