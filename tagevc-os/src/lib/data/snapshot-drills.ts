@@ -1,5 +1,6 @@
 import {
   ALL_PIPELINE_SNAPSHOT_DOMAINS,
+  shouldLoadSnapshotPayload,
   shouldWriteSnapshot,
 } from '@/lib/data/persist';
 import { listSnapshotArchives } from '@/lib/data/snapshot-archive';
@@ -102,6 +103,15 @@ export async function runEmptySnapshotDrills(opts?: {
       detail: gate.allow
         ? `Snapshot writes still allowed (${gate.reason})`
         : gate.reason,
+    });
+
+    const loadGate = shouldLoadSnapshotPayload(collection);
+    checks.push({
+      name: 'sql_only_hydrate',
+      ok: !loadGate.allow,
+      detail: loadGate.allow
+        ? `Payload hydrate still allowed (${loadGate.reason})`
+        : loadGate.reason,
     });
 
     const snap = byCollection.get(collection);

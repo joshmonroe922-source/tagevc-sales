@@ -1,37 +1,21 @@
-# DocuSign Integration — Architecture (Phase 20)
+# DocuSign Integration — Architecture (Phase 21)
 
-**Status:** Designed · stub UI under Shared Services · Legal.  
-**Non-goal:** Full Connect sync in Phase 20 (mock send/webhook remain).
+**Status:** Live JWT send + Connect webhook · hub under Shared Services · Legal.  
+**Fallback:** Mock `ENV-…` envelopes when JWT env is incomplete.
 
 ## Placement
 
 | Layer | Location |
 |-------|----------|
-| Product hub | Shared Services → Legal → DocuSign |
-| Stub route | `/shared-services/legal/docusign` |
-| Documents touchpoint | Existing `/documents` send + capital gate |
-| Types | `tagevc-os/src/lib/docusign/types.ts` |
-| SQL stub | `tagevc-os/supabase/phase20_docusign_events.sql` |
+| Product hub | `/shared-services/legal/docusign` |
+| Documents send | `sendDocumentViaDocuSign` → Documents UI |
+| JWT / envelopes | `tagevc-os/src/lib/docusign/{config,jwt,envelopes,send}.ts` |
+| Connect parse | `lib/docusign/connect.ts` |
+| Events | `lib/docusign/events-repo.ts` → `os_docusign_events` |
+| Webhook | `POST /api/docusign/webhook` |
+| SQL | `phase20_docusign_events.sql` + `phase21_shared_services.sql` |
 
-## Goals
-
-1. Replace mock `ENV-…` envelope IDs with real DocuSign envelopes  
-2. Connect webhook → durable `os_docusign_events` + document status  
-3. Preserve capital-doc human gate (`action:docusign_capital`, forbid-list)  
-4. Store completed PDFs into entity folder `07_Signed`  
-5. Entity-scope events by `entity_id` for subsidiary operators  
-
-## Current mock path (keep for local/dev)
-
-```
-Ready to Send → sendDocument (fake envelope)
-  → POST /api/docusign/webhook { envelope_id, status }
-  → DocumentRecord status + optional move to 07_Signed
-```
-
-Simulate button on document detail remains until real Connect is live.
-
-## Target architecture (Phase 21+)
+## Flow
 
 ```mermaid
 sequenceDiagram
@@ -43,51 +27,48 @@ sequenceDiagram
 
   UI->>App: sendDocumentAction(doc_id)
   App->>App: capital gate + entity scope
-  App->>DS: JWT + Envelopes:create
-  DS-->>App: envelope_id
-  App->>DB: docs.envelope_id + audit
+  alt JWT configured
+    App->>DS: JWT + Envelopes:create
+    DS-->>App: envelope_id
+  else mock
+    App->>App: mint ENV-…
+  end
+  App->>DB: doc status + os_docusign_events
   WH->>App: Connect event
-  App->>DB: os_docusign_events + status
-  App->>DB: optional signed PDF → storage
+  App->>DB: os_docusign_events + document status
 ```
 
-## Env matrix (planned)
+## Env matrix
 
 | Variable | Purpose |
 |----------|---------|
 | `DOCUSIGN_INTEGRATION_KEY` | Integration key |
 | `DOCUSIGN_USER_ID` | Impersonated user GUID |
 | `DOCUSIGN_ACCOUNT_ID` | Account |
-| `DOCUSIGN_PRIVATE_KEY` | JWT RSA key |
-| `DOCUSIGN_BASE_PATH` | demo vs production host |
-| `DOCUSIGN_WEBHOOK_SECRET` | Already used (custom header) |
+| `DOCUSIGN_PRIVATE_KEY` | JWT RSA private key (PEM; `\n` ok) |
+| `DOCUSIGN_OAUTH_HOST` | Default `account-d.docusign.com` |
+| `DOCUSIGN_BASE_PATH` | Default `https://demo.docusign.net` |
+| `DOCUSIGN_WEBHOOK_SECRET` | Custom header `x-tagevc-webhook-secret` |
+| `DOCUSIGN_CONNECT_HMAC_SECRET` | Optional `X-DocuSign-Signature-1` HMAC |
 
-Prefer Connect HMAC verification in Phase 21; keep custom secret as fallback.
+## Webhook payloads
+
+1. **Mock / simple:** `{ "envelope_id": "…", "status": "completed" }`  
+2. **Connect JSON:** `{ "event": "envelope-completed", "data": { "envelopeId": "…", "envelopeSummary": { "status": "completed" } } }`
+
+Unknown envelopes are acknowledged and still logged to `os_docusign_events`.
 
 ## Permissions
 
-| Action | Role |
-|--------|------|
+| Action | Permission |
+|--------|------------|
 | Send non-capital | `write:documents` |
-| Send capital | `action:docusign_capital` (visionary today) |
-| View events | `read:documents` + entity scope |
+| Send capital | `action:docusign_capital` |
+| View hub / events | `read:documents` |
 
-## Subsidiary usage
+## Still deferred
 
-- Envelope events carry `entity_id` from the document  
-- RLS soft-scope on `os_docusign_events` (firm-wide or `can_access_entity`)  
-- Service role webhook path inserts then revalidates  
-
-## Implementation slices (Phase 21+)
-
-1. JWT client + create envelope from template/upload  
-2. Connect adapter → `os_docusign_events`  
-3. Signed PDF pull → storage + `07_Signed`  
-4. Void / reminder / recipient update  
-5. Retire simulate button in production  
-
-## Out of scope here
-
-- Full SDK wiring  
-- Push notifications on signed  
-- Multi-account DocuSign orgs  
+- Signed PDF download → storage / `07_Signed`  
+- Template catalog sync  
+- Void / reminder UI  
+- Retire simulate button in production  

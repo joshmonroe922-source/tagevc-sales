@@ -1,6 +1,5 @@
 /**
- * DocuSign domain types — Phase 20 architecture scaffolding.
- * No live API client yet; mock send/webhook remain in document-store.
+ * DocuSign domain types — Phase 21 live JWT + Connect.
  */
 
 export type DocusignEnvelopeStatus =
@@ -19,6 +18,8 @@ export type DocusignConnectEvent = {
   status: DocusignEnvelopeStatus;
   doc_id: string | null;
   entity_id: string | null;
+  deal_id?: string | null;
+  ticket_id?: string | null;
   raw_payload: Record<string, unknown> | null;
   received_at: string;
 };
@@ -37,12 +38,14 @@ export type DocusignSendRequest = {
   is_capital: boolean;
 };
 
-/** Env keys planned for Phase 21+ real integration (not required yet). */
+/** Env keys for live DocuSign JWT + Connect. */
 export const DOCUSIGN_ENV_KEYS = [
   'DOCUSIGN_INTEGRATION_KEY',
   'DOCUSIGN_USER_ID',
   'DOCUSIGN_ACCOUNT_ID',
   'DOCUSIGN_PRIVATE_KEY',
-  'DOCUSIGN_WEBHOOK_SECRET',
+  'DOCUSIGN_OAUTH_HOST',
   'DOCUSIGN_BASE_PATH',
+  'DOCUSIGN_WEBHOOK_SECRET',
+  'DOCUSIGN_CONNECT_HMAC_SECRET',
 ] as const;

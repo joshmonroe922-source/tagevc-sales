@@ -6,11 +6,12 @@ import {
   createDocumentFromTemplate,
   getDocument,
   runAiReviewOnDocument,
-  sendDocument,
   simulateDocuSignProgress,
   updateAiSuggestion,
   uploadDocument,
 } from '@/lib/data/document-store';
+import { sendDocumentViaDocuSign } from '@/lib/docusign/send';
+import { insertDocuSignEvent } from '@/lib/docusign/events-repo';
 import { isCapitalDocument } from '@/lib/documents/capital-gate';
 import { guardPermission } from '@/lib/rbac/session';
 import { DOC_TYPES, ENTITY_DOC_FOLDERS } from '@/lib/types/enums';
@@ -121,16 +122,20 @@ export async function sendDocumentAction(
       const capitalGate = await guardPermission('action:docusign_capital');
       if (!capitalGate.ok) return capitalGate;
     }
-    const doc = sendDocument({
+    const result = await sendDocumentViaDocuSign({
       doc_id: docId,
       sent_by: sentBy,
       explicit_human_send: true,
     });
-    revalidateDocs(doc.entity_id, doc.doc_id);
+    revalidateDocs(result.doc.entity_id, result.doc.doc_id);
+    revalidatePath('/shared-services/legal/docusign');
+    const persistNote = result.event_persist_ok
+      ? ''
+      : ` · event log: ${result.event_persist_error ?? 'failed'}`;
     return {
       ok: true,
-      docId: doc.doc_id,
-      message: `Sent ${doc.envelope_id}`,
+      docId: result.doc.doc_id,
+      message: `Sent ${result.envelope_id} (${result.mode})${persistNote}`,
     };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Failed' };
@@ -150,7 +155,18 @@ export async function simulateWebhookAction(
       if (!capitalGate.ok) return capitalGate;
     }
     const doc = simulateDocuSignProgress(docId);
+    if (doc.envelope_id) {
+      await insertDocuSignEvent({
+        envelope_id: doc.envelope_id,
+        status: doc.status.toLowerCase(),
+        event_type: 'simulate-progress',
+        doc_id: doc.doc_id,
+        entity_id: doc.entity_id,
+        raw_payload: { source: 'simulateWebhookAction', status: doc.status },
+      });
+    }
     revalidateDocs(doc.entity_id, doc.doc_id);
+    revalidatePath('/shared-services/legal/docusign');
     return {
       ok: true,
       docId: doc.doc_id,

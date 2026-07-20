@@ -317,7 +317,8 @@ export function NormalizationHealthPanel({
           <CardHeader>
             <CardTitle className="text-base">Archive export (4d)</CardTitle>
             <CardDescription>
-              Download archive metadata JSON for offsite retention. Does not drop
+              Download archive metadata JSON for offsite retention (≥90 days).
+              After storing, set ARCHIVE_EXPORT_CONFIRMED_AT. Does not drop
               tables.
             </CardDescription>
           </CardHeader>

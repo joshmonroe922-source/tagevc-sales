@@ -1,24 +1,17 @@
-# Hardware, Software & Licensing — Architecture (Phase 20)
+# Hardware, Software & Licensing — Architecture (Phase 21)
 
-**Status:** Designed · stub UI under Shared Services · IT.  
-**Non-goal:** Full inventory CRUD in Phase 20.
+**Status:** Live CRUD + assign/revoke under Shared Services · IT.  
+**Non-goal:** Full onboarding/offboarding automation (Phase 22+).
 
 ## Placement
 
 | Layer | Location |
 |-------|----------|
-| Product hub | Shared Services → IT → Assets |
-| Stub route | `/shared-services/it/assets` |
-| Types | `tagevc-os/src/lib/shared-services/it-assets-types.ts` |
-| SQL stub | `tagevc-os/supabase/phase20_it_assets.sql` |
-
-## Goals
-
-1. Track firm/subsidiary **hardware** (laptops, phones, peripherals)  
-2. Track **software licenses** (SaaS seats, renewals, cost_$k)  
-3. Append-only **assignment events** for audit  
-4. Entity-scoped access for subsidiary IT leads  
-5. Hooks for **onboarding / offboarding** (Phase 22+ automation via tickets)
+| Product hub | `/shared-services/it/assets` |
+| Repo | `tagevc-os/src/lib/shared-services/it-assets-repo.ts` |
+| Actions | `shared-services/it/assets/actions.ts` |
+| Types | `it-assets-types.ts` |
+| SQL | `phase20_it_assets.sql` + `phase21_shared_services.sql` |
 
 ## Domain model
 
@@ -33,55 +26,35 @@ os_it_assignment_events (append-only)
   assign | return | license_grant | license_revoke
 ```
 
-## Entity scope
+## Permissions
 
-- Every row may carry `entity_id` (null = firm pool)  
-- RLS: firm-wide roles see all; subsidiary sees `can_access_entity`  
-- App-layer filters should mirror Phase 18/19 pipeline soft/hide policy  
+| Permission | Roles (examples) |
+|------------|------------------|
+| `read:it_assets` | visionary, partner, coo, service_lead, sub_lead, counsel_ops, admin |
+| `write:it_assets` | visionary, coo, service_lead, admin |
 
-## Workflows (target)
+## Live workflows
 
 ### Assign hardware
-1. Pick in-stock asset → assign to profile  
-2. Write assignment event  
-3. Optional: open SS ticket if MDM enrollment needed  
+1. Create in-stock asset → Assign (prompt for user UUID)  
+2. Status → `assigned` · event `assign`
 
-### Grant license seat
-1. Check `seats_used < seat_count`  
-2. Increment seats_used · event `license_grant`  
-3. Renewal watch → Command Center / Activity later  
+### Return hardware
+1. Return → `in_stock` · clears assignee · event `return`
 
-### Offboarding
-1. List assets + licenses for user  
-2. Return hardware · revoke seats  
-3. Emit events · optional SS checklist ticket  
+### Grant / revoke seat
+1. Grant increments `seats_used` (respects `seat_count`)  
+2. Revoke decrements · events `license_grant` / `license_revoke`
 
-## Permissions (planned)
+## Phase 22+
 
-| Permission | Purpose |
-|------------|---------|
-| `read:it_assets` | View inventory (entity-scoped) |
-| `write:it_assets` | Assign / update / license seats |
-| `admin:it_assets` | Retire assets · firm pool |
+1. Offboarding checklist (list user assets + revoke seats)  
+2. Ticket actions “Provision laptop” / “Revoke SaaS”  
+3. Renewal alerts into Activity / digests  
+4. Entity-scoped UI filters  
 
-Wire into `roles.ts` in Phase 21 when UI goes live.
+## Out of scope
 
-## Relationship to Shared Services tickets
-
-- IT service tag already exists on tickets  
-- Future: ticket actions “Provision laptop” / “Revoke SaaS” spawn or close against these tables  
-- Do not conflate with RE Deal Flow `asset_name` (real estate)
-
-## Implementation slices (Phase 21+)
-
-1. Apply SQL · list/detail UI for hardware + licenses  
-2. Assign / return flows + events  
-3. Seat grant/revoke with validation  
-4. Offboarding checklist from Entity / HR  
-5. Renewal alerts into Activity / digests  
-
-## Out of scope here
-
-- MDM / Intune integration  
+- MDM / Intune  
 - Purchase-order accounting  
 - Full CMDB  

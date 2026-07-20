@@ -1,3 +1,5 @@
+import { getArchiveExportOpsConfirmation } from '@/lib/data/archive-export-state';
+
 export type SoakRunRecord = {
   fetched_at: string;
   healthy: boolean;
@@ -38,6 +40,7 @@ export function buildStage4eChecklist(input: {
   recent_archive_count: number;
   last_soak: SoakRunRecord | null;
 }): Stage4eChecklist {
+  const exportOps = getArchiveExportOpsConfirmation();
   const items = [
     {
       id: 'drills',
@@ -47,7 +50,7 @@ export function buildStage4eChecklist(input: {
     },
     {
       id: 'sql_only',
-      label: 'SQL-only hydrate active (Stage 4b)',
+      label: 'SQL-only hydrate active (Stage 4b/4c)',
       ok: input.sql_only_hydrate_active,
       detail: input.sql_only_hydrate_active
         ? 'Payload load skipped for pipeline domains'
@@ -84,12 +87,12 @@ export function buildStage4eChecklist(input: {
     {
       id: 'export',
       label: 'Offsite archive export retained (ops)',
-      ok: false,
-      detail: 'Manual — download /api/admin/archive-export and store ≥90 days',
+      ok: exportOps.confirmed,
+      detail: exportOps.detail,
     },
   ];
 
-  // Never claim DROP-ready: export is always ops-manual
+  // Phase 21: never auto-claim DROP-ready — Stage 4e remains an explicit ops decision
   const ready = false;
 
   return { ready, items };

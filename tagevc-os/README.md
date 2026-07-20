@@ -448,10 +448,23 @@ Docs: `docs/OS_PHASE19.md`
 
 Docs: `docs/OS_PHASE20.md`
 
-### Phase 21+ backlog
+### Phase 21 scope (DocuSign live + IT CRUD + Stage 4c)
 
-- Real DocuSign Connect; IT inventory CRUD
-- Stage 4c/4e when soak confirmed
+| Area | Status |
+|------|--------|
+| DocuSign JWT + Connect + `os_docusign_events` | Done |
+| IT hardware/licenses CRUD + assign history | Done |
+| Stage 4c load skip + drill + archive retention tooling | Done |
+| Stage 4e DROP `os_store_snapshots` | Deferred |
+| SQL | Apply `phase21_shared_services.sql` |
+
+Docs: `docs/OS_PHASE21.md` · `docs/OS_DOCUSIGN.md` · `docs/OS_IT_ASSETS.md`
+
+### Phase 22+ backlog
+
+- Signed PDF pull · DocuSign templates/void UI
+- IT offboarding automation · renewal digests
+- Stage 4e DROP when retention confirmed
 - Push · user admin
 
 
@@ -487,4 +500,4 @@ Set `DEV_BYPASS_AUTH=1` in `.env.local` to preview the shell as Visionary (local
 
 ## Next phases (from Cursor Brief)
 
-Phase 20 lays DocuSign and IT asset foundations under Shared Services and polishes Stage 4 observability. Remaining: real DocuSign, IT CRUD, Stage 4e drop, push, user admin.
+Phase 21 ships live DocuSign JWT/Connect and IT asset CRUD. Remaining: signed PDF pull, IT offboarding automation, Stage 4e drop, push, user admin.

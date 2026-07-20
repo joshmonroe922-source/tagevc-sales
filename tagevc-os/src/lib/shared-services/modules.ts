@@ -1,6 +1,6 @@
 /**
- * Shared Services hub module catalog (Phase 20 scaffolding).
- * Ticketing remains the live surface; Legal/IT cards point at architecture stubs.
+ * Shared Services hub module catalog.
+ * Ticketing + DocuSign + IT assets are live surfaces (Phase 21).
  */
 
 export type SsHubModule = {
@@ -28,9 +28,9 @@ export const SS_HUB_MODULES: SsHubModule[] = [
     href: '/shared-services/legal/docusign',
     title: 'DocuSign integration',
     service: 'Legal',
-    status: 'planned',
+    status: 'live',
     description:
-      'Real Connect + envelopes for Documents · capital gates preserved.',
+      'JWT send + Connect webhook · events in os_docusign_events · capital gates.',
     docs: 'docs/OS_DOCUSIGN.md',
   },
   {
@@ -38,9 +38,9 @@ export const SS_HUB_MODULES: SsHubModule[] = [
     href: '/shared-services/it/assets',
     title: 'Hardware, software & licensing',
     service: 'IT',
-    status: 'planned',
+    status: 'live',
     description:
-      'Asset assignment, SaaS licenses, onboarding/offboarding hooks.',
+      'CRUD assets/licenses · assign/return · seat grant/revoke · history.',
     docs: 'docs/OS_IT_ASSETS.md',
   },
 ];

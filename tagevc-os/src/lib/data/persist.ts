@@ -199,6 +199,12 @@ export function isStoreHydrated(collection: StoreCollection) {
 export async function loadStoreSnapshot<T>(
   collection: StoreCollection,
 ): Promise<{ payload: T; updated_at: string } | null> {
+  // Stage 4c — do not hit os_store_snapshots when SQL-only hydrate is active
+  const readGate = shouldLoadSnapshotPayload(collection);
+  if (!readGate.allow) {
+    return null;
+  }
+
   try {
     const supabase = await createPersistClient();
     const { data, error } = await supabase

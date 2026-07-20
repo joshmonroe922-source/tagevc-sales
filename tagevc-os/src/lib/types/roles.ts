@@ -64,6 +64,8 @@ export type Permission =
   | 'write:capital'
   | 'read:documents'
   | 'write:documents'
+  | 'read:it_assets'
+  | 'write:it_assets'
   | 'admin:users'
   | 'admin:enums'
   | 'action:ic_vote'
@@ -92,6 +94,8 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     'write:re_pipeline',
     'write:shared_services',
     'write:documents',
+    'read:it_assets',
+    'write:it_assets',
     'write:capital',
     'write:portfolio_health',
     'action:ic_vote',
@@ -108,6 +112,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     'write:re_pipeline',
     'action:ic_vote',
     'write:documents',
+    'read:it_assets',
   ],
   associate: [
     'read:command_center',
@@ -144,6 +149,8 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     'write:shared_services',
     'read:firm',
     'read:documents',
+    'read:it_assets',
+    'write:it_assets',
   ],
   sub_lead: [
     'read:command_center',
@@ -152,6 +159,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     'read:portfolio',
     'read:documents',
     'write:documents',
+    'read:it_assets',
   ],
   service_lead: [
     'read:command_center',
@@ -160,6 +168,8 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     'read:shared_services',
     'write:shared_services',
     'read:documents',
+    'read:it_assets',
+    'write:it_assets',
   ],
   counsel_ops: [
     'read:command_center',
@@ -171,6 +181,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     'read:documents',
     'write:documents',
     'action:wire',
+    'read:it_assets',
   ],
   admin: [
     ...ALL_READ,
@@ -182,6 +193,8 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     'write:shared_services',
     'write:capital',
     'write:documents',
+    'read:it_assets',
+    'write:it_assets',
     'admin:users',
     'admin:enums',
   ],

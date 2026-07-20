@@ -584,6 +584,8 @@ export function sendDocument(args: {
   doc_id: string;
   sent_by: string;
   explicit_human_send: boolean;
+  /** When set (live DocuSign or pre-minted mock), use this instead of ENV-… */
+  envelope_id?: string;
 }): DocumentRecord {
   const store = getDocStore();
   const doc = store.docs.find((d) => d.doc_id === args.doc_id);
@@ -598,7 +600,9 @@ export function sendDocument(args: {
   });
 
   const now = new Date().toISOString();
-  doc.envelope_id = `ENV-${doc.doc_id}-${Date.now().toString(36)}`;
+  doc.envelope_id =
+    args.envelope_id?.trim() ||
+    `ENV-${doc.doc_id}-${Date.now().toString(36)}`;
   doc.status = 'Sent';
   doc.sent_by = args.sent_by.trim();
   doc.sent_at = now;
