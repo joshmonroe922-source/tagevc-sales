@@ -284,3 +284,41 @@ export async function runScheduleWorkerAction(): Promise<MarketingActionResult> 
     message: `Worker: ${ok} posted, ${fail} failed (${result.processed.length} due)`,
   };
 }
+
+export async function recordEngagementAction(
+  contentId: string,
+  impressions: number,
+  clicks: number,
+  likes: number,
+): Promise<MarketingActionResult> {
+  const gate = await guardPermission('write:marketing');
+  if (!gate.ok) return gate;
+  const { recordEngagement } = await import(
+    '@/lib/shared-services/marketing-analytics'
+  );
+  const res = await recordEngagement({
+    content_id: contentId,
+    impressions,
+    clicks,
+    likes,
+  });
+  if (!res.ok) return res;
+  revalidateMarketing();
+  return { ok: true, message: `Engagement recorded for ${contentId}` };
+}
+
+export async function refreshTokensAction(): Promise<MarketingActionResult> {
+  const gate = await guardPermission('write:marketing');
+  if (!gate.ok) return gate;
+  const { refreshExpiringTokens } = await import(
+    '@/lib/shared-services/marketing-token-refresh'
+  );
+  const { results } = await refreshExpiringTokens(20);
+  revalidateMarketing();
+  const refreshed = results.filter((r) => r.ok && r.refreshed).length;
+  const failed = results.filter((r) => !r.ok).length;
+  return {
+    ok: true,
+    message: `Token refresh: ${refreshed} refreshed, ${failed} failed`,
+  };
+}

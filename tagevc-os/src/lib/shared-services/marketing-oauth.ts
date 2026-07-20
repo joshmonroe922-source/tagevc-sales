@@ -1,6 +1,6 @@
 /**
- * Marketing OAuth connect helpers (Phase 23).
- * LinkedIn + X when client credentials set; otherwise stub connect.
+ * Marketing OAuth connect helpers (Phase 23–24).
+ * LinkedIn, X, Meta (Facebook/Instagram), YouTube when credentials set; else stub.
  */
 
 import { createPersistClient } from '@/lib/supabase/persist-client';
@@ -10,11 +10,28 @@ import {
 } from '@/lib/shared-services/marketing-crypto';
 import type { MarketingPlatform } from '@/lib/shared-services/marketing-types';
 
-const OAUTH_PLATFORMS = ['linkedin', 'x'] as const;
+export const OAUTH_PLATFORMS = [
+  'linkedin',
+  'x',
+  'facebook',
+  'instagram',
+  'youtube',
+] as const;
 export type OAuthPlatform = (typeof OAUTH_PLATFORMS)[number];
 
 export function isOAuthPlatform(p: string): p is OAuthPlatform {
   return (OAUTH_PLATFORMS as readonly string[]).includes(p);
+}
+
+function appOrigin(): string {
+  const base =
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+    process.env.VERCEL_URL?.trim() ||
+    '';
+  if (!base) return 'https://app.tagevc.com';
+  return base.startsWith('http')
+    ? base.replace(/\/$/, '')
+    : `https://${base.replace(/\/$/, '')}`;
 }
 
 export function getOAuthConfig(platform: OAuthPlatform): {
@@ -23,32 +40,47 @@ export function getOAuthConfig(platform: OAuthPlatform): {
   clientSecret: string | null;
   redirectUri: string | null;
 } {
-  const base =
-    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-    process.env.VERCEL_URL?.trim() ||
-    '';
-  const origin = base
-    ? base.startsWith('http')
-      ? base.replace(/\/$/, '')
-      : `https://${base.replace(/\/$/, '')}`
-    : 'https://app.tagevc.com';
-  const redirectUri = `${origin}/api/marketing/oauth/${platform}/callback`;
+  const redirectUri = `${appOrigin()}/api/marketing/oauth/${platform}/callback`;
+  const vault = canStoreOAuthTokens();
 
   if (platform === 'linkedin') {
     const clientId = process.env.LINKEDIN_CLIENT_ID?.trim() || null;
     const clientSecret = process.env.LINKEDIN_CLIENT_SECRET?.trim() || null;
     return {
-      configured: Boolean(clientId && clientSecret && canStoreOAuthTokens()),
+      configured: Boolean(clientId && clientSecret && vault),
       clientId,
       clientSecret,
       redirectUri,
     };
   }
 
-  const clientId = process.env.X_CLIENT_ID?.trim() || null;
-  const clientSecret = process.env.X_CLIENT_SECRET?.trim() || null;
+  if (platform === 'x') {
+    const clientId = process.env.X_CLIENT_ID?.trim() || null;
+    const clientSecret = process.env.X_CLIENT_SECRET?.trim() || null;
+    return {
+      configured: Boolean(clientId && clientSecret && vault),
+      clientId,
+      clientSecret,
+      redirectUri,
+    };
+  }
+
+  if (platform === 'facebook' || platform === 'instagram') {
+    const clientId = process.env.META_APP_ID?.trim() || null;
+    const clientSecret = process.env.META_APP_SECRET?.trim() || null;
+    return {
+      configured: Boolean(clientId && clientSecret && vault),
+      clientId,
+      clientSecret,
+      redirectUri,
+    };
+  }
+
+  // youtube via Google
+  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID?.trim() || null;
+  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET?.trim() || null;
   return {
-    configured: Boolean(clientId && clientSecret && canStoreOAuthTokens()),
+    configured: Boolean(clientId && clientSecret && vault),
     clientId,
     clientSecret,
     redirectUri,
@@ -72,14 +104,46 @@ export function buildAuthorizeUrl(
     return u.toString();
   }
 
-  const u = new URL('https://twitter.com/i/oauth2/authorize');
-  u.searchParams.set('response_type', 'code');
+  if (platform === 'x') {
+    const u = new URL('https://twitter.com/i/oauth2/authorize');
+    u.searchParams.set('response_type', 'code');
+    u.searchParams.set('client_id', cfg.clientId);
+    u.searchParams.set('redirect_uri', cfg.redirectUri);
+    u.searchParams.set(
+      'scope',
+      'tweet.read tweet.write users.read offline.access',
+    );
+    u.searchParams.set('state', state);
+    u.searchParams.set('code_challenge', 'challenge');
+    u.searchParams.set('code_challenge_method', 'plain');
+    return u.toString();
+  }
+
+  if (platform === 'facebook' || platform === 'instagram') {
+    const u = new URL('https://www.facebook.com/v19.0/dialog/oauth');
+    u.searchParams.set('client_id', cfg.clientId);
+    u.searchParams.set('redirect_uri', cfg.redirectUri);
+    u.searchParams.set('state', state);
+    u.searchParams.set(
+      'scope',
+      platform === 'instagram'
+        ? 'instagram_basic,pages_show_list,pages_read_engagement'
+        : 'pages_manage_posts,pages_read_engagement,public_profile',
+    );
+    return u.toString();
+  }
+
+  const u = new URL('https://accounts.google.com/o/oauth2/v2/auth');
   u.searchParams.set('client_id', cfg.clientId);
   u.searchParams.set('redirect_uri', cfg.redirectUri);
-  u.searchParams.set('scope', 'tweet.read tweet.write users.read offline.access');
+  u.searchParams.set('response_type', 'code');
   u.searchParams.set('state', state);
-  u.searchParams.set('code_challenge', 'challenge');
-  u.searchParams.set('code_challenge_method', 'plain');
+  u.searchParams.set('access_type', 'offline');
+  u.searchParams.set('prompt', 'consent');
+  u.searchParams.set(
+    'scope',
+    'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly',
+  );
   return u.toString();
 }
 
@@ -128,21 +192,80 @@ export async function exchangeOAuthCode(
     };
   }
 
-  const basic = Buffer.from(`${cfg.clientId}:${cfg.clientSecret}`).toString(
-    'base64',
-  );
+  if (platform === 'x') {
+    const basic = Buffer.from(`${cfg.clientId}:${cfg.clientSecret}`).toString(
+      'base64',
+    );
+    const body = new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: cfg.redirectUri,
+      code_verifier: 'challenge',
+    });
+    const res = await fetch('https://api.x.com/2/oauth2/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: `Basic ${basic}`,
+      },
+      body,
+    });
+    const json = (await res.json().catch(() => ({}))) as {
+      access_token?: string;
+      refresh_token?: string;
+      expires_in?: number;
+      error_description?: string;
+    };
+    if (!res.ok || !json.access_token) {
+      return {
+        ok: false,
+        error: json.error_description || `X token HTTP ${res.status}`,
+      };
+    }
+    return {
+      ok: true,
+      accessToken: json.access_token,
+      refreshToken: json.refresh_token,
+      expiresIn: json.expires_in,
+    };
+  }
+
+  if (platform === 'facebook' || platform === 'instagram') {
+    const u = new URL('https://graph.facebook.com/v19.0/oauth/access_token');
+    u.searchParams.set('client_id', cfg.clientId);
+    u.searchParams.set('client_secret', cfg.clientSecret);
+    u.searchParams.set('redirect_uri', cfg.redirectUri);
+    u.searchParams.set('code', code);
+    const res = await fetch(u.toString());
+    const json = (await res.json().catch(() => ({}))) as {
+      access_token?: string;
+      expires_in?: number;
+      error?: { message?: string };
+    };
+    if (!res.ok || !json.access_token) {
+      return {
+        ok: false,
+        error: json.error?.message || `Meta token HTTP ${res.status}`,
+      };
+    }
+    return {
+      ok: true,
+      accessToken: json.access_token,
+      refreshToken: json.access_token,
+      expiresIn: json.expires_in,
+    };
+  }
+
   const body = new URLSearchParams({
-    grant_type: 'authorization_code',
     code,
+    client_id: cfg.clientId,
+    client_secret: cfg.clientSecret,
     redirect_uri: cfg.redirectUri,
-    code_verifier: 'challenge',
+    grant_type: 'authorization_code',
   });
-  const res = await fetch('https://api.x.com/2/oauth2/token', {
+  const res = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Authorization: `Basic ${basic}`,
-    },
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body,
   });
   const json = (await res.json().catch(() => ({}))) as {
@@ -154,7 +277,7 @@ export async function exchangeOAuthCode(
   if (!res.ok || !json.access_token) {
     return {
       ok: false,
-      error: json.error_description || `X token HTTP ${res.status}`,
+      error: json.error_description || `Google token HTTP ${res.status}`,
     };
   }
   return {
@@ -215,7 +338,6 @@ export async function persistOAuthTokens(input: {
   }
 }
 
-/** Mark account connected without OAuth (dev / platforms without credentials). */
 export async function stubConnectAccount(
   accountId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -226,7 +348,8 @@ export async function stubConnectAccount(
       .from('os_marketing_social_accounts')
       .update({
         status: 'connected',
-        notes: 'Stub-connected (Phase 23) — posts use stub publisher until OAuth',
+        notes:
+          'Stub-connected — posts use stub publisher until OAuth credentials are set',
         updated_at: now,
         last_synced_at: now,
       })
@@ -234,6 +357,22 @@ export async function stubConnectAccount(
     if (error) return { ok: false, error: error.message };
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : 'stub connect failed' };
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'stub connect failed',
+    };
   }
+}
+
+export function oauthPlatformStatus(): Record<
+  OAuthPlatform,
+  { configured: boolean }
+> {
+  return {
+    linkedin: { configured: getOAuthConfig('linkedin').configured },
+    x: { configured: getOAuthConfig('x').configured },
+    facebook: { configured: getOAuthConfig('facebook').configured },
+    instagram: { configured: getOAuthConfig('instagram').configured },
+    youtube: { configured: getOAuthConfig('youtube').configured },
+  };
 }

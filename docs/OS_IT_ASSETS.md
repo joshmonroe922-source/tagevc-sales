@@ -46,10 +46,17 @@ os_it_assignment_events (append-only)
 1. Grant increments `seats_used` (respects `seat_count`)  
 2. Revoke decrements · events `license_grant` / `license_revoke`
 
-## Phase 22+
+### Offboarding (Phases 23–24)
+1. Manual: start run by user UUID → checklist from assigned hardware + licenses  
+2. From ticket: open HR/IT ticket with title/description containing `offboard` / `termination` / etc. and `user:<uuid>`  
+3. Execute auto-return/revoke · Complete marks access notes done · activity + notification  
 
-1. Offboarding checklist (list user assets + revoke seats)  
-2. Ticket actions “Provision laptop” / “Revoke SaaS”  
+SQL: `phase23_automation.sql` + `phase24_maturation.sql` (`ticket_id`, `source`).
+
+## Phase 25+
+
+1. Employee status-change trigger (inactive → offboarding)  
+2. MDM / Intune hooks  
 3. Renewal alerts into Activity / digests  
 4. Entity-scoped UI filters  
 

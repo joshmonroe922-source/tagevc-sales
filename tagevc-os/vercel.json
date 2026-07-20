@@ -7,6 +7,10 @@
     {
       "path": "/api/marketing/schedule-worker",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/marketing/token-refresh",
+      "schedule": "0 * * * *"
     }
   ]
 }

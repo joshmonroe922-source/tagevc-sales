@@ -41,9 +41,16 @@ export function buildStage4eChecklist(input: {
   last_soak: SoakRunRecord | null;
   /** Live os_store_snapshots row count (≥0 = table present). */
   snapshots_table_row_count?: number | null;
+  /** Days remaining until ≥90d retention from ARCHIVE_EXPORT_CONFIRMED_AT. */
+  retention_days_remaining?: number | null;
+  retention_confirmed?: boolean;
 }): Stage4eChecklist {
   const exportOps = getArchiveExportOpsConfirmation();
   const snapCount = input.snapshots_table_row_count;
+  const retentionOk =
+    Boolean(input.retention_confirmed) &&
+    input.retention_days_remaining != null &&
+    input.retention_days_remaining <= 0;
   const items = [
     {
       id: 'drills',
@@ -94,13 +101,24 @@ export function buildStage4eChecklist(input: {
       detail: exportOps.detail,
     },
     {
+      id: 'retention_window',
+      label: '≥90-day retention window met',
+      ok: retentionOk,
+      detail:
+        input.retention_days_remaining == null
+          ? 'Confirm ARCHIVE_EXPORT_CONFIRMED_AT first'
+          : input.retention_days_remaining > 0
+            ? `${input.retention_days_remaining}d remaining before DROP eligibility`
+            : 'Retention met — DROP still requires explicit ops approval',
+    },
+    {
       id: 'table_retained',
       label: 'os_store_snapshots still retained (no DROP)',
       ok: snapCount == null || snapCount >= 0,
       detail:
         snapCount == null
           ? 'Row count unavailable'
-          : `rows=${snapCount} — Phase 22 does not drop this table`,
+          : `rows=${snapCount} — Phase 24 does not drop this table`,
     },
   ];
 

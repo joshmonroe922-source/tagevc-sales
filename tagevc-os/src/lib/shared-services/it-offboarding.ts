@@ -10,6 +10,11 @@ import {
   returnHardware,
   revokeLicenseSeat,
 } from '@/lib/shared-services/it-assets-repo';
+import { getTicket, listTickets } from '@/lib/data/ticket-store';
+import {
+  createBroadcastNotification,
+  logActivity,
+} from '@/lib/data/activity';
 
 export type OffboardingChecklistItem = {
   id: string;
@@ -27,6 +32,8 @@ export type OffboardingRun = {
   status: 'open' | 'in_progress' | 'completed' | 'cancelled';
   checklist: OffboardingChecklistItem[];
   notes: string | null;
+  ticket_id: string | null;
+  source: 'manual' | 'hr_ticket' | 'status_change';
   created_at: string;
   completed_at: string | null;
 };
@@ -42,6 +49,8 @@ function mapRun(row: Record<string, unknown>): OffboardingRun {
     status: row.status as OffboardingRun['status'],
     checklist,
     notes: (row.notes as string) ?? null,
+    ticket_id: (row.ticket_id as string) ?? null,
+    source: (row.source as OffboardingRun['source']) || 'manual',
     created_at: String(row.created_at),
     completed_at: (row.completed_at as string) ?? null,
   };
@@ -79,6 +88,8 @@ export async function startOffboarding(input: {
   actor_id?: string | null;
   notes?: string | null;
   auto_execute?: boolean;
+  ticket_id?: string | null;
+  source?: OffboardingRun['source'];
 }): Promise<{ ok: true; run: OffboardingRun } | { ok: false; error: string }> {
   const userId = input.user_id.trim();
   if (!userId) return { ok: false, error: 'user_id required' };
@@ -142,6 +153,8 @@ export async function startOffboarding(input: {
         checklist,
         notes: input.notes || null,
         actor_id: input.actor_id || null,
+        ticket_id: input.ticket_id || null,
+        source: input.source || 'manual',
         updated_at: now,
       })
       .select('*')
@@ -272,11 +285,97 @@ export async function completeOffboarding(
       .select('*')
       .single();
     if (error) return { ok: false, error: error.message };
-    return { ok: true, run: mapRun(data as Record<string, unknown>) };
+    const completed = mapRun(data as Record<string, unknown>);
+    void logActivity({
+      module: 'shared_services',
+      action: 'it_offboarding_completed',
+      title: `Offboarding completed: ${completed.run_id}`,
+      ref_type: 'ticket',
+      ref_id: completed.ticket_id ?? completed.run_id,
+      entity_id: completed.entity_id ?? undefined,
+    });
+    void createBroadcastNotification({
+      kind: 'ticket_update',
+      title: `IT offboarding ${completed.run_id} completed`,
+      body: completed.ticket_id
+        ? `Linked ticket ${completed.ticket_id}`
+        : `User ${completed.user_id.slice(0, 8)}…`,
+      href: '/shared-services/it/assets',
+    });
+    return { ok: true, run: completed };
   } catch (e) {
     return {
       ok: false,
       error: e instanceof Error ? e.message : 'complete failed',
     };
   }
+}
+
+/**
+ * Start offboarding from an HR Shared Services ticket.
+ * Expects title/description to include `user:<uuid>` or `user_id=<uuid>`.
+ */
+export async function startOffboardingFromHrTicket(input: {
+  ticket_id: string;
+  actor_id?: string | null;
+  auto_execute?: boolean;
+}): Promise<{ ok: true; run: OffboardingRun } | { ok: false; error: string }> {
+  const ticket = getTicket(input.ticket_id);
+  if (!ticket) return { ok: false, error: 'Ticket not found' };
+  if (ticket.service !== 'HR' && ticket.service !== 'IT') {
+    return {
+      ok: false,
+      error: 'Ticket service must be HR or IT for offboarding',
+    };
+  }
+
+  const blob = `${ticket.title}\n${ticket.description ?? ''}\n${ticket.desired_outcome ?? ''}`;
+  const match =
+    /user[_:\s-]*id[=:\s]*([0-9a-f-]{36})/i.exec(blob) ||
+    /user[=:\s]+([0-9a-f-]{36})/i.exec(blob);
+  if (!match) {
+    return {
+      ok: false,
+      error:
+        'Could not find user UUID in ticket — include `user:<uuid>` in description',
+    };
+  }
+
+  return startOffboarding({
+    user_id: match[1],
+    entity_id: ticket.entity_id,
+    actor_id: input.actor_id,
+    notes: `From ticket ${ticket.ticket_id}: ${ticket.title}`,
+    ticket_id: ticket.ticket_id,
+    source: 'hr_ticket',
+    auto_execute: input.auto_execute,
+  });
+}
+
+/** Open HR/IT tickets that look like offboarding requests. */
+export function listOffboardingCandidateTickets(): Array<{
+  ticket_id: string;
+  title: string;
+  service: string;
+  status: string;
+}> {
+  return listTickets()
+    .filter((t) => {
+      if (t.status === 'Closed' || t.status === 'Resolved') return false;
+      if (t.service !== 'HR' && t.service !== 'IT') return false;
+      const blob = `${t.title} ${t.description ?? ''}`.toLowerCase();
+      return (
+        blob.includes('offboard') ||
+        blob.includes('termination') ||
+        blob.includes('exit') ||
+        blob.includes('revoke access')
+      );
+    })
+    .slice(0, 20)
+    .map((t) => ({
+      ticket_id: t.ticket_id,
+      title: t.title,
+      service: t.service,
+      status: t.status,
+    }));
 }

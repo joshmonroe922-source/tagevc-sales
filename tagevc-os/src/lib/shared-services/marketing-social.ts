@@ -1,9 +1,8 @@
 /**
- * Social publishers — stub + LinkedIn / X when OAuth tokens present (Phase 23).
+ * Social publishers — stub + LinkedIn / X / Meta when OAuth tokens present.
  */
 
-import { createPersistClient } from '@/lib/supabase/persist-client';
-import { decryptSecret } from '@/lib/shared-services/marketing-crypto';
+import { ensureFreshAccessToken } from '@/lib/shared-services/marketing-token-refresh';
 import type { MarketingPlatform } from '@/lib/shared-services/marketing-types';
 
 export type PublishInput = {
@@ -163,35 +162,78 @@ export class XPublisher implements SocialPublisher {
   }
 }
 
-async function loadAccessToken(accountId: string): Promise<string | null> {
-  try {
-    const sb = await createPersistClient();
-    const { data, error } = await sb
-      .from('os_marketing_oauth_tokens')
-      .select('access_token_cipher')
-      .eq('account_id', accountId)
-      .maybeSingle();
-    if (error || !data) return null;
-    return decryptSecret(String(data.access_token_cipher));
-  } catch {
-    return null;
+export class MetaPublisher implements SocialPublisher {
+  readonly id = 'meta';
+
+  async publish(
+    input: PublishInput & { accessToken: string },
+  ): Promise<PublishResult> {
+    try {
+      // Page feed post — requires page token in production; use /me/feed as fallback
+      const message = [input.title, input.body].filter(Boolean).join('\n\n');
+      const res = await fetch(
+        `https://graph.facebook.com/v19.0/me/feed?access_token=${encodeURIComponent(input.accessToken)}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message }),
+        },
+      );
+      const json = (await res.json().catch(() => ({}))) as {
+        id?: string;
+        error?: { message?: string };
+      };
+      if (!res.ok) {
+        return {
+          ok: false,
+          publisher: this.id,
+          error: json.error?.message || `Meta HTTP ${res.status}`,
+        };
+      }
+      return {
+        ok: true,
+        publisher: this.id,
+        external_id: json.id,
+        published_url: json.id
+          ? `https://facebook.com/${json.id}`
+          : undefined,
+      };
+    } catch (e) {
+      return {
+        ok: false,
+        publisher: this.id,
+        error: e instanceof Error ? e.message : 'Meta publish failed',
+      };
+    }
   }
+}
+
+async function loadAccessToken(accountId: string): Promise<{
+  token: string | null;
+  refreshError?: string;
+}> {
+  if (accountId === 'MSA-STUB') return { token: null };
+  const fresh = await ensureFreshAccessToken(accountId);
+  return { token: fresh.token, refreshError: fresh.error };
 }
 
 function publisherFor(platform: MarketingPlatform): SocialPublisher {
   if (platform === 'linkedin') return new LinkedInPublisher();
   if (platform === 'x') return new XPublisher();
+  if (platform === 'facebook' || platform === 'instagram') {
+    return new MetaPublisher();
+  }
   return new StubSocialPublisher();
 }
 
 /**
- * Publish content for an account. Uses live API when token decrypts;
- * otherwise stub publisher (still succeeds for soak/dev).
+ * Publish content for an account. Refreshes OAuth when needed;
+ * stub publisher when no token (dev / unconfigured).
  */
 export async function publishForAccount(
   input: PublishInput,
 ): Promise<PublishResult> {
-  const token = await loadAccessToken(input.account_id);
+  const { token } = await loadAccessToken(input.account_id);
   const forceStub =
     process.env.MARKETING_FORCE_STUB_PUBLISH === '1' ||
     process.env.MARKETING_FORCE_STUB_PUBLISH === 'true';
@@ -202,8 +244,5 @@ export async function publishForAccount(
   }
 
   const pub = publisherFor(input.platform);
-  if (pub.id === 'stub') {
-    return pub.publish({ ...input, accessToken: token });
-  }
   return pub.publish({ ...input, accessToken: token });
 }

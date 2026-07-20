@@ -1,6 +1,6 @@
 # Snapshot Retirement Plan — `os_store_snapshots`
 
-**Status:** Phase 20 — Stage 4b/4d tooling + soak checklist. Table retained until Stage 4e.
+**Status:** Phase 24 — Stage 4e checklist + ≥90-day retention monitoring. Table retained until explicit DROP.
 
 ## Dual-write / dual-read map
 

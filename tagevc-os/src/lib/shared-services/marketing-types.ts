@@ -148,4 +148,9 @@ export type MarketingGenerationJob = {
 export const MARKETING_ENV_KEYS = [
   'MARKETING_AI_PROVIDER',
   'MARKETING_SCHEDULER_ENABLED',
+  'MARKETING_TOKEN_SECRET',
+  'LINKEDIN_CLIENT_ID',
+  'X_CLIENT_ID',
+  'META_APP_ID',
+  'GOOGLE_OAUTH_CLIENT_ID',
 ] as const;

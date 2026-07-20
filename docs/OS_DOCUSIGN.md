@@ -68,7 +68,11 @@ Unknown envelopes are acknowledged and still logged to `os_docusign_events`.
 
 ## Still deferred
 
-- Signed PDF download → storage / `07_Signed`  
 - Template catalog sync  
 - Void / reminder UI  
+- Certificate of completion packaging  
 - Retire simulate button in production  
+
+## Phase 24 storage
+
+Completed envelopes upload to bucket **`docusign-signed`** (`storage_path` on `os_docusign_signed_files`). Large PDFs omit inline `content_base64`. Hub lists size, storage errors, and signed download URLs. Apply `phase24_maturation.sql`.

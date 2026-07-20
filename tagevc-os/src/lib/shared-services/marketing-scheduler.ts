@@ -3,6 +3,7 @@
  */
 
 import { createPersistClient } from '@/lib/supabase/persist-client';
+import { recordMarketingAnalyticsEvent } from '@/lib/shared-services/marketing-analytics';
 import { publishForAccount } from '@/lib/shared-services/marketing-social';
 import type { MarketingJobStatus } from './marketing-types';
 
@@ -186,6 +187,22 @@ export async function processDueScheduleJobs(opts?: {
         })
         .eq('content_id', contentId);
 
+      void recordMarketingAnalyticsEvent({
+        kind: 'post_succeeded',
+        content_id: contentId,
+        job_id: jobId,
+        account_id: resolvedAccountId,
+        entity_id: (content.entity_id as string) ?? null,
+        campaign_id: (content.campaign_id as string) ?? null,
+        platform,
+        metrics: {
+          stub: Boolean(pub.stub),
+          publisher: pub.publisher,
+          published_url: pub.published_url,
+          external_id: pub.external_id,
+        },
+      });
+
       results.push({
         job_id: jobId,
         ok: true,
@@ -208,6 +225,17 @@ export async function processDueScheduleJobs(opts?: {
         .from('os_marketing_content')
         .update({ status: 'failed', updated_at: nowIso })
         .eq('content_id', contentId);
+
+      void recordMarketingAnalyticsEvent({
+        kind: 'post_failed',
+        content_id: contentId,
+        job_id: jobId,
+        account_id: resolvedAccountId,
+        entity_id: (content.entity_id as string) ?? null,
+        campaign_id: (content.campaign_id as string) ?? null,
+        platform,
+        metrics: { error: pub.error, publisher: pub.publisher },
+      });
 
       results.push({
         job_id: jobId,

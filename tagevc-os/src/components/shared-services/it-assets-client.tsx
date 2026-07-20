@@ -11,6 +11,7 @@ import {
   returnHardwareAction,
   revokeSeatAction,
   startOffboardingAction,
+  startOffboardingFromTicketAction,
   type ItAssetActionResult,
 } from '@/app/(app)/shared-services/it/assets/actions';
 import { Button } from '@/components/ui/button';
@@ -38,6 +39,7 @@ export function ItAssetsClient({
   licenses,
   events,
   offboarding,
+  candidateTickets,
   canWrite,
   tableError,
 }: {
@@ -45,6 +47,12 @@ export function ItAssetsClient({
   licenses: ItSoftwareLicense[];
   events: ItAssignmentEvent[];
   offboarding: OffboardingRun[];
+  candidateTickets: Array<{
+    ticket_id: string;
+    title: string;
+    service: string;
+    status: string;
+  }>;
   canWrite: boolean;
   tableError?: string;
 }) {
@@ -306,22 +314,72 @@ export function ItAssetsClient({
       <section className="space-y-3">
         <h2 className="text-base font-semibold">Offboarding</h2>
         {canWrite && (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={pending}
-            onClick={() => {
-              const userId = window.prompt('User UUID to offboard:');
-              if (!userId) return;
-              const auto = window.confirm(
-                'Auto-execute hardware return + license revoke now?',
-              );
-              run(() => startOffboardingAction(userId.trim(), undefined, auto));
-            }}
-          >
-            Start offboarding
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={pending}
+              onClick={() => {
+                const userId = window.prompt('User UUID to offboard:');
+                if (!userId) return;
+                const auto = window.confirm(
+                  'Auto-execute hardware return + license revoke now?',
+                );
+                run(() =>
+                  startOffboardingAction(userId.trim(), undefined, auto),
+                );
+              }}
+            >
+              Start offboarding
+            </Button>
+          </div>
+        )}
+        {candidateTickets.length > 0 && (
+          <div className="space-y-2 rounded-md border border-border/60 p-3">
+            <p className="text-xs font-medium text-muted-foreground">
+              HR/IT tickets that look like offboarding (include{' '}
+              <code className="text-xs">user:&lt;uuid&gt;</code> in description)
+            </p>
+            <ul className="space-y-1 text-sm">
+              {candidateTickets.map((t) => (
+                <li
+                  key={t.ticket_id}
+                  className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 py-1.5"
+                >
+                  <span>
+                    <a
+                      href={`/shared-services/tickets/${t.ticket_id}`}
+                      className="font-medium underline-offset-4 hover:underline"
+                    >
+                      {t.ticket_id}
+                    </a>
+                    {' · '}
+                    {t.title}
+                    <span className="text-xs text-muted-foreground">
+                      {' '}
+                      · {t.service}
+                    </span>
+                  </span>
+                  {canWrite && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={pending}
+                      onClick={() =>
+                        run(() =>
+                          startOffboardingFromTicketAction(t.ticket_id, true),
+                        )
+                      }
+                    >
+                      Start from ticket
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
         {offboarding.length === 0 ? (
           <p className="text-sm text-muted-foreground">No offboarding runs yet.</p>
@@ -334,6 +392,9 @@ export function ItAssetsClient({
                     <span className="font-mono text-xs">{r.run_id}</span>
                     {' · '}
                     {r.status}
+                    {' · '}
+                    {r.source}
+                    {r.ticket_id ? ` · ${r.ticket_id}` : ''}
                     {' · user '}
                     {r.user_id.slice(0, 8)}…
                   </span>

@@ -221,6 +221,28 @@ export async function executeOffboardingAction(
   return { ok: true, message: `Executed ${runId}` };
 }
 
+export async function startOffboardingFromTicketAction(
+  ticketId: string,
+  autoExecute?: boolean,
+): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('write:it_assets');
+  if (!gate.ok) return gate;
+  const { startOffboardingFromHrTicket } = await import(
+    '@/lib/shared-services/it-offboarding'
+  );
+  const res = await startOffboardingFromHrTicket({
+    ticket_id: ticketId,
+    actor_id: gate.profile.id,
+    auto_execute: Boolean(autoExecute),
+  });
+  if (!res.ok) return res;
+  revalidateAssets();
+  return {
+    ok: true,
+    message: `Offboarding ${res.run.run_id} from ${ticketId}`,
+  };
+}
+
 export async function completeOffboardingAction(
   runId: string,
 ): Promise<ItAssetActionResult> {

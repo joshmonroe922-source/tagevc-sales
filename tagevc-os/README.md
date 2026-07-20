@@ -486,10 +486,22 @@ Docs: `docs/OS_PHASE22.md` · `docs/OS_MARKETING.md`
 
 Docs: `docs/OS_PHASE23.md`
 
-### Phase 24+ backlog
+### Phase 24 scope (Marketing maturation + Storage + HR offboarding)
 
-- Marketing refresh tokens · more platforms · analytics
-- DocuSign Storage · IT HR ticket offboarding
+| Area | Status |
+|------|--------|
+| OAuth token refresh + Meta/YouTube platforms + analytics hub | Done |
+| DocuSign signed PDFs → Supabase Storage | Done |
+| IT offboarding from HR/IT tickets | Done |
+| Stage 4e retention checklist (no DROP) | Done |
+| SQL | Apply `phase24_maturation.sql` |
+
+Docs: `docs/OS_PHASE24.md` · `docs/OS_MARKETING.md`
+
+### Phase 25+ backlog
+
+- Live platform engagement ingest · approval SLA
+- DocuSign CoC / void · IT status-change offboarding
 - Stage 4e DROP when retention confirmed
 - Push · user admin
 
@@ -526,4 +538,4 @@ Set `DEV_BYPASS_AUTH=1` in `.env.local` to preview the shell as Visionary (local
 
 ## Next phases (from Cursor Brief)
 
-Phase 23 advances Marketing (live AI, OAuth, posting worker), DocuSign signed archives, and IT offboarding. Remaining: more platforms/analytics, Stage 4e drop, push, user admin.
+Phase 24 advances Marketing analytics/token refresh, DocuSign Storage, and HR ticket offboarding. Remaining: Stage 4e drop (after retention), push, user admin.

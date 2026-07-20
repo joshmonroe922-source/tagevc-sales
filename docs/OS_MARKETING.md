@@ -1,13 +1,13 @@
-# Multichannel Marketing System — Architecture (Phase 22)
+# Multichannel Marketing System — Architecture (Phases 22–24)
 
-**Status:** Foundation · hub under Shared Services · Marketing.  
-**Non-goal:** Live LLM generation, OAuth posting, or full automation in Phase 22.
+**Status:** Functional · hub under Shared Services · Marketing.  
+**Live at:** `/shared-services/marketing`
 
 ## Goals
 
 1. Centralized marketing for **Tage VC** (firm-wide = `entity_id` null)  
 2. Scoped usage by **subsidiaries / portfolio** (`entity_id` set)  
-3. Extensible AI generation + multi-platform social + scheduling  
+3. Extensible AI generation + multi-platform social + scheduling + analytics  
 
 ## Placement
 
@@ -16,31 +16,34 @@
 | Hub | `/shared-services/marketing` |
 | Types | `lib/shared-services/marketing-types.ts` |
 | Repo | `lib/shared-services/marketing-repo.ts` |
-| AI framework | `lib/shared-services/marketing-ai.ts` |
-| Scheduler stubs | `lib/shared-services/marketing-scheduler.ts` |
-| SQL | `supabase/phase22_marketing.sql` |
-| Docs | `docs/OS_MARKETING.md` |
+| AI | `lib/shared-services/marketing-ai.ts` |
+| OAuth / tokens | `marketing-oauth.ts`, `marketing-crypto.ts`, `marketing-token-refresh.ts` |
+| Publishers | `marketing-social.ts` |
+| Scheduler | `marketing-scheduler.ts` |
+| Analytics | `marketing-analytics.ts` |
+| SQL | `phase22_marketing.sql` + `phase23_automation.sql` + `phase24_maturation.sql` |
 
 ## Data model
 
 ```
-os_marketing_campaigns     — campaigns (draft → active → …)
-os_marketing_content       — blog/social/email drafts & published
-os_marketing_social_accounts — platform + handle metadata (no OAuth secrets)
-os_marketing_schedule_jobs — queue for future workers
-os_marketing_generation_jobs — AI job audit trail
+os_marketing_campaigns
+os_marketing_content
+os_marketing_social_accounts
+os_marketing_oauth_tokens          — encrypted vault (+ refresh metadata Phase 24)
+os_marketing_brand_voices
+os_marketing_schedule_jobs
+os_marketing_generation_jobs
+os_marketing_analytics_events      — Phase 24 post/engagement events
 ```
 
-## Frameworks (pluggable)
+## Platforms
 
-### AI (`MarketingAiProvider`)
-- Default: `StubMarketingAiProvider` — materializes draft content without external calls  
-- Swap via `setMarketingAiProvider` / `MARKETING_AI_PROVIDER` in Phase 23+  
-
-### Scheduler
-- `enqueueScheduleJob` persists pending jobs and marks content `scheduled`  
-- `MARKETING_SCHEDULER_ENABLED` reserved for future worker loops  
-- **Does not post** to social networks in Phase 22  
+| Platform | OAuth | Publish | Token refresh |
+|----------|-------|---------|---------------|
+| LinkedIn | Yes | Yes | Yes |
+| X | Yes | Yes | Yes |
+| Facebook / Instagram (Meta) | Yes | Basic | Yes |
+| YouTube | Yes (Google) | Stub/limited | Via Google refresh |
 
 ## Permissions
 
@@ -49,16 +52,8 @@ os_marketing_generation_jobs — AI job audit trail
 | `read:marketing` | visionary, partner, coo, service_lead, sub_lead, admin |
 | `write:marketing` | visionary, coo, service_lead, admin |
 
-## Phase 23+ slices
+## Phase 25+
 
-1. Real AI provider (OpenAI/Anthropic) with brand voice packs per entity  
-2. OAuth connect for LinkedIn / X / Meta (secrets in vault, not Postgres plaintext)  
-3. Worker that drains `os_marketing_schedule_jobs` and posts  
-4. Approval workflow (content `review` → `approved`) tied to SS tickets  
-5. Analytics / engagement ingest  
-
-## Out of scope here
-
-- Full AI content engine  
-- Complete social scheduling automation  
-- Ad-buy / paid media  
+1. Live engagement ingest from platform APIs  
+2. Approval SLA tied to Shared Services tickets  
+3. Paid media / ads (out of current scope)  

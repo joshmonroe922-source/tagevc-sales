@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { MarketingClient } from '@/components/shared-services/marketing-client';
 import { Badge } from '@/components/ui/badge';
 import { listBrandVoices } from '@/lib/shared-services/marketing-brand';
+import { getMarketingAnalyticsSummary } from '@/lib/shared-services/marketing-analytics';
 import {
   getMarketingFoundationStatus,
   listCampaigns,
@@ -32,15 +33,23 @@ export default async function MarketingModulePage({
             : null
       : null;
 
-  const [campaigns, content, accounts, scheduleJobs, generationJobs, voices] =
-    await Promise.all([
-      listCampaigns(),
-      listContent(),
-      listSocialAccounts(),
-      listScheduleJobs(),
-      listGenerationJobs(),
-      listBrandVoices(),
-    ]);
+  const [
+    campaigns,
+    content,
+    accounts,
+    scheduleJobs,
+    generationJobs,
+    voices,
+    analytics,
+  ] = await Promise.all([
+    listCampaigns(),
+    listContent(),
+    listSocialAccounts(),
+    listScheduleJobs(),
+    listGenerationJobs(),
+    listBrandVoices(),
+    getMarketingAnalyticsSummary({ limit: 200 }),
+  ]);
 
   const ctx = await getSessionContext();
   const canWrite = ctx
@@ -67,14 +76,14 @@ export default async function MarketingModulePage({
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">Marketing</Badge>
-          <Badge variant="secondary">Phase 23</Badge>
+          <Badge variant="secondary">Phase 24</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Multichannel Marketing
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Live AI (when configured), brand voice, OAuth/stub social connect, and
-          a schedule worker that posts due jobs for Tage VC and subsidiaries.
+          Token refresh, multi-platform OAuth (LinkedIn, X, Meta, YouTube),
+          schedule worker, and campaign analytics for Tage VC and subsidiaries.
         </p>
         {oauthFlash && (
           <p className="text-sm text-emerald-700">{oauthFlash}</p>
@@ -88,6 +97,8 @@ export default async function MarketingModulePage({
         scheduleJobs={scheduleJobs.rows}
         generationJobs={generationJobs.rows}
         brandVoices={voices.rows}
+        analytics={analytics.summary}
+        analyticsError={analytics.error}
         canWrite={canWrite}
         tableError={tableError}
         foundation={getMarketingFoundationStatus()}

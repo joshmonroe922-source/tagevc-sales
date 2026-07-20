@@ -6,7 +6,10 @@ import {
   listHardwareAssets,
   listSoftwareLicenses,
 } from '@/lib/shared-services/it-assets-repo';
-import { listOffboardingRuns } from '@/lib/shared-services/it-offboarding';
+import {
+  listOffboardingCandidateTickets,
+  listOffboardingRuns,
+} from '@/lib/shared-services/it-offboarding';
 import { roleHasPermission } from '@/lib/types/roles';
 import { getSessionContext, requirePermission } from '@/lib/rbac/session';
 
@@ -19,6 +22,7 @@ export default async function ItAssetsModulePage() {
     listAssignmentEvents(),
     listOffboardingRuns(),
   ]);
+  const candidateTickets = listOffboardingCandidateTickets();
 
   const ctx = await getSessionContext();
   const canWrite = ctx
@@ -39,14 +43,13 @@ export default async function ItAssetsModulePage() {
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">IT</Badge>
-          <Badge variant="secondary">Phase 23</Badge>
+          <Badge variant="secondary">Phase 24</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Hardware &amp; licensing
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Track assets and seats, plus offboarding checklists that return
-          hardware and revoke licenses. Full HR/SSO automation is still later.
+          Assets, seats, and offboarding — including HR/IT ticket-driven runs.
         </p>
       </div>
 
@@ -55,6 +58,7 @@ export default async function ItAssetsModulePage() {
         licenses={lic.rows}
         events={ev.rows}
         offboarding={off.rows}
+        candidateTickets={candidateTickets}
         canWrite={canWrite}
         tableError={tableError}
       />

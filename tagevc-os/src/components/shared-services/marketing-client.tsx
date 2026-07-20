@@ -6,6 +6,8 @@ import {
   createCampaignAction,
   createContentAction,
   generateDraftAction,
+  recordEngagementAction,
+  refreshTokensAction,
   registerAccountAction,
   runScheduleWorkerAction,
   scheduleContentAction,
@@ -17,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { BrandVoice } from '@/lib/shared-services/marketing-brand';
+import type { MarketingAnalyticsSummary } from '@/lib/shared-services/marketing-analytics';
 import type {
   MarketingCampaign,
   MarketingContent,
@@ -36,6 +39,15 @@ function Msg({ state }: { state: MarketingActionResult | null }) {
 const field =
   'flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm';
 
+/** Platforms with OAuth routes (keep in sync with marketing-oauth OAUTH_PLATFORMS). */
+const OAUTH_SET = new Set([
+  'linkedin',
+  'x',
+  'facebook',
+  'instagram',
+  'youtube',
+]);
+
 export function MarketingClient({
   campaigns,
   content,
@@ -43,6 +55,8 @@ export function MarketingClient({
   scheduleJobs,
   generationJobs,
   brandVoices,
+  analytics,
+  analyticsError,
   canWrite,
   tableError,
   foundation,
@@ -53,6 +67,8 @@ export function MarketingClient({
   scheduleJobs: MarketingScheduleJob[];
   generationJobs: MarketingGenerationJob[];
   brandVoices: BrandVoice[];
+  analytics: MarketingAnalyticsSummary;
+  analyticsError?: string;
   canWrite: boolean;
   tableError?: string;
   foundation: {
@@ -61,6 +77,9 @@ export function MarketingClient({
     oauth_tokens_stored: boolean;
     linkedin_oauth?: boolean;
     x_oauth?: boolean;
+    facebook_oauth?: boolean;
+    instagram_oauth?: boolean;
+    youtube_oauth?: boolean;
     phase: number;
   };
 }) {
@@ -98,6 +117,11 @@ export function MarketingClient({
     });
   }
 
+  const pendingJobs = scheduleJobs.filter((j) => j.status === 'pending');
+  const platformEntries = Object.entries(analytics.by_platform).sort(
+    (a, b) => b[1] - a[1],
+  );
+
   return (
     <div className="space-y-8">
       <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
@@ -110,14 +134,17 @@ export function MarketingClient({
         Token vault:{' '}
         {foundation.oauth_tokens_stored ? 'ready' : 'set MARKETING_TOKEN_SECRET'}
         {' · '}
-        LinkedIn OAuth: {foundation.linkedin_oauth ? 'yes' : 'stub'}
-        {' · '}
-        X OAuth: {foundation.x_oauth ? 'yes' : 'stub'}
+        LI:{foundation.linkedin_oauth ? 'oauth' : 'stub'} · X:
+        {foundation.x_oauth ? 'oauth' : 'stub'} · Meta:
+        {foundation.facebook_oauth || foundation.instagram_oauth
+          ? 'oauth'
+          : 'stub'}{' '}
+        · YT:{foundation.youtube_oauth ? 'oauth' : 'stub'}
       </div>
 
       {tableError && (
         <p className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-          Tables unavailable — apply phase22_marketing.sql. {tableError}
+          Tables unavailable — apply phase22–24 marketing SQL. {tableError}
         </p>
       )}
       {(flash || err) && (
@@ -125,6 +152,70 @@ export function MarketingClient({
           {err ?? flash}
         </p>
       )}
+
+      <section className="space-y-3 rounded-lg border p-4">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-base font-semibold">Analytics</h2>
+          {analyticsError ? (
+            <span className="text-xs text-amber-700">
+              Apply phase24_maturation.sql · {analyticsError}
+            </span>
+          ) : null}
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm">
+          <div>
+            <p className="text-xs text-muted-foreground">Posts succeeded</p>
+            <p className="text-lg font-semibold tabular-nums">
+              {analytics.posts_succeeded}
+              {analytics.posts_stub > 0 ? (
+                <span className="ml-1 text-xs font-normal text-muted-foreground">
+                  ({analytics.posts_stub} stub)
+                </span>
+              ) : null}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Posts failed</p>
+            <p className="text-lg font-semibold tabular-nums">
+              {analytics.posts_failed}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Impressions / clicks / likes</p>
+            <p className="text-lg font-semibold tabular-nums">
+              {analytics.engagement_impressions} / {analytics.engagement_clicks}{' '}
+              / {analytics.engagement_likes}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Pending schedule</p>
+            <p className="text-lg font-semibold tabular-nums">
+              {pendingJobs.length}
+            </p>
+          </div>
+        </div>
+        {platformEntries.length > 0 ? (
+          <p className="text-xs text-muted-foreground">
+            By platform:{' '}
+            {platformEntries.map(([p, n]) => `${p} ${n}`).join(' · ')}
+          </p>
+        ) : null}
+        {analytics.recent.length > 0 ? (
+          <ul className="max-h-40 overflow-y-auto space-y-1 text-xs text-muted-foreground">
+            {analytics.recent.slice(0, 12).map((e) => (
+              <li key={e.event_id}>
+                {e.occurred_at.slice(0, 16).replace('T', ' ')} · {e.kind}
+                {e.platform ? ` · ${e.platform}` : ''}
+                {e.content_id ? ` · ${e.content_id}` : ''}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            No analytics events yet — run the schedule worker or record engagement.
+          </p>
+        )}
+      </section>
 
       {canWrite && (
         <div className="grid gap-4 lg:grid-cols-2">
@@ -200,7 +291,7 @@ export function MarketingClient({
           <form action={acctAction} className="space-y-3 rounded-lg border p-4">
             <h2 className="text-sm font-semibold">Register social account</h2>
             <p className="text-xs text-muted-foreground">
-              Metadata only — OAuth connect in Phase 23+.
+              Then Connect via OAuth (or stub) for LinkedIn, X, Meta, YouTube.
             </p>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
@@ -231,10 +322,6 @@ export function MarketingClient({
 
           <form action={genAction} className="space-y-3 rounded-lg border p-4">
             <h2 className="text-sm font-semibold">AI draft</h2>
-            <p className="text-xs text-muted-foreground">
-              Uses OpenAI when MARKETING_AI_PROVIDER=openai + OPENAI_API_KEY;
-              otherwise stub. Applies brand voice for entity.
-            </p>
             <div className="space-y-1">
               <Label htmlFor="gen_prompt">Prompt</Label>
               <textarea
@@ -243,7 +330,7 @@ export function MarketingClient({
                 required
                 rows={3}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                placeholder="Announce portfolio company launch…"
+                placeholder="Announce our new fund thesis…"
               />
             </div>
             <div className="space-y-1">
@@ -260,15 +347,17 @@ export function MarketingClient({
             <Msg state={genState} />
           </form>
 
-          <form action={voiceAction} className="space-y-3 rounded-lg border p-4">
+          <form action={voiceAction} className="space-y-3 rounded-lg border p-4 lg:col-span-2">
             <h2 className="text-sm font-semibold">Brand voice</h2>
-            <div className="space-y-1">
-              <Label htmlFor="bv_name">Name</Label>
-              <Input id="bv_name" name="name" required placeholder="Tage VC default" />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="bv_entity">Entity id (blank = firm)</Label>
-              <Input id="bv_entity" name="entity_id" placeholder="ENT-001" />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label htmlFor="bv_name">Name</Label>
+                <Input id="bv_name" name="name" required placeholder="Tage VC default" />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="bv_entity">Entity id (blank = firm)</Label>
+                <Input id="bv_entity" name="entity_id" placeholder="ENT-001" />
+              </div>
             </div>
             <div className="space-y-1">
               <Label htmlFor="bv_tone">Tone guidelines</Label>
@@ -311,6 +400,15 @@ export function MarketingClient({
           >
             {pending ? 'Running…' : 'Run schedule worker now'}
           </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={pending}
+            onClick={() => run(() => refreshTokensAction())}
+          >
+            Refresh OAuth tokens
+          </Button>
         </div>
       )}
 
@@ -349,6 +447,12 @@ export function MarketingClient({
                 {' · '}
                 {c.status}
                 {c.entity_id ? ` · ${c.entity_id}` : ' · firm-wide'}
+                {analytics.by_campaign[c.campaign_id] != null ? (
+                  <span className="text-xs text-muted-foreground">
+                    {' '}
+                    · {analytics.by_campaign[c.campaign_id]} events
+                  </span>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -429,6 +533,43 @@ export function MarketingClient({
                               Schedule
                             </Button>
                           )}
+                          {(c.status === 'published' ||
+                            c.status === 'scheduled') && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              disabled={pending}
+                              onClick={() => {
+                                const impressions = Number(
+                                  window.prompt('Impressions', '100') ?? '',
+                                );
+                                const clicks = Number(
+                                  window.prompt('Clicks', '5') ?? '',
+                                );
+                                const likes = Number(
+                                  window.prompt('Likes', '10') ?? '',
+                                );
+                                if (
+                                  Number.isNaN(impressions) ||
+                                  Number.isNaN(clicks) ||
+                                  Number.isNaN(likes)
+                                ) {
+                                  return;
+                                }
+                                run(() =>
+                                  recordEngagementAction(
+                                    c.content_id,
+                                    impressions,
+                                    clicks,
+                                    likes,
+                                  ),
+                                );
+                              }}
+                            >
+                              Eng.
+                            </Button>
+                          )}
                         </div>
                       )}
                     </td>
@@ -452,14 +593,16 @@ export function MarketingClient({
                 {' · '}
                 {a.status}
                 {a.entity_id ? ` · ${a.entity_id}` : ' · firm'}
-                {canWrite && a.status !== 'connected' && (a.platform === 'linkedin' || a.platform === 'x') && (
-                  <a
-                    href={`/api/marketing/oauth/${a.platform}?account_id=${encodeURIComponent(a.account_id)}`}
-                    className="ml-2 text-xs font-medium underline-offset-4 hover:underline"
-                  >
-                    Connect
-                  </a>
-                )}
+                {canWrite &&
+                  a.status !== 'connected' &&
+                  OAUTH_SET.has(a.platform) && (
+                    <a
+                      href={`/api/marketing/oauth/${a.platform}?account_id=${encodeURIComponent(a.account_id)}`}
+                      className="ml-2 text-xs font-medium underline-offset-4 hover:underline"
+                    >
+                      Connect
+                    </a>
+                  )}
                 {canWrite && a.status !== 'connected' && (
                   <button
                     type="button"
@@ -487,8 +630,21 @@ export function MarketingClient({
             <ul className="space-y-1 text-sm text-muted-foreground">
               {scheduleJobs.map((j) => (
                 <li key={j.job_id}>
-                  {j.job_id} · {j.status} · {j.scheduled_for.slice(0, 16)} ·{' '}
-                  {j.content_id}
+                  <span
+                    className={
+                      j.status === 'pending'
+                        ? 'text-amber-700'
+                        : j.status === 'failed'
+                          ? 'text-destructive'
+                          : j.status === 'succeeded'
+                            ? 'text-emerald-700'
+                            : undefined
+                    }
+                  >
+                    {j.status}
+                  </span>
+                  {' · '}
+                  {j.scheduled_for.slice(0, 16).replace('T', ' ')} · {j.content_id}
                 </li>
               ))}
             </ul>

@@ -8,12 +8,12 @@ import {
   generateMarketingContent,
   getConfiguredAiProviderId,
 } from '@/lib/shared-services/marketing-ai';
+import { canStoreOAuthTokens } from '@/lib/shared-services/marketing-crypto';
+import { oauthPlatformStatus } from '@/lib/shared-services/marketing-oauth';
 import {
   isMarketingSchedulerEnabled,
   validateScheduleInput,
 } from '@/lib/shared-services/marketing-scheduler';
-import { canStoreOAuthTokens } from '@/lib/shared-services/marketing-crypto';
-import { getOAuthConfig } from '@/lib/shared-services/marketing-oauth';
 import type {
   MarketingCampaign,
   MarketingCampaignStatus,
@@ -477,12 +477,16 @@ export async function approveContent(
 }
 
 export function getMarketingFoundationStatus() {
+  const platforms = oauthPlatformStatus();
   return {
     ai_provider: getConfiguredAiProviderId(),
     scheduler_enabled: isMarketingSchedulerEnabled(),
     oauth_tokens_stored: canStoreOAuthTokens(),
-    linkedin_oauth: getOAuthConfig('linkedin').configured,
-    x_oauth: getOAuthConfig('x').configured,
-    phase: 23,
+    linkedin_oauth: platforms.linkedin.configured,
+    x_oauth: platforms.x.configured,
+    facebook_oauth: platforms.facebook.configured,
+    instagram_oauth: platforms.instagram.configured,
+    youtube_oauth: platforms.youtube.configured,
+    phase: 24,
   };
 }

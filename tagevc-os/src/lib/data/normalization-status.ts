@@ -237,6 +237,7 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
     })) ?? null;
 
   const lastSoak = getLastSoakRun();
+  const retention = getSnapshotRetentionStatus();
   const stage4e_checklist = buildStage4eChecklist({
     stage4_ready: drills.stage4_ready,
     sql_only_hydrate_active: sqlOnlyHydrateActive,
@@ -247,6 +248,8 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
     last_soak: lastSoak,
     snapshots_table_row_count:
       counts.os_store_snapshots ?? snapshotRows.length,
+    retention_confirmed: retention.confirmed,
+    retention_days_remaining: retention.days_remaining_before_drop_eligible,
   });
 
   return {
@@ -278,7 +281,7 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
     stage4_ready: drills.stage4_ready,
     last_soak: lastSoak,
     stage4e_checklist,
-    snapshot_retention: getSnapshotRetentionStatus(),
+    snapshot_retention: retention,
     fetched_at: new Date().toISOString(),
     row_counts: counts,
     snapshots: snapshotRows,
