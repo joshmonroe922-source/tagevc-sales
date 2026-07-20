@@ -3,6 +3,10 @@ import { EntitySectionNav } from '@/components/entity-os/entity-section-nav';
 import { StandardBadge } from '@/components/entity-os/standard-badge';
 import { StartChatButton } from '@/components/messaging/start-chat-button';
 import { HealthBadge } from '@/components/portfolio/health-badge';
+import {
+  EntityMasterForm,
+  PortfolioPulseForm,
+} from '@/components/portfolio/master-data-forms';
 import { BandBadge } from '@/components/shared-services/band-badge';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -252,6 +256,11 @@ export function EntityOperatingViewPanel({
               )}
             </CardContent>
           </Card>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <EntityMasterForm entity={entity} />
+          {portfolio ? <PortfolioPulseForm company={portfolio} /> : null}
         </div>
       </section>
 

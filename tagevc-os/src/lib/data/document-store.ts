@@ -2,6 +2,10 @@ import { createHash, randomUUID } from 'crypto';
 import { logActivity } from '@/lib/data/activity';
 import { listActiveDeals } from '@/lib/data/deal-flow-store';
 import {
+  fetchAllDocAudits,
+  syncDocAudits,
+} from '@/lib/data/normalized/audits-repo';
+import {
   fetchAllDocuments,
   syncDocuments,
 } from '@/lib/data/normalized/documents-repo';
@@ -202,6 +206,9 @@ function touchDocs() {
   queueNormalizedSync('os_documents', async () => {
     await syncDocuments(getDocStore().docs);
   });
+  queueNormalizedSync('os_doc_audits', async () => {
+    await syncDocAudits(getDocStore().audits);
+  });
 }
 
 export async function hydrateDocStore() {
@@ -215,11 +222,20 @@ export async function hydrateDocStore() {
   }
 
   const store = getDocStore();
-  const sqlDocs = await fetchAllDocuments();
+  const [sqlDocs, sqlAudits] = await Promise.all([
+    fetchAllDocuments(),
+    fetchAllDocAudits(),
+  ]);
   if (shouldUseNormalizedRows(sqlDocs)) {
     if (sqlDocs.length > 0) store.docs = sqlDocs;
   } else if (sqlDocs !== null && store.docs.length > 0) {
     await syncDocuments(store.docs);
+  }
+
+  if (shouldUseNormalizedRows(sqlAudits)) {
+    if (sqlAudits.length > 0) store.audits = sqlAudits;
+  } else if (sqlAudits !== null && store.audits.length > 0) {
+    await syncDocAudits(store.audits);
   }
 
   markStoreHydrated('documents');

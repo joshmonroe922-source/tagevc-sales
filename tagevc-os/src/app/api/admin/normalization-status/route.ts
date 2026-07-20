@@ -7,12 +7,18 @@ import {
   getNormalizedSyncStats,
   preferNormalizedTables,
 } from '@/lib/data/normalized/sync';
+import {
+  getSnapshotWriteConfig,
+  getSnapshotWriteStats,
+  MATURE_SNAPSHOT_DOMAINS,
+  shouldWriteSnapshot,
+  type StoreCollection,
+} from '@/lib/data/persist';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 
 /**
- * Soak / cutover diagnostics for Phase 14.
+ * Soak / write-cutover diagnostics for Phase 14–15.
  * Auth: optional CRON_SECRET / DIGEST_SECRET via `x-tagevc-digest-secret`.
- * When no secret is configured, endpoint is open (local/dev only — set a secret in prod).
  */
 export async function GET(request: Request) {
   const secret =
@@ -26,6 +32,8 @@ export async function GET(request: Request) {
 
   try {
     const supabase = await createPersistClient();
+    const writeConfig = getSnapshotWriteConfig();
+    const writeStats = getSnapshotWriteStats();
 
     const counts: Record<string, number> = {};
     const { data: viewRows, error: viewError } = await supabase
@@ -37,18 +45,17 @@ export async function GET(request: Request) {
         counts[String(row.domain)] = Number(row.row_count);
       }
     } else {
-      // Fallback if Phase 14 SQL not applied yet
       const tables = [
         'entities',
         'portfolio_companies',
-        'entity_month_pnl',
         'os_leads',
         'os_tickets',
         'os_deals',
         'os_documents',
-        'os_ic_reviews',
-        'os_ma_targets',
-        'os_re_deals',
+        'os_handoffs',
+        'os_ic_audits',
+        'os_ticket_audits',
+        'os_doc_audits',
         'os_store_snapshots',
       ] as const;
       for (const table of tables) {
@@ -63,12 +70,60 @@ export async function GET(request: Request) {
       .from('os_store_snapshots')
       .select('collection, updated_at, version');
 
+    const domains: StoreCollection[] = [
+      'deal_flow',
+      'tickets',
+      'documents',
+      'ma',
+      're',
+    ];
+    const snapshot_write_gates = Object.fromEntries(
+      domains.map((d) => [d, shouldWriteSnapshot(d)]),
+    );
+
+    const syncStats = getNormalizedSyncStats();
+    const syncFailures = Object.entries(syncStats).filter(
+      ([, s]) => s.fail > 0,
+    );
+
+    const handoffsReady = (counts.os_handoffs ?? -1) >= 0;
+    const auditsReady =
+      (counts.os_ic_audits ?? -1) >= 0 &&
+      (counts.os_ticket_audits ?? -1) >= 0 &&
+      (counts.os_doc_audits ?? -1) >= 0;
+
+    const matureCutoverActive = MATURE_SNAPSHOT_DOMAINS.every(
+      (d) => !shouldWriteSnapshot(d).allow,
+    );
+
+    let stage:
+      | 'soak'
+      | 'read_cutover'
+      | 'write_cutover_partial'
+      | 'write_cutover' = 'soak';
+    if (matureCutoverActive && !writeConfig.write_snapshots_enabled) {
+      stage = 'write_cutover';
+    } else if (matureCutoverActive || writeConfig.snapshot_skip_domains.length > 0) {
+      stage = 'write_cutover_partial';
+    } else if (preferNormalizedTables()) {
+      stage = 'read_cutover';
+    }
+
     return NextResponse.json({
       ok: true,
       prefer_normalized_tables: preferNormalizedTables(),
       master_data_source: getMasterDataSource(),
       master_data_hydrate_error: getMasterDataHydrateError(),
-      sync_stats: getNormalizedSyncStats(),
+      write_cutover: {
+        ...writeConfig,
+        snapshot_write_gates,
+        snapshot_write_stats: writeStats,
+        mature_cutover_active: matureCutoverActive,
+        handoffs_table_ready: handoffsReady,
+        audits_tables_ready: auditsReady,
+      },
+      sync_stats: syncStats,
+      sync_failure_count: syncFailures.length,
       row_counts: counts,
       snapshots: (snapshots ?? []).map((s) => ({
         collection: s.collection,
@@ -76,11 +131,15 @@ export async function GET(request: Request) {
         version: s.version,
       })),
       cutover_hints: {
-        stage: preferNormalizedTables()
-          ? 'read_cutover_forced'
-          : 'soak_prefer_sql_when_nonempty',
+        stage,
         next:
-          'Set USE_NORMALIZED_TABLES=1 after row counts look healthy; keep dual-write until exit criteria in docs/OS_SNAPSHOT_RETIREMENT.md',
+          stage === 'soak'
+            ? 'Apply phase15 SQL, then set WRITE_CUTOVER_MATURE=1 (or SNAPSHOT_SKIP_DOMAINS=deal_flow,tickets,documents) after sync_stats are clean'
+            : stage === 'write_cutover_partial'
+              ? 'Monitor snapshot_write_stats.skips; keep MA/RE dual-write until ready; then WRITE_SNAPSHOTS=0'
+              : stage === 'read_cutover'
+                ? 'Read cutover forced; enable WRITE_CUTOVER_MATURE when handoffs/audits hydrated'
+                : 'Write cutover active — retain snapshot backups before Stage 4 drop',
       },
     });
   } catch (e) {

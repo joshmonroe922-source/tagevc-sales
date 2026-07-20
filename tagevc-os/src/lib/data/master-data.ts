@@ -8,16 +8,22 @@ import {
   SEED_ENTITY_MONTH_KPI,
   SEED_ENTITY_MONTH_KPI_FLEX,
 } from '@/lib/data/entity-kpi-seed';
-import { fetchAllEntities, syncEntities } from '@/lib/data/normalized/entities-repo';
+import {
+  fetchAllEntities,
+  syncEntities,
+  updateEntityFields,
+} from '@/lib/data/normalized/entities-repo';
 import {
   fetchAllEntityMonthKpiFlex,
   fetchAllEntityMonthKpis,
   fetchAllEntityMonthPnl,
   fetchAllPortfolioCompanies,
   syncPortfolioMaster,
+  updatePortfolioCompanyFields,
 } from '@/lib/data/normalized/portfolio-repo';
 import {
   queueNormalizedSync,
+  recordNormalizedSyncResult,
   shouldUseNormalizedRows,
 } from '@/lib/data/normalized/sync';
 import type {
@@ -172,6 +178,90 @@ export function getEntitySync(entityId: string): Entity | null {
   return (
     listEntitiesSync().find((e) => e.entity_id === entityId) ?? null
   );
+}
+
+export async function patchPortfolioCompany(
+  portfolioId: string,
+  patch: Partial<
+    Pick<
+      PortfolioCompany,
+      | 'health'
+      | 'top_risk'
+      | 'next_milestone'
+      | 'notes'
+      | 'coo_owner'
+      | 'board_lead'
+    >
+  >,
+): Promise<PortfolioCompany> {
+  await ensureMasterData();
+  const cache = getCache();
+  const idx = cache.companies.findIndex((c) => c.portfolio_id === portfolioId);
+  if (idx < 0) throw new Error(`Unknown portfolio ${portfolioId}`);
+
+  const current = cache.companies[idx]!;
+  let updated = await updatePortfolioCompanyFields(portfolioId, patch);
+  if (!updated) {
+    const next: PortfolioCompany = {
+      ...current,
+      ...patch,
+      last_update: new Date().toISOString().slice(0, 10),
+      updated_at: new Date().toISOString(),
+    };
+    const { syncPortfolioCompanies } = await import(
+      '@/lib/data/normalized/portfolio-repo'
+    );
+    const ok = await syncPortfolioCompanies([next]);
+    if (!ok) {
+      throw new Error(
+        'Could not save portfolio changes — apply Phase 14 SQL and confirm Live DB.',
+      );
+    }
+    updated = next;
+  }
+
+  cache.companies[idx] = updated;
+  cache.source = 'sql';
+  recordNormalizedSyncResult('portfolio_company_patch', true);
+  return updated;
+}
+
+export async function patchEntity(
+  entityId: string,
+  patch: Partial<Pick<Entity, 'notes' | 'coo_owner' | 'board_lead' | 'status'>>,
+): Promise<Entity> {
+  await ensureMasterData();
+  const cache = getCache();
+  const idx = cache.entities.findIndex((e) => e.entity_id === entityId);
+  if (idx < 0) throw new Error(`Unknown entity ${entityId}`);
+
+  const current = cache.entities[idx]!;
+  const updated = await updateEntityFields(entityId, patch);
+  if (!updated) {
+    const { syncEntities } = await import(
+      '@/lib/data/normalized/entities-repo'
+    );
+    const next: Entity = {
+      ...current,
+      ...patch,
+      updated_at: new Date().toISOString(),
+    };
+    const ok = await syncEntities([next]);
+    if (!ok) {
+      throw new Error(
+        'Could not save entity changes — apply Phase 14 SQL and confirm Live DB.',
+      );
+    }
+    cache.entities[idx] = next;
+    cache.source = 'sql';
+    recordNormalizedSyncResult('entity_patch', true);
+    return next;
+  }
+
+  cache.entities[idx] = updated;
+  cache.source = 'sql';
+  recordNormalizedSyncResult('entity_patch', true);
+  return updated;
 }
 
 /** Test / local reset helper. */

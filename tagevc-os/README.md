@@ -378,10 +378,22 @@ Docs: `docs/OS_PHASE13.md`
 
 Docs: `docs/OS_PHASE14.md`
 
-### Phase 15+ backlog
+### Phase 15 scope (Write cutover + Portfolio edits)
 
-- Write cutover (stop snapshot persists for healthy domains)
-- Normalize handoffs + audit trails
+| Area | Status |
+|------|--------|
+| Env-gated snapshot write cutover | Done |
+| Handoffs + IC/ticket/doc audits dual-write | Done |
+| Portfolio / Entity SQL-first edit forms | Done |
+| Normalization status write-cutover fields | Done |
+| SQL | Apply `supabase/phase15_write_cutover.sql` |
+
+Docs: `docs/OS_PHASE15.md`
+
+### Phase 16+ backlog
+
+- Full write cutover for MA/RE; archive snapshot rows
+- Entity-scoped RLS; financial portfolio edits
 - Push notifications; richer moderation
 - Real DocuSign + observability
 
@@ -418,4 +430,4 @@ Set `DEV_BYPASS_AUTH=1` in `.env.local` to preview the shell as Visionary (local
 
 ## Next phases (from Cursor Brief)
 
-Phase 14 adds Portfolio/Entity Master live tables and snapshot soak tooling. Remaining: write cutover, handoff/audit normalize, DocuSign, push, observability.
+Phase 15 adds write cutover gates, handoff/audit tables, and Portfolio/Entity SQL-first edits. Remaining: full snapshot retirement, entity RLS, DocuSign, push, observability.

@@ -45,8 +45,8 @@
 
 ## Phase 15+ recommendations
 
-1. Write cutover — stop `queueStorePersist` for healthy domains after exit criteria  
-2. Normalize handoffs + audit events into first-class tables  
-3. In-app Portfolio / Entity edit mutations (health, KPIs) writing SQL-first  
+1. Write cutover — stop `queueStorePersist` for healthy domains after exit criteria — **moved to Phase 15**  
+2. Normalize handoffs + audit events into first-class tables — **started in Phase 15**  
+3. In-app Portfolio / Entity edit mutations (health, KPIs) writing SQL-first — **started in Phase 15**  
 4. Entity-scoped RLS for subsidiary portals  
 5. Richer moderation · DocuSign · push · Sentry

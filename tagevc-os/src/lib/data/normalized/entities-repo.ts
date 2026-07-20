@@ -101,3 +101,44 @@ export async function syncEntities(entities: Entity[]): Promise<boolean> {
     return false;
   }
 }
+
+/** Partial SQL-first update for Entity Master narrative fields. */
+export async function updateEntityFields(
+  entityId: string,
+  patch: Partial<
+    Pick<Entity, 'notes' | 'coo_owner' | 'board_lead' | 'status'>
+  >,
+): Promise<Entity | null> {
+  try {
+    const supabase = await createPersistClient();
+    const { data: existing, error: fetchError } = await supabase
+      .from('entities')
+      .select('*')
+      .eq('entity_id', entityId)
+      .maybeSingle();
+    if (fetchError) {
+      console.error('updateEntityFields fetch', fetchError.message);
+      return null;
+    }
+    if (!existing) return null;
+
+    const current = rowToEntity(existing as Record<string, unknown>);
+    const next: Entity = {
+      ...current,
+      ...patch,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase
+      .from('entities')
+      .upsert(entityToRow(next), { onConflict: 'entity_id' });
+    if (error) {
+      console.error('updateEntityFields', error.message);
+      return null;
+    }
+    return next;
+  } catch (e) {
+    console.error('updateEntityFields', e);
+    return null;
+  }
+}

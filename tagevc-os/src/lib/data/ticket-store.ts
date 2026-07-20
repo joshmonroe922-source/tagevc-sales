@@ -1,6 +1,10 @@
 import { createHash, randomUUID } from 'crypto';
 import { logActivity } from '@/lib/data/activity';
 import {
+  fetchAllTicketAudits,
+  syncTicketAudits,
+} from '@/lib/data/normalized/audits-repo';
+import {
   queueNormalizedSync,
   shouldUseNormalizedRows,
 } from '@/lib/data/normalized/sync';
@@ -172,6 +176,9 @@ function touchTickets() {
   queueNormalizedSync('os_tickets', async () => {
     await syncTickets(getTicketStore().tickets);
   });
+  queueNormalizedSync('os_ticket_audits', async () => {
+    await syncTicketAudits(getTicketStore().audits);
+  });
 }
 
 export async function hydrateTicketStore() {
@@ -185,11 +192,20 @@ export async function hydrateTicketStore() {
   }
 
   const store = getTicketStore();
-  const sqlTickets = await fetchAllTickets();
+  const [sqlTickets, sqlAudits] = await Promise.all([
+    fetchAllTickets(),
+    fetchAllTicketAudits(),
+  ]);
   if (shouldUseNormalizedRows(sqlTickets)) {
     if (sqlTickets.length > 0) store.tickets = sqlTickets;
   } else if (sqlTickets !== null && store.tickets.length > 0) {
     await syncTickets(store.tickets);
+  }
+
+  if (shouldUseNormalizedRows(sqlAudits)) {
+    if (sqlAudits.length > 0) store.audits = sqlAudits;
+  } else if (sqlAudits !== null && store.audits.length > 0) {
+    await syncTicketAudits(store.audits);
   }
 
   markStoreHydrated('tickets');

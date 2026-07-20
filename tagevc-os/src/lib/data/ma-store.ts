@@ -5,6 +5,11 @@ import {
   INITIAL_MA_TARGETS,
 } from '@/lib/data/ma-seed';
 import {
+  fetchAllHandoffs,
+  filterHandoffsByTrack,
+  syncHandoffs,
+} from '@/lib/data/normalized/handoffs-repo';
+import {
   fetchAllMaTargets,
   fetchAllMaTasks,
   syncMaTargetsAndTasks,
@@ -62,6 +67,9 @@ function touchMa() {
     const store = getMaStore();
     await syncMaTargetsAndTasks(store.targets, store.tasks);
   });
+  queueNormalizedSync('os_handoffs_ma', async () => {
+    await syncHandoffs(getMaStore().handoffs);
+  });
 }
 
 export async function hydrateMaStore() {
@@ -75,15 +83,25 @@ export async function hydrateMaStore() {
   }
 
   const store = getMaStore();
-  const [sqlTargets, sqlTasks] = await Promise.all([
+  const [sqlTargets, sqlTasks, sqlHandoffs] = await Promise.all([
     fetchAllMaTargets(),
     fetchAllMaTasks(),
+    fetchAllHandoffs(),
   ]);
   if (shouldUseNormalizedRows(sqlTargets)) {
     if (sqlTargets.length > 0) store.targets = sqlTargets;
     if (sqlTasks && sqlTasks.length > 0) store.tasks = sqlTasks;
   } else if (sqlTargets !== null && store.targets.length > 0) {
     await syncMaTargetsAndTasks(store.targets, store.tasks);
+  }
+
+  const maHandoffs = sqlHandoffs
+    ? filterHandoffsByTrack(sqlHandoffs, 'M&A Buy')
+    : null;
+  if (shouldUseNormalizedRows(maHandoffs)) {
+    if (maHandoffs.length > 0) store.handoffs = maHandoffs;
+  } else if (maHandoffs !== null && store.handoffs.length > 0) {
+    await syncHandoffs(store.handoffs);
   }
 
   markStoreHydrated('ma');

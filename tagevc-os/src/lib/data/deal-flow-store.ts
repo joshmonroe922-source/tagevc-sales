@@ -24,6 +24,15 @@ import {
   syncIcReviews,
 } from '@/lib/data/normalized/ic-repo';
 import {
+  fetchAllIcAudits,
+  syncIcAudits,
+} from '@/lib/data/normalized/audits-repo';
+import {
+  fetchAllHandoffs,
+  filterHandoffsByTrack,
+  syncHandoffs,
+} from '@/lib/data/normalized/handoffs-repo';
+import {
   queueNormalizedSync,
   shouldUseNormalizedRows,
 } from '@/lib/data/normalized/sync';
@@ -105,6 +114,14 @@ function touchDealFlow() {
     const store = getDealFlowStore();
     await syncIcReviews(store.icReviews);
   });
+  queueNormalizedSync('os_ic_audits', async () => {
+    const store = getDealFlowStore();
+    await syncIcAudits(store.icAudits);
+  });
+  queueNormalizedSync('os_handoffs_vc', async () => {
+    const store = getDealFlowStore();
+    await syncHandoffs(store.handoffs);
+  });
 }
 
 export async function hydrateDealFlowStore() {
@@ -119,17 +136,20 @@ export async function hydrateDealFlowStore() {
   }
 
   const store = getDealFlowStore();
-  const [sqlLeads, sqlTasks, sqlDeals, sqlDealTasks, sqlIc] = await Promise.all([
-    fetchAllLeads(),
-    fetchAllLeadTasks(),
-    fetchAllDeals(),
-    fetchAllDealTasks(),
-    fetchAllIcReviews(),
-  ]);
+  const [sqlLeads, sqlTasks, sqlDeals, sqlDealTasks, sqlIc, sqlIcAudits, sqlHandoffs] =
+    await Promise.all([
+      fetchAllLeads(),
+      fetchAllLeadTasks(),
+      fetchAllDeals(),
+      fetchAllDealTasks(),
+      fetchAllIcReviews(),
+      fetchAllIcAudits(),
+      fetchAllHandoffs(),
+    ]);
 
   // Prefer normalized rows when present (or forced via USE_NORMALIZED_TABLES).
   if (shouldUseNormalizedRows(sqlLeads)) {
-    if (sqlLeads && sqlLeads.length > 0) store.leads = sqlLeads;
+    if (sqlLeads.length > 0) store.leads = sqlLeads;
     if (sqlTasks && sqlTasks.length > 0) store.tasks = sqlTasks;
   } else if (sqlLeads !== null && store.leads.length > 0) {
     // Tables exist but empty — migrate snapshot/seed into SQL once.
@@ -137,16 +157,31 @@ export async function hydrateDealFlowStore() {
   }
 
   if (shouldUseNormalizedRows(sqlDeals)) {
-    if (sqlDeals && sqlDeals.length > 0) store.deals = sqlDeals;
+    if (sqlDeals.length > 0) store.deals = sqlDeals;
     if (sqlDealTasks && sqlDealTasks.length > 0) store.dealTasks = sqlDealTasks;
   } else if (sqlDeals !== null && store.deals.length > 0) {
     await syncDealsAndTasks(store.deals, store.dealTasks);
   }
 
   if (shouldUseNormalizedRows(sqlIc)) {
-    if (sqlIc && sqlIc.length > 0) store.icReviews = sqlIc;
+    if (sqlIc.length > 0) store.icReviews = sqlIc;
   } else if (sqlIc !== null && store.icReviews.length > 0) {
     await syncIcReviews(store.icReviews);
+  }
+
+  if (shouldUseNormalizedRows(sqlIcAudits)) {
+    if (sqlIcAudits.length > 0) store.icAudits = sqlIcAudits;
+  } else if (sqlIcAudits !== null && store.icAudits.length > 0) {
+    await syncIcAudits(store.icAudits);
+  }
+
+  const vcHandoffs = sqlHandoffs
+    ? filterHandoffsByTrack(sqlHandoffs, 'VC Invest')
+    : null;
+  if (shouldUseNormalizedRows(vcHandoffs)) {
+    if (vcHandoffs.length > 0) store.handoffs = vcHandoffs;
+  } else if (vcHandoffs !== null && store.handoffs.length > 0) {
+    await syncHandoffs(store.handoffs);
   }
 
   markStoreHydrated('deal_flow');

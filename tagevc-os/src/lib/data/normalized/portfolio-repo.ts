@@ -242,6 +242,58 @@ export async function syncPortfolioCompanies(
   }
 }
 
+/** Partial SQL-first update for narrative Portfolio Active fields. */
+export async function updatePortfolioCompanyFields(
+  portfolioId: string,
+  patch: Partial<
+    Pick<
+      PortfolioCompany,
+      | 'health'
+      | 'top_risk'
+      | 'next_milestone'
+      | 'notes'
+      | 'coo_owner'
+      | 'board_lead'
+      | 'last_update'
+    >
+  >,
+): Promise<PortfolioCompany | null> {
+  try {
+    const supabase = await createPersistClient();
+    const { data: existing, error: fetchError } = await supabase
+      .from('portfolio_companies')
+      .select('*')
+      .eq('portfolio_id', portfolioId)
+      .maybeSingle();
+    if (fetchError) {
+      console.error('updatePortfolioCompanyFields fetch', fetchError.message);
+      return null;
+    }
+    if (!existing) return null;
+
+    const current = rowToCompany(existing as Record<string, unknown>);
+    const next: PortfolioCompany = {
+      ...current,
+      ...patch,
+      last_update:
+        patch.last_update ?? new Date().toISOString().slice(0, 10),
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase
+      .from('portfolio_companies')
+      .upsert(companyToRow(next), { onConflict: 'portfolio_id' });
+    if (error) {
+      console.error('updatePortfolioCompanyFields', error.message);
+      return null;
+    }
+    return next;
+  } catch (e) {
+    console.error('updatePortfolioCompanyFields', e);
+    return null;
+  }
+}
+
 export async function syncEntityMonthPnl(
   rows: EntityMonthPnl[],
 ): Promise<boolean> {

@@ -12,6 +12,11 @@ import {
   INITIAL_RE_DEALS,
 } from '@/lib/data/re-seed';
 import {
+  fetchAllHandoffs,
+  filterHandoffsByTrack,
+  syncHandoffs,
+} from '@/lib/data/normalized/handoffs-repo';
+import {
   fetchAllReDeals,
   fetchAllReTasks,
   syncReDealsAndTasks,
@@ -63,6 +68,9 @@ function touchRe() {
     const store = getReStore();
     await syncReDealsAndTasks(store.deals, store.tasks);
   });
+  queueNormalizedSync('os_handoffs_re', async () => {
+    await syncHandoffs(getReStore().handoffs);
+  });
 }
 
 export async function hydrateReStore() {
@@ -76,15 +84,25 @@ export async function hydrateReStore() {
   }
 
   const store = getReStore();
-  const [sqlDeals, sqlTasks] = await Promise.all([
+  const [sqlDeals, sqlTasks, sqlHandoffs] = await Promise.all([
     fetchAllReDeals(),
     fetchAllReTasks(),
+    fetchAllHandoffs(),
   ]);
   if (shouldUseNormalizedRows(sqlDeals)) {
     if (sqlDeals.length > 0) store.deals = sqlDeals;
     if (sqlTasks && sqlTasks.length > 0) store.tasks = sqlTasks;
   } else if (sqlDeals !== null && store.deals.length > 0) {
     await syncReDealsAndTasks(store.deals, store.tasks);
+  }
+
+  const reHandoffs = sqlHandoffs
+    ? filterHandoffsByTrack(sqlHandoffs, 'RE Buy')
+    : null;
+  if (shouldUseNormalizedRows(reHandoffs)) {
+    if (reHandoffs.length > 0) store.handoffs = reHandoffs;
+  } else if (reHandoffs !== null && store.handoffs.length > 0) {
+    await syncHandoffs(store.handoffs);
   }
 
   markStoreHydrated('re');

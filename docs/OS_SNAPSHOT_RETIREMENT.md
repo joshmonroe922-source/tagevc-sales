@@ -1,80 +1,57 @@
 # Snapshot Retirement Plan — `os_store_snapshots`
 
-**Status:** Phase 14 — Soak active; Portfolio/Entity Master on dual-read. Snapshots remain dual-write fallback for deal-flow domains.
+**Status:** Phase 15 — Write cutover available (env-gated). Handoffs/audits dual-written.
 
 ## Current dual-write / dual-read map
 
-| Domain store key | Normalized tables | Phase | Read prefer SQL |
+| Domain store key | Normalized tables | Phase | Snapshot writes |
 |------------------|-------------------|-------|-----------------|
-| `deal_flow` (leads/tasks) | `os_leads`, `os_lead_tasks` | 9 | Yes (non-empty / `USE_NORMALIZED_TABLES`) |
-| `deal_flow` (deals/tasks) | `os_deals`, `os_deal_tasks` | 11 | Yes |
-| `deal_flow` (IC) | `os_ic_reviews` | 12 | Yes |
-| `documents` | `os_documents` | 11 | Yes |
-| `ma` | `os_ma_targets`, `os_ma_tasks` | 12 | Yes |
-| `re` | `os_re_deals`, `os_re_tasks` | 13 | Yes |
-| `tickets` | `os_tickets` | 9 | Yes |
-| Portfolio / Entity Master | `entities`, `portfolio_companies`, `entity_month_pnl`, `entity_month_kpi*` | 14 | Yes (seed migrate once) |
-| Messaging | First-class only (no snapshots) | 10–13 | N/A |
-
-Still snapshot-only nested payloads: handoffs, IC audits, MA/RE handoffs, Doc audits, ticket agent audits.
+| `deal_flow` (leads/tasks/deals/IC) | `os_leads`, `os_deals`, `os_ic_reviews` | 9–12 | Optional — `WRITE_CUTOVER_MATURE` |
+| `deal_flow` (IC audits, handoffs) | `os_ic_audits`, `os_handoffs` | 15 | Same collection gate |
+| `documents` (+ audits) | `os_documents`, `os_doc_audits` | 11 / 15 | Optional mature cutover |
+| `tickets` (+ audits) | `os_tickets`, `os_ticket_audits` | 9 / 15 | Optional mature cutover |
+| `ma` (+ handoffs) | `os_ma_*`, `os_handoffs` | 12 / 15 | Still dual-write by default |
+| `re` (+ handoffs) | `os_re_*`, `os_handoffs` | 13 / 15 | Still dual-write by default |
+| Portfolio / Entity Master | `entities`, `portfolio_companies`, … | 14 | No snapshots (SQL-first) |
+| Messaging | First-class only | 10–13 | N/A |
 
 ## Retirement stages
 
-1. **Soak (Phase 14 — current)**  
-   - Keep dual-write for deal-flow / tickets / docs / MA / RE.  
-   - Prefer SQL on hydrate when rows exist (`shouldUseNormalizedRows` / non-empty fetch).  
-   - Portfolio/Entity: seed → SQL one-shot migrate when tables empty.  
-   - Monitor via `GET /api/admin/normalization-status` and `os_normalization_counts`.
-
-2. **Read cutover**  
-   - Set `USE_NORMALIZED_TABLES=1` in production once row counts match business expectations.  
-   - Confirm IC / MA / RE / docs / leads / tickets / Portfolio / Entities UIs with empty-snapshot drills in staging.
-
-3. **Write cutover**  
-   - Stop `queueStorePersist` for domains with healthy SQL.  
-   - Keep one release of snapshot writes as emergency rollback.
-
-4. **Drop**  
-   - Archive `os_store_snapshots` rows per domain key.  
-   - Remove hydrate snapshot branches and unused seed-only paths.  
-   - Do **not** drop the table until all domain keys are migrated.
+1. **Soak** — Prefer SQL on hydrate; dual-write both paths.  
+2. **Read cutover** — `USE_NORMALIZED_TABLES=1`.  
+3. **Write cutover (Phase 15)** — Gate in `persist.ts`:
+   - `WRITE_CUTOVER_MATURE=1` → skip `deal_flow`, `tickets`, `documents`
+   - `SNAPSHOT_SKIP_DOMAINS=…` → skip listed collections
+   - `WRITE_SNAPSHOTS=0` → suppress all unless `SNAPSHOT_WRITE_DOMAINS` allowlist
+   - Loads still work for rollback; SQL remains source of truth for mutations
+4. **Drop** — Archive rows; remove hydrate snapshot branches; do not drop table until all keys migrated.
 
 ## Ops checklist
 
-### Soak monitoring
-```bash
-curl -H "x-tagevc-digest-secret: $DIGEST_SECRET" \
-  https://app.tagevc.com/api/admin/normalization-status
-```
-Inspect `row_counts`, `sync_stats`, `snapshots[].updated_at`, `master_data_source`.
+### Enable mature write cutover
+1. Apply `phase15_write_cutover.sql`.  
+2. Confirm `os_handoffs` / audit tables in `/api/admin/normalization-status`.  
+3. Confirm `sync_failure_count` is 0 after traffic.  
+4. Set `WRITE_CUTOVER_MATURE=1` on Vercel → redeploy.  
+5. Verify `write_cutover.snapshot_write_gates.deal_flow.allow === false` and `skips` increment on mutations.
 
-### Staging empty-snapshot drill
-1. Export / backup `os_store_snapshots`.  
-2. For one domain (e.g. tickets): `update os_store_snapshots set payload = '{}'::jsonb where collection = 'tickets';`  
-3. Hard-refresh app — UI should still load from `os_tickets`.  
-4. Restore payload if needed.
+### Rollback
+Unset `WRITE_CUTOVER_MATURE` / `WRITE_SNAPSHOTS` / `SNAPSHOT_SKIP_DOMAINS` and redeploy. Snapshot upserts resume immediately.
 
-### Read cutover
-1. Confirm soak exit criteria below.  
-2. Set Vercel `USE_NORMALIZED_TABLES=1`.  
-3. Redeploy and re-check normalization-status (`prefer_normalized_tables: true`).
+## Exit criteria before Stage 4 (drop)
 
-## Exit criteria before Stage 3 (write cutover)
-
-- [ ] Zero dual-write sync failures for 14 days on leads, tickets, deals, docs, IC, MA, RE (`sync_stats.*.fail`)  
-- [ ] Staging verify: wipe snapshot payload for a domain → app still boots from SQL  
-- [ ] Portfolio/Entity Master `master_data_source: "sql"` in production  
-- [ ] Backup / export of `os_store_snapshots` retained  
+- [ ] Mature domains on write cutover ≥14 days with zero SQL sync failures  
+- [ ] Staging empty-snapshot drill for `deal_flow`, `tickets`, `documents`  
+- [ ] MA/RE also cut over (or accepted residual dual-write)  
+- [ ] Backup of `os_store_snapshots` retained  
 
 ## Blockers for fully retiring `os_store_snapshots`
 
-1. **Nested audit / handoff payloads** still live only inside JSONB (no first-class tables yet).  
-2. **Write cutover not started** — mutations still call `queueStorePersist`.  
-3. **No automated soak alerts** — status endpoint is pull-based; wire to cron/Sentry later.  
-4. **Subsidiary entity-scoped RLS** not yet required for firm-wide auth model — revisit before multi-tenant subsidiaries.
+1. MA/RE still dual-writing by default (intentional).  
+2. No automated soak alerts (pull-based status API only).  
+3. Subsidiary entity-scoped RLS not yet required.
 
-## Non-goals (Phase 14)
+## Non-goals
 
-- Dropping `os_store_snapshots`  
-- Stopping snapshot writes (Stage 3)  
-- Push notifications / DocuSign / Sentry (separate tracks)
+- Dropping the `os_store_snapshots` table in Phase 15  
+- Push / DocuSign / Sentry
