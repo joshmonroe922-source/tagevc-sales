@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { DocuSignHubActions } from '@/components/shared-services/docusign-hub-actions';
 import { Badge } from '@/components/ui/badge';
 import {
   Card,
@@ -14,7 +15,8 @@ import {
 } from '@/lib/docusign/events-repo';
 import { listSignedFiles } from '@/lib/docusign/signed-docs';
 import { DOCUSIGN_ENV_KEYS } from '@/lib/docusign/types';
-import { requirePermission } from '@/lib/rbac/session';
+import { roleHasPermission } from '@/lib/types/roles';
+import { getSessionContext, requirePermission } from '@/lib/rbac/session';
 
 function formatBytes(n: number | null | undefined): string {
   if (n == null || n <= 0) return '—';
@@ -28,10 +30,14 @@ export default async function DocuSignModulePage() {
 
   const mode = getDocuSignMode();
   const configured = isDocuSignConfigured();
+  const ctx = await getSessionContext();
+  const canWrite = ctx
+    ? roleHasPermission(ctx.profile.role, 'write:documents')
+    : false;
   const [events, count, signed] = await Promise.all([
     listDocuSignEvents({ limit: 25 }),
     countDocuSignEvents(),
-    listSignedFiles({ limit: 15, withDownloadUrls: true }),
+    listSignedFiles({ limit: 20, withDownloadUrls: true }),
   ]);
 
   const missingEnv = DOCUSIGN_ENV_KEYS.filter((k) => {
@@ -43,6 +49,7 @@ export default async function DocuSignModulePage() {
 
   const storageOk = signed.rows.filter((r) => r.storage_path).length;
   const storageErr = signed.rows.filter((r) => r.storage_error).length;
+  const cocCount = signed.rows.filter((r) => r.file_kind === 'certificate').length;
 
   return (
     <div className="space-y-6">
@@ -59,16 +66,16 @@ export default async function DocuSignModulePage() {
           <Badge variant={mode === 'live' ? 'default' : 'secondary'}>
             {mode === 'live' ? 'Live JWT' : 'Mock envelopes'}
           </Badge>
-          <Badge variant="secondary">Phase 24</Badge>
+          <Badge variant="secondary">Phase 25</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">DocuSign</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Send from Documents uses JWT when configured; Connect webhooks update
-          status and archive signed PDFs to Supabase Storage (
-          <code className="text-xs">docusign-signed</code>) with library path{' '}
-          <code className="text-xs">07_Signed</code>. Capital sends still require{' '}
+          Combined signed PDFs and Certificates of Completion archive to
+          Storage. Void envelopes from the hub; backfill legacy inline rows.
+          Capital sends still require{' '}
           <code className="text-xs">action:docusign_capital</code>.
         </p>
+        <DocuSignHubActions canWrite={canWrite} />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -96,7 +103,7 @@ export default async function DocuSignModulePage() {
               Webhook: <code className="text-xs">POST /api/docusign/webhook</code>
             </p>
             <p className="text-muted-foreground">
-              Object storage: {storageOk} in bucket
+              Object storage: {storageOk} in bucket · CoC rows: {cocCount}
               {storageErr > 0 ? (
                 <span className="text-amber-700"> · {storageErr} with errors</span>
               ) : null}
@@ -114,14 +121,11 @@ export default async function DocuSignModulePage() {
           <CardHeader>
             <CardTitle className="text-base">Links</CardTitle>
             <CardDescription>
-              Envelopes can carry entity, deal, or ticket refs from the document.
+              Apply <code className="text-xs">phase25_engagement_docusign.sql</code>{' '}
+              for <code className="text-xs">file_kind</code>.
             </CardDescription>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground space-y-1">
-            <p>
-              Apply SQL: <code className="text-xs">phase24_maturation.sql</code>{' '}
-              (bucket + storage columns)
-            </p>
             <p>
               Docs: <code className="text-xs">docs/OS_DOCUSIGN.md</code>
             </p>
@@ -164,7 +168,13 @@ export default async function DocuSignModulePage() {
                         {e.envelope_id.slice(0, 18)}
                         {e.envelope_id.length > 18 ? '…' : ''}
                       </td>
-                      <td className="py-2 pr-3">{e.status}</td>
+                      <td
+                        className={`py-2 pr-3 ${
+                          e.status === 'voided' ? 'text-amber-700' : ''
+                        }`}
+                      >
+                        {e.status}
+                      </td>
                       <td className="py-2 pr-3">
                         {e.doc_id ? (
                           <Link
@@ -192,11 +202,10 @@ export default async function DocuSignModulePage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Signed archives</CardTitle>
+          <CardTitle className="text-base">Signed archives + CoC</CardTitle>
           <CardDescription>
-            PDFs prefer Supabase Storage bucket{' '}
-            <code className="text-xs">docusign-signed</code>; large files skip
-            inline base64
+            Combined PDFs and Certificates of Completion in{' '}
+            <code className="text-xs">docusign-signed</code>
             {signed.error ? ` · ${signed.error}` : ''}
           </CardDescription>
         </CardHeader>
@@ -211,6 +220,7 @@ export default async function DocuSignModulePage() {
                 <thead className="text-xs text-muted-foreground">
                   <tr className="border-b">
                     <th className="py-2 pr-3 font-medium">File</th>
+                    <th className="py-2 pr-3 font-medium">Kind</th>
                     <th className="py-2 pr-3 font-medium">Size</th>
                     <th className="py-2 pr-3 font-medium">Storage</th>
                     <th className="py-2 font-medium">Link</th>
@@ -225,6 +235,9 @@ export default async function DocuSignModulePage() {
                           {row.source} · {row.library_path ?? '—'} ·{' '}
                           {row.envelope_id.slice(0, 16)}…
                         </span>
+                      </td>
+                      <td className="py-2 pr-3 text-xs">
+                        {row.file_kind ?? 'combined'}
                       </td>
                       <td className="py-2 pr-3 text-xs">
                         {formatBytes(row.size_bytes)}

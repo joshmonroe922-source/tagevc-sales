@@ -1,4 +1,5 @@
 import { getArchiveExportOpsConfirmation } from '@/lib/data/archive-export-state';
+import { getSnapshotDropGate } from '@/lib/data/snapshot-drop-gate';
 
 export type SoakRunRecord = {
   fetched_at: string;
@@ -25,10 +26,11 @@ export function getLastSoakRun(): SoakRunRecord | null {
   return globalThis.__tageLastSoakRun ?? null;
 }
 
-/** Stage 4e DROP readiness — informational only; never auto-drops. */
+/** Stage 4e DROP readiness — never auto-drops; ready = checklist + ops approval. */
 export type Stage4eChecklist = {
   ready: boolean;
   items: Array<{ id: string; label: string; ok: boolean; detail?: string }>;
+  drop_gate: ReturnType<typeof getSnapshotDropGate>;
 };
 
 export function buildStage4eChecklist(input: {
@@ -46,6 +48,7 @@ export function buildStage4eChecklist(input: {
   retention_confirmed?: boolean;
 }): Stage4eChecklist {
   const exportOps = getArchiveExportOpsConfirmation();
+  const dropGate = getSnapshotDropGate();
   const snapCount = input.snapshots_table_row_count;
   const retentionOk =
     Boolean(input.retention_confirmed) &&
@@ -109,7 +112,13 @@ export function buildStage4eChecklist(input: {
           ? 'Confirm ARCHIVE_EXPORT_CONFIRMED_AT first'
           : input.retention_days_remaining > 0
             ? `${input.retention_days_remaining}d remaining before DROP eligibility`
-            : 'Retention met — DROP still requires explicit ops approval',
+            : 'Retention met — still need SNAPSHOT_DROP_APPROVED_*',
+    },
+    {
+      id: 'ops_approval',
+      label: 'Explicit DROP approval (env)',
+      ok: dropGate.approved,
+      detail: dropGate.detail,
     },
     {
       id: 'table_retained',
@@ -118,12 +127,14 @@ export function buildStage4eChecklist(input: {
       detail:
         snapCount == null
           ? 'Row count unavailable'
-          : `rows=${snapCount} — Phase 24 does not drop this table`,
+          : `rows=${snapCount} — Phase 25 does not drop this table from the app`,
     },
   ];
 
-  // Never auto-claim DROP-ready — Stage 4e remains an explicit ops decision
-  const ready = false;
+  // Eligibility only — app never executes DROP even when ready=true
+  const ready = items
+    .filter((i) => i.id !== 'table_retained')
+    .every((i) => i.ok);
 
-  return { ready, items };
+  return { ready, items, drop_gate: dropGate };
 }

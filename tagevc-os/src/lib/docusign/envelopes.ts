@@ -142,3 +142,81 @@ export async function getEnvelopeStatus(envelopeId: string): Promise<{
     raw: json,
   };
 }
+
+/** Void a live envelope (Phase 25). Mock ENV- ids are local-only. */
+export async function voidEnvelope(
+  envelopeId: string,
+  reason: string,
+): Promise<{ ok: true; status: string } | { ok: false; error: string }> {
+  if (envelopeId.startsWith('ENV-')) {
+    return { ok: true, status: 'voided' };
+  }
+  const cfg = getDocuSignConfig();
+  if (!cfg) return { ok: false, error: 'DocuSign is not configured' };
+
+  try {
+    const res = await docusignFetch(
+      cfg,
+      `/envelopes/${encodeURIComponent(envelopeId)}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({
+          status: 'voided',
+          voidedReason: (reason || 'Voided via Tage VC OS').slice(0, 200),
+        }),
+      },
+    );
+    const json = (await res.json().catch(() => ({}))) as {
+      message?: string;
+      errorCode?: string;
+    };
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: json.message || json.errorCode || `HTTP ${res.status}`,
+      };
+    }
+    return { ok: true, status: 'voided' };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'void failed',
+    };
+  }
+}
+
+/** Download Certificate of Completion PDF bytes (live envelopes). */
+export async function downloadCertificateOfCompletion(
+  envelopeId: string,
+): Promise<{ ok: true; buffer: Buffer } | { ok: false; error: string }> {
+  if (envelopeId.startsWith('ENV-')) {
+    const text = `Certificate of Completion (mock)\nEnvelope ${envelopeId}\n`;
+    return { ok: true, buffer: Buffer.from(text, 'utf8') };
+  }
+  const cfg = getDocuSignConfig();
+  if (!cfg) return { ok: false, error: 'DocuSign is not configured' };
+
+  try {
+    const token = await getDocuSignAccessToken(cfg);
+    const url = `${cfg.basePath}/restapi/v2.1/accounts/${cfg.accountId}/envelopes/${encodeURIComponent(envelopeId)}/documents/certificate`;
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/pdf',
+      },
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      return {
+        ok: false,
+        error: `CoC download HTTP ${res.status}: ${text.slice(0, 200)}`,
+      };
+    }
+    return { ok: true, buffer: Buffer.from(await res.arrayBuffer()) };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'CoC download failed',
+    };
+  }
+}

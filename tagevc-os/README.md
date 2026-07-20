@@ -498,11 +498,23 @@ Docs: `docs/OS_PHASE23.md`
 
 Docs: `docs/OS_PHASE24.md` · `docs/OS_MARKETING.md`
 
-### Phase 25+ backlog
+### Phase 25 scope (Engagement · CoC · status offboarding)
 
-- Live platform engagement ingest · approval SLA
-- DocuSign CoC / void · IT status-change offboarding
-- Stage 4e DROP when retention confirmed
+| Area | Status |
+|------|--------|
+| Live LinkedIn/Meta engagement + analytics trends | Done |
+| DocuSign CoC, void, Storage backfill | Done |
+| Inactive-profile offboarding + MDM webhook hook | Done |
+| Stage 4e approval gate (no DROP) | Done |
+| SQL | Apply `phase25_engagement_docusign.sql` |
+
+Docs: `docs/OS_PHASE25.md`
+
+### Phase 26+ backlog
+
+- X engagement · Marketing API impressions · approval SLA
+- DocuSign reminders / templates
+- Full MDM · Stage 4e offline DROP
 - Push · user admin
 
 
@@ -538,4 +550,4 @@ Set `DEV_BYPASS_AUTH=1` in `.env.local` to preview the shell as Visionary (local
 
 ## Next phases (from Cursor Brief)
 
-Phase 24 advances Marketing analytics/token refresh, DocuSign Storage, and HR ticket offboarding. Remaining: Stage 4e drop (after retention), push, user admin.
+Phase 25 advances live engagement analytics, DocuSign CoC/void/backfill, and status-change offboarding. Remaining: Stage 4e offline DROP (after approval), push, user admin.

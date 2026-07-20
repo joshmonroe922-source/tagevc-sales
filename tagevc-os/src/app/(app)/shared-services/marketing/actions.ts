@@ -322,3 +322,17 @@ export async function refreshTokensAction(): Promise<MarketingActionResult> {
     message: `Token refresh: ${refreshed} refreshed, ${failed} failed`,
   };
 }
+
+export async function pullEngagementAction(): Promise<MarketingActionResult> {
+  const gate = await guardPermission('write:marketing');
+  if (!gate.ok) return gate;
+  const { pullLiveEngagement } = await import(
+    '@/lib/shared-services/marketing-engagement'
+  );
+  const { pulled, failed } = await pullLiveEngagement({ limit: 15 });
+  revalidateMarketing();
+  return {
+    ok: true,
+    message: `Engagement pull: ${pulled} updated, ${failed} failed`,
+  };
+}

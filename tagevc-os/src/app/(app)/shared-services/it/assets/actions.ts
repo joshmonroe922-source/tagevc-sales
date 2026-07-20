@@ -256,3 +256,21 @@ export async function completeOffboardingAction(
   revalidateAssets();
   return { ok: true, message: `Completed ${runId}` };
 }
+
+export async function scanInactiveOffboardingAction(): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('write:it_assets');
+  if (!gate.ok) return gate;
+  const { scanInactiveProfilesForOffboarding } = await import(
+    '@/lib/shared-services/it-offboarding'
+  );
+  const res = await scanInactiveProfilesForOffboarding({
+    limit: 20,
+    auto_execute: true,
+    actor_id: gate.profile.id,
+  });
+  revalidateAssets();
+  return {
+    ok: true,
+    message: `Status scan: ${res.started} started, ${res.skipped} skipped (${res.scanned} inactive)`,
+  };
+}

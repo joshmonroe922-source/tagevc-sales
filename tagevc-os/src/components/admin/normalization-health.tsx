@@ -192,6 +192,19 @@ export function NormalizationHealthPanel({
             <div className="mb-2 rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
               Retention: {status.snapshot_retention.detail}
             </div>
+            {status.stage4e_checklist.ready ? (
+              <div className="mb-2 rounded-md border border-emerald-600/40 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+                Checklist eligible for DROP — app never executes DROP. Use offline{' '}
+                <code className="text-[10px]">phase25_stage4e_drop.sql</code> only
+                with ALLOW_SNAPSHOT_DROP=1.
+              </div>
+            ) : (
+              <div className="mb-2 rounded-md border border-border/60 px-3 py-2 text-xs text-muted-foreground">
+                Not DROP-eligible yet. Approval:{' '}
+                {status.stage4e_checklist.drop_gate?.detail ??
+                  'set SNAPSHOT_DROP_APPROVED_AT + BY'}
+              </div>
+            )}
             {status.stage4e_checklist.items.map((item) => (
               <div
                 key={item.id}

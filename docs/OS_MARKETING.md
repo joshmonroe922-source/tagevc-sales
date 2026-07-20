@@ -54,6 +54,6 @@ os_marketing_analytics_events      — Phase 24 post/engagement events
 
 ## Phase 25+
 
-1. Live engagement ingest from platform APIs  
+1. X engagement pull; richer Marketing API impressions  
 2. Approval SLA tied to Shared Services tickets  
 3. Paid media / ads (out of current scope)  

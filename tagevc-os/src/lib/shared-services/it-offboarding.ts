@@ -135,9 +135,18 @@ export async function startOffboarding(input: {
       id: 'access-mdm',
       kind: 'access_note',
       ref_id: 'mdm',
-      label: 'Confirm MDM / SSO / email access removed (manual)',
+      label: 'MDM / device retire (webhook if MDM_WEBHOOK_URL set)',
       status: 'pending',
-      detail: 'HR / IT checklist — not auto-executed in Phase 23',
+      detail:
+        'Phase 25: posts to MDM_WEBHOOK_URL when configured; otherwise manual',
+    });
+    checklist.push({
+      id: 'access-sso',
+      kind: 'access_note',
+      ref_id: 'sso',
+      label: 'Confirm SSO / email / SaaS access removed (manual)',
+      status: 'pending',
+      detail: 'Operator confirmation required',
     });
 
     const run_id = `OFF-${Date.now().toString(36).toUpperCase()}-${randomUUID().slice(0, 4)}`;
@@ -218,8 +227,15 @@ export async function executeOffboarding(
         });
         item.status = res.ok ? 'done' : 'failed';
         item.detail = res.ok ? undefined : res.error;
+      } else if (item.kind === 'access_note' && item.ref_id === 'mdm') {
+        const mdm = await invokeMdmOffboardHook({
+          user_id: userId,
+          run_id: runId,
+          entity_id: run.entity_id,
+        });
+        item.status = mdm.ok ? 'done' : mdm.skipped ? 'pending' : 'failed';
+        item.detail = mdm.detail;
       } else {
-        // access_note stays pending unless manually marked — leave as pending
         item.status = 'pending';
       }
     }
@@ -379,3 +395,145 @@ export function listOffboardingCandidateTickets(): Array<{
       status: t.status,
     }));
 }
+
+/** Optional MDM webhook — set MDM_WEBHOOK_URL for Phase 25 hooks. */
+export async function invokeMdmOffboardHook(input: {
+  user_id: string;
+  run_id: string;
+  entity_id?: string | null;
+}): Promise<{ ok: boolean; skipped?: boolean; detail: string }> {
+  const url = process.env.MDM_WEBHOOK_URL?.trim();
+  if (!url) {
+    return {
+      ok: false,
+      skipped: true,
+      detail: 'MDM_WEBHOOK_URL not set — complete manually',
+    };
+  }
+  try {
+    const secret = process.env.MDM_WEBHOOK_SECRET?.trim();
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(secret ? { Authorization: `Bearer ${secret}` } : {}),
+      },
+      body: JSON.stringify({
+        action: 'offboard',
+        user_id: input.user_id,
+        run_id: input.run_id,
+        entity_id: input.entity_id ?? null,
+        source: 'tagevc-os',
+      }),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      return {
+        ok: false,
+        detail: `MDM HTTP ${res.status}: ${text.slice(0, 120)}`,
+      };
+    }
+    return { ok: true, detail: 'MDM webhook accepted' };
+  } catch (e) {
+    return {
+      ok: false,
+      detail: e instanceof Error ? e.message : 'MDM webhook failed',
+    };
+  }
+}
+
+/**
+ * Scan inactive profiles and start offboarding (source=status_change)
+ * when no open/in_progress run exists.
+ */
+export async function scanInactiveProfilesForOffboarding(opts?: {
+  limit?: number;
+  auto_execute?: boolean;
+  actor_id?: string | null;
+}): Promise<{
+  scanned: number;
+  started: number;
+  skipped: number;
+  results: Array<{ user_id: string; ok: boolean; detail: string }>;
+}> {
+  const limit = opts?.limit ?? 20;
+  const sb = await createPersistClient();
+  const { data: profiles, error } = await sb
+    .from('profiles')
+    .select('id, email, active, entity_id')
+    .eq('active', false)
+    .order('updated_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    return {
+      scanned: 0,
+      started: 0,
+      skipped: 0,
+      results: [{ user_id: '-', ok: false, detail: error.message }],
+    };
+  }
+
+  const { data: openRuns } = await sb
+    .from('os_it_offboarding_runs')
+    .select('user_id, status')
+    .in('status', ['open', 'in_progress']);
+
+  const busy = new Set((openRuns ?? []).map((r) => String(r.user_id)));
+  const results: Array<{ user_id: string; ok: boolean; detail: string }> = [];
+  let started = 0;
+  let skipped = 0;
+
+  for (const p of profiles ?? []) {
+    const userId = String(p.id);
+    if (busy.has(userId)) {
+      skipped += 1;
+      results.push({
+        user_id: userId,
+        ok: true,
+        detail: 'Open offboarding run already exists',
+      });
+      continue;
+    }
+    const res = await startOffboarding({
+      user_id: userId,
+      entity_id: (p.entity_id as string) ?? null,
+      actor_id: opts?.actor_id ?? null,
+      notes: `Auto from inactive profile${p.email ? ` (${p.email})` : ''}`,
+      source: 'status_change',
+      auto_execute: opts?.auto_execute ?? true,
+    });
+    if (res.ok) {
+      started += 1;
+      results.push({
+        user_id: userId,
+        ok: true,
+        detail: `Started ${res.run.run_id}`,
+      });
+      void logActivity({
+        module: 'shared_services',
+        action: 'it_offboarding_status_change',
+        title: `Offboarding from inactive profile: ${res.run.run_id}`,
+        ref_type: 'ticket',
+        ref_id: res.run.run_id,
+        entity_id: res.run.entity_id ?? undefined,
+      });
+      void createBroadcastNotification({
+        kind: 'ticket_update',
+        title: `IT offboarding started (status change)`,
+        body: res.run.run_id,
+        href: '/shared-services/it/assets',
+      });
+    } else {
+      results.push({ user_id: userId, ok: false, detail: res.error });
+    }
+  }
+
+  return {
+    scanned: (profiles ?? []).length,
+    started,
+    skipped,
+    results,
+  };
+}
+

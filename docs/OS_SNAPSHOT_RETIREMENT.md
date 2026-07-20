@@ -1,6 +1,6 @@
 # Snapshot Retirement Plan — `os_store_snapshots`
 
-**Status:** Phase 24 — Stage 4e checklist + ≥90-day retention monitoring. Table retained until explicit DROP.
+**Status:** Phase 25 — Stage 4e checklist + ≥90-day retention + explicit DROP approval env. Table retained until offline DROP.
 
 ## Dual-write / dual-read map
 

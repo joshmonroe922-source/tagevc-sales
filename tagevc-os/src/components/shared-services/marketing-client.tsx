@@ -6,6 +6,7 @@ import {
   createCampaignAction,
   createContentAction,
   generateDraftAction,
+  pullEngagementAction,
   recordEngagementAction,
   refreshTokensAction,
   registerAccountAction,
@@ -186,6 +187,10 @@ export function MarketingClient({
               {analytics.engagement_impressions} / {analytics.engagement_clicks}{' '}
               / {analytics.engagement_likes}
             </p>
+            <p className="text-xs text-muted-foreground">
+              API {analytics.engagement_api ?? 0} · manual{' '}
+              {analytics.engagement_manual ?? 0}
+            </p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Pending schedule</p>
@@ -194,6 +199,47 @@ export function MarketingClient({
             </p>
           </div>
         </div>
+        {analytics.trend_7d && analytics.trend_7d.length > 0 ? (
+          <div className="overflow-x-auto">
+            <p className="mb-1 text-xs font-medium text-muted-foreground">
+              7-day trend
+            </p>
+            <table className="w-full text-left text-xs">
+              <thead className="text-muted-foreground">
+                <tr className="border-b">
+                  <th className="py-1 pr-2">Day</th>
+                  <th className="py-1 pr-2">Posts</th>
+                  <th className="py-1 pr-2">Eng. events</th>
+                  <th className="py-1">Impressions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {analytics.trend_7d.map((t) => (
+                  <tr key={t.day} className="border-b border-border/40">
+                    <td className="py-1 pr-2 font-mono">{t.day.slice(5)}</td>
+                    <td className="py-1 pr-2 tabular-nums">{t.posts}</td>
+                    <td className="py-1 pr-2 tabular-nums">
+                      {t.engagement_events}
+                    </td>
+                    <td className="py-1 tabular-nums">{t.impressions}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+        {analytics.engagement_by_platform &&
+        Object.keys(analytics.engagement_by_platform).length > 0 ? (
+          <p className="text-xs text-muted-foreground">
+            Engagement by platform:{' '}
+            {Object.entries(analytics.engagement_by_platform)
+              .map(
+                ([p, m]) =>
+                  `${p} ${m.impressions}i/${m.likes}♥`,
+              )
+              .join(' · ')}
+          </p>
+        ) : null}
         {platformEntries.length > 0 ? (
           <p className="text-xs text-muted-foreground">
             By platform:{' '}
@@ -408,6 +454,15 @@ export function MarketingClient({
             onClick={() => run(() => refreshTokensAction())}
           >
             Refresh OAuth tokens
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={pending}
+            onClick={() => run(() => pullEngagementAction())}
+          >
+            Pull live engagement
           </Button>
         </div>
       )}

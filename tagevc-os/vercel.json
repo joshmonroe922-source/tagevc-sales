@@ -11,6 +11,14 @@
     {
       "path": "/api/marketing/token-refresh",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/marketing/engagement-pull",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/it/offboarding-status-scan",
+      "schedule": "0 7 * * *"
     }
   ]
 }

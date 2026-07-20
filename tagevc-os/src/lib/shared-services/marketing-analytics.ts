@@ -1,5 +1,5 @@
 /**
- * Marketing analytics — post results + engagement snapshots (Phase 24).
+ * Marketing analytics — post results, engagement, trends (Phases 24–25).
  */
 
 import { randomUUID } from 'crypto';
@@ -24,10 +24,23 @@ export type MarketingAnalyticsSummary = {
   posts_stub: number;
   by_platform: Record<string, number>;
   by_campaign: Record<string, number>;
+  engagement_by_platform: Record<
+    string,
+    { impressions: number; clicks: number; likes: number }
+  >;
   recent: MarketingAnalyticsEvent[];
   engagement_impressions: number;
   engagement_clicks: number;
   engagement_likes: number;
+  engagement_api: number;
+  engagement_manual: number;
+  /** Last 7 calendar days: YYYY-MM-DD → post + engagement counts */
+  trend_7d: Array<{
+    day: string;
+    posts: number;
+    engagement_events: number;
+    impressions: number;
+  }>;
 };
 
 function mapEvent(row: Record<string, unknown>): MarketingAnalyticsEvent {
@@ -43,6 +56,22 @@ function mapEvent(row: Record<string, unknown>): MarketingAnalyticsEvent {
     metrics: (row.metrics as Record<string, unknown>) ?? {},
     occurred_at: String(row.occurred_at),
   };
+}
+
+function emptyTrend7d(): MarketingAnalyticsSummary['trend_7d'] {
+  const out: MarketingAnalyticsSummary['trend_7d'] = [];
+  for (let i = 6; i >= 0; i -= 1) {
+    const d = new Date();
+    d.setUTCHours(0, 0, 0, 0);
+    d.setUTCDate(d.getUTCDate() - i);
+    out.push({
+      day: d.toISOString().slice(0, 10),
+      posts: 0,
+      engagement_events: 0,
+      impressions: 0,
+    });
+  }
+  return out;
 }
 
 export async function recordMarketingAnalyticsEvent(input: {
@@ -97,6 +126,7 @@ export async function recordEngagement(input: {
     entity_id: input.entity_id,
     platform: input.platform,
     metrics: {
+      source: 'manual',
       impressions: input.impressions ?? 0,
       clicks: input.clicks ?? 0,
       likes: input.likes ?? 0,
@@ -113,10 +143,14 @@ export async function getMarketingAnalyticsSummary(opts?: {
     posts_stub: 0,
     by_platform: {},
     by_campaign: {},
+    engagement_by_platform: {},
     recent: [],
     engagement_impressions: 0,
     engagement_clicks: 0,
     engagement_likes: 0,
+    engagement_api: 0,
+    engagement_manual: 0,
+    trend_7d: emptyTrend7d(),
   };
 
   try {
@@ -125,25 +159,56 @@ export async function getMarketingAnalyticsSummary(opts?: {
       .from('os_marketing_analytics_events')
       .select('*')
       .order('occurred_at', { ascending: false })
-      .limit(opts?.limit ?? 200);
+      .limit(opts?.limit ?? 300);
 
     if (error) return { summary: empty, error: error.message };
 
     const events = (data ?? []).map((r) =>
       mapEvent(r as Record<string, unknown>),
     );
-    const summary: MarketingAnalyticsSummary = { ...empty, recent: events.slice(0, 25) };
+    const summary: MarketingAnalyticsSummary = {
+      ...empty,
+      recent: events.slice(0, 25),
+      trend_7d: emptyTrend7d(),
+    };
+    const dayIndex = new Map(
+      summary.trend_7d.map((t, i) => [t.day, i] as const),
+    );
 
     for (const e of events) {
+      const day = e.occurred_at.slice(0, 10);
+      const ti = dayIndex.get(day);
+
       if (e.kind === 'post_succeeded') {
         summary.posts_succeeded += 1;
         if (e.metrics.stub) summary.posts_stub += 1;
+        if (ti != null) summary.trend_7d[ti].posts += 1;
       } else if (e.kind === 'post_failed') {
         summary.posts_failed += 1;
       } else if (e.kind === 'engagement') {
-        summary.engagement_impressions += Number(e.metrics.impressions ?? 0);
-        summary.engagement_clicks += Number(e.metrics.clicks ?? 0);
-        summary.engagement_likes += Number(e.metrics.likes ?? 0);
+        const impressions = Number(e.metrics.impressions ?? 0);
+        const clicks = Number(e.metrics.clicks ?? 0);
+        const likes = Number(e.metrics.likes ?? 0);
+        summary.engagement_impressions += impressions;
+        summary.engagement_clicks += clicks;
+        summary.engagement_likes += likes;
+        if (e.metrics.source === 'api') summary.engagement_api += 1;
+        else summary.engagement_manual += 1;
+        if (ti != null) {
+          summary.trend_7d[ti].engagement_events += 1;
+          summary.trend_7d[ti].impressions += impressions;
+        }
+        if (e.platform) {
+          const bucket = summary.engagement_by_platform[e.platform] ?? {
+            impressions: 0,
+            clicks: 0,
+            likes: 0,
+          };
+          bucket.impressions += impressions;
+          bucket.clicks += clicks;
+          bucket.likes += likes;
+          summary.engagement_by_platform[e.platform] = bucket;
+        }
       }
       if (e.platform) {
         summary.by_platform[e.platform] =
@@ -155,7 +220,6 @@ export async function getMarketingAnalyticsSummary(opts?: {
       }
     }
 
-    // Also fold in schedule job outcomes if analytics table empty of posts
     if (summary.posts_succeeded + summary.posts_failed === 0) {
       const { data: jobs } = await sb
         .from('os_marketing_schedule_jobs')

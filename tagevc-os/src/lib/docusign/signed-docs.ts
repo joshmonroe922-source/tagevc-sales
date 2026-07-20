@@ -1,9 +1,12 @@
 /**
- * Fetch completed DocuSign envelope documents into 07_Signed (Phase 23–24).
- * Large files go to Supabase Storage bucket `docusign-signed`; DB keeps metadata.
+ * Fetch completed DocuSign envelope documents into 07_Signed (Phases 23–25).
+ * Combined PDF + Certificate of Completion; Storage backfill for legacy inline rows.
  */
 
 import { getDocuSignConfig, isDocuSignConfigured } from '@/lib/docusign/config';
+import {
+  downloadCertificateOfCompletion,
+} from '@/lib/docusign/envelopes';
 import { getDocuSignAccessToken } from '@/lib/docusign/jwt';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 import { entityFolderPath } from '@/lib/documents/library';
@@ -11,8 +14,9 @@ import { captureException } from '@/lib/observability';
 import type { DocumentRecord } from '@/lib/types';
 
 const BUCKET = 'docusign-signed';
-/** Prefer storage when payload exceeds this (bytes). Always try storage first in Phase 24. */
 const INLINE_MAX_BYTES = 200_000;
+
+export type SignedFileKind = 'combined' | 'certificate';
 
 export type SignedFileResult = {
   ok: boolean;
@@ -20,8 +24,10 @@ export type SignedFileResult = {
   file_name?: string;
   storage_path?: string | null;
   size_bytes?: number;
+  file_kind?: SignedFileKind;
   source: 'docusign' | 'local_copy' | 'skipped';
   error?: string;
+  coc?: SignedFileResult;
 };
 
 export async function archiveSignedDocument(
@@ -37,6 +43,8 @@ export async function archiveSignedDocument(
     : `/Firm/Signed/${fileBase}.pdf`;
 
   try {
+    let combined: SignedFileResult;
+
     if (isDocuSignConfigured() && !doc.envelope_id.startsWith('ENV-')) {
       const cfg = getDocuSignConfig()!;
       const token = await getDocuSignAccessToken(cfg);
@@ -56,7 +64,7 @@ export async function archiveSignedDocument(
         };
       }
       const buf = Buffer.from(await res.arrayBuffer());
-      return persistSignedPayload({
+      combined = await persistSignedPayload({
         envelope_id: doc.envelope_id,
         doc_id: doc.doc_id,
         entity_id: doc.entity_id,
@@ -65,24 +73,60 @@ export async function archiveSignedDocument(
         content_type: 'application/pdf',
         library_path: libraryPath,
         source: 'docusign',
+        file_kind: 'combined',
+      });
+    } else {
+      const text =
+        doc.merged_body ||
+        `${doc.title}\n\nSigned envelope ${doc.envelope_id}\nCompleted ${doc.completed_at ?? new Date().toISOString()}`;
+      const buf = Buffer.from(text, 'utf8');
+      const textPath = libraryPath.replace(/\.pdf$/i, '.txt');
+      combined = await persistSignedPayload({
+        envelope_id: doc.envelope_id,
+        doc_id: doc.doc_id,
+        entity_id: doc.entity_id,
+        file_name: `${fileBase}.txt`,
+        buffer: buf,
+        content_type: 'text/plain',
+        library_path: textPath,
+        source: 'local_copy',
+        file_kind: 'combined',
       });
     }
 
-    const text =
-      doc.merged_body ||
-      `${doc.title}\n\nSigned envelope ${doc.envelope_id}\nCompleted ${doc.completed_at ?? new Date().toISOString()}`;
-    const buf = Buffer.from(text, 'utf8');
-    const textPath = libraryPath.replace(/\.pdf$/i, '.txt');
-    return persistSignedPayload({
-      envelope_id: doc.envelope_id,
-      doc_id: doc.doc_id,
-      entity_id: doc.entity_id,
-      file_name: `${fileBase}.txt`,
-      buffer: buf,
-      content_type: 'text/plain',
-      library_path: textPath,
-      source: 'local_copy',
-    });
+    // Certificate of Completion (best-effort; does not fail the combined archive)
+    const cocDl = await downloadCertificateOfCompletion(doc.envelope_id);
+    let coc: SignedFileResult | undefined;
+    if (cocDl.ok) {
+      const cocName = `${fileBase}-coc.${
+        doc.envelope_id.startsWith('ENV-') ? 'txt' : 'pdf'
+      }`;
+      const cocPath = doc.entity_id
+        ? entityFolderPath(doc.entity_id, '07_Signed', cocName)
+        : `/Firm/Signed/${cocName}`;
+      coc = await persistSignedPayload({
+        envelope_id: doc.envelope_id,
+        doc_id: doc.doc_id,
+        entity_id: doc.entity_id,
+        file_name: cocName,
+        buffer: cocDl.buffer,
+        content_type: doc.envelope_id.startsWith('ENV-')
+          ? 'text/plain'
+          : 'application/pdf',
+        library_path: cocPath,
+        source: combined.source,
+        file_kind: 'certificate',
+      });
+    } else {
+      coc = {
+        ok: false,
+        source: 'skipped',
+        error: cocDl.error,
+        file_kind: 'certificate',
+      };
+    }
+
+    return { ...combined, coc };
   } catch (e) {
     captureException(e, { route: 'docusign/signed-archive' });
     return {
@@ -130,16 +174,17 @@ async function persistSignedPayload(input: {
   content_type: string;
   library_path: string;
   source: string;
+  file_kind?: SignedFileKind;
 }): Promise<SignedFileResult> {
   const size = input.buffer.byteLength;
-  const storageKey = `${input.entity_id ?? 'firm'}/${input.envelope_id}/${input.file_name}`;
+  const kind = input.file_kind ?? 'combined';
+  const storageKey = `${input.entity_id ?? 'firm'}/${input.envelope_id}/${kind}/${input.file_name}`;
   const uploaded = await uploadToStorage(
     storageKey,
     input.buffer,
     input.content_type,
   );
 
-  // Prefer object storage; keep small/fallback inline copy when upload fails or tiny
   const contentBase64 =
     !uploaded.ok || size <= INLINE_MAX_BYTES
       ? input.buffer.toString('base64')
@@ -158,6 +203,7 @@ async function persistSignedPayload(input: {
     storage_path: uploaded.ok ? uploaded.path : null,
     size_bytes: size,
     storage_error: uploaded.ok ? null : uploaded.error,
+    file_kind: kind,
   });
 
   if (error) {
@@ -167,6 +213,7 @@ async function persistSignedPayload(input: {
       source: input.source as SignedFileResult['source'],
       error: error.message,
       size_bytes: size,
+      file_kind: kind,
     };
   }
 
@@ -178,6 +225,7 @@ async function persistSignedPayload(input: {
     size_bytes: size,
     source: input.source as SignedFileResult['source'],
     error: uploaded.ok ? undefined : uploaded.error,
+    file_kind: kind,
   };
 }
 
@@ -209,6 +257,7 @@ export type SignedFileRow = {
   storage_path: string | null;
   size_bytes: number | null;
   storage_error: string | null;
+  file_kind?: string | null;
   received_at: string;
   download_url?: string | null;
 };
@@ -223,7 +272,7 @@ export async function listSignedFiles(opts?: {
     let q = sb
       .from('os_docusign_signed_files')
       .select(
-        'id, envelope_id, doc_id, entity_id, file_name, content_type, library_path, source, storage_path, size_bytes, storage_error, received_at',
+        'id, envelope_id, doc_id, entity_id, file_name, content_type, library_path, source, storage_path, size_bytes, storage_error, file_kind, received_at',
       )
       .order('received_at', { ascending: false })
       .limit(opts?.limit ?? 20);
@@ -248,4 +297,97 @@ export async function listSignedFiles(opts?: {
       error: e instanceof Error ? e.message : 'list failed',
     };
   }
+}
+
+/**
+ * Backfill legacy inline `content_base64` rows into Supabase Storage.
+ * Clears base64 for large files after successful upload.
+ */
+export async function backfillSignedFilesToStorage(opts?: {
+  limit?: number;
+}): Promise<{
+  processed: number;
+  uploaded: number;
+  failed: number;
+  results: Array<{ id: string; ok: boolean; error?: string; path?: string }>;
+}> {
+  const limit = opts?.limit ?? 20;
+  const sb = await createPersistClient();
+  const { data, error } = await sb
+    .from('os_docusign_signed_files')
+    .select(
+      'id, envelope_id, entity_id, file_name, content_base64, content_type, file_kind, storage_path',
+    )
+    .is('storage_path', null)
+    .not('content_base64', 'is', null)
+    .order('received_at', { ascending: true })
+    .limit(limit);
+
+  if (error) {
+    return {
+      processed: 0,
+      uploaded: 0,
+      failed: 1,
+      results: [{ id: '-', ok: false, error: error.message }],
+    };
+  }
+
+  const results: Array<{
+    id: string;
+    ok: boolean;
+    error?: string;
+    path?: string;
+  }> = [];
+  let uploaded = 0;
+  let failed = 0;
+
+  for (const row of data ?? []) {
+    const id = String(row.id);
+    const b64 = row.content_base64 as string;
+    try {
+      const buffer = Buffer.from(b64, 'base64');
+      const kind = (row.file_kind as string) || 'combined';
+      const storageKey = `${(row.entity_id as string) ?? 'firm'}/${row.envelope_id}/${kind}/${row.file_name}`;
+      const up = await uploadToStorage(
+        storageKey,
+        buffer,
+        (row.content_type as string) || 'application/pdf',
+      );
+      if (!up.ok) {
+        failed += 1;
+        await sb
+          .from('os_docusign_signed_files')
+          .update({ storage_error: up.error })
+          .eq('id', id);
+        results.push({ id, ok: false, error: up.error });
+        continue;
+      }
+      const clearInline = buffer.byteLength > INLINE_MAX_BYTES;
+      await sb
+        .from('os_docusign_signed_files')
+        .update({
+          storage_path: up.path,
+          size_bytes: buffer.byteLength,
+          storage_error: null,
+          content_base64: clearInline ? null : b64,
+        })
+        .eq('id', id);
+      uploaded += 1;
+      results.push({ id, ok: true, path: up.path });
+    } catch (e) {
+      failed += 1;
+      results.push({
+        id,
+        ok: false,
+        error: e instanceof Error ? e.message : 'backfill failed',
+      });
+    }
+  }
+
+  return {
+    processed: (data ?? []).length,
+    uploaded,
+    failed,
+    results,
+  };
 }

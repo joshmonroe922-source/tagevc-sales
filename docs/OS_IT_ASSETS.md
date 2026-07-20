@@ -46,22 +46,23 @@ os_it_assignment_events (append-only)
 1. Grant increments `seats_used` (respects `seat_count`)  
 2. Revoke decrements · events `license_grant` / `license_revoke`
 
-### Offboarding (Phases 23–24)
+### Offboarding (Phases 23–25)
 1. Manual: start run by user UUID → checklist from assigned hardware + licenses  
 2. From ticket: open HR/IT ticket with title/description containing `offboard` / `termination` / etc. and `user:<uuid>`  
-3. Execute auto-return/revoke · Complete marks access notes done · activity + notification  
+3. Status change: daily scan of `profiles.active=false` starts runs (`source=status_change`)  
+4. Execute auto-return/revoke · MDM webhook when `MDM_WEBHOOK_URL` set · Complete marks remaining access notes  
+5. Activity + broadcast notifications  
 
-SQL: `phase23_automation.sql` + `phase24_maturation.sql` (`ticket_id`, `source`).
+SQL: `phase23_automation.sql` + `phase24_maturation.sql` (+ Phase 25 app routes).
 
-## Phase 25+
+## Phase 26+
 
-1. Employee status-change trigger (inactive → offboarding)  
-2. MDM / Intune hooks  
+1. Full MDM / Intune product integration  
+2. Onboarding mirror (provision laptop / grant seats)  
 3. Renewal alerts into Activity / digests  
 4. Entity-scoped UI filters  
 
 ## Out of scope
 
-- MDM / Intune  
 - Purchase-order accounting  
 - Full CMDB  

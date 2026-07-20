@@ -121,6 +121,23 @@ export async function POST(request: Request) {
       });
     }
 
+    if (parsed.status === 'voided') {
+      void logActivity({
+        module: 'documents',
+        action: 'docusign_voided',
+        title: `Document voided: ${doc.title}`,
+        ref_type: 'document',
+        ref_id: doc.doc_id,
+        entity_id: doc.entity_id ?? undefined,
+      });
+      void createBroadcastNotification({
+        kind: 'document_signed',
+        title: `${doc.title} was voided`,
+        body: doc.envelope_id ?? undefined,
+        href: `/documents/${doc.doc_id}`,
+      });
+    }
+
     const eventPersist = await insertDocuSignEvent({
       event_id: parsed.event_id ?? undefined,
       envelope_id: parsed.envelope_id,

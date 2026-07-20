@@ -12,6 +12,7 @@ import {
   revokeSeatAction,
   startOffboardingAction,
   startOffboardingFromTicketAction,
+  scanInactiveOffboardingAction,
   type ItAssetActionResult,
 } from '@/app/(app)/shared-services/it/assets/actions';
 import { Button } from '@/components/ui/button';
@@ -332,6 +333,15 @@ export function ItAssetsClient({
               }}
             >
               Start offboarding
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={pending}
+              onClick={() => run(() => scanInactiveOffboardingAction())}
+            >
+              Scan inactive profiles
             </Button>
           </div>
         )}
