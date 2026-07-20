@@ -12,6 +12,16 @@ const FIRM_WIDE_ROLES: readonly AppRole[] = [
 
 export type EntityParentIndex = Map<string, string | null | undefined>;
 
+/** soft = null entity_id visible to all; hide = subsidiary roles only see scoped rows. */
+export type PipelineNullEntityMode = 'soft' | 'hide';
+
+export function getPipelineNullEntityMode(): PipelineNullEntityMode {
+  const raw = (process.env.PIPELINE_NULL_ENTITY_MODE ?? 'hide')
+    .trim()
+    .toLowerCase();
+  return raw === 'soft' ? 'soft' : 'hide';
+}
+
 /** Firm-wide operators (or unset / ENT-FIRM profile) see all entities. */
 export function isFirmWideAccess(
   role: AppRole,
@@ -33,7 +43,7 @@ export function canAccessEntityId(
   parentByEntityId?: EntityParentIndex,
 ): boolean {
   if (isFirmWideAccess(role, profileEntityId)) return true;
-  if (!targetEntityId) return true; // unscoped rows
+  if (!targetEntityId) return true; // unscoped rows (master-data soft)
   if (!profileEntityId) return false;
   if (profileEntityId === targetEntityId) return true;
   if (parentByEntityId) {
@@ -43,15 +53,21 @@ export function canAccessEntityId(
   return false;
 }
 
-/** Soft scope for pipeline rows: null entity_id is visible to everyone. */
+/**
+ * Pipeline row scope. Phase 19 default: hide null-entity rows from subsidiary roles.
+ * Set PIPELINE_NULL_ENTITY_MODE=soft to restore Phase 18 visibility.
+ */
 export function canAccessPipelineEntity(
   role: AppRole,
   profileEntityId: string | null | undefined,
   rowEntityId: string | null | undefined,
   parentByEntityId?: EntityParentIndex,
+  nullMode: PipelineNullEntityMode = getPipelineNullEntityMode(),
 ): boolean {
   if (isFirmWideAccess(role, profileEntityId)) return true;
-  if (!rowEntityId) return true;
+  if (!rowEntityId) {
+    return nullMode === 'soft';
+  }
   return canAccessEntityId(
     role,
     profileEntityId,

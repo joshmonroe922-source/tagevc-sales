@@ -4,11 +4,14 @@ import { StandardBadge } from '@/components/entity-os/standard-badge';
 import { StartChatButton } from '@/components/messaging/start-chat-button';
 import { HealthBadge } from '@/components/portfolio/health-badge';
 import {
+  CoreKpiEditForm,
   EntityMasterForm,
+  FlexKpiEditForm,
   PortfolioCoreFinancialForm,
   PortfolioPulseEmpty,
   PortfolioPulseForm,
 } from '@/components/portfolio/master-data-forms';
+import { FinancialAuditHistory } from '@/components/portfolio/financial-audit-history';
 import { BandBadge } from '@/components/shared-services/band-badge';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -294,6 +297,7 @@ export function EntityOperatingViewPanel({
         {portfolio ? (
           <PortfolioCoreFinancialForm company={portfolio} pnl={pnl} />
         ) : null}
+        <FinancialAuditHistory audits={view.financial_audits} />
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between gap-2">
@@ -385,6 +389,7 @@ export function EntityOperatingViewPanel({
             </TableBody>
           </Table>
         </div>
+        <CoreKpiEditForm entityId={entity.entity_id} kpis={view.core_kpis} />
       </section>
 
       <section id="flex-kpis" className="scroll-mt-24 space-y-4">
@@ -419,6 +424,7 @@ export function EntityOperatingViewPanel({
             ))}
           </div>
         )}
+        <FlexKpiEditForm entity={entity} kpis={view.flex_kpis} />
       </section>
 
       <section id="leads" className="scroll-mt-24 space-y-4">

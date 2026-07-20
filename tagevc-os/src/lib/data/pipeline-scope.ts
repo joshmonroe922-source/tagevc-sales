@@ -13,6 +13,7 @@ import { listTickets } from '@/lib/data/ticket-store';
 import {
   buildParentIndex,
   canAccessPipelineEntity,
+  getPipelineNullEntityMode,
   isFirmWideAccess,
   type EntityParentIndex,
 } from '@/lib/rbac/entity-scope';
@@ -34,6 +35,7 @@ export type PipelineScope = {
   role: AppRole | null;
   entityId: string | null;
   parentByEntityId: EntityParentIndex;
+  nullMode: ReturnType<typeof getPipelineNullEntityMode>;
 };
 
 export async function getPipelineScope(): Promise<PipelineScope> {
@@ -42,12 +44,14 @@ export async function getPipelineScope(): Promise<PipelineScope> {
     ensureMasterData(),
   ]);
   const parentByEntityId = buildParentIndex(master.entities);
+  const nullMode = getPipelineNullEntityMode();
   if (!session) {
     return {
       firmWide: false,
       role: null,
       entityId: null,
       parentByEntityId,
+      nullMode,
     };
   }
   return {
@@ -58,6 +62,7 @@ export async function getPipelineScope(): Promise<PipelineScope> {
     role: session.profile.role,
     entityId: session.profile.entity_id,
     parentByEntityId,
+    nullMode,
   };
 }
 
@@ -71,6 +76,7 @@ function allow(
     scope.entityId,
     rowEntityId,
     scope.parentByEntityId,
+    scope.nullMode,
   );
 }
 

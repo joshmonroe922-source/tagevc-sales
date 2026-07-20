@@ -185,6 +185,11 @@ export async function getEntityOperatingView(
     leads[0] ??
     null;
 
+  const { listFinancialAuditsForEntity } = await import(
+    '@/lib/data/normalized/portfolio-repo'
+  );
+  const financial_audits = await listFinancialAuditsForEntity(entityId, 20);
+
   return {
     entity,
     portfolio,
@@ -205,6 +210,7 @@ export async function getEntityOperatingView(
     origin_source: origin?.source
       ? `${origin.source}${origin.source_detail ? ` · ${origin.source_detail}` : ''}`
       : null,
+    financial_audits,
   };
 }
 

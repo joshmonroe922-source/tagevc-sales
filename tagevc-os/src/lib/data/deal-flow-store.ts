@@ -42,6 +42,7 @@ import {
   markStoreHydrated,
   queueStorePersist,
   saveStoreSnapshot,
+  shouldLoadSnapshotPayload,
 } from '@/lib/data/persist';
 import { createHandoffPack } from '@/lib/deal-flow/handoff';
 import { spawnTasksForStage } from '@/lib/deal-flow/spawn-tasks';
@@ -127,13 +128,17 @@ function touchDealFlow() {
 export async function hydrateDealFlowStore() {
   if (isStoreHydrated('deal_flow')) return;
 
-  const snap = await loadStoreSnapshot<DealFlowStore>('deal_flow');
-  if (snap?.payload?.leads) {
-    globalThis.__tageDealFlowStore = snap.payload;
-  } else {
-    const store = getDealFlowStore();
-    await saveStoreSnapshot('deal_flow', store);
+  const readGate = shouldLoadSnapshotPayload('deal_flow');
+  if (readGate.allow) {
+    const snap = await loadStoreSnapshot<DealFlowStore>('deal_flow');
+    if (snap?.payload?.leads) {
+      globalThis.__tageDealFlowStore = snap.payload;
+    } else {
+      const store = getDealFlowStore();
+      await saveStoreSnapshot('deal_flow', store);
+    }
   }
+  // else Stage 4b: keep in-memory seed; SQL overlay below
 
   const store = getDealFlowStore();
   const [sqlLeads, sqlTasks, sqlDeals, sqlDealTasks, sqlIc, sqlIcAudits, sqlHandoffs] =

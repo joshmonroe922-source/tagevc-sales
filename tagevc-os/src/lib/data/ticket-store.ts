@@ -18,6 +18,7 @@ import {
   markStoreHydrated,
   queueStorePersist,
   saveStoreSnapshot,
+  shouldLoadSnapshotPayload,
 } from '@/lib/data/persist';
 import {
   assertCanAutoExecute,
@@ -183,12 +184,15 @@ function touchTickets() {
 
 export async function hydrateTicketStore() {
   if (isStoreHydrated('tickets')) return;
-  const snap = await loadStoreSnapshot<TicketStore>('tickets');
-  if (snap?.payload?.tickets) {
-    globalThis.__tageTicketStore = snap.payload;
-  } else {
-    const store = getTicketStore();
-    await saveStoreSnapshot('tickets', store);
+  const readGate = shouldLoadSnapshotPayload('tickets');
+  if (readGate.allow) {
+    const snap = await loadStoreSnapshot<TicketStore>('tickets');
+    if (snap?.payload?.tickets) {
+      globalThis.__tageTicketStore = snap.payload;
+    } else {
+      const store = getTicketStore();
+      await saveStoreSnapshot('tickets', store);
+    }
   }
 
   const store = getTicketStore();

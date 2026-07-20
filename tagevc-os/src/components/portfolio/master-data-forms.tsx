@@ -2,7 +2,9 @@
 
 import { useActionState, useEffect, useState } from 'react';
 import {
+  updateCoreKpiAction,
   updateEntityNotesAction,
+  updateFlexKpiAction,
   updatePortfolioCoreFinancialsAction,
   updatePortfolioPulseAction,
   type MasterDataActionResult,
@@ -11,8 +13,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { EmptyState } from '@/components/ui/empty-state';
+import { EDITABLE_CORE_KPI_KEYS } from '@/lib/data/master-data';
+import { CORE_KPI_CATALOG, flexKeysForModule } from '@/lib/portfolio/core-kpis';
 import { ENTITY_STATUSES, PORTFOLIO_HEALTH } from '@/lib/types';
-import type { Entity, PortfolioCompany } from '@/lib/types';
+import type {
+  Entity,
+  EntityMonthKpi,
+  EntityMonthKpiFlex,
+  PortfolioCompany,
+} from '@/lib/types';
 
 const selectClassName =
   'flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50';
@@ -351,6 +360,168 @@ export function EntityMasterForm({ entity }: { entity: Entity }) {
       <div className="flex flex-wrap items-center gap-3">
         <Button type="submit" disabled={pending} variant="secondary">
           {pending ? 'Saving…' : 'Save entity'}
+        </Button>
+        <ResultBanner result={result} />
+      </div>
+    </form>
+  );
+}
+
+export function CoreKpiEditForm({
+  entityId,
+  kpis,
+}: {
+  entityId: string;
+  kpis: EntityMonthKpi[];
+}) {
+  const [result, action, pending] = useActionState(updateCoreKpiAction, null);
+  const byKey = new Map(kpis.map((k) => [k.kpi_key, k]));
+  const editable = CORE_KPI_CATALOG.filter((c) =>
+    (EDITABLE_CORE_KPI_KEYS as readonly string[]).includes(c.kpi_key),
+  );
+
+  return (
+    <form
+      action={action}
+      className="space-y-3 rounded-lg border border-border bg-card/40 p-4"
+    >
+      <input type="hidden" name="entity_id" value={entityId} />
+      <div>
+        <p className="text-sm font-medium text-[#3a414f]">Edit CORE KPIs</p>
+        <p className="text-xs text-muted-foreground">
+          Non-money CORE facts for this period. ARR / burn / cash / runway use
+          CORE financials above.
+        </p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="kpi_key">KPI</Label>
+          <select
+            id="kpi_key"
+            name="kpi_key"
+            disabled={pending}
+            className={selectClassName}
+            required
+            defaultValue={editable[0]?.kpi_key}
+          >
+            {editable.map((c) => (
+              <option key={c.kpi_key} value={c.kpi_key}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="kpi_value_num">Value (number)</Label>
+          <Input
+            id="kpi_value_num"
+            name="value_num"
+            type="number"
+            step="any"
+            disabled={pending}
+            defaultValue={byKey.get(editable[0]?.kpi_key ?? '')?.value_num ?? ''}
+            placeholder="Numeric value"
+          />
+        </div>
+        <div className="space-y-1.5 sm:col-span-2">
+          <Label htmlFor="kpi_value_text">Value (text)</Label>
+          <Input
+            id="kpi_value_text"
+            name="value_text"
+            disabled={pending}
+            defaultValue={
+              byKey.get(editable[0]?.kpi_key ?? '')?.value_text ?? ''
+            }
+            placeholder="Optional text (e.g. On Track)"
+          />
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button type="submit" disabled={pending} variant="secondary">
+          {pending ? 'Saving…' : 'Save CORE KPI'}
+        </Button>
+        <ResultBanner result={result} />
+      </div>
+    </form>
+  );
+}
+
+export function FlexKpiEditForm({
+  entity,
+  kpis,
+}: {
+  entity: Entity;
+  kpis: EntityMonthKpiFlex[];
+}) {
+  const [result, action, pending] = useActionState(updateFlexKpiAction, null);
+  const allowed = flexKeysForModule(entity.industry_module);
+  if (allowed.length === 0) {
+    return (
+      <EmptyState
+        className="py-6"
+        title="No FLEX playbook"
+        description="This entity has no industry_module FLEX keys to edit."
+      />
+    );
+  }
+  const byKey = new Map(kpis.map((k) => [k.flex_key, k]));
+  const first = allowed[0]!;
+
+  return (
+    <form
+      action={action}
+      className="space-y-3 rounded-lg border border-border bg-card/40 p-4"
+    >
+      <input type="hidden" name="entity_id" value={entity.entity_id} />
+      <div>
+        <p className="text-sm font-medium text-[#3a414f]">Edit FLEX KPIs</p>
+        <p className="text-xs text-muted-foreground">
+          Module {entity.industry_module} · never rolls into Portfolio money
+          totals.
+        </p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="flex_key">FLEX key</Label>
+          <select
+            id="flex_key"
+            name="flex_key"
+            disabled={pending}
+            className={selectClassName}
+            required
+            defaultValue={first.flex_key}
+          >
+            {allowed.map((f) => (
+              <option key={f.flex_key} value={f.flex_key}>
+                {f.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="flex_value_num">Value (number)</Label>
+          <Input
+            id="flex_value_num"
+            name="value_num"
+            type="number"
+            step="any"
+            disabled={pending}
+            defaultValue={byKey.get(first.flex_key)?.value_num ?? ''}
+          />
+        </div>
+        <div className="space-y-1.5 sm:col-span-2">
+          <Label htmlFor="flex_value_text">Value (text)</Label>
+          <Input
+            id="flex_value_text"
+            name="value_text"
+            disabled={pending}
+            defaultValue={byKey.get(first.flex_key)?.value_text ?? ''}
+          />
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button type="submit" disabled={pending} variant="secondary">
+          {pending ? 'Saving…' : 'Save FLEX KPI'}
         </Button>
         <ResultBanner result={result} />
       </div>

@@ -24,6 +24,7 @@ import {
   markStoreHydrated,
   queueStorePersist,
   saveStoreSnapshot,
+  shouldLoadSnapshotPayload,
 } from '@/lib/data/persist';
 import { createHandoffPack } from '@/lib/deal-flow/handoff';
 import { spawnMaTasksForStage } from '@/lib/deal-flow/ma/spawn-tasks';
@@ -74,12 +75,15 @@ function touchMa() {
 
 export async function hydrateMaStore() {
   if (isStoreHydrated('ma')) return;
-  const snap = await loadStoreSnapshot<MaStore>('ma');
-  if (snap?.payload?.targets) {
-    globalThis.__tageMaStore = snap.payload;
-  } else {
-    const store = getMaStore();
-    await saveStoreSnapshot('ma', store);
+  const readGate = shouldLoadSnapshotPayload('ma');
+  if (readGate.allow) {
+    const snap = await loadStoreSnapshot<MaStore>('ma');
+    if (snap?.payload?.targets) {
+      globalThis.__tageMaStore = snap.payload;
+    } else {
+      const store = getMaStore();
+      await saveStoreSnapshot('ma', store);
+    }
   }
 
   const store = getMaStore();

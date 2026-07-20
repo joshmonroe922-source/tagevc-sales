@@ -1,6 +1,6 @@
 # Snapshot Retirement Plan — `os_store_snapshots`
 
-**Status:** Phase 18 — empty-snapshot drills + soak cron shipped. Table retained until Stage 4 drop.
+**Status:** Phase 19 — Stage 4b SQL-only hydrate + 4d export. Table retained until Stage 4e.
 
 ## Dual-write / dual-read map
 
@@ -49,17 +49,18 @@ Unset cutover env vars and redeploy. Snapshot upserts resume. Restore from archi
 - [x] Soft-archive completed for cut-over collections (Phase 16)  
 - [x] FKs validated (Phase 17)  
 - [x] Empty-snapshot drills documented + tooling (Phase 18)  
+- [x] SQL-only hydrate for cut-over domains (Phase 19 Stage 4b)  
 - [ ] Empty-snapshot drills passing in production (ops confirm)  
-- [ ] Archive backup retained  
+- [ ] Archive backup retained (use `/api/admin/archive-export`)  
 - [ ] App hydrate paths no longer require snapshot payloads for pipeline domains  
 
 ## Blockers for fully retiring `os_store_snapshots`
 
-1. Hydrate still optionally loads snapshots (safe with `{}`).  
+1. Stage 4c full stop (no table reads at all) not required while soft-archived `{}` rows remain.  
 2. Need confirmed production drill pass + soak window.  
-3. Stage 4b code change (SQL-only hydrate) not yet shipped.  
+3. Stage 4e DROP still deferred.  
 
 ## Non-goals
 
-- Dropping the table in Phase 16–18  
+- Dropping the table in Phase 16–19  
 - DocuSign / push

@@ -368,6 +368,19 @@ export type EntityOperatingView = {
   };
   /** Primary inbound / origin lead source when known. */
   origin_source: string | null;
+  /** Recent financial / KPI edit audits (Phase 18+). */
+  financial_audits: FinancialAuditSummary[] | null;
+};
+
+export type FinancialAuditSummary = {
+  id: string;
+  audit_id: string;
+  entity_id: string;
+  portfolio_id: string | null;
+  period: string;
+  actor_email: string | null;
+  patch: Record<string, unknown>;
+  created_at: string;
 };
 
 /**

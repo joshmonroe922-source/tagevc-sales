@@ -6,6 +6,7 @@ import {
   markStoreHydrated,
   queueStorePersist,
   saveStoreSnapshot,
+  shouldLoadSnapshotPayload,
 } from '@/lib/data/persist';
 import {
   buildInitialReTasks,
@@ -75,12 +76,15 @@ function touchRe() {
 
 export async function hydrateReStore() {
   if (isStoreHydrated('re')) return;
-  const snap = await loadStoreSnapshot<ReStore>('re');
-  if (snap?.payload?.deals) {
-    globalThis.__tageReStore = snap.payload;
-  } else {
-    const store = getReStore();
-    await saveStoreSnapshot('re', store);
+  const readGate = shouldLoadSnapshotPayload('re');
+  if (readGate.allow) {
+    const snap = await loadStoreSnapshot<ReStore>('re');
+    if (snap?.payload?.deals) {
+      globalThis.__tageReStore = snap.payload;
+    } else {
+      const store = getReStore();
+      await saveStoreSnapshot('re', store);
+    }
   }
 
   const store = getReStore();

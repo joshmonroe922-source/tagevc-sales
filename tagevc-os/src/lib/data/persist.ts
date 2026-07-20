@@ -130,9 +130,58 @@ export function getSnapshotWriteConfig() {
     write_cutover_all:
       process.env.WRITE_CUTOVER_ALL === '1' ||
       process.env.WRITE_CUTOVER_ALL === 'true',
+    read_cutover_all:
+      process.env.READ_CUTOVER_ALL === '1' ||
+      process.env.READ_CUTOVER_ALL === 'true',
+    snapshot_read_force:
+      process.env.SNAPSHOT_READ_FORCE === '1' ||
+      process.env.SNAPSHOT_READ_FORCE === 'true',
+    snapshot_read_skip_domains: parseDomainList(
+      process.env.SNAPSHOT_READ_SKIP_DOMAINS,
+    ),
     mature_domains: [...MATURE_SNAPSHOT_DOMAINS],
     all_pipeline_domains: [...ALL_PIPELINE_SNAPSHOT_DOMAINS],
   };
+}
+
+/**
+ * Phase 19 Stage 4b — whether hydrate may adopt live snapshot payloads.
+ * When false, stores start from in-memory seed and overlay SQL only.
+ * Table `os_store_snapshots` is retained (no drop).
+ *
+ * Defaults: skip payload load for domains already on write cutover.
+ * Rollback hydrate from snapshots: SNAPSHOT_READ_FORCE=1
+ */
+export function shouldLoadSnapshotPayload(collection: StoreCollection): {
+  allow: boolean;
+  reason: string;
+} {
+  const force =
+    process.env.SNAPSHOT_READ_FORCE === '1' ||
+    process.env.SNAPSHOT_READ_FORCE === 'true';
+  if (force) {
+    return { allow: true, reason: 'SNAPSHOT_READ_FORCE' };
+  }
+
+  const skipList = parseDomainList(process.env.SNAPSHOT_READ_SKIP_DOMAINS);
+  if (skipList.includes(collection)) {
+    return { allow: false, reason: 'SNAPSHOT_READ_SKIP_DOMAINS' };
+  }
+
+  const readAll =
+    process.env.READ_CUTOVER_ALL === '1' ||
+    process.env.READ_CUTOVER_ALL === 'true';
+  if (readAll && ALL_PIPELINE_SNAPSHOT_DOMAINS.includes(collection)) {
+    return { allow: false, reason: 'READ_CUTOVER_ALL' };
+  }
+
+  // Auto Stage 4b: write cutover already active → SQL-only hydrate
+  const write = shouldWriteSnapshot(collection);
+  if (!write.allow && ALL_PIPELINE_SNAPSHOT_DOMAINS.includes(collection)) {
+    return { allow: false, reason: `sql_only_after_${write.reason}` };
+  }
+
+  return { allow: true, reason: 'snapshot_hydrate' };
 }
 
 export function getSnapshotWriteStats(): Record<string, SnapshotWriteStat> {

@@ -78,6 +78,19 @@ export function NormalizationHealthPanel({
           Master · {status.master_data_source}
         </Badge>
         <Badge
+          variant={
+            status.write_cutover.sql_only_hydrate_active
+              ? 'secondary'
+              : 'outline'
+          }
+        >
+          SQL-only hydrate ·{' '}
+          {status.write_cutover.sql_only_hydrate_active ? 'on' : 'off'}
+        </Badge>
+        <Badge variant="outline">
+          Null-entity · {status.pipeline_null_entity_mode}
+        </Badge>
+        <Badge
           variant={status.stage4_ready ? 'secondary' : 'outline'}
           className={
             status.stage4_ready ? 'border-emerald-600 text-emerald-800' : ''
@@ -126,6 +139,37 @@ export function NormalizationHealthPanel({
 
         <Card>
           <CardHeader>
+            <CardTitle className="text-base">Snapshot read gates (4b)</CardTitle>
+            <CardDescription>
+              allow=false means SQL-only hydrate (payload not adopted). Rollback
+              with SNAPSHOT_READ_FORCE=1.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            {Object.entries(status.write_cutover.snapshot_read_gates).map(
+              ([domain, gate]) => (
+                <div
+                  key={domain}
+                  className="flex items-center justify-between gap-2 border-b border-border/60 py-1.5 last:border-0"
+                >
+                  <span className="font-medium">{domain}</span>
+                  <span
+                    className={
+                      gate.allow ? 'text-amber-700' : 'text-emerald-700'
+                    }
+                  >
+                    {gate.allow ? 'loading' : 'sql-only'} · {gate.reason}
+                  </span>
+                </div>
+              ),
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
             <CardTitle className="text-base">Cutover flags</CardTitle>
             <CardDescription>Current process env (Vercel).</CardDescription>
           </CardHeader>
@@ -139,10 +183,18 @@ export function NormalizationHealthPanel({
               value={String(status.write_cutover.write_cutover_all)}
             />
             <Row
+              label="READ_CUTOVER_ALL"
+              value={String(status.write_cutover.read_cutover_all)}
+            />
+            <Row
               label="WRITE_SNAPSHOTS"
               value={
                 status.write_cutover.write_snapshots_enabled ? 'on' : 'off'
               }
+            />
+            <Row
+              label="PIPELINE_NULL_ENTITY_MODE"
+              value={status.pipeline_null_entity_mode}
             />
             <Row
               label="Archive table"
@@ -154,6 +206,24 @@ export function NormalizationHealthPanel({
               label="Ready to archive"
               value={ready.length ? ready.join(', ') : '—'}
             />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Archive export (4d)</CardTitle>
+            <CardDescription>
+              Download archive metadata JSON for offsite retention. Does not drop
+              tables.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <a
+              href="/api/admin/archive-export"
+              className="inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-4 text-sm font-medium shadow-sm hover:bg-accent"
+            >
+              Export archive metadata
+            </a>
           </CardContent>
         </Card>
       </div>

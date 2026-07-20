@@ -11,6 +11,7 @@ import {
   getSnapshotWriteConfig,
   getSnapshotWriteStats,
   MATURE_SNAPSHOT_DOMAINS,
+  shouldLoadSnapshotPayload,
   shouldWriteSnapshot,
   type StoreCollection,
 } from '@/lib/data/persist';
@@ -19,6 +20,7 @@ import {
   runEmptySnapshotDrills,
   type EmptySnapshotDrillReport,
 } from '@/lib/data/snapshot-drills';
+import { getPipelineNullEntityMode } from '@/lib/rbac/entity-scope';
 import { isSentryConfigured } from '@/lib/observability';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 
@@ -28,11 +30,14 @@ export type NormalizationStatus = {
   master_data_source: string;
   master_data_hydrate_error: string | null;
   sentry_configured: boolean;
+  pipeline_null_entity_mode: ReturnType<typeof getPipelineNullEntityMode>;
   write_cutover: ReturnType<typeof getSnapshotWriteConfig> & {
     snapshot_write_gates: Record<string, { allow: boolean; reason: string }>;
+    snapshot_read_gates: Record<string, { allow: boolean; reason: string }>;
     snapshot_write_stats: ReturnType<typeof getSnapshotWriteStats>;
     mature_cutover_active: boolean;
     all_pipeline_cutover_active: boolean;
+    sql_only_hydrate_active: boolean;
     handoffs_table_ready: boolean;
     audits_tables_ready: boolean;
     archive_table_ready: boolean;
@@ -70,7 +75,8 @@ export type NormalizationStatus = {
       | 'read_cutover'
       | 'write_cutover_partial'
       | 'write_cutover'
-      | 'stage4_ready';
+      | 'stage4_ready'
+      | 'sql_only_hydrate';
     next: string;
   };
 };
@@ -125,6 +131,12 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
   ];
   const snapshot_write_gates = Object.fromEntries(
     domains.map((d) => [d, shouldWriteSnapshot(d)]),
+  );
+  const snapshot_read_gates = Object.fromEntries(
+    domains.map((d) => [d, shouldLoadSnapshotPayload(d)]),
+  );
+  const sqlOnlyHydrateActive = ALL_PIPELINE_SNAPSHOT_DOMAINS.every(
+    (d) => !shouldLoadSnapshotPayload(d).allow,
   );
 
   const syncStats = getNormalizedSyncStats();
@@ -190,7 +202,9 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
   });
 
   let stage: NormalizationStatus['cutover_hints']['stage'] = 'soak';
-  if (drills.stage4_ready && allPipelineCutoverActive) {
+  if (drills.stage4_ready && sqlOnlyHydrateActive) {
+    stage = 'sql_only_hydrate';
+  } else if (drills.stage4_ready && allPipelineCutoverActive) {
     stage = 'stage4_ready';
   } else if (allPipelineCutoverActive || !writeConfig.write_snapshots_enabled) {
     stage = 'write_cutover';
@@ -210,12 +224,15 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
     master_data_source: getMasterDataSource(),
     master_data_hydrate_error: getMasterDataHydrateError(),
     sentry_configured: isSentryConfigured(),
+    pipeline_null_entity_mode: getPipelineNullEntityMode(),
     write_cutover: {
       ...writeConfig,
       snapshot_write_gates,
+      snapshot_read_gates,
       snapshot_write_stats: writeStats,
       mature_cutover_active: matureCutoverActive,
       all_pipeline_cutover_active: allPipelineCutoverActive,
+      sql_only_hydrate_active: sqlOnlyHydrateActive,
       handoffs_table_ready: handoffsReady,
       audits_tables_ready: auditsReady,
       archive_table_ready: archiveReady,
@@ -247,11 +264,13 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
             ? 'Extend with WRITE_CUTOVER_ALL=1 (includes MA/RE), monitor skips, then archive cut-over collections'
             : stage === 'read_cutover'
               ? 'Enable WRITE_CUTOVER_MATURE=1 when handoffs/audits tables are ready'
-              : stage === 'stage4_ready'
-                ? 'Empty-snapshot drills passed — follow docs/OS_SNAPSHOT_STAGE4.md (table drop still deferred)'
-                : fkOrphanTotal > 0
-                  ? 'Write cutover active — clear FK orphans before Stage 4'
-                  : 'Write cutover healthy — run empty-snapshot drills; Stage 4 drop later',
+              : stage === 'sql_only_hydrate'
+                ? 'Stage 4b active (SQL-only hydrate) — retain archive backup; table drop still deferred (Stage 4e)'
+                : stage === 'stage4_ready'
+                  ? 'Drills passed — SQL-only hydrate follows write cutover automatically; see OS_SNAPSHOT_STAGE4.md'
+                  : fkOrphanTotal > 0
+                    ? 'Write cutover active — clear FK orphans before Stage 4'
+                    : 'Write cutover healthy — run empty-snapshot drills; Stage 4 drop later',
     },
   };
 }

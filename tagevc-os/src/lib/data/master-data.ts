@@ -388,6 +388,180 @@ export async function patchEntity(
   return updated;
 }
 
+/** CORE KPI keys editable in-app (money CORE stays on Portfolio CORE financials form). */
+export const EDITABLE_CORE_KPI_KEYS = [
+  'gross_margin',
+  'health',
+  'top_risk',
+  'customer_concentration',
+  'headcount_fte',
+  'pipeline_coverage',
+] as const;
+
+export type EditableCoreKpiKey = (typeof EDITABLE_CORE_KPI_KEYS)[number];
+
+export async function patchEntityMonthKpi(
+  entityId: string,
+  kpiKey: string,
+  patch: { value_num: number | null; value_text: string | null },
+  opts?: { actorId?: string | null; actorEmail?: string | null },
+): Promise<EntityMonthKpi> {
+  await ensureMasterData();
+  const cache = getCache();
+  const period = cache.period;
+  const catalog = (
+    await import('@/lib/portfolio/core-kpis')
+  ).CORE_KPI_CATALOG.find((c) => c.kpi_key === kpiKey);
+  if (!catalog) throw new Error(`Unknown CORE kpi_key ${kpiKey}`);
+  if (
+    !(EDITABLE_CORE_KPI_KEYS as readonly string[]).includes(kpiKey)
+  ) {
+    throw new Error(
+      `${kpiKey} is rollup-linked — edit via CORE financials form`,
+    );
+  }
+
+  const existing =
+    cache.coreKpis.find(
+      (k) =>
+        k.entity_id === entityId &&
+        k.period === period &&
+        k.kpi_key === kpiKey,
+    ) ?? null;
+
+  const next: EntityMonthKpi = {
+    id: existing?.id ?? crypto.randomUUID(),
+    entity_id: entityId,
+    period,
+    kpi_key: kpiKey,
+    label: catalog.label,
+    value_num: patch.value_num,
+    value_text: patch.value_text,
+    unit: catalog.unit,
+    method: catalog.method,
+    standard: 'CORE',
+  };
+
+  const { upsertEntityMonthKpiRow, insertFinancialAudit } = await import(
+    '@/lib/data/normalized/portfolio-repo'
+  );
+  const saved = await upsertEntityMonthKpiRow(next);
+  if (!saved) {
+    throw new Error('Could not save CORE KPI — confirm Live DB.');
+  }
+
+  const idx = cache.coreKpis.findIndex(
+    (k) =>
+      k.entity_id === entityId &&
+      k.period === period &&
+      k.kpi_key === kpiKey,
+  );
+  if (idx >= 0) cache.coreKpis[idx] = saved;
+  else cache.coreKpis.push(saved);
+
+  const company = cache.companies.find((c) => c.entity_id === entityId);
+  await insertFinancialAudit({
+    audit_id: `FA-KPI-${crypto.randomUUID().slice(0, 8)}`,
+    entity_id: entityId,
+    portfolio_id: company?.portfolio_id ?? null,
+    period,
+    actor_id: opts?.actorId ?? null,
+    actor_email: opts?.actorEmail ?? null,
+    patch: { kind: 'core_kpi', kpi_key: kpiKey, ...patch },
+    before_snapshot: existing
+      ? { value_num: existing.value_num, value_text: existing.value_text }
+      : {},
+    after_snapshot: {
+      value_num: saved.value_num,
+      value_text: saved.value_text,
+    },
+  });
+
+  recordNormalizedSyncResult('entity_month_kpi_patch', true);
+  return saved;
+}
+
+export async function patchEntityMonthKpiFlex(
+  entityId: string,
+  flexKey: string,
+  patch: { value_num: number | null; value_text: string | null },
+  opts?: { actorId?: string | null; actorEmail?: string | null },
+): Promise<EntityMonthKpiFlex> {
+  await ensureMasterData();
+  const cache = getCache();
+  const period = cache.period;
+  const entity = cache.entities.find((e) => e.entity_id === entityId);
+  if (!entity) throw new Error(`Unknown entity ${entityId}`);
+
+  const { flexKeysForModule } = await import('@/lib/portfolio/core-kpis');
+  const allowed = flexKeysForModule(entity.industry_module);
+  const meta = allowed.find((f) => f.flex_key === flexKey);
+  if (!meta) {
+    throw new Error(
+      `FLEX key ${flexKey} not valid for module ${entity.industry_module ?? 'n/a'}`,
+    );
+  }
+
+  const existing =
+    cache.flexKpis.find(
+      (k) =>
+        k.entity_id === entityId &&
+        k.period === period &&
+        k.flex_key === flexKey,
+    ) ?? null;
+
+  const next: EntityMonthKpiFlex = {
+    id: existing?.id ?? crypto.randomUUID(),
+    entity_id: entityId,
+    period,
+    flex_key: flexKey,
+    label: meta.label,
+    value_num: patch.value_num,
+    value_text: patch.value_text,
+    unit: meta.unit,
+    industry_module: entity.industry_module ?? 'SaaS',
+    standard: 'FLEX',
+  };
+
+  const { upsertEntityMonthKpiFlexRow, insertFinancialAudit } = await import(
+    '@/lib/data/normalized/portfolio-repo'
+  );
+  const saved = await upsertEntityMonthKpiFlexRow(next);
+  if (!saved) {
+    throw new Error('Could not save FLEX KPI — confirm Live DB.');
+  }
+
+  const idx = cache.flexKpis.findIndex(
+    (k) =>
+      k.entity_id === entityId &&
+      k.period === period &&
+      k.flex_key === flexKey,
+  );
+  if (idx >= 0) cache.flexKpis[idx] = saved;
+  else cache.flexKpis.push(saved);
+
+  const company = cache.companies.find((c) => c.entity_id === entityId);
+  await insertFinancialAudit({
+    audit_id: `FA-FLEX-${crypto.randomUUID().slice(0, 8)}`,
+    entity_id: entityId,
+    portfolio_id: company?.portfolio_id ?? null,
+    period,
+    actor_id: opts?.actorId ?? null,
+    actor_email: opts?.actorEmail ?? null,
+    patch: { kind: 'flex_kpi', flex_key: flexKey, ...patch },
+    before_snapshot: existing
+      ? { value_num: existing.value_num, value_text: existing.value_text }
+      : {},
+    after_snapshot: {
+      value_num: saved.value_num,
+      value_text: saved.value_text,
+    },
+  });
+
+  recordNormalizedSyncResult('entity_month_kpi_flex_patch', true);
+  return saved;
+}
+
 /** Test / local reset helper. */
 export function resetMasterDataCache() {
   globalThis.__tageMasterData = createFromSeed();

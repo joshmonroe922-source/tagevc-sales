@@ -20,6 +20,7 @@ import {
   markStoreHydrated,
   queueStorePersist,
   saveStoreSnapshot,
+  shouldLoadSnapshotPayload,
 } from '@/lib/data/persist';
 import { SEED_ENTITIES } from '@/lib/data/seed';
 import {
@@ -213,12 +214,15 @@ function touchDocs() {
 
 export async function hydrateDocStore() {
   if (isStoreHydrated('documents')) return;
-  const snap = await loadStoreSnapshot<DocStore>('documents');
-  if (snap?.payload?.docs) {
-    globalThis.__tageDocStore = snap.payload;
-  } else {
-    const store = getDocStore();
-    await saveStoreSnapshot('documents', store);
+  const readGate = shouldLoadSnapshotPayload('documents');
+  if (readGate.allow) {
+    const snap = await loadStoreSnapshot<DocStore>('documents');
+    if (snap?.payload?.docs) {
+      globalThis.__tageDocStore = snap.payload;
+    } else {
+      const store = getDocStore();
+      await saveStoreSnapshot('documents', store);
+    }
   }
 
   const store = getDocStore();

@@ -5,8 +5,11 @@ import { z } from 'zod';
 import {
   ensureMasterData,
   patchEntity,
+  patchEntityMonthKpi,
+  patchEntityMonthKpiFlex,
   patchPortfolioCompany,
   patchPortfolioCoreFinancials,
+  EDITABLE_CORE_KPI_KEYS,
 } from '@/lib/data/master-data';
 import {
   buildParentIndex,
@@ -252,6 +255,114 @@ export async function updatePortfolioCoreFinancialsAction(
     };
   } catch (e) {
     captureException(e, { action: 'updatePortfolioCoreFinancialsAction' });
+    return { ok: false, error: e instanceof Error ? e.message : 'Save failed' };
+  }
+}
+
+const coreKpiSchema = z.object({
+  entity_id: z.string().min(1),
+  kpi_key: z.enum(EDITABLE_CORE_KPI_KEYS),
+  value_num: z.coerce.number().finite().optional().nullable(),
+  value_text: z.string().max(500).optional().nullable(),
+});
+
+const flexKpiSchema = z.object({
+  entity_id: z.string().min(1),
+  flex_key: z.string().min(1).max(80),
+  value_num: z.coerce.number().finite().optional().nullable(),
+  value_text: z.string().max(500).optional().nullable(),
+});
+
+export async function updateCoreKpiAction(
+  _prev: MasterDataActionResult | null,
+  formData: FormData,
+): Promise<MasterDataActionResult> {
+  const gate = await guardPermission('write:portfolio_health');
+  if (!gate.ok) return gate;
+
+  const numRaw = formData.get('value_num');
+  const textRaw = formData.get('value_text');
+  const parsed = coreKpiSchema.safeParse({
+    entity_id: formData.get('entity_id'),
+    kpi_key: formData.get('kpi_key'),
+    value_num: numRaw === '' || numRaw == null ? null : numRaw,
+    value_text: textRaw === '' || textRaw == null ? null : textRaw,
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid' };
+  }
+
+  try {
+    const denied = await assertEntityAccess(
+      gate.profile.role,
+      gate.profile.entity_id,
+      parsed.data.entity_id,
+    );
+    if (denied) return denied;
+
+    await patchEntityMonthKpi(
+      parsed.data.entity_id,
+      parsed.data.kpi_key,
+      {
+        value_num: parsed.data.value_num ?? null,
+        value_text: emptyToNull(parsed.data.value_text ?? undefined),
+      },
+      {
+        actorId: gate.profile.id,
+        actorEmail: gate.profile.email ?? null,
+      },
+    );
+    revalidateMaster(parsed.data.entity_id);
+    return { ok: true, message: `CORE KPI ${parsed.data.kpi_key} saved` };
+  } catch (e) {
+    captureException(e, { action: 'updateCoreKpiAction' });
+    return { ok: false, error: e instanceof Error ? e.message : 'Save failed' };
+  }
+}
+
+export async function updateFlexKpiAction(
+  _prev: MasterDataActionResult | null,
+  formData: FormData,
+): Promise<MasterDataActionResult> {
+  const gate = await guardPermission('write:portfolio_health');
+  if (!gate.ok) return gate;
+
+  const numRaw = formData.get('value_num');
+  const textRaw = formData.get('value_text');
+  const parsed = flexKpiSchema.safeParse({
+    entity_id: formData.get('entity_id'),
+    flex_key: formData.get('flex_key'),
+    value_num: numRaw === '' || numRaw == null ? null : numRaw,
+    value_text: textRaw === '' || textRaw == null ? null : textRaw,
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid' };
+  }
+
+  try {
+    const denied = await assertEntityAccess(
+      gate.profile.role,
+      gate.profile.entity_id,
+      parsed.data.entity_id,
+    );
+    if (denied) return denied;
+
+    await patchEntityMonthKpiFlex(
+      parsed.data.entity_id,
+      parsed.data.flex_key,
+      {
+        value_num: parsed.data.value_num ?? null,
+        value_text: emptyToNull(parsed.data.value_text ?? undefined),
+      },
+      {
+        actorId: gate.profile.id,
+        actorEmail: gate.profile.email ?? null,
+      },
+    );
+    revalidateMaster(parsed.data.entity_id);
+    return { ok: true, message: `FLEX KPI ${parsed.data.flex_key} saved` };
+  } catch (e) {
+    captureException(e, { action: 'updateFlexKpiAction' });
     return { ok: false, error: e instanceof Error ? e.message : 'Save failed' };
   }
 }

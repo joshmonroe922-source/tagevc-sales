@@ -426,12 +426,21 @@ Docs: `docs/OS_PHASE17.md`
 
 Docs: `docs/OS_PHASE18.md` · `docs/OS_SNAPSHOT_STAGE4.md`
 
-### Phase 19+ backlog
+### Phase 19 scope (Stage 4b + KPI/FLEX + harder scope)
 
-- Stage 4 hydrate SQL-only + eventual snapshot drop
-- Harder subsidiary pipeline scope; KPI flex edits
-- Push notifications; richer moderation
-- Real DocuSign · user admin UI
+| Area | Status |
+|------|--------|
+| SQL-only hydrate (Stage 4b) | Done — auto with write cutover |
+| CORE / FLEX KPI edits + audit history | Done |
+| Hide null-entity pipeline rows (default) | Done — `PIPELINE_NULL_ENTITY_MODE` |
+| Archive metadata export (4d) | Done — `/api/admin/archive-export` |
+
+Docs: `docs/OS_PHASE19.md`
+
+### Phase 20+ backlog
+
+- Stage 4c/4e when soak confirmed; matching RLS for null-hide
+- KPI batch/period UI; DocuSign · push · user admin
 
 
 ## Run locally
@@ -466,4 +475,4 @@ Set `DEV_BYPASS_AUTH=1` in `.env.local` to preview the shell as Visionary (local
 
 ## Next phases (from Cursor Brief)
 
-Phase 18 advances empty-snapshot drills, pipeline entity scope, CORE financial edits, and soak monitoring. Remaining: Stage 4 snapshot drop, DocuSign, push, user admin.
+Phase 19 advances Stage 4b SQL-only hydrate, CORE/FLEX KPI edits, harder pipeline scope, and archive export. Remaining: Stage 4e drop, DocuSign, push, user admin.

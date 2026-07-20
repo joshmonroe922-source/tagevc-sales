@@ -407,6 +407,67 @@ export async function syncEntityMonthKpiFlex(
   }
 }
 
+export async function upsertEntityMonthKpiRow(
+  row: EntityMonthKpi,
+): Promise<EntityMonthKpi | null> {
+  const ok = await syncEntityMonthKpis([row]);
+  return ok ? row : null;
+}
+
+export async function upsertEntityMonthKpiFlexRow(
+  row: EntityMonthKpiFlex,
+): Promise<EntityMonthKpiFlex | null> {
+  const ok = await syncEntityMonthKpiFlex([row]);
+  return ok ? row : null;
+}
+
+export type FinancialAuditRow = {
+  id: string;
+  audit_id: string;
+  entity_id: string;
+  portfolio_id: string | null;
+  period: string;
+  actor_email: string | null;
+  patch: Record<string, unknown>;
+  created_at: string;
+};
+
+export async function listFinancialAuditsForEntity(
+  entityId: string,
+  limit = 25,
+): Promise<FinancialAuditRow[] | null> {
+  try {
+    const supabase = await createPersistClient();
+    const { data, error } = await supabase
+      .from('os_financial_audits')
+      .select(
+        'id, audit_id, entity_id, portfolio_id, period, actor_email, patch, created_at',
+      )
+      .eq('entity_id', entityId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (error) {
+      if (!error.message.includes('os_financial_audits')) {
+        console.error('listFinancialAuditsForEntity', error.message);
+      }
+      return null;
+    }
+    return (data ?? []).map((r) => ({
+      id: String(r.id),
+      audit_id: String(r.audit_id),
+      entity_id: String(r.entity_id),
+      portfolio_id: (r.portfolio_id as string | null) ?? null,
+      period: String(r.period),
+      actor_email: (r.actor_email as string | null) ?? null,
+      patch: (r.patch as Record<string, unknown>) ?? {},
+      created_at: String(r.created_at),
+    }));
+  } catch (e) {
+    console.error('listFinancialAuditsForEntity', e);
+    return null;
+  }
+}
+
 /** Seed → SQL migrate for all portfolio master tables (entities first). */
 export async function syncPortfolioMaster(input: {
   companies: PortfolioCompany[];
