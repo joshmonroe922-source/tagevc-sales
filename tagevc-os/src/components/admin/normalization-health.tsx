@@ -66,12 +66,23 @@ export function NormalizationHealthPanel({
         <Badge variant="secondary">
           Sync failures · {status.sync_failure_count}
         </Badge>
+        <Badge
+          variant={status.fk_orphan_total > 0 ? 'outline' : 'secondary'}
+          className={
+            status.fk_orphan_total > 0 ? 'border-destructive text-destructive' : ''
+          }
+        >
+          FK orphans · {status.fk_orphan_total}
+        </Badge>
         <Badge variant="outline">
           Master · {status.master_data_source}
         </Badge>
         <Badge variant={status.sentry_configured ? 'secondary' : 'outline'}>
           Sentry · {status.sentry_configured ? 'on' : 'off'}
         </Badge>
+        <span className="text-xs text-muted-foreground">
+          Fetched {new Date(status.fetched_at).toLocaleString()}
+        </span>
       </div>
 
       <p className="text-sm text-muted-foreground">{status.cutover_hints.next}</p>
@@ -91,7 +102,13 @@ export function NormalizationHealthPanel({
                 className="flex items-center justify-between gap-2 border-b border-border/60 py-1.5 last:border-0"
               >
                 <span className="font-medium">{domain}</span>
-                <span className="text-muted-foreground">
+                <span
+                  className={
+                    gate.allow
+                      ? 'text-amber-700'
+                      : 'text-emerald-700'
+                  }
+                >
                   {gate.allow ? 'writing' : 'skipped'} · {gate.reason}
                 </span>
               </div>
@@ -167,6 +184,79 @@ export function NormalizationHealthPanel({
           ) : null}
         </CardContent>
       </Card>
+
+      {status.sync_failures.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Sync failures</CardTitle>
+            <CardDescription>
+              Dual-write / SQL sync errors in this process. Check Sentry when
+              configured.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-1 text-sm">
+            {status.sync_failures.map((f) => (
+              <div
+                key={f.key}
+                className="flex justify-between gap-2 border-b border-border/40 py-1"
+              >
+                <span>
+                  {f.key}
+                  <span className="ml-2 text-xs text-destructive">
+                    ×{f.fail}
+                    {f.lastError ? ` · ${f.lastError}` : ''}
+                  </span>
+                </span>
+                <span className="text-muted-foreground">
+                  {f.lastFailAt
+                    ? new Date(f.lastFailAt).toLocaleString()
+                    : '—'}
+                </span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {status.fk_integrity ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">FK integrity</CardTitle>
+            <CardDescription>
+              Orphan counts after Phase 17 validate. Zero is healthy.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-1 text-sm">
+            {status.fk_integrity.map((r) => (
+              <div
+                key={r.check_name}
+                className="flex justify-between gap-2 border-b border-border/40 py-1"
+              >
+                <span>{r.check_name}</span>
+                <span
+                  className={
+                    r.orphan_count > 0
+                      ? 'font-medium text-destructive'
+                      : 'text-muted-foreground'
+                  }
+                >
+                  {r.orphan_count}
+                </span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">FK integrity</CardTitle>
+            <CardDescription>
+              Apply <code className="text-xs">phase17_validate_fks.sql</code>{' '}
+              to enable the integrity view.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>

@@ -2,8 +2,17 @@
 
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { patchEntity, patchPortfolioCompany } from '@/lib/data/master-data';
+import {
+  ensureMasterData,
+  patchEntity,
+  patchPortfolioCompany,
+} from '@/lib/data/master-data';
+import {
+  canAccessEntityId,
+  entityScopeDeniedMessage,
+} from '@/lib/rbac/entity-scope';
 import { guardPermission } from '@/lib/rbac/session';
+import { captureException } from '@/lib/observability';
 import { ENTITY_STATUSES, PORTFOLIO_HEALTH } from '@/lib/types';
 
 export type MasterDataActionResult =
@@ -13,17 +22,17 @@ export type MasterDataActionResult =
 const portfolioSchema = z.object({
   portfolio_id: z.string().min(1),
   health: z.enum(PORTFOLIO_HEALTH),
-  top_risk: z.string().optional(),
-  next_milestone: z.string().optional(),
-  notes: z.string().optional(),
-  coo_owner: z.string().optional(),
+  top_risk: z.string().max(500).optional(),
+  next_milestone: z.string().max(500).optional(),
+  notes: z.string().max(4000).optional(),
+  coo_owner: z.string().max(200).optional(),
 });
 
 const entitySchema = z.object({
   entity_id: z.string().min(1),
-  notes: z.string().optional(),
-  coo_owner: z.string().optional(),
-  board_lead: z.string().optional(),
+  notes: z.string().max(4000).optional(),
+  coo_owner: z.string().max(200).optional(),
+  board_lead: z.string().max(200).optional(),
   status: z.enum(ENTITY_STATUSES).optional(),
 });
 
@@ -61,6 +70,26 @@ export async function updatePortfolioPulseAction(
   }
 
   try {
+    const master = await ensureMasterData();
+    const existing = master.companies.find(
+      (c) => c.portfolio_id === parsed.data.portfolio_id,
+    );
+    if (!existing) {
+      return { ok: false, error: 'Unknown portfolio company' };
+    }
+    if (
+      !canAccessEntityId(
+        gate.profile.role,
+        gate.profile.entity_id,
+        existing.entity_id,
+      )
+    ) {
+      return {
+        ok: false,
+        error: entityScopeDeniedMessage(existing.entity_id),
+      };
+    }
+
     const company = await patchPortfolioCompany(parsed.data.portfolio_id, {
       health: parsed.data.health,
       top_risk: emptyToNull(parsed.data.top_risk),
@@ -71,6 +100,7 @@ export async function updatePortfolioPulseAction(
     revalidateMaster(company.entity_id, company.portfolio_id);
     return { ok: true, message: 'Portfolio pulse saved' };
   } catch (e) {
+    captureException(e, { action: 'updatePortfolioPulseAction' });
     return { ok: false, error: e instanceof Error ? e.message : 'Save failed' };
   }
 }
@@ -94,6 +124,19 @@ export async function updateEntityNotesAction(
   }
 
   try {
+    if (
+      !canAccessEntityId(
+        gate.profile.role,
+        gate.profile.entity_id,
+        parsed.data.entity_id,
+      )
+    ) {
+      return {
+        ok: false,
+        error: entityScopeDeniedMessage(parsed.data.entity_id),
+      };
+    }
+
     const entity = await patchEntity(parsed.data.entity_id, {
       notes: emptyToNull(parsed.data.notes),
       coo_owner: emptyToNull(parsed.data.coo_owner),
@@ -103,6 +146,7 @@ export async function updateEntityNotesAction(
     revalidateMaster(entity.entity_id, entity.portfolio_id);
     return { ok: true, message: 'Entity Master saved' };
   } catch (e) {
+    captureException(e, { action: 'updateEntityNotesAction' });
     return { ok: false, error: e instanceof Error ? e.message : 'Save failed' };
   }
 }

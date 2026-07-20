@@ -49,6 +49,15 @@ export type NormalizationStatus = {
     archived_at: string;
     note: string | null;
   }> | null;
+  fk_integrity: Array<{ check_name: string; orphan_count: number }> | null;
+  fk_orphan_total: number;
+  sync_failures: Array<{
+    key: string;
+    fail: number;
+    lastError: string | null;
+    lastFailAt: string | null;
+  }>;
+  fetched_at: string;
   cutover_hints: {
     stage:
       | 'soak'
@@ -112,7 +121,30 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
   );
 
   const syncStats = getNormalizedSyncStats();
-  const syncFailures = Object.entries(syncStats).filter(([, s]) => s.fail > 0);
+  const syncFailures = Object.entries(syncStats)
+    .filter(([, s]) => s.fail > 0)
+    .map(([key, s]) => ({
+      key,
+      fail: s.fail,
+      lastError: s.lastError,
+      lastFailAt: s.lastFailAt,
+    }));
+
+  let fkIntegrity: Array<{ check_name: string; orphan_count: number }> | null =
+    null;
+  const { data: fkRows, error: fkError } = await supabase
+    .from('os_fk_integrity')
+    .select('check_name, orphan_count');
+  if (!fkError && fkRows) {
+    fkIntegrity = fkRows.map((r) => ({
+      check_name: String(r.check_name),
+      orphan_count: Number(r.orphan_count ?? 0),
+    }));
+  }
+  const fkOrphanTotal = (fkIntegrity ?? []).reduce(
+    (sum, r) => sum + r.orphan_count,
+    0,
+  );
 
   const handoffsReady = (counts.os_handoffs ?? -1) >= 0;
   const auditsReady =
@@ -181,6 +213,10 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
     },
     sync_stats: syncStats,
     sync_failure_count: syncFailures.length,
+    sync_failures: syncFailures,
+    fk_integrity: fkIntegrity,
+    fk_orphan_total: fkOrphanTotal,
+    fetched_at: new Date().toISOString(),
     row_counts: counts,
     snapshots: snapshotRows,
     recent_archives:
@@ -199,7 +235,9 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
             ? 'Extend with WRITE_CUTOVER_ALL=1 (includes MA/RE), monitor skips, then archive cut-over collections'
             : stage === 'read_cutover'
               ? 'Enable WRITE_CUTOVER_MATURE=1 when handoffs/audits tables are ready'
-              : 'Write cutover active — POST snapshot-archive for empty live payloads; keep archive table; Stage 4 drop later',
+              : fkOrphanTotal > 0
+                ? 'Write cutover active — apply phase17_validate_fks.sql to clear FK orphans'
+                : 'Write cutover healthy — apply phase17_entity_rls.sql for subsidiary scope; Stage 4 drop later',
     },
   };
 }

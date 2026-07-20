@@ -78,8 +78,8 @@ export function AppSidebar({
   }
 
   return (
-    <aside className="flex h-full w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
-      <div className="px-5 py-6">
+    <aside className="flex h-full w-64 shrink-0 flex-col overflow-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
+      <div className="shrink-0 px-5 py-6">
         <p className="text-xs font-medium tracking-[0.18em] text-sidebar-foreground/60 uppercase">
           Tage VC
         </p>
@@ -88,7 +88,7 @@ export function AppSidebar({
         </h1>
       </div>
 
-      <nav className="flex-1 space-y-1 px-3 pb-4">
+      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 pb-4">
         {items.map((item) => {
           const Icon =
             item.href === '/activity'
@@ -134,8 +134,8 @@ export function AppSidebar({
         })}
       </nav>
 
-      <Separator />
-      <div className="space-y-3 px-4 py-4">
+      <Separator className="shrink-0" />
+      <div className="shrink-0 space-y-3 px-4 py-4">
         {showSwitcher ? (
           <RoleSwitcher
             roles={impersonatableRoles}

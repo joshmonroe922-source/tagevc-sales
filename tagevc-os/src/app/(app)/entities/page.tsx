@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { EmptyState } from '@/components/ui/empty-state';
 import { listSubsidiaryEntities } from '@/lib/data/entity-os';
 import { ensureMasterData, getMasterDataSource } from '@/lib/data/master-data';
 
@@ -37,32 +38,41 @@ export default async function EntitiesIndexPage() {
       </header>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {entities.map((e) => {
-          const pf = byEntity.get(e.entity_id);
-          return (
-            <Link key={e.entity_id} href={`/entities/${e.entity_id}`}>
-              <Card className="h-full transition-colors hover:border-[#3a414f]/35">
-                <CardHeader className="pb-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="outline">{e.entity_id}</Badge>
-                    {pf ? <HealthBadge health={pf.health} /> : null}
-                  </div>
-                  <CardTitle className="font-heading text-lg">
-                    {e.canonical_name}
-                  </CardTitle>
-                  <CardDescription>
-                    {e.entity_type}
-                    {e.industry_module ? ` · ${e.industry_module}` : ''}
-                    {pf ? ` · ${pf.portfolio_id}` : ''}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="text-xs text-muted-foreground">
-                  Overview · CORE · FLEX · Leads · Tasks · Docs · SS
-                </CardContent>
-              </Card>
-            </Link>
-          );
-        })}
+        {entities.length === 0 ? (
+          <div className="sm:col-span-2 lg:col-span-3">
+            <EmptyState
+              title="No entities in scope"
+              description="No Entity Master rows are visible for your role / entity assignment."
+            />
+          </div>
+        ) : (
+          entities.map((e) => {
+            const pf = byEntity.get(e.entity_id);
+            return (
+              <Link key={e.entity_id} href={`/entities/${e.entity_id}`}>
+                <Card className="h-full transition-colors hover:border-[#3a414f]/35">
+                  <CardHeader className="pb-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="outline">{e.entity_id}</Badge>
+                      {pf ? <HealthBadge health={pf.health} /> : null}
+                    </div>
+                    <CardTitle className="font-heading text-lg">
+                      {e.canonical_name}
+                    </CardTitle>
+                    <CardDescription>
+                      {e.entity_type}
+                      {e.industry_module ? ` · ${e.industry_module}` : ''}
+                      {pf ? ` · ${pf.portfolio_id}` : ''}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="text-xs text-muted-foreground">
+                    Overview · CORE · FLEX · Leads · Tasks · Docs · SS
+                  </CardContent>
+                </Card>
+              </Link>
+            );
+          })
+        )}
       </div>
     </div>
   );

@@ -402,10 +402,22 @@ Docs: `docs/OS_PHASE15.md`
 
 Docs: `docs/OS_PHASE16.md`
 
-### Phase 17+ backlog
+### Phase 17 scope (Integrity + entity scope + UX)
 
-- Validate FKs; drop/archive cleanup; entity-scoped RLS
-- Financial portfolio edits; soak cron alerts
+| Area | Status |
+|------|--------|
+| FK validate + orphan cleanup | Done — `phase17_validate_fks.sql` |
+| Entity-scoped RLS + app filters | Done — `phase17_entity_rls.sql` |
+| Fixed sidebar shell | Done |
+| Portfolio/Entity edit polish + admin FK health | Done |
+| SQL | Apply both Phase 17 SQL files |
+
+Docs: `docs/OS_PHASE17.md`
+
+### Phase 18+ backlog
+
+- Stage 4 snapshot retirement planning / drills
+- Financial portfolio edits; pipeline entity scope
 - Push notifications; richer moderation
 - Real DocuSign
 
@@ -442,4 +454,4 @@ Set `DEV_BYPASS_AUTH=1` in `.env.local` to preview the shell as Visionary (local
 
 ## Next phases (from Cursor Brief)
 
-Phase 16 advances write cutover (incl. MA/RE), soft-archives snapshots, and adds admin health + optional Sentry. Remaining: FK validation, entity RLS, DocuSign, push.
+Phase 17 hardens FKs, adds entity-scoped access, pins the sidebar, and polishes Portfolio/Entity edits. Remaining: Stage 4 snapshot drop, financial edits, DocuSign, push.

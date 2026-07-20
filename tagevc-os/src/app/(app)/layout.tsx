@@ -23,7 +23,7 @@ export default async function AppShellLayout({
   const canImpersonate = session.realRole === 'visionary';
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex h-svh overflow-hidden bg-background">
       <AppSidebar
         role={session.profile.role}
         realRole={session.realRole}
@@ -32,11 +32,11 @@ export default async function AppShellLayout({
         impersonatingAs={session.impersonatingAs}
         impersonatableRoles={canImpersonate ? listImpersonatableRoles() : []}
       />
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {session.impersonatingAs ? (
           <ImpersonationBanner role={session.impersonatingAs} />
         ) : null}
-        <main className="min-w-0 flex-1 overflow-auto">
+        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">
           <div className="mx-auto max-w-6xl px-6 py-8 md:px-10">{children}</div>
         </main>
       </div>

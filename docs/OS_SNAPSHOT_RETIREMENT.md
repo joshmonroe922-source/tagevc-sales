@@ -1,6 +1,6 @@
 # Snapshot Retirement Plan — `os_store_snapshots`
 
-**Status:** Phase 16 — Full pipeline write cutover available; soft-archive ready. Table retained.
+**Status:** Phase 17 — FKs validated; soft-archive complete for cut-over domains. Table retained until Stage 4 drills.
 
 ## Dual-write / dual-read map
 
@@ -38,12 +38,19 @@ Unset cutover env vars and redeploy. Snapshot upserts resume. Restore from archi
 
 ## Exit criteria before drop
 
-- [ ] `WRITE_CUTOVER_ALL` (or equivalent) ≥14 days, `sync_failure_count=0`  
-- [ ] Soft-archive completed for cut-over collections  
-- [ ] Empty-snapshot drills pass  
+- [x] Soft-archive completed for cut-over collections (Phase 16)  
+- [x] FKs validated (Phase 17)  
+- [ ] Empty-snapshot drills documented/passed in staging  
 - [ ] Archive backup retained  
+- [ ] App hydrate paths no longer require snapshot payloads for pipeline domains  
+
+## Blockers for fully retiring `os_store_snapshots`
+
+1. Hydrate still *attempts* snapshot load as optional bootstrap (safe with empty `{}`).  
+2. No automated soak cron yet.  
+3. Deal-flow pipelines remain firm-wide (entity RLS not applied to leads/deals/MA/RE tables).  
 
 ## Non-goals
 
-- Dropping `os_store_snapshots` in Phase 16  
+- Dropping the table in Phase 16–17  
 - DocuSign / push

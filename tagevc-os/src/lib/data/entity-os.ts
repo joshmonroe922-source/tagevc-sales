@@ -32,6 +32,10 @@ function openStatuses(status: string): boolean {
 export async function getEntityOperatingView(
   entityId: string,
 ): Promise<EntityOperatingView | null> {
+  const { getEntityById } = await import('@/lib/data/repositories');
+  const allowed = await getEntityById(entityId);
+  if (!allowed) return null;
+
   const master = await ensureMasterData();
   const entity = master.entities.find((e) => e.entity_id === entityId) ?? null;
   if (!entity) return null;
@@ -205,8 +209,9 @@ export async function getEntityOperatingView(
 }
 
 export async function listSubsidiaryEntities() {
-  const master = await ensureMasterData();
-  return master.entities
+  const { listEntities } = await import('@/lib/data/repositories');
+  const entities = await listEntities();
+  return entities
     .filter(
       (e) =>
         e.entity_type === 'Subsidiary' || e.entity_type === 'RE Asset Entity',
