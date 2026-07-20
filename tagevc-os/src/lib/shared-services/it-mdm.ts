@@ -418,3 +418,149 @@ export async function assignGraphLicenseSku(input: {
     detail: `Graph SKUs assigned (${skuIds.length})`,
   };
 }
+
+/**
+ * Remove user from Entra groups (Phase 29 offboard).
+ * Opt-in: MS_GRAPH_REMOVE_GROUPS=1 — uses MS_GRAPH_OFFBOARD_GROUP_IDS or ONBOARD list.
+ */
+export async function removeGraphGroupMembership(input: {
+  user_id: string;
+  email?: string | null;
+}): Promise<MdmResult> {
+  const enabled =
+    process.env.MS_GRAPH_REMOVE_GROUPS === '1' ||
+    process.env.MS_GRAPH_REMOVE_GROUPS === 'true';
+  if (!enabled) {
+    return {
+      ok: false,
+      skipped: true,
+      detail: 'MS_GRAPH_REMOVE_GROUPS not enabled',
+    };
+  }
+  if (!graphConfigured()) {
+    return { ok: false, skipped: true, detail: 'MS_GRAPH_* not set' };
+  }
+  const groupIds = (
+    process.env.MS_GRAPH_OFFBOARD_GROUP_IDS ||
+    process.env.MS_GRAPH_ONBOARD_GROUP_IDS ||
+    ''
+  )
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (groupIds.length === 0) {
+    return {
+      ok: false,
+      skipped: true,
+      detail: 'No group IDs for offboard remove',
+    };
+  }
+
+  const tok = await getMsGraphToken();
+  if (!tok.ok) return { ok: false, detail: tok.detail };
+  const graphUserId = await resolveGraphUserId(tok.token, input);
+  if (!graphUserId) {
+    return {
+      ok: false,
+      detail: `Graph user not found for ${input.email || input.user_id}`,
+    };
+  }
+
+  const headers = { Authorization: `Bearer ${tok.token}` };
+  const results: string[] = [];
+  for (const gid of groupIds.slice(0, 10)) {
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/groups/${encodeURIComponent(gid)}/members/${encodeURIComponent(graphUserId)}/$ref`,
+      { method: 'DELETE', headers },
+    );
+    if (res.ok || res.status === 204 || res.status === 404) {
+      results.push(
+        res.status === 404
+          ? `absent ${gid.slice(0, 8)}…`
+          : `removed ${gid.slice(0, 8)}…`,
+      );
+    } else {
+      const text = await res.text().catch(() => '');
+      results.push(`fail ${gid.slice(0, 8)}…:${res.status} ${text.slice(0, 40)}`);
+    }
+  }
+  const ok = results.every(
+    (r) => r.startsWith('removed') || r.startsWith('absent'),
+  );
+  return { ok, detail: `Graph groups remove · ${results.join('; ')}` };
+}
+
+/**
+ * Remove M365 license SKUs on offboard (Phase 29).
+ * Opt-in: MS_GRAPH_REMOVE_SKUS=1
+ */
+export async function removeGraphLicenseSku(input: {
+  user_id: string;
+  email?: string | null;
+}): Promise<MdmResult> {
+  const enabled =
+    process.env.MS_GRAPH_REMOVE_SKUS === '1' ||
+    process.env.MS_GRAPH_REMOVE_SKUS === 'true';
+  if (!enabled) {
+    return {
+      ok: false,
+      skipped: true,
+      detail: 'MS_GRAPH_REMOVE_SKUS not enabled',
+    };
+  }
+  if (!graphConfigured()) {
+    return { ok: false, skipped: true, detail: 'MS_GRAPH_* not set' };
+  }
+  const skuIds = (
+    process.env.MS_GRAPH_OFFBOARD_SKU_IDS ||
+    process.env.MS_GRAPH_ONBOARD_SKU_IDS ||
+    ''
+  )
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (skuIds.length === 0) {
+    return {
+      ok: false,
+      skipped: true,
+      detail: 'No SKU IDs for offboard remove',
+    };
+  }
+
+  const tok = await getMsGraphToken();
+  if (!tok.ok) return { ok: false, detail: tok.detail };
+  const graphUserId = await resolveGraphUserId(tok.token, input);
+  if (!graphUserId) {
+    return {
+      ok: false,
+      detail: `Graph user not found for ${input.email || input.user_id}`,
+    };
+  }
+
+  const headers = {
+    Authorization: `Bearer ${tok.token}`,
+    'Content-Type': 'application/json',
+  };
+  const res = await fetch(
+    `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(graphUserId)}/assignLicense`,
+    {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        addLicenses: [],
+        removeLicenses: skuIds,
+      }),
+    },
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    return {
+      ok: false,
+      detail: `Graph SKU remove HTTP ${res.status}: ${text.slice(0, 120)}`,
+    };
+  }
+  return {
+    ok: true,
+    detail: `Graph SKUs removed (${skuIds.length})`,
+  };
+}

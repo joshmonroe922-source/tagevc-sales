@@ -5,6 +5,7 @@ import {
   backfillSignedStorageAction,
   emailCocAction,
   remindEnvelopeAction,
+  refreshTemplateRecipientsAction,
   runReminderWorkerAction,
   scheduleRemindersAction,
   sendFromTemplateAction,
@@ -124,13 +125,33 @@ export function DocuSignHubActions({ canWrite }: { canWrite: boolean }) {
           onClick={() => {
             const envelopeId = window.prompt('Envelope ID to void:');
             if (!envelopeId?.trim()) return;
-            const reason =
-              window.prompt('Void reason:', 'Voided via Tage VC OS') ||
-              'Voided via Tage VC OS';
-            run(() => voidEnvelopeAction(envelopeId.trim(), reason));
+            const reason = window.prompt(
+              'Void reason (required for audit):',
+              '',
+            );
+            if (!reason?.trim()) {
+              setErr('Void reason is required');
+              return;
+            }
+            run(() => voidEnvelopeAction(envelopeId.trim(), reason.trim()));
           }}
         >
           Void envelope
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={pending}
+          onClick={() => {
+            const templateId = window.prompt(
+              'Template ID to refresh recipients/roles:',
+            );
+            if (!templateId?.trim()) return;
+            run(() => refreshTemplateRecipientsAction(templateId.trim()));
+          }}
+        >
+          Refresh template roles
         </Button>
         <Button
           type="button"

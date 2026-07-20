@@ -36,6 +36,9 @@ function asPlatforms(raw: unknown): MarketingPlatform[] {
 }
 
 function mapCampaign(row: Record<string, unknown>): MarketingCampaign {
+  const channelRaw = String(row.channel ?? 'organic');
+  const channel =
+    channelRaw === 'paid' ? ('paid' as const) : ('organic' as const);
   return {
     campaign_id: String(row.campaign_id),
     name: String(row.name),
@@ -43,6 +46,13 @@ function mapCampaign(row: Record<string, unknown>): MarketingCampaign {
     entity_id: (row.entity_id as string) ?? null,
     objective: (row.objective as string) ?? null,
     target_platforms: asPlatforms(row.target_platforms),
+    channel,
+    budget_k:
+      row.budget_k != null && row.budget_k !== ''
+        ? Number(row.budget_k)
+        : null,
+    ad_platform: (row.ad_platform as string) ?? null,
+    external_campaign_id: (row.external_campaign_id as string) ?? null,
     starts_at: (row.starts_at as string) ?? null,
     ends_at: (row.ends_at as string) ?? null,
     notes: (row.notes as string) ?? null,
@@ -68,6 +78,7 @@ function mapContent(row: Record<string, unknown>): MarketingContent {
     published_at: (row.published_at as string) ?? null,
     approval_due_at: (row.approval_due_at as string) ?? null,
     approval_ticket_id: (row.approval_ticket_id as string) ?? null,
+    approval_assignee: (row.approval_assignee as string) ?? null,
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
   };
@@ -228,6 +239,10 @@ export async function createCampaign(input: {
   objective?: string | null;
   target_platforms?: MarketingPlatform[];
   notes?: string | null;
+  channel?: 'organic' | 'paid';
+  budget_k?: number | null;
+  ad_platform?: string | null;
+  external_campaign_id?: string | null;
 }): Promise<{ ok: true; campaign: MarketingCampaign } | { ok: false; error: string }> {
   try {
     const sb = await createPersistClient();
@@ -242,6 +257,10 @@ export async function createCampaign(input: {
         entity_id: input.entity_id || null,
         objective: input.objective || null,
         target_platforms: input.target_platforms ?? [],
+        channel: input.channel === 'paid' ? 'paid' : 'organic',
+        budget_k: input.budget_k ?? null,
+        ad_platform: input.ad_platform || null,
+        external_campaign_id: input.external_campaign_id || null,
         notes: input.notes || null,
         updated_at: now,
       })
@@ -490,17 +509,27 @@ export async function submitContentForReview(
     const due = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
 
     let ticketId: string | null = (row.approval_ticket_id as string) ?? null;
+    const assignee =
+      process.env.MARKETING_SLA_ASSIGNEE?.trim() ||
+      (row.approval_assignee as string) ||
+      null;
     try {
       const { createTicket } = await import('@/lib/data/ticket-store');
       if (!ticketId) {
         const ticket = createTicket({
           title: `Approve marketing: ${String(row.title).slice(0, 80)}`,
-          description: `Content ${contentId} awaiting approval before publish.`,
+          description: [
+            `Content ${contentId} awaiting approval before publish.`,
+            assignee ? `Routed to: ${assignee}` : null,
+          ]
+            .filter(Boolean)
+            .join('\n'),
           service: 'Marketing',
           priority: 'P2',
           entity_id: (row.entity_id as string) || undefined,
           links: '/shared-services/marketing',
           sla_due_at: due.slice(0, 10),
+          assignee_name: assignee || undefined,
         });
         ticketId = ticket.ticket_id;
       }
@@ -515,6 +544,7 @@ export async function submitContentForReview(
         status: 'review',
         approval_due_at: due,
         approval_ticket_id: ticketId,
+        approval_assignee: assignee,
         updated_at: now,
       })
       .eq('content_id', contentId);
@@ -576,6 +606,7 @@ export function getMarketingFoundationStatus() {
     facebook_oauth: platforms.facebook.configured,
     instagram_oauth: platforms.instagram.configured,
     youtube_oauth: platforms.youtube.configured,
+    tiktok_oauth: platforms.tiktok.configured,
     linkedin_marketing_api:
       process.env.LINKEDIN_MARKETING_API === '1' ||
       process.env.LINKEDIN_MARKETING_API === 'true',
@@ -587,6 +618,7 @@ export function getMarketingFoundationStatus() {
       process.env.TIKTOK_ANALYTICS === 'true',
     approval_sla_hours:
       Number(process.env.MARKETING_APPROVAL_SLA_HOURS?.trim() || 48) || 48,
-    phase: 28,
+    sla_assignee: process.env.MARKETING_SLA_ASSIGNEE?.trim() || null,
+    phase: 29,
   };
 }

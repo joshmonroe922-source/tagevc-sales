@@ -37,22 +37,38 @@ export async function createCampaignAction(
       entity_id: z.string().optional(),
       objective: z.string().optional(),
       notes: z.string().optional(),
+      channel: z.enum(['organic', 'paid']).optional(),
+      budget_k: z.string().optional(),
+      ad_platform: z.string().optional(),
+      external_campaign_id: z.string().optional(),
     })
     .safeParse({
       name: formData.get('name'),
       entity_id: formData.get('entity_id') || undefined,
       objective: formData.get('objective') || undefined,
       notes: formData.get('notes') || undefined,
+      channel: formData.get('channel') || undefined,
+      budget_k: formData.get('budget_k') || undefined,
+      ad_platform: formData.get('ad_platform') || undefined,
+      external_campaign_id: formData.get('external_campaign_id') || undefined,
     });
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid' };
   }
+
+  const budgetRaw = parsed.data.budget_k?.trim();
+  const budget_k =
+    budgetRaw && !Number.isNaN(Number(budgetRaw)) ? Number(budgetRaw) : null;
 
   const res = await createCampaign({
     name: parsed.data.name,
     entity_id: parsed.data.entity_id || null,
     objective: parsed.data.objective || null,
     notes: parsed.data.notes || null,
+    channel: parsed.data.channel === 'paid' ? 'paid' : 'organic',
+    budget_k,
+    ad_platform: parsed.data.ad_platform || null,
+    external_campaign_id: parsed.data.external_campaign_id || null,
   });
   if (!res.ok) return res;
   revalidateMarketing();

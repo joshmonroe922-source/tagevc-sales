@@ -1,6 +1,6 @@
 /**
- * Marketing OAuth connect helpers (Phase 23–24).
- * LinkedIn, X, Meta (Facebook/Instagram), YouTube when credentials set; else stub.
+ * Marketing OAuth connect helpers (Phases 23–29).
+ * LinkedIn, X, Meta, YouTube, TikTok when credentials set; else stub.
  */
 
 import { createPersistClient } from '@/lib/supabase/persist-client';
@@ -16,6 +16,7 @@ export const OAUTH_PLATFORMS = [
   'facebook',
   'instagram',
   'youtube',
+  'tiktok',
 ] as const;
 export type OAuthPlatform = (typeof OAUTH_PLATFORMS)[number];
 
@@ -68,6 +69,17 @@ export function getOAuthConfig(platform: OAuthPlatform): {
   if (platform === 'facebook' || platform === 'instagram') {
     const clientId = process.env.META_APP_ID?.trim() || null;
     const clientSecret = process.env.META_APP_SECRET?.trim() || null;
+    return {
+      configured: Boolean(clientId && clientSecret && vault),
+      clientId,
+      clientSecret,
+      redirectUri,
+    };
+  }
+
+  if (platform === 'tiktok') {
+    const clientId = process.env.TIKTOK_CLIENT_KEY?.trim() || null;
+    const clientSecret = process.env.TIKTOK_CLIENT_SECRET?.trim() || null;
     return {
       configured: Boolean(clientId && clientSecret && vault),
       clientId,
@@ -130,6 +142,16 @@ export function buildAuthorizeUrl(
         ? 'instagram_basic,pages_show_list,pages_read_engagement'
         : 'pages_manage_posts,pages_read_engagement,public_profile',
     );
+    return u.toString();
+  }
+
+  if (platform === 'tiktok') {
+    const u = new URL('https://www.tiktok.com/v2/auth/authorize/');
+    u.searchParams.set('client_key', cfg.clientId);
+    u.searchParams.set('redirect_uri', cfg.redirectUri);
+    u.searchParams.set('response_type', 'code');
+    u.searchParams.set('scope', 'user.info.basic,video.list');
+    u.searchParams.set('state', state);
     return u.toString();
   }
 
@@ -256,6 +278,50 @@ export async function exchangeOAuthCode(
     };
   }
 
+  if (platform === 'tiktok') {
+    const body = new URLSearchParams({
+      client_key: cfg.clientId,
+      client_secret: cfg.clientSecret,
+      code,
+      grant_type: 'authorization_code',
+      redirect_uri: cfg.redirectUri,
+    });
+    const res = await fetch('https://open.tiktokapis.com/v2/oauth/token/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+    });
+    const json = (await res.json().catch(() => ({}))) as {
+      access_token?: string;
+      refresh_token?: string;
+      expires_in?: number;
+      error?: string;
+      error_description?: string;
+      data?: {
+        access_token?: string;
+        refresh_token?: string;
+        expires_in?: number;
+      };
+    };
+    const access =
+      json.access_token || json.data?.access_token || null;
+    if (!res.ok || !access) {
+      return {
+        ok: false,
+        error:
+          json.error_description ||
+          json.error ||
+          `TikTok token HTTP ${res.status}`,
+      };
+    }
+    return {
+      ok: true,
+      accessToken: access,
+      refreshToken: json.refresh_token || json.data?.refresh_token,
+      expiresIn: json.expires_in ?? json.data?.expires_in,
+    };
+  }
+
   const body = new URLSearchParams({
     code,
     client_id: cfg.clientId,
@@ -374,5 +440,6 @@ export function oauthPlatformStatus(): Record<
     facebook: { configured: getOAuthConfig('facebook').configured },
     instagram: { configured: getOAuthConfig('instagram').configured },
     youtube: { configured: getOAuthConfig('youtube').configured },
+    tiktok: { configured: getOAuthConfig('tiktok').configured },
   };
 }

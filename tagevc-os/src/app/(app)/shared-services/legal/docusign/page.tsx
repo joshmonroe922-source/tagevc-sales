@@ -55,6 +55,11 @@ export default async function DocuSignModulePage() {
   const storageOk = signed.rows.filter((r) => r.storage_path).length;
   const storageErr = signed.rows.filter((r) => r.storage_error).length;
   const cocCount = signed.rows.filter((r) => r.file_kind === 'certificate').length;
+  const voidEvents = events.filter(
+    (e) =>
+      e.event_type === 'envelope-voided' ||
+      String(e.status).toLowerCase() === 'voided',
+  );
 
   return (
     <div className="space-y-6">
@@ -71,12 +76,12 @@ export default async function DocuSignModulePage() {
           <Badge variant={mode === 'live' ? 'default' : 'secondary'}>
             {mode === 'live' ? 'Live JWT' : 'Mock envelopes'}
           </Badge>
-          <Badge variant="secondary">Phase 28</Badge>
+          <Badge variant="secondary">Phase 29</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">DocuSign</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Template role mapping, CoC email on completion, scheduled reminders,
-          and signed archive. Capital sends still require{' '}
+          Live template role refresh, void audit logging, CoC email, and
+          scheduled reminders. Capital sends still require{' '}
           <code className="text-xs">action:docusign_capital</code>.
         </p>
         <DocuSignHubActions canWrite={canWrite} />
@@ -129,8 +134,8 @@ export default async function DocuSignModulePage() {
           <CardHeader>
             <CardTitle className="text-base">Links</CardTitle>
             <CardDescription>
-              Apply <code className="text-xs">phase28_analytics_coc_renewals.sql</code>{' '}
-              for CoC email log + SLA escalation columns.
+              Apply <code className="text-xs">phase29_paid_media_warranty.sql</code>{' '}
+              for paid campaign stubs and warranty.
             </CardDescription>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground space-y-1">
@@ -218,6 +223,47 @@ export default async function DocuSignModulePage() {
                   {j.envelope_id.slice(0, 16)}…
                 </li>
               ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Void audit</CardTitle>
+          <CardDescription>
+            Recent envelope-voided events (reason + actor in payload)
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {voidEvents.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No voids logged yet.</p>
+          ) : (
+            <ul className="space-y-1 text-sm max-h-40 overflow-y-auto">
+              {voidEvents.slice(0, 10).map((e) => {
+                const raw = (e.raw_payload ?? {}) as {
+                  reason?: string;
+                  actor_email?: string;
+                };
+                return (
+                  <li
+                    key={e.event_id ?? `${e.envelope_id}-${e.received_at}`}
+                    className="border-b border-border/40 py-1.5"
+                  >
+                    <span className="font-mono text-xs">
+                      {e.envelope_id.slice(0, 16)}…
+                    </span>
+                    {' · '}
+                    {e.received_at?.slice(0, 16).replace('T', ' ')}
+                    {raw.reason ? (
+                      <span className="block text-xs text-muted-foreground">
+                        {raw.reason}
+                        {raw.actor_email ? ` · ${raw.actor_email}` : ''}
+                      </span>
+                    ) : null}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </CardContent>

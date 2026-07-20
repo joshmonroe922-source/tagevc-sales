@@ -36,6 +36,7 @@ function mapHardware(row: Record<string, unknown>): ItHardwareAsset {
     model: (row.model as string) ?? null,
     notes: (row.notes as string) ?? null,
     purchased_at: (row.purchased_at as string) ?? null,
+    warranty_ends_at: (row.warranty_ends_at as string) ?? null,
     updated_at: String(row.updated_at ?? row.created_at ?? ''),
   };
 }
@@ -79,7 +80,7 @@ export async function listHardwareAssets(limit = 100): Promise<{
     const { data, error } = await sb
       .from('os_it_hardware_assets')
       .select(
-        'asset_id, kind, status, entity_id, assigned_user_id, serial_number, model, notes, purchased_at, updated_at, created_at',
+        'asset_id, kind, status, entity_id, assigned_user_id, serial_number, model, notes, purchased_at, warranty_ends_at, updated_at, created_at',
       )
       .order('updated_at', { ascending: false })
       .limit(limit);
@@ -171,6 +172,7 @@ export async function createHardwareAsset(input: {
   model?: string | null;
   notes?: string | null;
   purchased_at?: string | null;
+  warranty_ends_at?: string | null;
 }): Promise<{ ok: true; asset: ItHardwareAsset } | { ok: false; error: string }> {
   try {
     const sb = await createPersistClient();
@@ -187,10 +189,11 @@ export async function createHardwareAsset(input: {
         model: input.model || null,
         notes: input.notes || null,
         purchased_at: input.purchased_at || null,
+        warranty_ends_at: input.warranty_ends_at || null,
         updated_at: now,
       })
       .select(
-        'asset_id, kind, status, entity_id, assigned_user_id, serial_number, model, notes, purchased_at, updated_at, created_at',
+        'asset_id, kind, status, entity_id, assigned_user_id, serial_number, model, notes, purchased_at, warranty_ends_at, updated_at, created_at',
       )
       .single();
     if (error) return { ok: false, error: error.message };

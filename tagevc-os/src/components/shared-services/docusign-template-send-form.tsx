@@ -1,7 +1,10 @@
 'use client';
 
 import { useMemo, useState, useTransition } from 'react';
-import { sendFromTemplateRolesAction } from '@/app/(app)/shared-services/legal/docusign/actions';
+import {
+  refreshTemplateRecipientsAction,
+  sendFromTemplateRolesAction,
+} from '@/app/(app)/shared-services/legal/docusign/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,6 +24,9 @@ export function DocuSignTemplateSendForm({
   const [flash, setFlash] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [roleList, setRoleList] = useState<string[]>(
+    () => templates[0]?.roles ?? ['Signer'],
+  );
 
   const selected = useMemo(
     () => templates.find((t) => t.template_id === templateId) ?? null,
@@ -35,16 +41,21 @@ export function DocuSignTemplateSendForm({
     })),
   );
 
-  function onSelectTemplate(id: string) {
-    setTemplateId(id);
-    const t = templates.find((x) => x.template_id === id);
+  function applyRoleNames(names: string[]) {
+    setRoleList(names);
     setRoles(
-      (t?.roles ?? ['Signer']).map((roleName) => ({
+      names.map((roleName) => ({
         roleName,
         email: '',
         name: '',
       })),
     );
+  }
+
+  function onSelectTemplate(id: string) {
+    setTemplateId(id);
+    const t = templates.find((x) => x.template_id === id);
+    applyRoleNames(t?.roles ?? ['Signer']);
   }
 
   if (!canWrite) return null;
@@ -88,6 +99,41 @@ export function DocuSignTemplateSendForm({
             onChange={(e) => setSubject(e.target.value)}
           />
         </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={pending || !templateId}
+          onClick={() => {
+            setFlash(null);
+            setErr(null);
+            startTransition(async () => {
+              const res = await refreshTemplateRecipientsAction(templateId);
+              if (!res.ok) {
+                setErr(res.error);
+                return;
+              }
+              setFlash(res.message ?? 'Roles refreshed');
+              const match = res.message?.match(/roles:\s*(.+)$/i);
+              if (match) {
+                applyRoleNames(
+                  match[1]
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter(Boolean),
+                );
+              }
+            });
+          }}
+        >
+          Live refresh roles
+        </Button>
+        <span className="text-xs text-muted-foreground self-center">
+          Cached roles: {roleList.join(', ')}
+        </span>
       </div>
 
       <div className="space-y-2">

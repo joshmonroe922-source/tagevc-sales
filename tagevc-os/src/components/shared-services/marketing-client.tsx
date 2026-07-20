@@ -49,6 +49,7 @@ const OAUTH_SET = new Set([
   'facebook',
   'instagram',
   'youtube',
+  'tiktok',
 ]);
 
 export function MarketingClient({
@@ -83,10 +84,12 @@ export function MarketingClient({
     facebook_oauth?: boolean;
     instagram_oauth?: boolean;
     youtube_oauth?: boolean;
+    tiktok_oauth?: boolean;
     linkedin_marketing_api?: boolean;
     youtube_analytics?: boolean;
     tiktok_analytics?: boolean;
     approval_sla_hours?: number;
+    sla_assignee?: string | null;
     phase: number;
   };
 }) {
@@ -149,10 +152,11 @@ export function MarketingClient({
           : 'stub'}{' '}
         · YT:{foundation.youtube_oauth ? 'oauth' : 'stub'}
         {foundation.youtube_analytics ? '+an' : ''} · TT:
-        {foundation.tiktok_analytics ? 'on' : 'off'}
+        {foundation.tiktok_oauth ? 'oauth' : foundation.tiktok_analytics ? 'an' : 'off'}
         {foundation.approval_sla_hours
           ? ` · SLA ${foundation.approval_sla_hours}h`
           : ''}
+        {foundation.sla_assignee ? ` → ${foundation.sla_assignee}` : ''}
       </div>
 
       {tableError && (
@@ -313,6 +317,32 @@ export function MarketingClient({
               <Label htmlFor="camp_obj">Objective</Label>
               <Input id="camp_obj" name="objective" placeholder="Awareness · leads" />
             </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label htmlFor="camp_channel">Channel</Label>
+                <select
+                  id="camp_channel"
+                  name="channel"
+                  className={field}
+                  defaultValue="organic"
+                >
+                  <option value="organic">Organic</option>
+                  <option value="paid">Paid (stub)</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="camp_budget">Budget ($k, paid)</Label>
+                <Input id="camp_budget" name="budget_k" type="number" step="0.1" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="camp_ad">Ad platform (paid stub)</Label>
+              <Input
+                id="camp_ad"
+                name="ad_platform"
+                placeholder="meta_ads · linkedin_ads · tiktok_ads"
+              />
+            </div>
             <Button type="submit" size="sm" disabled={campPending}>
               Create campaign
             </Button>
@@ -344,6 +374,7 @@ export function MarketingClient({
                   <option value="instagram">Instagram</option>
                   <option value="facebook">Facebook</option>
                   <option value="youtube">YouTube</option>
+                  <option value="tiktok">TikTok</option>
                   <option value="web">Web</option>
                   <option value="other">Other</option>
                 </select>
@@ -371,7 +402,8 @@ export function MarketingClient({
           <form action={acctAction} className="space-y-3 rounded-lg border p-4">
             <h2 className="text-sm font-semibold">Register social account</h2>
             <p className="text-xs text-muted-foreground">
-              Then Connect via OAuth (or stub) for LinkedIn, X, Meta, YouTube.
+              Then Connect via OAuth (or stub) for LinkedIn, X, Meta, YouTube,
+              TikTok.
             </p>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
@@ -382,6 +414,7 @@ export function MarketingClient({
                   <option value="instagram">Instagram</option>
                   <option value="facebook">Facebook</option>
                   <option value="youtube">YouTube</option>
+                  <option value="tiktok">TikTok</option>
                   <option value="other">Other</option>
                 </select>
               </div>
@@ -544,6 +577,9 @@ export function MarketingClient({
                 <span className="font-medium">{c.name}</span>
                 {' · '}
                 {c.status}
+                {c.channel === 'paid' ? ' · paid' : ''}
+                {c.budget_k != null ? ` · $${c.budget_k}k` : ''}
+                {c.ad_platform ? ` · ${c.ad_platform}` : ''}
                 {c.entity_id ? ` · ${c.entity_id}` : ' · firm-wide'}
                 {analytics.by_campaign[c.campaign_id] != null ? (
                   <span className="text-xs text-muted-foreground">
@@ -605,6 +641,9 @@ export function MarketingClient({
                       {c.approval_ticket_id ? (
                         <span className="block text-xs text-muted-foreground">
                           {c.approval_ticket_id}
+                          {c.approval_assignee
+                            ? ` → ${c.approval_assignee}`
+                            : ''}
                         </span>
                       ) : null}
                     </td>

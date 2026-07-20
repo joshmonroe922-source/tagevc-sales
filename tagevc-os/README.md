@@ -546,9 +546,21 @@ Docs: `docs/OS_PHASE27.md`
 
 Docs: `docs/OS_PHASE28.md`
 
-### Phase 29+ backlog
+### Phase 29 scope (TikTok OAuth · paid stubs · void audit · warranty)
 
-- Paid media · TikTok OAuth UX · Graph offboard remove
+| Area | Status |
+|------|--------|
+| TikTok OAuth + paid campaign stubs + SLA assignee | Done |
+| Live template refresh + void audit | Done |
+| Graph offboard remove + hardware warranty | Done |
+| Stage 4e soft-rename env gate (no DROP) | Retained |
+| SQL | Apply `phase29_paid_media_warranty.sql` |
+
+Docs: `docs/OS_PHASE29.md`
+
+### Phase 30+ backlog
+
+- TikTok publish · paid ads APIs · Graph mailbox disable
 - Stage 4e soft rename then offline DROP (after approval)
 - Push · user admin
 
@@ -585,4 +597,4 @@ Set `DEV_BYPASS_AUTH=1` in `.env.local` to preview the shell as Visionary (local
 
 ## Next phases (from Cursor Brief)
 
-Phase 28 advances YouTube/TikTok analytics, approval SLA digests, DocuSign CoC email and template role mapping, Graph groups/SKUs, and renewal alerts. Remaining: Stage 4e soft rename / offline DROP (after approval), push, user admin.
+Phase 29 advances TikTok OAuth, paid campaign stubs, SLA assignee routing, DocuSign live role refresh and void audit, Graph offboard remove, and hardware warranty. Remaining: Stage 4e soft rename / offline DROP (after approval), push, user admin.

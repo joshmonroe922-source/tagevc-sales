@@ -256,6 +256,8 @@ export type CreateTicketInput = {
   company_name?: string;
   links?: string;
   sla_due_at?: string;
+  /** Optional assignee display name (Phase 29 SLA routing). */
+  assignee_name?: string;
   /** Phase 4.5 — document AI follow-ups */
   ai_generated?: boolean;
   source_doc_id?: string | null;
@@ -316,7 +318,7 @@ export function createTicket(input: CreateTicketInput): Ticket {
     priority: input.priority,
     status: 'Open',
     requester_name: input.requester_name?.trim() || 'Requester',
-    assignee_name: null,
+    assignee_name: input.assignee_name?.trim() || null,
     entity_id: input.entity_id?.trim() || null,
     company_name: input.company_name?.trim() || null,
     links: input.links?.trim() || null,

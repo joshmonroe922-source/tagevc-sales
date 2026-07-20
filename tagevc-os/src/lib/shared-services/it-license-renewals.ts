@@ -72,30 +72,39 @@ export async function scanLicenseRenewals(opts?: {
       };
     });
 
-    // Hardware warranty / purchase anniversary when purchased_at set + notes hint
-    // Prefer purchased_at + 36 months as soft signal when no warranty column
+    // Hardware: prefer warranty_ends_at; else purchased_at + 36 months
     const { data: hw } = await sb
       .from('os_it_hardware_assets')
-      .select('asset_id, kind, model, purchased_at, entity_id, status')
-      .not('purchased_at', 'is', null)
+      .select(
+        'asset_id, kind, model, purchased_at, warranty_ends_at, entity_id, status',
+      )
       .in('status', ['assigned', 'in_stock', 'repair'])
       .limit(limit);
 
     for (const row of hw ?? []) {
-      const purchased = new Date(String(row.purchased_at));
-      if (Number.isNaN(purchased.getTime())) continue;
-      // Soft 3-year refresh window
-      const refresh = new Date(purchased);
-      refresh.setFullYear(refresh.getFullYear() + 3);
+      let dueDate: Date | null = null;
+      let labelSuffix = '';
+      if (row.warranty_ends_at) {
+        dueDate = new Date(String(row.warranty_ends_at));
+        labelSuffix = 'warranty';
+      } else if (row.purchased_at) {
+        const purchased = new Date(String(row.purchased_at));
+        if (!Number.isNaN(purchased.getTime())) {
+          dueDate = new Date(purchased);
+          dueDate.setFullYear(dueDate.getFullYear() + 3);
+          labelSuffix = '3y refresh';
+        }
+      }
+      if (!dueDate || Number.isNaN(dueDate.getTime())) continue;
       const days = Math.round(
-        (refresh.getTime() - now.getTime()) / (24 * 60 * 60 * 1000),
+        (dueDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000),
       );
       if (days > within || days < -90) continue;
       items.push({
         kind: 'hardware',
         id: String(row.asset_id),
-        label: `${row.kind}${row.model ? ` · ${row.model}` : ''} (3y refresh)`,
-        renewal_date: refresh.toISOString().slice(0, 10),
+        label: `${row.kind}${row.model ? ` · ${row.model}` : ''} (${labelSuffix})`,
+        renewal_date: dueDate.toISOString().slice(0, 10),
         days_until: days,
         entity_id: (row.entity_id as string) ?? null,
       });

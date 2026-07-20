@@ -14,6 +14,7 @@ export type SlaEscalationItem = {
   title: string;
   approval_due_at: string;
   approval_ticket_id: string | null;
+  approval_assignee: string | null;
   entity_id: string | null;
   hours_overdue: number;
 };
@@ -35,7 +36,7 @@ export async function runApprovalSlaEscalation(opts?: {
   const { data, error } = await sb
     .from('os_marketing_content')
     .select(
-      'content_id, title, approval_due_at, approval_ticket_id, entity_id, status',
+      'content_id, title, approval_due_at, approval_ticket_id, approval_assignee, entity_id, status',
     )
     .eq('status', 'review')
     .not('approval_due_at', 'is', null)
@@ -64,6 +65,7 @@ export async function runApprovalSlaEscalation(opts?: {
       title: String(row.title ?? row.content_id),
       approval_due_at: String(row.approval_due_at),
       approval_ticket_id: (row.approval_ticket_id as string) ?? null,
+      approval_assignee: (row.approval_assignee as string) ?? null,
       entity_id: (row.entity_id as string) ?? null,
       hours_overdue: hours,
     };
@@ -78,14 +80,21 @@ export async function runApprovalSlaEscalation(opts?: {
     .map(
       (i) =>
         `· ${i.content_id}: ${i.title.slice(0, 60)} (${i.hours_overdue}h overdue)${
-          i.approval_ticket_id ? ` · ${i.approval_ticket_id}` : ''
-        }`,
+          i.approval_assignee ? ` → ${i.approval_assignee}` : ''
+        }${i.approval_ticket_id ? ` · ${i.approval_ticket_id}` : ''}`,
     )
     .join('\n');
 
+  const assigneeHint =
+    process.env.MARKETING_SLA_ASSIGNEE?.trim() ||
+    items.find((i) => i.approval_assignee)?.approval_assignee ||
+    null;
+
   await createBroadcastNotification({
     kind: 'marketing_sla',
-    title: `Marketing approval SLA: ${items.length} overdue`,
+    title: `Marketing approval SLA: ${items.length} overdue${
+      assigneeHint ? ` · ${assigneeHint}` : ''
+    }`,
     body: lines.slice(0, 500),
     href: '/shared-services/marketing',
   });

@@ -33,7 +33,7 @@ export function getSnapshotDropGate(): SnapshotDropGate {
         approved_by: approvedBy,
         detail: `Approved by ${approvedBy} at ${approvedAt}${
           allow
-            ? ' · ALLOW_SNAPSHOT_DROP set — use offline phase28_stage4e_drop.sql (soft rename first)'
+            ? ' · ALLOW_SNAPSHOT_DROP set — use offline phase29_stage4e_drop.sql (soft rename first)'
             : ' · set ALLOW_SNAPSHOT_DROP=1 only when running the offline DROP script'
         }`,
         allow_manual_drop_script: allow,

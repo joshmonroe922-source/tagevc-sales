@@ -49,14 +49,14 @@ export default async function ItAssetsModulePage() {
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">IT</Badge>
-          <Badge variant="secondary">Phase 28</Badge>
+          <Badge variant="secondary">Phase 29</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Hardware &amp; licensing
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Assets, seats, Graph groups/SKUs, renewal alerts, and onboarding /
-          offboarding lifecycle automation.
+          Warranty tracking, Graph group/SKU remove on offboard, renewals, and
+          full onboarding / offboarding lifecycle.
         </p>
       </div>
 

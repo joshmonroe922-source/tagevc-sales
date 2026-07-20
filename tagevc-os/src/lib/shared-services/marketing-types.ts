@@ -9,11 +9,16 @@ export const MARKETING_PLATFORMS = [
   'instagram',
   'facebook',
   'youtube',
+  'tiktok',
   'web',
   'other',
 ] as const;
 
 export type MarketingPlatform = (typeof MARKETING_PLATFORMS)[number];
+
+export const MARKETING_CAMPAIGN_CHANNELS = ['organic', 'paid'] as const;
+export type MarketingCampaignChannel =
+  (typeof MARKETING_CAMPAIGN_CHANNELS)[number];
 
 export const MARKETING_CONTENT_KINDS = [
   'blog',
@@ -77,6 +82,11 @@ export type MarketingCampaign = {
   entity_id: string | null;
   objective: string | null;
   target_platforms: MarketingPlatform[];
+  /** organic (default) or paid media stub */
+  channel: MarketingCampaignChannel;
+  budget_k: number | null;
+  ad_platform: string | null;
+  external_campaign_id: string | null;
   starts_at: string | null;
   ends_at: string | null;
   notes: string | null;
@@ -99,6 +109,7 @@ export type MarketingContent = {
   published_at: string | null;
   approval_due_at: string | null;
   approval_ticket_id: string | null;
+  approval_assignee: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -162,4 +173,7 @@ export const MARKETING_ENV_KEYS = [
   'YOUTUBE_ANALYTICS',
   'YOUTUBE_CHANNEL_ID',
   'TIKTOK_ANALYTICS',
+  'TIKTOK_CLIENT_KEY',
+  'TIKTOK_CLIENT_SECRET',
+  'MARKETING_SLA_ASSIGNEE',
 ] as const;

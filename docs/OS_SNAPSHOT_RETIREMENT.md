@@ -1,6 +1,6 @@
 # Snapshot Retirement Plan — `os_store_snapshots`
 
-**Status:** Phase 28 — Stage 4e checklist + soft-rename path + ≥90-day retention + explicit DROP approval env. Table retained until offline soft rename / DROP.
+**Status:** Phase 29 — Stage 4e checklist + `SNAPSHOT_SOFT_RENAMED_AT` + soft-rename path + ≥90-day retention + explicit DROP approval env. Table retained until offline soft rename / DROP.
 
 ## Dual-write / dual-read map
 

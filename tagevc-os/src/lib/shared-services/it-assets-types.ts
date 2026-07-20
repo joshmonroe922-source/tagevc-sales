@@ -30,6 +30,8 @@ export type ItHardwareAsset = {
   model: string | null;
   notes: string | null;
   purchased_at: string | null;
+  /** Warranty end date (Phase 29). */
+  warranty_ends_at: string | null;
   updated_at: string;
 };
 

@@ -348,6 +348,67 @@ export async function listDocuSignTemplatesFromApi(opts?: {
   }
 }
 
+/** Fetch a single template with recipients from DocuSign API (Phase 29). */
+export async function getDocuSignTemplateFromApi(
+  templateId: string,
+): Promise<
+  | {
+      ok: true;
+      template: {
+        templateId: string;
+        name: string;
+        description?: string;
+        shared?: boolean;
+        lastModified?: string;
+        raw: unknown;
+      };
+    }
+  | { ok: false; error: string }
+> {
+  const cfg = getDocuSignConfig();
+  if (!cfg) return { ok: false, error: 'DocuSign is not configured' };
+  const id = templateId.trim();
+  if (!id) return { ok: false, error: 'templateId required' };
+
+  try {
+    const res = await docusignFetch(
+      cfg,
+      `/templates/${encodeURIComponent(id)}?include=recipients`,
+    );
+    const json = (await res.json().catch(() => ({}))) as {
+      templateId?: string;
+      name?: string;
+      description?: string;
+      shared?: boolean | string;
+      lastModified?: string;
+      recipients?: unknown;
+      message?: string;
+    };
+    if (!res.ok || !json.templateId) {
+      return {
+        ok: false,
+        error: json.message || `HTTP ${res.status}`,
+      };
+    }
+    return {
+      ok: true,
+      template: {
+        templateId: String(json.templateId),
+        name: json.name || json.templateId,
+        description: json.description,
+        shared: json.shared === true || json.shared === 'true',
+        lastModified: json.lastModified,
+        raw: json,
+      },
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'get template failed',
+    };
+  }
+}
+
 /** Download Certificate of Completion PDF bytes (live envelopes). */
 export async function downloadCertificateOfCompletion(
   envelopeId: string,

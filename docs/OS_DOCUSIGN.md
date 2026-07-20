@@ -66,18 +66,14 @@ Unknown envelopes are acknowledged and still logged to `os_docusign_events`.
 | Send capital | `action:docusign_capital` |
 | View hub / events | `read:documents` |
 
-## Phase 24–28 storage & workflows
+## Phase 24–29 storage & workflows
 
-- Completed envelopes upload combined PDF + **Certificate of Completion** to bucket **`docusign-signed`**.  
-- Hub: remind, void, **role-map send**, schedule reminders, refresh templates, backfill Storage, **Email CoC**.  
-- Templates cached in `os_docusign_templates` with role extraction; reminder jobs in `os_docusign_reminder_jobs`.  
-- CoC email audit: `os_docusign_coc_emails` (Phase 28).  
-- Cron: `/api/docusign/reminder-worker` (daily).  
-- Apply through `phase28_analytics_coc_renewals.sql`.  
+- Hub: role-map send, **live refresh roles**, void (reason required + audit), CoC email, reminders.  
+- Apply through `phase29_paid_media_warranty.sql`.  
 
 ## Still deferred
 
-- Live template recipient preview refresh beyond cache  
-- Void/reason audit trail polish  
+- Live paid ads APIs  
+- Envelope list filters / void undo policy  
 - Retire simulate button in production  
 

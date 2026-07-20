@@ -154,6 +154,10 @@ export function ItAssetsClient({
               <Input id="serial_number" name="serial_number" />
             </div>
             <div className="space-y-1">
+              <Label htmlFor="warranty_ends_at">Warranty ends</Label>
+              <Input id="warranty_ends_at" name="warranty_ends_at" type="date" />
+            </div>
+            <div className="space-y-1">
               <Label htmlFor="entity_id">Entity id (optional)</Label>
               <Input id="entity_id" name="entity_id" placeholder="ENT-001" />
             </div>
@@ -213,6 +217,7 @@ export function ItAssetsClient({
                   <th className="py-2 pr-2">Kind</th>
                   <th className="py-2 pr-2">Status</th>
                   <th className="py-2 pr-2">Model</th>
+                  <th className="py-2 pr-2">Warranty</th>
                   <th className="py-2 pr-2">Assigned</th>
                   <th className="py-2">Actions</th>
                 </tr>
@@ -224,6 +229,9 @@ export function ItAssetsClient({
                     <td className="py-2 pr-2">{a.kind}</td>
                     <td className="py-2 pr-2">{a.status}</td>
                     <td className="py-2 pr-2">{a.model ?? '—'}</td>
+                    <td className="py-2 pr-2 text-xs">
+                      {a.warranty_ends_at?.slice(0, 10) ?? '—'}
+                    </td>
                     <td className="py-2 pr-2 font-mono text-xs">
                       {a.assigned_user_id?.slice(0, 8) ?? '—'}
                     </td>

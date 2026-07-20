@@ -36,6 +36,7 @@ export async function createHardwareAction(
       model: z.string().optional(),
       notes: z.string().optional(),
       purchased_at: z.string().optional(),
+      warranty_ends_at: z.string().optional(),
     })
     .safeParse({
       kind: formData.get('kind'),
@@ -44,6 +45,7 @@ export async function createHardwareAction(
       model: formData.get('model') || undefined,
       notes: formData.get('notes') || undefined,
       purchased_at: formData.get('purchased_at') || undefined,
+      warranty_ends_at: formData.get('warranty_ends_at') || undefined,
     });
 
   if (!parsed.success) {
@@ -57,6 +59,7 @@ export async function createHardwareAction(
     model: parsed.data.model || null,
     notes: parsed.data.notes || null,
     purchased_at: parsed.data.purchased_at || null,
+    warranty_ends_at: parsed.data.warranty_ends_at || null,
   });
   if (!res.ok) return res;
   revalidateAssets();

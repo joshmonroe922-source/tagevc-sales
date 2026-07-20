@@ -3,7 +3,10 @@
  */
 
 import { createPersistClient } from '@/lib/supabase/persist-client';
-import { listDocuSignTemplatesFromApi } from '@/lib/docusign/envelopes';
+import {
+  getDocuSignTemplateFromApi,
+  listDocuSignTemplatesFromApi,
+} from '@/lib/docusign/envelopes';
 
 export type CachedDocuSignTemplate = {
   template_id: string;
@@ -135,6 +138,54 @@ export async function syncDocuSignTemplates(): Promise<
     return {
       ok: false,
       error: e instanceof Error ? e.message : 'sync failed',
+    };
+  }
+}
+
+/** Live refresh of one template's recipients/roles from DocuSign (Phase 29). */
+export async function refreshTemplateRecipients(
+  templateId: string,
+): Promise<
+  | { ok: true; template: CachedDocuSignTemplate }
+  | { ok: false; error: string }
+> {
+  const api = await getDocuSignTemplateFromApi(templateId);
+  if (!api.ok) return api;
+
+  try {
+    const sb = await createPersistClient();
+    const now = new Date().toISOString();
+    const t = api.template;
+    const { error } = await sb.from('os_docusign_templates').upsert(
+      {
+        template_id: t.templateId,
+        name: t.name,
+        description: t.description ?? null,
+        shared: Boolean(t.shared),
+        last_modified: t.lastModified ?? null,
+        raw: t.raw ?? {},
+        synced_at: now,
+      },
+      { onConflict: 'template_id' },
+    );
+    if (error) return { ok: false, error: error.message };
+    const roles = extractTemplateRoles(t.raw);
+    return {
+      ok: true,
+      template: {
+        template_id: t.templateId,
+        name: t.name,
+        description: t.description ?? null,
+        shared: Boolean(t.shared),
+        last_modified: t.lastModified ?? null,
+        synced_at: now,
+        roles: roles.length > 0 ? roles : ['Signer'],
+      },
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'refresh failed',
     };
   }
 }

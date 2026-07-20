@@ -26,9 +26,13 @@ export async function voidEnvelopeAction(
   if (!gate.ok) return gate;
 
   const id = envelopeId.trim();
+  const voidReason = reason.trim();
   if (!id) return { ok: false, error: 'envelope_id required' };
+  if (!voidReason) {
+    return { ok: false, error: 'Void reason is required for audit' };
+  }
 
-  const api = await voidEnvelope(id, reason || 'Voided via Tage VC OS');
+  const api = await voidEnvelope(id, voidReason);
   if (!api.ok) return api;
 
   try {
@@ -41,19 +45,25 @@ export async function voidEnvelopeAction(
     envelope_id: id,
     status: 'voided',
     event_type: 'envelope-voided',
-    raw_payload: { reason, source: 'hub' },
+    raw_payload: {
+      reason: voidReason,
+      source: 'hub',
+      actor_id: gate.profile.id,
+      actor_email: gate.profile.email ?? null,
+      voided_at: new Date().toISOString(),
+    },
   });
 
   void logActivity({
     module: 'documents',
     action: 'docusign_voided',
-    title: `Envelope voided: ${id.slice(0, 18)}`,
+    title: `Envelope voided: ${id.slice(0, 18)} · ${voidReason.slice(0, 40)}`,
     ref_type: 'document',
     ref_id: id,
   });
 
   revalidateDocuSign();
-  return { ok: true, message: `Voided ${id}` };
+  return { ok: true, message: `Voided ${id} · audited` };
 }
 
 export async function remindEnvelopeAction(
@@ -94,6 +104,25 @@ export async function syncTemplatesAction(): Promise<DocuSignActionResult> {
   if (!res.ok) return res;
   revalidateDocuSign();
   return { ok: true, message: `Synced ${res.count} templates` };
+}
+
+export async function refreshTemplateRecipientsAction(
+  templateId: string,
+): Promise<DocuSignActionResult> {
+  const gate = await guardPermission('write:documents');
+  if (!gate.ok) return gate;
+  const id = templateId.trim();
+  if (!id) return { ok: false, error: 'templateId required' };
+  const { refreshTemplateRecipients } = await import(
+    '@/lib/docusign/templates'
+  );
+  const res = await refreshTemplateRecipients(id);
+  if (!res.ok) return res;
+  revalidateDocuSign();
+  return {
+    ok: true,
+    message: `Refreshed ${res.template.name} · roles: ${res.template.roles.join(', ')}`,
+  };
 }
 
 export async function backfillSignedStorageAction(): Promise<DocuSignActionResult> {

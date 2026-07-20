@@ -46,21 +46,17 @@ os_it_assignment_events (append-only)
 1. Grant increments `seats_used` (respects `seat_count`)  
 2. Revoke decrements · events `license_grant` / `license_revoke`
 
-### Offboarding / onboarding (Phases 23–28)
-1. Offboarding: manual, HR ticket, or inactive profile scan  
-2. Onboarding: manual, HR ticket, or **active profile scan** (14d lookback; skips users with any prior run)  
-3. MDM: Microsoft Graph Intune (`MS_GRAPH_*`) and/or `MDM_WEBHOOK_URL`  
-4. Optional Graph **group** / **SKU** assign (`MS_GRAPH_ASSIGN_GROUPS` / `MS_GRAPH_ASSIGN_SKUS`)  
-5. License renewal scan (30d) + weekly cron · hub banner  
-6. Complete marks remaining access notes · activity + notifications  
+### Offboarding / onboarding (Phases 23–29)
+1. Offboarding: inactive scan + Graph **remove** groups/SKUs (opt-in)  
+2. Onboarding: active scan + Graph **assign** groups/SKUs (opt-in)  
+3. Hardware **warranty_ends_at** drives renewal alerts (else 3y refresh)  
 
-SQL: through `phase28_analytics_coc_renewals.sql` (IT tables from phase26).
+SQL: through `phase29_paid_media_warranty.sql`.
 
-## Phase 29+
+## Phase 30+
 
-1. Graph offboard group/SKU remove  
-2. Dedicated warranty column on hardware  
-3. Renewal alerts into email digests  
+1. Graph mailbox disable  
+2. Bulk warranty import  
 
 ## Out of scope
 

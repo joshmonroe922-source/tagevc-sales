@@ -15,7 +15,11 @@ import {
   createBroadcastNotification,
   logActivity,
 } from '@/lib/data/activity';
-import { invokeMdmLifecycleHook } from '@/lib/shared-services/it-mdm';
+import {
+  invokeMdmLifecycleHook,
+  removeGraphGroupMembership,
+  removeGraphLicenseSku,
+} from '@/lib/shared-services/it-mdm';
 
 export type OffboardingChecklistItem = {
   id: string;
@@ -142,6 +146,22 @@ export async function startOffboarding(input: {
         'Phase 25: posts to MDM_WEBHOOK_URL when configured; otherwise manual',
     });
     checklist.push({
+      id: 'access-graph-groups',
+      kind: 'access_note',
+      ref_id: 'graph_groups',
+      label: 'Remove Entra group membership (MS_GRAPH_REMOVE_GROUPS)',
+      status: 'pending',
+      detail: 'Phase 29: opt-in group remove',
+    });
+    checklist.push({
+      id: 'access-graph-skus',
+      kind: 'access_note',
+      ref_id: 'graph_skus',
+      label: 'Remove M365 license SKUs (MS_GRAPH_REMOVE_SKUS)',
+      status: 'pending',
+      detail: 'Phase 29: opt-in SKU remove',
+    });
+    checklist.push({
       id: 'access-sso',
       kind: 'access_note',
       ref_id: 'sso',
@@ -249,6 +269,39 @@ export async function executeOffboarding(
         });
         item.status = mdm.ok ? 'done' : mdm.skipped ? 'pending' : 'failed';
         item.detail = mdm.detail;
+      } else if (item.kind === 'access_note' && item.ref_id === 'graph_groups') {
+        let email: string | null = null;
+        try {
+          const { data: profile } = await sb
+            .from('profiles')
+            .select('email')
+            .eq('id', userId)
+            .maybeSingle();
+          email = (profile?.email as string) ?? null;
+        } catch {
+          /* optional */
+        }
+        const g = await removeGraphGroupMembership({
+          user_id: userId,
+          email,
+        });
+        item.status = g.ok ? 'done' : g.skipped ? 'pending' : 'failed';
+        item.detail = g.detail;
+      } else if (item.kind === 'access_note' && item.ref_id === 'graph_skus') {
+        let email: string | null = null;
+        try {
+          const { data: profile } = await sb
+            .from('profiles')
+            .select('email')
+            .eq('id', userId)
+            .maybeSingle();
+          email = (profile?.email as string) ?? null;
+        } catch {
+          /* optional */
+        }
+        const s = await removeGraphLicenseSku({ user_id: userId, email });
+        item.status = s.ok ? 'done' : s.skipped ? 'pending' : 'failed';
+        item.detail = s.detail;
       } else {
         item.status = 'pending';
       }
