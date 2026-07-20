@@ -183,11 +183,15 @@ export function NormalizationHealthPanel({
           <CardHeader>
             <CardTitle className="text-base">Stage 4e DROP checklist</CardTitle>
             <CardDescription>
-              Informational only — Phase 20 never drops{' '}
-              <code className="text-xs">os_store_snapshots</code>.
+              Informational only — never auto-drops{' '}
+              <code className="text-xs">os_store_snapshots</code>. Retention
+              target ≥90 days after ARCHIVE_EXPORT_CONFIRMED_AT.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-1 text-sm">
+            <div className="mb-2 rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+              Retention: {status.snapshot_retention.detail}
+            </div>
             {status.stage4e_checklist.items.map((item) => (
               <div
                 key={item.id}

@@ -1,9 +1,10 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import { NextResponse } from 'next/server';
-import { applyDocuSignWebhook } from '@/lib/data/document-store';
+import { applyDocuSignWebhook, annotateSignedArchive } from '@/lib/data/document-store';
 import { createBroadcastNotification, logActivity } from '@/lib/data/activity';
 import { parseConnectPayload } from '@/lib/docusign/connect';
 import { insertDocuSignEvent } from '@/lib/docusign/events-repo';
+import { archiveSignedDocument } from '@/lib/docusign/signed-docs';
 import { captureException } from '@/lib/observability';
 
 /**
@@ -132,6 +133,25 @@ export async function POST(request: Request) {
       raw_payload: parsed.raw,
     });
 
+    let signedArchive: Awaited<ReturnType<typeof archiveSignedDocument>> | null =
+      null;
+    if (parsed.status === 'completed') {
+      signedArchive = await archiveSignedDocument(doc);
+      if (
+        signedArchive.ok &&
+        signedArchive.library_path &&
+        signedArchive.file_name
+      ) {
+        annotateSignedArchive(doc.doc_id, {
+          library_path: signedArchive.library_path,
+          file_name: signedArchive.file_name,
+          source: signedArchive.source,
+        });
+      } else if (signedArchive && !signedArchive.ok) {
+        console.warn('[docusign] signed archive failed', signedArchive.error);
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       doc_id: doc.doc_id,
@@ -139,6 +159,7 @@ export async function POST(request: Request) {
       library_path: doc.library_path,
       event_persist_ok: eventPersist.ok,
       event_persist_error: eventPersist.ok ? undefined : eventPersist.error,
+      signed_archive: signedArchive,
     });
   } catch (e) {
     // Document not in local store — still record the Connect event

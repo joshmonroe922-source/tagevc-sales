@@ -3,16 +3,20 @@
 import { useActionState, useState, useTransition } from 'react';
 import {
   assignHardwareAction,
+  completeOffboardingAction,
   createHardwareAction,
   createLicenseAction,
+  executeOffboardingAction,
   grantSeatAction,
   returnHardwareAction,
   revokeSeatAction,
+  startOffboardingAction,
   type ItAssetActionResult,
 } from '@/app/(app)/shared-services/it/assets/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import type { OffboardingRun } from '@/lib/shared-services/it-offboarding';
 import type {
   ItAssignmentEvent,
   ItHardwareAsset,
@@ -33,12 +37,14 @@ export function ItAssetsClient({
   hardware,
   licenses,
   events,
+  offboarding,
   canWrite,
   tableError,
 }: {
   hardware: ItHardwareAsset[];
   licenses: ItSoftwareLicense[];
   events: ItAssignmentEvent[];
+  offboarding: OffboardingRun[];
   canWrite: boolean;
   tableError?: string;
 }) {
@@ -294,6 +300,82 @@ export function ItAssetsClient({
               </tbody>
             </table>
           </div>
+        )}
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-base font-semibold">Offboarding</h2>
+        {canWrite && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={pending}
+            onClick={() => {
+              const userId = window.prompt('User UUID to offboard:');
+              if (!userId) return;
+              const auto = window.confirm(
+                'Auto-execute hardware return + license revoke now?',
+              );
+              run(() => startOffboardingAction(userId.trim(), undefined, auto));
+            }}
+          >
+            Start offboarding
+          </Button>
+        )}
+        {offboarding.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No offboarding runs yet.</p>
+        ) : (
+          <ul className="space-y-2 text-sm">
+            {offboarding.map((r) => (
+              <li key={r.run_id} className="rounded-md border border-border/60 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span>
+                    <span className="font-mono text-xs">{r.run_id}</span>
+                    {' · '}
+                    {r.status}
+                    {' · user '}
+                    {r.user_id.slice(0, 8)}…
+                  </span>
+                  {canWrite && r.status !== 'completed' && (
+                    <div className="flex gap-1">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={pending}
+                        onClick={() =>
+                          run(() => executeOffboardingAction(r.run_id))
+                        }
+                      >
+                        Execute
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={pending}
+                        onClick={() =>
+                          run(() => completeOffboardingAction(r.run_id))
+                        }
+                      >
+                        Mark complete
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+                  {r.checklist.map((c) => (
+                    <li key={c.id}>
+                      {c.status === 'done' ? '✓' : c.status === 'failed' ? '✗' : '○'}{' '}
+                      {c.label}
+                      {c.detail ? ` · ${c.detail}` : ''}
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
         )}
       </section>
 

@@ -5,12 +5,15 @@
 import { randomUUID } from 'crypto';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 import {
-  getMarketingAiProvider,
+  generateMarketingContent,
+  getConfiguredAiProviderId,
 } from '@/lib/shared-services/marketing-ai';
 import {
   isMarketingSchedulerEnabled,
   validateScheduleInput,
 } from '@/lib/shared-services/marketing-scheduler';
+import { canStoreOAuthTokens } from '@/lib/shared-services/marketing-crypto';
+import { getOAuthConfig } from '@/lib/shared-services/marketing-oauth';
 import type {
   MarketingCampaign,
   MarketingCampaignStatus,
@@ -369,9 +372,9 @@ export async function enqueueScheduleJob(input: {
 }
 
 /**
- * Runs stub AI provider and materializes draft content + generation job row.
+ * Generate content via configured AI provider (OpenAI or stub) + brand voice.
  */
-export async function runStubGeneration(input: {
+export async function runContentGeneration(input: {
   prompt: string;
   kind: 'blog' | 'social' | 'both';
   entity_id?: string | null;
@@ -389,7 +392,6 @@ export async function runStubGeneration(input: {
     const sb = await createPersistClient();
     const now = new Date().toISOString();
     const job_id = id('MGJ');
-    const provider = getMarketingAiProvider();
     const contentKinds =
       input.kind === 'both'
         ? (['blog', 'social'] as const)
@@ -397,7 +399,7 @@ export async function runStubGeneration(input: {
 
     const contentIds: string[] = [];
     for (const kind of contentKinds) {
-      const gen = await provider.generate({
+      const gen = await generateMarketingContent({
         kind,
         platform: input.platform ?? (kind === 'blog' ? 'web' : 'linkedin'),
         entity_id: input.entity_id,
@@ -454,11 +456,33 @@ export async function runStubGeneration(input: {
   }
 }
 
+/** @deprecated use runContentGeneration */
+export const runStubGeneration = runContentGeneration;
+
+export async function approveContent(
+  contentId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const sb = await createPersistClient();
+    const now = new Date().toISOString();
+    const { error } = await sb
+      .from('os_marketing_content')
+      .update({ status: 'approved', updated_at: now })
+      .eq('content_id', contentId);
+    if (error) return { ok: false, error: error.message };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'approve failed' };
+  }
+}
+
 export function getMarketingFoundationStatus() {
   return {
-    ai_provider: process.env.MARKETING_AI_PROVIDER?.trim() || 'stub',
+    ai_provider: getConfiguredAiProviderId(),
     scheduler_enabled: isMarketingSchedulerEnabled(),
-    oauth_tokens_stored: false,
-    phase: 22,
+    oauth_tokens_stored: canStoreOAuthTokens(),
+    linkedin_oauth: getOAuthConfig('linkedin').configured,
+    x_oauth: getOAuthConfig('x').configured,
+    phase: 23,
   };
 }

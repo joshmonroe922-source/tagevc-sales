@@ -473,10 +473,23 @@ Docs: `docs/OS_PHASE21.md` · `docs/OS_DOCUSIGN.md` · `docs/OS_IT_ASSETS.md`
 
 Docs: `docs/OS_PHASE22.md` · `docs/OS_MARKETING.md`
 
-### Phase 23+ backlog
+### Phase 23 scope (Marketing functional + automation)
 
-- Live marketing AI + OAuth social posting workers
-- DocuSign signed PDF pull · IT offboarding
+| Area | Status |
+|------|--------|
+| Live AI + brand voice + OAuth/stub + schedule worker | Done |
+| DocuSign signed PDF/text archive to 07_Signed | Done |
+| IT offboarding checklists | Done |
+| Snapshot retention visibility | Done |
+| Stage 4e DROP | Deferred |
+| SQL | Apply `phase23_automation.sql` |
+
+Docs: `docs/OS_PHASE23.md`
+
+### Phase 24+ backlog
+
+- Marketing refresh tokens · more platforms · analytics
+- DocuSign Storage · IT HR ticket offboarding
 - Stage 4e DROP when retention confirmed
 - Push · user admin
 
@@ -513,4 +526,4 @@ Set `DEV_BYPASS_AUTH=1` in `.env.local` to preview the shell as Visionary (local
 
 ## Next phases (from Cursor Brief)
 
-Phase 22 lays Multichannel Marketing foundations under Shared Services. Remaining: live AI + social posting, Stage 4e drop, DocuSign PDF pull, IT offboarding, push, user admin.
+Phase 23 advances Marketing (live AI, OAuth, posting worker), DocuSign signed archives, and IT offboarding. Remaining: more platforms/analytics, Stage 4e drop, push, user admin.

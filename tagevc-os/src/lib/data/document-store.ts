@@ -669,6 +669,35 @@ export function applyDocuSignWebhook(args: {
   return doc;
 }
 
+/** Phase 23 — attach signed archive path/notes after PDF pull. */
+export function annotateSignedArchive(
+  docId: string,
+  args: { library_path: string; file_name: string; source: string },
+): DocumentRecord | null {
+  const store = getDocStore();
+  const doc = store.docs.find((d) => d.doc_id === docId);
+  if (!doc) return null;
+  const now = new Date().toISOString();
+  doc.folder = '07_Signed';
+  doc.library_path = args.library_path;
+  doc.notes = [
+    doc.notes,
+    `Signed file archived: ${args.file_name} (${args.source})`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+  doc.updated_at = now;
+  audit(
+    store,
+    doc.doc_id,
+    'signed_archive',
+    'webhook',
+    `path=${args.library_path}; source=${args.source}`,
+  );
+  touchDocs();
+  return doc;
+}
+
 /** Dev helper: advance envelope through happy path. */
 export function simulateDocuSignProgress(docId: string): DocumentRecord {
   const doc = getDocument(docId);

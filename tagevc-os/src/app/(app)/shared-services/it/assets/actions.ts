@@ -182,3 +182,55 @@ export async function revokeSeatAction(
   revalidateAssets();
   return { ok: true, message: `Revoked seat on ${licenseId}` };
 }
+
+export async function startOffboardingAction(
+  userId: string,
+  entityId?: string,
+  autoExecute?: boolean,
+): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('write:it_assets');
+  if (!gate.ok) return gate;
+  const { startOffboarding } = await import(
+    '@/lib/shared-services/it-offboarding'
+  );
+  const res = await startOffboarding({
+    user_id: userId,
+    entity_id: entityId || null,
+    actor_id: gate.profile.id,
+    auto_execute: Boolean(autoExecute),
+  });
+  if (!res.ok) return res;
+  revalidateAssets();
+  return {
+    ok: true,
+    message: `Offboarding ${res.run.run_id} · ${res.run.checklist.length} items · ${res.run.status}`,
+  };
+}
+
+export async function executeOffboardingAction(
+  runId: string,
+): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('write:it_assets');
+  if (!gate.ok) return gate;
+  const { executeOffboarding } = await import(
+    '@/lib/shared-services/it-offboarding'
+  );
+  const res = await executeOffboarding(runId, { actor_id: gate.profile.id });
+  if (!res.ok) return res;
+  revalidateAssets();
+  return { ok: true, message: `Executed ${runId}` };
+}
+
+export async function completeOffboardingAction(
+  runId: string,
+): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('write:it_assets');
+  if (!gate.ok) return gate;
+  const { completeOffboarding } = await import(
+    '@/lib/shared-services/it-offboarding'
+  );
+  const res = await completeOffboarding(runId);
+  if (!res.ok) return res;
+  revalidateAssets();
+  return { ok: true, message: `Completed ${runId}` };
+}

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { MarketingClient } from '@/components/shared-services/marketing-client';
 import { Badge } from '@/components/ui/badge';
+import { listBrandVoices } from '@/lib/shared-services/marketing-brand';
 import {
   getMarketingFoundationStatus,
   listCampaigns,
@@ -12,16 +13,33 @@ import {
 import { roleHasPermission } from '@/lib/types/roles';
 import { getSessionContext, requirePermission } from '@/lib/rbac/session';
 
-export default async function MarketingModulePage() {
+export default async function MarketingModulePage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   await requirePermission('read:marketing');
 
-  const [campaigns, content, accounts, scheduleJobs, generationJobs] =
+  const sp = (await searchParams) ?? {};
+  const oauthFlash =
+    typeof sp.oauth === 'string'
+      ? sp.oauth === 'connected'
+        ? 'OAuth connected'
+        : sp.oauth === 'stub'
+          ? 'Stub-connected (OAuth apps not configured)'
+          : sp.oauth === 'error'
+            ? `OAuth error: ${typeof sp.detail === 'string' ? sp.detail : 'failed'}`
+            : null
+      : null;
+
+  const [campaigns, content, accounts, scheduleJobs, generationJobs, voices] =
     await Promise.all([
       listCampaigns(),
       listContent(),
       listSocialAccounts(),
       listScheduleJobs(),
       listGenerationJobs(),
+      listBrandVoices(),
     ]);
 
   const ctx = await getSessionContext();
@@ -34,7 +52,8 @@ export default async function MarketingModulePage() {
     content.error ||
     accounts.error ||
     scheduleJobs.error ||
-    generationJobs.error;
+    generationJobs.error ||
+    voices.error;
 
   return (
     <div className="space-y-6">
@@ -48,16 +67,18 @@ export default async function MarketingModulePage() {
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">Marketing</Badge>
-          <Badge variant="secondary">Phase 22 foundation</Badge>
+          <Badge variant="secondary">Phase 23</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Multichannel Marketing
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Centralized campaigns and content for Tage VC and subsidiaries.
-          AI generation and social posting automation land in later phases —
-          this surface establishes the data model and pluggable frameworks.
+          Live AI (when configured), brand voice, OAuth/stub social connect, and
+          a schedule worker that posts due jobs for Tage VC and subsidiaries.
         </p>
+        {oauthFlash && (
+          <p className="text-sm text-emerald-700">{oauthFlash}</p>
+        )}
       </div>
 
       <MarketingClient
@@ -66,6 +87,7 @@ export default async function MarketingModulePage() {
         accounts={accounts.rows}
         scheduleJobs={scheduleJobs.rows}
         generationJobs={generationJobs.rows}
+        brandVoices={voices.rows}
         canWrite={canWrite}
         tableError={tableError}
         foundation={getMarketingFoundationStatus()}

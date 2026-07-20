@@ -2,16 +2,21 @@
 
 import { useActionState, useState, useTransition } from 'react';
 import {
+  approveContentAction,
   createCampaignAction,
   createContentAction,
   generateDraftAction,
   registerAccountAction,
+  runScheduleWorkerAction,
   scheduleContentAction,
+  stubConnectAccountAction,
+  upsertBrandVoiceAction,
   type MarketingActionResult,
 } from '@/app/(app)/shared-services/marketing/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import type { BrandVoice } from '@/lib/shared-services/marketing-brand';
 import type {
   MarketingCampaign,
   MarketingContent,
@@ -37,6 +42,7 @@ export function MarketingClient({
   accounts,
   scheduleJobs,
   generationJobs,
+  brandVoices,
   canWrite,
   tableError,
   foundation,
@@ -46,12 +52,15 @@ export function MarketingClient({
   accounts: MarketingSocialAccount[];
   scheduleJobs: MarketingScheduleJob[];
   generationJobs: MarketingGenerationJob[];
+  brandVoices: BrandVoice[];
   canWrite: boolean;
   tableError?: string;
   foundation: {
     ai_provider: string;
     scheduler_enabled: boolean;
     oauth_tokens_stored: boolean;
+    linkedin_oauth?: boolean;
+    x_oauth?: boolean;
     phase: number;
   };
 }) {
@@ -71,20 +80,39 @@ export function MarketingClient({
     generateDraftAction,
     null as MarketingActionResult | null,
   );
+  const [voiceState, voiceAction, voicePending] = useActionState(
+    upsertBrandVoiceAction,
+    null as MarketingActionResult | null,
+  );
   const [flash, setFlash] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
+  function run(fn: () => Promise<MarketingActionResult>) {
+    setFlash(null);
+    setErr(null);
+    startTransition(async () => {
+      const res = await fn();
+      if (res.ok) setFlash(res.message ?? 'Done');
+      else setErr(res.error);
+    });
+  }
+
   return (
     <div className="space-y-8">
       <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-        Foundation Phase {foundation.phase} · AI provider:{' '}
+        Phase {foundation.phase} · AI:{' '}
         <span className="font-medium text-foreground">{foundation.ai_provider}</span>
         {' · '}
         Scheduler:{' '}
-        {foundation.scheduler_enabled ? 'enabled (queue only)' : 'queue-only'}
+        {foundation.scheduler_enabled ? 'enabled' : 'manual/force'}
         {' · '}
-        OAuth tokens: not stored
+        Token vault:{' '}
+        {foundation.oauth_tokens_stored ? 'ready' : 'set MARKETING_TOKEN_SECRET'}
+        {' · '}
+        LinkedIn OAuth: {foundation.linkedin_oauth ? 'yes' : 'stub'}
+        {' · '}
+        X OAuth: {foundation.x_oauth ? 'yes' : 'stub'}
       </div>
 
       {tableError && (
@@ -202,9 +230,10 @@ export function MarketingClient({
           </form>
 
           <form action={genAction} className="space-y-3 rounded-lg border p-4">
-            <h2 className="text-sm font-semibold">AI draft (stub)</h2>
+            <h2 className="text-sm font-semibold">AI draft</h2>
             <p className="text-xs text-muted-foreground">
-              Runs the pluggable stub provider — no external LLM yet.
+              Uses OpenAI when MARKETING_AI_PROVIDER=openai + OPENAI_API_KEY;
+              otherwise stub. Applies brand voice for entity.
             </p>
             <div className="space-y-1">
               <Label htmlFor="gen_prompt">Prompt</Label>
@@ -226,12 +255,85 @@ export function MarketingClient({
               </select>
             </div>
             <Button type="submit" size="sm" disabled={genPending}>
-              Generate draft
+              {genPending ? 'Generating…' : 'Generate draft'}
             </Button>
             <Msg state={genState} />
           </form>
+
+          <form action={voiceAction} className="space-y-3 rounded-lg border p-4">
+            <h2 className="text-sm font-semibold">Brand voice</h2>
+            <div className="space-y-1">
+              <Label htmlFor="bv_name">Name</Label>
+              <Input id="bv_name" name="name" required placeholder="Tage VC default" />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="bv_entity">Entity id (blank = firm)</Label>
+              <Input id="bv_entity" name="entity_id" placeholder="ENT-001" />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="bv_tone">Tone guidelines</Label>
+              <textarea
+                id="bv_tone"
+                name="tone_guidelines"
+                rows={2}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                placeholder="Confident, concise, no hype…"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="bv_aud">Audience</Label>
+              <Input id="bv_aud" name="audience" placeholder="Founders, LPs" />
+            </div>
+            <Button type="submit" size="sm" disabled={voicePending}>
+              {voicePending ? 'Saving…' : 'Save brand voice'}
+            </Button>
+            <Msg state={voiceState} />
+          </form>
         </div>
       )}
+
+      {canWrite && (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={pending}
+            onClick={() => {
+              setFlash(null);
+              setErr(null);
+              startTransition(async () => {
+                const res = await runScheduleWorkerAction();
+                if (res.ok) setFlash(res.message ?? 'Done');
+                else setErr(res.error);
+              });
+            }}
+          >
+            {pending ? 'Running…' : 'Run schedule worker now'}
+          </Button>
+        </div>
+      )}
+
+      <section className="space-y-2">
+        <h2 className="text-base font-semibold">Brand voices</h2>
+        {brandVoices.length === 0 ? (
+          <p className="text-sm text-muted-foreground">None yet — firm default uses generic tone.</p>
+        ) : (
+          <ul className="space-y-1 text-sm">
+            {brandVoices.map((v) => (
+              <li key={v.voice_id} className="border-b border-border/40 py-1.5">
+                <span className="font-medium">{v.name}</span>
+                {v.entity_id ? ` · ${v.entity_id}` : ' · firm-wide'}
+                {v.tone_guidelines ? (
+                  <span className="block text-xs text-muted-foreground">
+                    {v.tone_guidelines.slice(0, 120)}
+                  </span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <section className="space-y-3">
         <h2 className="text-base font-semibold">Campaigns</h2>
@@ -285,32 +387,49 @@ export function MarketingClient({
                     </td>
                     <td className="py-2 pr-2">{c.status}</td>
                     <td className="py-2">
-                      {canWrite && c.status !== 'published' && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={pending}
-                          onClick={() => {
-                            setFlash(null);
-                            setErr(null);
-                            const when = window.prompt(
-                              'Schedule for (ISO datetime):',
-                              new Date(Date.now() + 86400000).toISOString(),
-                            );
-                            if (!when) return;
-                            startTransition(async () => {
-                              const res = await scheduleContentAction(
-                                c.content_id,
-                                when,
-                              );
-                              if (res.ok) setFlash(res.message ?? 'Queued');
-                              else setErr(res.error);
-                            });
-                          }}
-                        >
-                          Schedule
-                        </Button>
+                      {canWrite && (
+                        <div className="flex flex-wrap gap-1">
+                          {(c.status === 'draft' || c.status === 'review') && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={pending}
+                              onClick={() =>
+                                run(() => approveContentAction(c.content_id))
+                              }
+                            >
+                              Approve
+                            </Button>
+                          )}
+                          {c.status !== 'published' && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={pending}
+                              onClick={() => {
+                                setFlash(null);
+                                setErr(null);
+                                const when = window.prompt(
+                                  'Schedule for (ISO datetime):',
+                                  new Date(Date.now() + 60_000).toISOString(),
+                                );
+                                if (!when) return;
+                                startTransition(async () => {
+                                  const res = await scheduleContentAction(
+                                    c.content_id,
+                                    when,
+                                  );
+                                  if (res.ok) setFlash(res.message ?? 'Queued');
+                                  else setErr(res.error);
+                                });
+                              }}
+                            >
+                              Schedule
+                            </Button>
+                          )}
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -333,6 +452,26 @@ export function MarketingClient({
                 {' · '}
                 {a.status}
                 {a.entity_id ? ` · ${a.entity_id}` : ' · firm'}
+                {canWrite && a.status !== 'connected' && (a.platform === 'linkedin' || a.platform === 'x') && (
+                  <a
+                    href={`/api/marketing/oauth/${a.platform}?account_id=${encodeURIComponent(a.account_id)}`}
+                    className="ml-2 text-xs font-medium underline-offset-4 hover:underline"
+                  >
+                    Connect
+                  </a>
+                )}
+                {canWrite && a.status !== 'connected' && (
+                  <button
+                    type="button"
+                    className="ml-2 text-xs font-medium underline-offset-4 hover:underline"
+                    disabled={pending}
+                    onClick={() =>
+                      run(() => stubConnectAccountAction(a.account_id))
+                    }
+                  >
+                    Stub connect
+                  </button>
+                )}
               </li>
             ))}
           </ul>

@@ -12,6 +12,7 @@ import {
   countDocuSignEvents,
   listDocuSignEvents,
 } from '@/lib/docusign/events-repo';
+import { listSignedFiles } from '@/lib/docusign/signed-docs';
 import { DOCUSIGN_ENV_KEYS } from '@/lib/docusign/types';
 import { requirePermission } from '@/lib/rbac/session';
 
@@ -20,9 +21,10 @@ export default async function DocuSignModulePage() {
 
   const mode = getDocuSignMode();
   const configured = isDocuSignConfigured();
-  const [events, count] = await Promise.all([
+  const [events, count, signed] = await Promise.all([
     listDocuSignEvents({ limit: 25 }),
     countDocuSignEvents(),
+    listSignedFiles({ limit: 15 }),
   ]);
 
   const missingEnv = DOCUSIGN_ENV_KEYS.filter((k) => {
@@ -50,9 +52,11 @@ export default async function DocuSignModulePage() {
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">DocuSign</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Send from Documents uses JWT when configured; Connect webhooks land in{' '}
-          <code className="text-xs">os_docusign_events</code> and update document
-          status. Capital sends still require{' '}
+          Send from Documents uses JWT when configured; Connect webhooks update
+          status and archive signed PDFs into{' '}
+          <code className="text-xs">07_Signed</code> /{' '}
+          <code className="text-xs">os_docusign_signed_files</code>. Capital
+          sends still require{' '}
           <code className="text-xs">action:docusign_capital</code>.
         </p>
       </div>
@@ -166,6 +170,47 @@ export default async function DocuSignModulePage() {
                 </tbody>
               </table>
             </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Signed archives (07_Signed)</CardTitle>
+          <CardDescription>
+            Completed envelopes pull combined PDF (live) or text copy (mock)
+            into <code className="text-xs">os_docusign_signed_files</code>
+            {signed.error ? ` · ${signed.error}` : ''}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {signed.rows.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No signed files yet — complete an envelope via Connect or simulate.
+            </p>
+          ) : (
+            <ul className="space-y-1 text-sm">
+              {signed.rows.map((f) => {
+                const row = f as {
+                  id: string;
+                  file_name: string;
+                  library_path: string | null;
+                  source: string;
+                  envelope_id: string;
+                  received_at: string;
+                };
+                return (
+                  <li key={row.id} className="border-b border-border/40 py-1.5">
+                    <span className="font-medium">{row.file_name}</span>
+                    {' · '}
+                    {row.source}
+                    <span className="block text-xs text-muted-foreground">
+                      {row.library_path ?? '—'} · {row.envelope_id.slice(0, 16)}…
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </CardContent>
       </Card>

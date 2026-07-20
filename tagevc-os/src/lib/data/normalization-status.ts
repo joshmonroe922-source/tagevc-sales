@@ -20,6 +20,7 @@ import {
   runEmptySnapshotDrills,
   type EmptySnapshotDrillReport,
 } from '@/lib/data/snapshot-drills';
+import { getSnapshotRetentionStatus } from '@/lib/data/snapshot-retention';
 import {
   buildStage4eChecklist,
   getLastSoakRun,
@@ -76,6 +77,7 @@ export type NormalizationStatus = {
   stage4_ready: boolean;
   last_soak: SoakRunRecord | null;
   stage4e_checklist: Stage4eChecklist;
+  snapshot_retention: ReturnType<typeof getSnapshotRetentionStatus>;
   fetched_at: string;
   cutover_hints: {
     stage:
@@ -276,6 +278,7 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
     stage4_ready: drills.stage4_ready,
     last_soak: lastSoak,
     stage4e_checklist,
+    snapshot_retention: getSnapshotRetentionStatus(),
     fetched_at: new Date().toISOString(),
     row_counts: counts,
     snapshots: snapshotRows,

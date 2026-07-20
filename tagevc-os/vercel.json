@@ -3,6 +3,10 @@
     {
       "path": "/api/admin/soak-health",
       "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/marketing/schedule-worker",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

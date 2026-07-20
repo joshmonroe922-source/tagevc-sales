@@ -3,12 +3,15 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import {
+  approveContent,
   createCampaign,
   createContent,
   enqueueScheduleJob,
   registerSocialAccount,
-  runStubGeneration,
+  runContentGeneration,
 } from '@/lib/shared-services/marketing-repo';
+import { upsertBrandVoice } from '@/lib/shared-services/marketing-brand';
+import { processDueScheduleJobs } from '@/lib/shared-services/marketing-scheduler';
 import { MARKETING_CONTENT_KINDS, MARKETING_PLATFORMS } from '@/lib/shared-services/marketing-types';
 import { guardPermission } from '@/lib/rbac/session';
 
@@ -180,7 +183,7 @@ export async function generateDraftAction(
     return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid' };
   }
 
-  const res = await runStubGeneration({
+  const res = await runContentGeneration({
     prompt: parsed.data.prompt,
     kind: parsed.data.kind,
     entity_id: parsed.data.entity_id || null,
@@ -190,6 +193,94 @@ export async function generateDraftAction(
   revalidateMarketing();
   return {
     ok: true,
-    message: `Stub AI → ${res.content_ids.join(', ')} (${res.job.job_id})`,
+    message: `Generated → ${res.content_ids.join(', ')} (${res.job.job_id})`,
+  };
+}
+
+export async function upsertBrandVoiceAction(
+  _prev: MarketingActionResult | null,
+  formData: FormData,
+): Promise<MarketingActionResult> {
+  const gate = await guardPermission('write:marketing');
+  if (!gate.ok) return gate;
+
+  const parsed = z
+    .object({
+      name: z.string().min(2),
+      entity_id: z.string().optional(),
+      tone_guidelines: z.string().optional(),
+      audience: z.string().optional(),
+      preferred_phrases: z.string().optional(),
+      forbidden_phrases: z.string().optional(),
+    })
+    .safeParse({
+      name: formData.get('name'),
+      entity_id: formData.get('entity_id') || undefined,
+      tone_guidelines: formData.get('tone_guidelines') || undefined,
+      audience: formData.get('audience') || undefined,
+      preferred_phrases: formData.get('preferred_phrases') || undefined,
+      forbidden_phrases: formData.get('forbidden_phrases') || undefined,
+    });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid' };
+  }
+
+  const split = (s?: string) =>
+    (s ?? '')
+      .split(/[,;\n]/)
+      .map((x) => x.trim())
+      .filter(Boolean);
+
+  const res = await upsertBrandVoice({
+    name: parsed.data.name,
+    entity_id: parsed.data.entity_id || null,
+    tone_guidelines: parsed.data.tone_guidelines || null,
+    audience: parsed.data.audience || null,
+    preferred_phrases: split(parsed.data.preferred_phrases),
+    forbidden_phrases: split(parsed.data.forbidden_phrases),
+  });
+  if (!res.ok) return res;
+  revalidateMarketing();
+  return { ok: true, message: `Brand voice ${res.voice.voice_id} saved` };
+}
+
+export async function approveContentAction(
+  contentId: string,
+): Promise<MarketingActionResult> {
+  const gate = await guardPermission('write:marketing');
+  if (!gate.ok) return gate;
+  const res = await approveContent(contentId);
+  if (!res.ok) return res;
+  revalidateMarketing();
+  return { ok: true, message: `Approved ${contentId}` };
+}
+
+export async function stubConnectAccountAction(
+  accountId: string,
+): Promise<MarketingActionResult> {
+  const gate = await guardPermission('write:marketing');
+  if (!gate.ok) return gate;
+  const { stubConnectAccount } = await import(
+    '@/lib/shared-services/marketing-oauth'
+  );
+  const res = await stubConnectAccount(accountId);
+  if (!res.ok) return res;
+  revalidateMarketing();
+  return { ok: true, message: `Stub-connected ${accountId}` };
+}
+
+export async function runScheduleWorkerAction(): Promise<MarketingActionResult> {
+  const gate = await guardPermission('write:marketing');
+  if (!gate.ok) return gate;
+  const result = await processDueScheduleJobs({ force: true, limit: 10 });
+  revalidateMarketing();
+  if (result.skipped) {
+    return { ok: true, message: result.reason ?? 'Skipped' };
+  }
+  const ok = result.processed.filter((p) => p.ok).length;
+  const fail = result.processed.filter((p) => !p.ok).length;
+  return {
+    ok: true,
+    message: `Worker: ${ok} posted, ${fail} failed (${result.processed.length} due)`,
   };
 }
