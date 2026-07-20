@@ -486,8 +486,7 @@ export async function submitContentForReview(
 
     const hours =
       opts?.slaHours ??
-      Number(process.env.MARKETING_APPROVAL_SLA_HOURS?.trim() || 48) ||
-      48;
+      (Number(process.env.MARKETING_APPROVAL_SLA_HOURS?.trim() || 48) || 48);
     const due = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
 
     let ticketId: string | null = (row.approval_ticket_id as string) ?? null;
@@ -580,8 +579,14 @@ export function getMarketingFoundationStatus() {
     linkedin_marketing_api:
       process.env.LINKEDIN_MARKETING_API === '1' ||
       process.env.LINKEDIN_MARKETING_API === 'true',
+    youtube_analytics:
+      process.env.YOUTUBE_ANALYTICS === '1' ||
+      process.env.YOUTUBE_ANALYTICS === 'true',
+    tiktok_analytics:
+      process.env.TIKTOK_ANALYTICS === '1' ||
+      process.env.TIKTOK_ANALYTICS === 'true',
     approval_sla_hours:
       Number(process.env.MARKETING_APPROVAL_SLA_HOURS?.trim() || 48) || 48,
-    phase: 27,
+    phase: 28,
   };
 }

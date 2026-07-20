@@ -167,6 +167,25 @@ export async function POST(request: Request) {
       } else if (signedArchive && !signedArchive.ok) {
         console.warn('[docusign] signed archive failed', signedArchive.error);
       }
+
+      // Phase 28: email CoC when archived (best-effort)
+      if (signedArchive?.coc?.ok || signedArchive?.ok) {
+        try {
+          const { emailCertificateOfCompletion } = await import(
+            '@/lib/docusign/coc-email'
+          );
+          const cocMail = await emailCertificateOfCompletion({
+            envelope_id: parsed.envelope_id,
+            doc_id: doc.doc_id,
+            include_ops: true,
+          });
+          if (!cocMail.ok && !cocMail.skipped) {
+            console.warn('[docusign] CoC email', cocMail.detail);
+          }
+        } catch (e) {
+          console.warn('[docusign] CoC email failed', e);
+        }
+      }
     }
 
     return NextResponse.json({

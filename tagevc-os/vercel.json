@@ -17,12 +17,20 @@
       "schedule": "0 6 * * *"
     },
     {
+      "path": "/api/marketing/approval-sla-digest",
+      "schedule": "0 14 * * *"
+    },
+    {
       "path": "/api/it/offboarding-status-scan",
       "schedule": "0 7 * * *"
     },
     {
       "path": "/api/it/onboarding-status-scan",
       "schedule": "30 7 * * *"
+    },
+    {
+      "path": "/api/it/license-renewal-scan",
+      "schedule": "0 8 * * 1"
     },
     {
       "path": "/api/docusign/reminder-worker",

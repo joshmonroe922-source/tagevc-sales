@@ -1,4 +1,4 @@
-# Multichannel Marketing System — Architecture (Phases 22–27)
+# Multichannel Marketing System — Architecture (Phases 22–28)
 
 **Status:** Functional · hub under Shared Services · Marketing.  
 **Live at:** `/shared-services/marketing`
@@ -21,45 +21,27 @@
 | Publishers | `marketing-social.ts` |
 | Scheduler | `marketing-scheduler.ts` |
 | Analytics / engagement | `marketing-analytics.ts`, `marketing-engagement.ts` |
-| SQL | `phase22`–`phase27` marketing SQL |
-
-## Data model
-
-```
-os_marketing_campaigns
-os_marketing_content                 — + external_post_id · approval_due_at · approval_ticket_id
-os_marketing_social_accounts
-os_marketing_oauth_tokens
-os_marketing_brand_voices
-os_marketing_schedule_jobs
-os_marketing_generation_jobs
-os_marketing_analytics_events
-```
+| SLA digests | `marketing-sla-digest.ts` · `/api/marketing/approval-sla-digest` |
+| SQL | `phase22`–`phase28` marketing SQL |
 
 ## Platforms
 
 | Platform | OAuth | Publish | Token refresh | Live engagement |
 |----------|-------|---------|---------------|-----------------|
-| LinkedIn | Yes | Yes | Yes | Yes (+ Marketing API impressions opt-in) |
+| LinkedIn | Yes | Yes | Yes | Yes (+ Marketing API impressions) |
 | X | Yes | Yes | Yes | Yes |
 | Facebook / Instagram (Meta) | Yes | Basic | Yes | Yes |
-| YouTube | Yes (Google) | Stub/limited | Via Google refresh | No |
+| YouTube | Yes (Google) | Stub/limited | Via Google refresh | Yes (Data API / Analytics opt-in) |
+| TikTok | Stub | Stub | — | Opt-in API (`TIKTOK_ANALYTICS=1`) |
 
-## Permissions
+## Phase 28 workflows
 
-| Permission | Roles (examples) |
-|------------|------------------|
-| `read:marketing` | visionary, partner, coo, service_lead, sub_lead, admin |
-| `write:marketing` | visionary, coo, service_lead, admin |
+1. **SLA digest** cron + hub button escalates overdue `review` content.  
+2. **YouTube / TikTok** engagement pulls when posts have `external_id` and tokens.  
+3. Set `MARKETING_SLA_DIGEST_TO` + `RESEND_API_KEY` for email digests.
 
-## Phase 27 workflows
+## Phase 29+
 
-1. **Submit for review** sets `approval_due_at` from `MARKETING_APPROVAL_SLA_HOURS` (default 48) and may open an SS ticket.  
-2. **Approve** resolves linked ticket when present.  
-3. **Impressions:** set `LINKEDIN_MARKETING_API=1` + `LINKEDIN_ORG_URN` for Marketing API; else approximate from organic stats.
-
-## Phase 28+
-
-1. YouTube / TikTok analytics  
-2. SLA escalation digests  
-3. Paid media / ads (out of current scope)  
+1. Paid media / ads stubs  
+2. TikTok OAuth connect UX  
+3. SLA assignee routing  

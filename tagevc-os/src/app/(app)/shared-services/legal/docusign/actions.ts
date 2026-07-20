@@ -116,13 +116,33 @@ export async function sendFromTemplateAction(input: {
   roleName?: string;
   scheduleReminders?: boolean;
 }): Promise<DocuSignActionResult> {
+  return sendFromTemplateRolesAction({
+    templateId: input.templateId,
+    emailSubject: input.emailSubject,
+    roles: [
+      {
+        email: input.signerEmail,
+        name: input.signerName,
+        roleName: input.roleName || 'Signer',
+      },
+    ],
+    scheduleReminders: input.scheduleReminders,
+  });
+}
+
+export async function sendFromTemplateRolesAction(input: {
+  templateId: string;
+  emailSubject: string;
+  roles: Array<{ email: string; name?: string; roleName: string }>;
+  scheduleReminders?: boolean;
+}): Promise<DocuSignActionResult> {
   const gate = await guardPermission('write:documents');
   if (!gate.ok) return gate;
 
   const templateId = input.templateId.trim();
-  const email = input.signerEmail.trim();
-  if (!templateId || !email) {
-    return { ok: false, error: 'templateId and signer email required' };
+  const signers = (input.roles ?? []).filter((r) => r.email?.trim());
+  if (!templateId || signers.length === 0) {
+    return { ok: false, error: 'templateId and at least one role email required' };
   }
 
   try {
@@ -132,20 +152,22 @@ export async function sendFromTemplateAction(input: {
     const created = await createEnvelopeFromTemplate({
       templateId,
       emailSubject: input.emailSubject || 'Please sign',
-      signers: [
-        {
-          email,
-          name: input.signerName || email,
-          roleName: input.roleName || 'Signer',
-        },
-      ],
+      signers: signers.map((s) => ({
+        email: s.email.trim(),
+        name: (s.name || s.email).trim(),
+        roleName: s.roleName?.trim() || 'Signer',
+      })),
     });
 
     await insertDocuSignEvent({
       envelope_id: created.envelopeId,
       status: created.status,
       event_type: 'envelope-sent-from-template',
-      raw_payload: { templateId, source: 'hub' },
+      raw_payload: {
+        templateId,
+        source: 'hub',
+        roles: signers.map((s) => s.roleName),
+      },
     });
 
     if (input.scheduleReminders !== false) {
@@ -158,7 +180,7 @@ export async function sendFromTemplateAction(input: {
     void logActivity({
       module: 'documents',
       action: 'docusign_template_sent',
-      title: `Template send: ${templateId.slice(0, 12)}…`,
+      title: `Template send: ${templateId.slice(0, 12)}… (${signers.length} roles)`,
       ref_type: 'document',
       ref_id: created.envelopeId,
     });
@@ -166,7 +188,7 @@ export async function sendFromTemplateAction(input: {
     revalidateDocuSign();
     return {
       ok: true,
-      message: `Sent ${created.envelopeId}${
+      message: `Sent ${created.envelopeId} · ${signers.length} role(s)${
         input.scheduleReminders !== false ? ' · reminders queued' : ''
       }`,
     };
@@ -176,6 +198,25 @@ export async function sendFromTemplateAction(input: {
       error: e instanceof Error ? e.message : 'template send failed',
     };
   }
+}
+
+export async function emailCocAction(
+  envelopeId: string,
+): Promise<DocuSignActionResult> {
+  const gate = await guardPermission('write:documents');
+  if (!gate.ok) return gate;
+  const id = envelopeId.trim();
+  if (!id) return { ok: false, error: 'envelope_id required' };
+  const { emailCertificateOfCompletion } = await import(
+    '@/lib/docusign/coc-email'
+  );
+  const res = await emailCertificateOfCompletion({
+    envelope_id: id,
+    include_ops: true,
+  });
+  if (!res.ok && !res.skipped) return { ok: false, error: res.detail };
+  revalidateDocuSign();
+  return { ok: true, message: res.detail };
 }
 
 export async function scheduleRemindersAction(

@@ -366,3 +366,18 @@ export async function scanActiveOnboardingAction(): Promise<ItAssetActionResult>
     message: `Active scan: ${res.started} started, ${res.skipped} skipped (${res.scanned} active in lookback)`,
   };
 }
+
+export async function scanLicenseRenewalsAction(): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('write:it_assets');
+  if (!gate.ok) return gate;
+  const { scanLicenseRenewals } = await import(
+    '@/lib/shared-services/it-license-renewals'
+  );
+  const res = await scanLicenseRenewals({ within_days: 30 });
+  if (res.error) return { ok: false, error: res.error };
+  revalidateAssets();
+  return {
+    ok: true,
+    message: `Renewals: ${res.due} due within 30d (${res.scanned} scanned)`,
+  };
+}

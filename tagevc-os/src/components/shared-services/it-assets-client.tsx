@@ -18,6 +18,7 @@ import {
   completeOnboardingAction,
   startOnboardingFromTicketAction,
   scanActiveOnboardingAction,
+  scanLicenseRenewalsAction,
   type ItAssetActionResult,
 } from '@/app/(app)/shared-services/it/assets/actions';
 import { Button } from '@/components/ui/button';
@@ -25,6 +26,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { OffboardingRun } from '@/lib/shared-services/it-offboarding';
 import type { OnboardingRun } from '@/lib/shared-services/it-onboarding';
+import { upcomingLicenseRenewals } from '@/lib/shared-services/it-license-renewals';
 import type {
   ItAssignmentEvent,
   ItHardwareAsset,
@@ -96,12 +98,28 @@ export function ItAssetsClient({
     });
   }
 
+  const renewals = upcomingLicenseRenewals(licenses, 30);
+
   return (
     <div className="space-y-8">
       {tableError && (
         <p className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
           Tables unavailable — apply phase20–26 IT SQL. {tableError}
         </p>
+      )}
+      {renewals.length > 0 && (
+        <div className="rounded-md border border-amber-600/40 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+          <p className="font-medium">
+            {renewals.length} license renewal(s) within 30 days
+          </p>
+          <ul className="mt-1 space-y-0.5 text-xs">
+            {renewals.slice(0, 5).map((l) => (
+              <li key={l.license_id}>
+                {l.product_name} · {l.renewal_date?.slice(0, 10)}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
       {(msg || err) && (
         <p className={`text-sm ${err ? 'text-destructive' : 'text-emerald-700'}`}>
@@ -257,6 +275,17 @@ export function ItAssetsClient({
 
       <section className="space-y-3">
         <h2 className="text-base font-semibold">Software licenses</h2>
+        {canWrite && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={pending}
+            onClick={() => run(() => scanLicenseRenewalsAction())}
+          >
+            Scan renewals (30d)
+          </Button>
+        )}
         {licenses.length === 0 ? (
           <p className="text-sm text-muted-foreground">No licenses yet.</p>
         ) : (

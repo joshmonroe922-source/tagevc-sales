@@ -534,10 +534,22 @@ Docs: `docs/OS_PHASE26.md`
 
 Docs: `docs/OS_PHASE27.md`
 
-### Phase 28+ backlog
+### Phase 28 scope (YT/TT analytics · CoC email · role map · renewals)
 
-- YouTube/TikTok analytics · CoC email · Graph license SKUs
-- Stage 4e offline DROP (after approval)
+| Area | Status |
+|------|--------|
+| YouTube/TikTok analytics + approval SLA digests | Done |
+| DocuSign CoC email + template role-mapping UI | Done |
+| Graph groups/SKUs + license renewal alerts | Done |
+| Stage 4e soft-rename visibility (no DROP) | Retained |
+| SQL | Apply `phase28_analytics_coc_renewals.sql` |
+
+Docs: `docs/OS_PHASE28.md`
+
+### Phase 29+ backlog
+
+- Paid media · TikTok OAuth UX · Graph offboard remove
+- Stage 4e soft rename then offline DROP (after approval)
 - Push · user admin
 
 
@@ -573,4 +585,4 @@ Set `DEV_BYPASS_AUTH=1` in `.env.local` to preview the shell as Visionary (local
 
 ## Next phases (from Cursor Brief)
 
-Phase 27 advances marketing approval SLA, LinkedIn Marketing impressions, DocuSign template send + reminder jobs, and Graph Intune onboarding. Remaining: Stage 4e offline DROP (after approval), push, user admin.
+Phase 28 advances YouTube/TikTok analytics, approval SLA digests, DocuSign CoC email and template role mapping, Graph groups/SKUs, and renewal alerts. Remaining: Stage 4e soft rename / offline DROP (after approval), push, user admin.

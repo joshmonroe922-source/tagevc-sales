@@ -127,13 +127,20 @@ export function buildStage4eChecklist(input: {
       detail:
         snapCount == null
           ? 'Row count unavailable'
-          : `rows=${snapCount} — Phase 26 does not drop this table from the app`,
+          : `rows=${snapCount} — Phase 28 does not drop this table from the app. Prefer soft rename via phase28_stage4e_drop.sql`,
+    },
+    {
+      id: 'soft_rename_path',
+      label: 'Soft-rename path documented (ops)',
+      ok: true,
+      detail:
+        'Offline: rename os_store_snapshots → os_store_snapshots_retired_YYYYMMDD before DROP',
     },
   ];
 
   // Eligibility only — app never executes DROP even when ready=true
   const ready = items
-    .filter((i) => i.id !== 'table_retained')
+    .filter((i) => i.id !== 'table_retained' && i.id !== 'soft_rename_path')
     .every((i) => i.ok);
 
   return { ready, items, drop_gate: dropGate };

@@ -296,7 +296,7 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
             : stage === 'read_cutover'
               ? 'Enable WRITE_CUTOVER_MATURE=1 when handoffs/audits tables are ready'
               : stage === 'sql_only_hydrate'
-                ? 'Stage 4b active — review Stage 4e checklist; DROP still deferred (Phase 27)'
+                ? 'Stage 4b active — review Stage 4e checklist; prefer soft rename before DROP (Phase 28)'
                 : stage === 'stage4_ready'
                   ? 'Drills passed — SQL-only hydrate follows write cutover automatically; see OS_SNAPSHOT_STAGE4.md'
                   : fkOrphanTotal > 0

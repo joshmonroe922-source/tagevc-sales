@@ -273,3 +273,148 @@ export async function invokeMdmOffboardHook(input: {
 }) {
   return invokeMdmLifecycleHook({ ...input, action: 'offboard' });
 }
+
+/**
+ * Add user to Entra groups listed in MS_GRAPH_ONBOARD_GROUP_IDS (comma-separated).
+ * Opt-in: MS_GRAPH_ASSIGN_GROUPS=1
+ */
+export async function assignGraphGroupMembership(input: {
+  user_id: string;
+  email?: string | null;
+}): Promise<MdmResult> {
+  const enabled =
+    process.env.MS_GRAPH_ASSIGN_GROUPS === '1' ||
+    process.env.MS_GRAPH_ASSIGN_GROUPS === 'true';
+  if (!enabled) {
+    return {
+      ok: false,
+      skipped: true,
+      detail: 'MS_GRAPH_ASSIGN_GROUPS not enabled',
+    };
+  }
+  if (!graphConfigured()) {
+    return { ok: false, skipped: true, detail: 'MS_GRAPH_* not set' };
+  }
+  const groupIds = (process.env.MS_GRAPH_ONBOARD_GROUP_IDS || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (groupIds.length === 0) {
+    return {
+      ok: false,
+      skipped: true,
+      detail: 'MS_GRAPH_ONBOARD_GROUP_IDS empty',
+    };
+  }
+
+  const tok = await getMsGraphToken();
+  if (!tok.ok) return { ok: false, detail: tok.detail };
+  const graphUserId = await resolveGraphUserId(tok.token, input);
+  if (!graphUserId) {
+    return {
+      ok: false,
+      detail: `Graph user not found for ${input.email || input.user_id}`,
+    };
+  }
+
+  const headers = {
+    Authorization: `Bearer ${tok.token}`,
+    'Content-Type': 'application/json',
+  };
+  const results: string[] = [];
+  for (const gid of groupIds.slice(0, 10)) {
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/groups/${encodeURIComponent(gid)}/members/$ref`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          '@odata.id': `https://graph.microsoft.com/v1.0/directoryObjects/${graphUserId}`,
+        }),
+      },
+    );
+    if (res.ok || res.status === 400) {
+      // 400 often means already a member
+      results.push(res.ok ? `added ${gid.slice(0, 8)}…` : `exists ${gid.slice(0, 8)}…`);
+    } else {
+      const text = await res.text().catch(() => '');
+      results.push(`fail ${gid.slice(0, 8)}…:${res.status} ${text.slice(0, 40)}`);
+    }
+  }
+  const ok = results.every((r) => r.startsWith('added') || r.startsWith('exists'));
+  return { ok, detail: `Graph groups · ${results.join('; ')}` };
+}
+
+/**
+ * Assign Microsoft 365 license SKUs listed in MS_GRAPH_ONBOARD_SKU_IDS.
+ * Opt-in: MS_GRAPH_ASSIGN_SKUS=1
+ */
+export async function assignGraphLicenseSku(input: {
+  user_id: string;
+  email?: string | null;
+}): Promise<MdmResult> {
+  const enabled =
+    process.env.MS_GRAPH_ASSIGN_SKUS === '1' ||
+    process.env.MS_GRAPH_ASSIGN_SKUS === 'true';
+  if (!enabled) {
+    return {
+      ok: false,
+      skipped: true,
+      detail: 'MS_GRAPH_ASSIGN_SKUS not enabled',
+    };
+  }
+  if (!graphConfigured()) {
+    return { ok: false, skipped: true, detail: 'MS_GRAPH_* not set' };
+  }
+  const skuIds = (process.env.MS_GRAPH_ONBOARD_SKU_IDS || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (skuIds.length === 0) {
+    return {
+      ok: false,
+      skipped: true,
+      detail: 'MS_GRAPH_ONBOARD_SKU_IDS empty',
+    };
+  }
+
+  const tok = await getMsGraphToken();
+  if (!tok.ok) return { ok: false, detail: tok.detail };
+  const graphUserId = await resolveGraphUserId(tok.token, input);
+  if (!graphUserId) {
+    return {
+      ok: false,
+      detail: `Graph user not found for ${input.email || input.user_id}`,
+    };
+  }
+
+  const headers = {
+    Authorization: `Bearer ${tok.token}`,
+    'Content-Type': 'application/json',
+  };
+  const res = await fetch(
+    `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(graphUserId)}/assignLicense`,
+    {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        addLicenses: skuIds.map((skuId) => ({
+          skuId,
+          disabledPlans: [],
+        })),
+        removeLicenses: [],
+      }),
+    },
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    return {
+      ok: false,
+      detail: `Graph SKU HTTP ${res.status}: ${text.slice(0, 120)}`,
+    };
+  }
+  return {
+    ok: true,
+    detail: `Graph SKUs assigned (${skuIds.length})`,
+  };
+}

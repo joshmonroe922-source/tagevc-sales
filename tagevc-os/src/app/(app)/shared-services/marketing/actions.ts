@@ -355,3 +355,18 @@ export async function pullEngagementAction(): Promise<MarketingActionResult> {
     message: `Engagement pull: ${pulled} updated, ${failed} failed`,
   };
 }
+
+export async function runApprovalSlaDigestAction(): Promise<MarketingActionResult> {
+  const gate = await guardPermission('write:marketing');
+  if (!gate.ok) return gate;
+  const { runApprovalSlaEscalation } = await import(
+    '@/lib/shared-services/marketing-sla-digest'
+  );
+  const res = await runApprovalSlaEscalation({ email: true });
+  if (res.error) return { ok: false, error: res.error };
+  revalidateMarketing();
+  return {
+    ok: true,
+    message: `SLA digest: ${res.overdue} overdue · notified ${res.notified} · emailed ${res.emailed}`,
+  };
+}

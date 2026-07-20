@@ -1,5 +1,5 @@
 /**
- * Live engagement pull from LinkedIn / Meta / X (Phases 25–26).
+ * Live engagement pull from LinkedIn / Meta / X / YouTube / TikTok (Phases 25–28).
  * Uses schedule job result.external_id + OAuth tokens.
  */
 
@@ -244,6 +244,173 @@ async function fetchMetaEngagement(
   }
 }
 
+async function fetchYouTubeEngagement(
+  accessToken: string,
+  videoId: string,
+): Promise<{
+  impressions: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  clicks: number;
+  impression_source?: string;
+} | { error: string }> {
+  try {
+    // Prefer YouTube Analytics API when channel configured; else public statistics.
+    const channelId = process.env.YOUTUBE_CHANNEL_ID?.trim();
+    const useAnalytics =
+      process.env.YOUTUBE_ANALYTICS === '1' ||
+      process.env.YOUTUBE_ANALYTICS === 'true';
+
+    if (useAnalytics && channelId) {
+      const end = new Date();
+      const start = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000);
+      const startStr = start.toISOString().slice(0, 10);
+      const endStr = end.toISOString().slice(0, 10);
+      const u = new URL(
+        'https://youtubeanalytics.googleapis.com/v2/reports',
+      );
+      u.searchParams.set('ids', `channel==${channelId}`);
+      u.searchParams.set('startDate', startStr);
+      u.searchParams.set('endDate', endStr);
+      u.searchParams.set('metrics', 'views,likes,comments,shares');
+      u.searchParams.set('filters', `video==${videoId}`);
+      const res = await fetch(u.toString(), {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        rows?: number[][];
+        error?: { message?: string };
+      };
+      if (res.ok && json.rows?.[0]) {
+        const [views, likes, comments, shares] = json.rows[0];
+        return {
+          impressions: Number(views ?? 0),
+          likes: Number(likes ?? 0),
+          comments: Number(comments ?? 0),
+          shares: Number(shares ?? 0),
+          clicks: 0,
+          impression_source: 'youtube_analytics',
+        };
+      }
+      // Fall through to Data API on analytics failure
+      if (!res.ok && json.error?.message) {
+        // continue to public stats
+      }
+    }
+
+    const res = await fetch(
+      `https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${encodeURIComponent(videoId)}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    const json = (await res.json().catch(() => ({}))) as {
+      items?: Array<{
+        statistics?: {
+          viewCount?: string;
+          likeCount?: string;
+          commentCount?: string;
+        };
+      }>;
+      error?: { message?: string };
+    };
+    if (!res.ok || json.error) {
+      return {
+        error: json.error?.message || `YouTube HTTP ${res.status}`,
+      };
+    }
+    const stats = json.items?.[0]?.statistics;
+    if (!stats) {
+      return { error: 'YouTube video not found or no statistics' };
+    }
+    return {
+      impressions: Number(stats.viewCount ?? 0),
+      likes: Number(stats.likeCount ?? 0),
+      comments: Number(stats.commentCount ?? 0),
+      shares: 0,
+      clicks: 0,
+      impression_source: 'youtube_data_api',
+    };
+  } catch (e) {
+    return {
+      error: e instanceof Error ? e.message : 'YouTube engagement failed',
+    };
+  }
+}
+
+async function fetchTikTokEngagement(
+  accessToken: string,
+  videoId: string,
+): Promise<{
+  impressions: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  clicks: number;
+  impression_source?: string;
+} | { error: string }> {
+  const enabled =
+    process.env.TIKTOK_ANALYTICS === '1' ||
+    process.env.TIKTOK_ANALYTICS === 'true';
+  if (!enabled) {
+    return {
+      error: 'Set TIKTOK_ANALYTICS=1 to enable TikTok engagement pull',
+    };
+  }
+  try {
+    // TikTok Content Posting / Display API video query (best-effort)
+    const res = await fetch('https://open.tiktokapis.com/v2/video/query/', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        filters: { video_ids: [videoId] },
+        fields: [
+          'id',
+          'like_count',
+          'comment_count',
+          'share_count',
+          'view_count',
+        ],
+      }),
+    });
+    const json = (await res.json().catch(() => ({}))) as {
+      data?: {
+        videos?: Array<{
+          like_count?: number;
+          comment_count?: number;
+          share_count?: number;
+          view_count?: number;
+        }>;
+      };
+      error?: { message?: string; code?: string };
+    };
+    if (!res.ok || json.error?.code) {
+      return {
+        error:
+          json.error?.message ||
+          json.error?.code ||
+          `TikTok HTTP ${res.status}`,
+      };
+    }
+    const v = json.data?.videos?.[0];
+    if (!v) return { error: 'TikTok video not found' };
+    return {
+      impressions: Number(v.view_count ?? 0),
+      likes: Number(v.like_count ?? 0),
+      comments: Number(v.comment_count ?? 0),
+      shares: Number(v.share_count ?? 0),
+      clicks: 0,
+      impression_source: 'tiktok_api',
+    };
+  } catch (e) {
+    return {
+      error: e instanceof Error ? e.message : 'TikTok engagement failed',
+    };
+  }
+}
+
 function platformFromPublisher(
   publisher: string | null,
   accountPlatform?: string | null,
@@ -252,8 +419,19 @@ function platformFromPublisher(
   if (publisher === 'linkedin') return 'linkedin';
   if (publisher === 'meta') return 'facebook';
   if (publisher === 'x') return 'x';
+  if (publisher === 'youtube') return 'youtube';
+  if (publisher === 'tiktok') return 'tiktok';
   return publisher || 'unknown';
 }
+
+const LIVE_ENGAGEMENT_PLATFORMS = new Set([
+  'linkedin',
+  'facebook',
+  'instagram',
+  'x',
+  'youtube',
+  'tiktok',
+]);
 
 /**
  * Pull engagement for recently succeeded schedule jobs with external_id.
@@ -306,18 +484,14 @@ export async function pullLiveEngagement(opts?: {
       platform = platformFromPublisher(job.publisher, accountPlatform);
     }
 
-    if (
-      platform !== 'linkedin' &&
-      platform !== 'facebook' &&
-      platform !== 'instagram' &&
-      platform !== 'x'
-    ) {
+    if (!LIVE_ENGAGEMENT_PLATFORMS.has(platform)) {
       results.push({
         job_id: job.job_id,
         platform,
         ok: true,
         skipped: true,
-        reason: 'Platform not supported for live pull (LinkedIn/Meta/X only)',
+        reason:
+          'Platform not supported for live pull (LinkedIn/Meta/X/YouTube/TikTok)',
       });
       continue;
     }
@@ -350,7 +524,11 @@ export async function pullLiveEngagement(opts?: {
         ? await fetchLinkedInEngagement(fresh.token, externalId)
         : platform === 'x'
           ? await fetchXEngagement(fresh.token, externalId)
-          : await fetchMetaEngagement(fresh.token, externalId);
+          : platform === 'youtube'
+            ? await fetchYouTubeEngagement(fresh.token, externalId)
+            : platform === 'tiktok'
+              ? await fetchTikTokEngagement(fresh.token, externalId)
+              : await fetchMetaEngagement(fresh.token, externalId);
 
     if ('error' in metrics) {
       results.push({

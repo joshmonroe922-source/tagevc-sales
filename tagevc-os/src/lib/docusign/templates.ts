@@ -1,5 +1,5 @@
 /**
- * DocuSign template cache for hub visibility (Phase 26).
+ * DocuSign template cache for hub visibility (Phases 26–28).
  */
 
 import { createPersistClient } from '@/lib/supabase/persist-client';
@@ -12,7 +12,33 @@ export type CachedDocuSignTemplate = {
   shared: boolean;
   last_modified: string | null;
   synced_at: string;
+  /** Role names extracted from cached recipients (Phase 28). */
+  roles: string[];
 };
+
+export function extractTemplateRoles(raw: unknown): string[] {
+  if (!raw || typeof raw !== 'object') return [];
+  const r = raw as {
+    recipients?: {
+      signers?: Array<{ roleName?: string; name?: string }>;
+      agents?: Array<{ roleName?: string }>;
+      carbonCopies?: Array<{ roleName?: string }>;
+      editors?: Array<{ roleName?: string }>;
+    };
+    roles?: Array<{ name?: string; roleName?: string }>;
+  };
+  const names = new Set<string>();
+  const bump = (role?: string | null) => {
+    const t = role?.trim();
+    if (t) names.add(t);
+  };
+  for (const s of r.recipients?.signers ?? []) bump(s.roleName);
+  for (const s of r.recipients?.agents ?? []) bump(s.roleName);
+  for (const s of r.recipients?.carbonCopies ?? []) bump(s.roleName);
+  for (const s of r.recipients?.editors ?? []) bump(s.roleName);
+  for (const s of r.roles ?? []) bump(s.roleName || s.name);
+  return [...names];
+}
 
 export async function listCachedTemplates(limit = 40): Promise<{
   rows: CachedDocuSignTemplate[];
@@ -23,26 +49,58 @@ export async function listCachedTemplates(limit = 40): Promise<{
     const { data, error } = await sb
       .from('os_docusign_templates')
       .select(
-        'template_id, name, description, shared, last_modified, synced_at',
+        'template_id, name, description, shared, last_modified, synced_at, raw',
       )
       .order('name', { ascending: true })
       .limit(limit);
     if (error) return { rows: [], error: error.message };
     return {
-      rows: (data ?? []).map((r) => ({
-        template_id: String(r.template_id),
-        name: String(r.name),
-        description: (r.description as string) ?? null,
-        shared: Boolean(r.shared),
-        last_modified: (r.last_modified as string) ?? null,
-        synced_at: String(r.synced_at),
-      })),
+      rows: (data ?? []).map((row) => {
+        const roles = extractTemplateRoles(row.raw);
+        return {
+          template_id: String(row.template_id),
+          name: String(row.name),
+          description: (row.description as string) ?? null,
+          shared: Boolean(row.shared),
+          last_modified: (row.last_modified as string) ?? null,
+          synced_at: String(row.synced_at),
+          roles: roles.length > 0 ? roles : ['Signer'],
+        };
+      }),
     };
   } catch (e) {
     return {
       rows: [],
       error: e instanceof Error ? e.message : 'list failed',
     };
+  }
+}
+
+export async function getCachedTemplate(
+  templateId: string,
+): Promise<CachedDocuSignTemplate | null> {
+  try {
+    const sb = await createPersistClient();
+    const { data, error } = await sb
+      .from('os_docusign_templates')
+      .select(
+        'template_id, name, description, shared, last_modified, synced_at, raw',
+      )
+      .eq('template_id', templateId)
+      .maybeSingle();
+    if (error || !data) return null;
+    const roles = extractTemplateRoles(data.raw);
+    return {
+      template_id: String(data.template_id),
+      name: String(data.name),
+      description: (data.description as string) ?? null,
+      shared: Boolean(data.shared),
+      last_modified: (data.last_modified as string) ?? null,
+      synced_at: String(data.synced_at),
+      roles: roles.length > 0 ? roles : ['Signer'],
+    };
+  } catch {
+    return null;
   }
 }
 

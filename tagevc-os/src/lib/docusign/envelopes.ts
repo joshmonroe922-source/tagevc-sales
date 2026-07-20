@@ -318,6 +318,8 @@ export async function listDocuSignTemplatesFromApi(opts?: {
         description?: string;
         shared?: boolean | string;
         lastModified?: string;
+        recipients?: unknown;
+        roles?: unknown;
       }>;
       message?: string;
     };

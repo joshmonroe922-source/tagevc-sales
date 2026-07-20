@@ -10,6 +10,7 @@ import {
   recordEngagementAction,
   refreshTokensAction,
   registerAccountAction,
+  runApprovalSlaDigestAction,
   runScheduleWorkerAction,
   scheduleContentAction,
   stubConnectAccountAction,
@@ -83,6 +84,8 @@ export function MarketingClient({
     instagram_oauth?: boolean;
     youtube_oauth?: boolean;
     linkedin_marketing_api?: boolean;
+    youtube_analytics?: boolean;
+    tiktok_analytics?: boolean;
     approval_sla_hours?: number;
     phase: number;
   };
@@ -145,6 +148,8 @@ export function MarketingClient({
           ? 'oauth'
           : 'stub'}{' '}
         · YT:{foundation.youtube_oauth ? 'oauth' : 'stub'}
+        {foundation.youtube_analytics ? '+an' : ''} · TT:
+        {foundation.tiktok_analytics ? 'on' : 'off'}
         {foundation.approval_sla_hours
           ? ` · SLA ${foundation.approval_sla_hours}h`
           : ''}
@@ -492,6 +497,15 @@ export function MarketingClient({
             onClick={() => run(() => pullEngagementAction())}
           >
             Pull live engagement
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={pending}
+            onClick={() => run(() => runApprovalSlaDigestAction())}
+          >
+            Run SLA digest
           </Button>
         </div>
       )}

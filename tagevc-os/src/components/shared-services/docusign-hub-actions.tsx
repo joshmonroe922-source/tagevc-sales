@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import {
   backfillSignedStorageAction,
+  emailCocAction,
   remindEnvelopeAction,
   runReminderWorkerAction,
   scheduleRemindersAction,
@@ -63,7 +64,20 @@ export function DocuSignHubActions({ canWrite }: { canWrite: boolean }) {
             );
           }}
         >
-          Send from template
+          Quick send (1 role)
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={pending}
+          onClick={() => {
+            const envelopeId = window.prompt('Envelope ID to email CoC:');
+            if (!envelopeId?.trim()) return;
+            run(() => emailCocAction(envelopeId.trim()));
+          }}
+        >
+          Email CoC
         </Button>
         <Button
           type="button"

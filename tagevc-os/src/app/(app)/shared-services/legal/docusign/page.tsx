@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { DocuSignHubActions } from '@/components/shared-services/docusign-hub-actions';
+import { DocuSignTemplateSendForm } from '@/components/shared-services/docusign-template-send-form';
 import { Badge } from '@/components/ui/badge';
 import {
   Card,
@@ -70,15 +71,19 @@ export default async function DocuSignModulePage() {
           <Badge variant={mode === 'live' ? 'default' : 'secondary'}>
             {mode === 'live' ? 'Live JWT' : 'Mock envelopes'}
           </Badge>
-          <Badge variant="secondary">Phase 27</Badge>
+          <Badge variant="secondary">Phase 28</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">DocuSign</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Send from templates, schedule reminders, sync templates, and archive
-          CoC/combined PDFs. Capital sends still require{' '}
+          Template role mapping, CoC email on completion, scheduled reminders,
+          and signed archive. Capital sends still require{' '}
           <code className="text-xs">action:docusign_capital</code>.
         </p>
         <DocuSignHubActions canWrite={canWrite} />
+        <DocuSignTemplateSendForm
+          templates={templates.rows}
+          canWrite={canWrite}
+        />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -124,8 +129,8 @@ export default async function DocuSignModulePage() {
           <CardHeader>
             <CardTitle className="text-base">Links</CardTitle>
             <CardDescription>
-              Apply <code className="text-xs">phase27_approval_sla_reminders.sql</code>{' '}
-              for reminder jobs.
+              Apply <code className="text-xs">phase28_analytics_coc_renewals.sql</code>{' '}
+              for CoC email log + SLA escalation columns.
             </CardDescription>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground space-y-1">
@@ -166,6 +171,11 @@ export default async function DocuSignModulePage() {
                       ? ` · ${t.last_modified.slice(0, 10)}`
                       : ''}
                   </span>
+                  {t.roles?.length ? (
+                    <span className="block text-xs text-muted-foreground">
+                      Roles: {t.roles.join(', ')}
+                    </span>
+                  ) : null}
                 </li>
               ))}
             </ul>
