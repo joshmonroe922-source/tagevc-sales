@@ -66,6 +66,8 @@ export type Permission =
   | 'write:documents'
   | 'read:it_assets'
   | 'write:it_assets'
+  | 'read:marketing'
+  | 'write:marketing'
   | 'admin:users'
   | 'admin:enums'
   | 'action:ic_vote'
@@ -96,6 +98,8 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     'write:documents',
     'read:it_assets',
     'write:it_assets',
+    'read:marketing',
+    'write:marketing',
     'write:capital',
     'write:portfolio_health',
     'action:ic_vote',
@@ -113,6 +117,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     'action:ic_vote',
     'write:documents',
     'read:it_assets',
+    'read:marketing',
   ],
   associate: [
     'read:command_center',
@@ -151,6 +156,8 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     'read:documents',
     'read:it_assets',
     'write:it_assets',
+    'read:marketing',
+    'write:marketing',
   ],
   sub_lead: [
     'read:command_center',
@@ -160,6 +167,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     'read:documents',
     'write:documents',
     'read:it_assets',
+    'read:marketing',
   ],
   service_lead: [
     'read:command_center',
@@ -170,6 +178,8 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     'read:documents',
     'read:it_assets',
     'write:it_assets',
+    'read:marketing',
+    'write:marketing',
   ],
   counsel_ops: [
     'read:command_center',
@@ -195,6 +205,8 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     'write:documents',
     'read:it_assets',
     'write:it_assets',
+    'read:marketing',
+    'write:marketing',
     'admin:users',
     'admin:enums',
   ],

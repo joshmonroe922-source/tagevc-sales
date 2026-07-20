@@ -318,17 +318,57 @@ export function NormalizationHealthPanel({
             <CardTitle className="text-base">Archive export (4d)</CardTitle>
             <CardDescription>
               Download archive metadata JSON for offsite retention (≥90 days).
-              After storing, set ARCHIVE_EXPORT_CONFIRMED_AT. Does not drop
-              tables.
+              After storing, confirm here or set ARCHIVE_EXPORT_CONFIRMED_AT. Does
+              not drop tables.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex flex-wrap gap-2">
             <a
               href="/api/admin/archive-export"
               className="inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-4 text-sm font-medium shadow-sm hover:bg-accent"
             >
               Export archive metadata
             </a>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={pending}
+              onClick={() => {
+                setMessage(null);
+                setError(null);
+                startTransition(async () => {
+                  try {
+                    const res = await fetch('/api/admin/archive-export', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        note: 'Offsite retention confirmed from Admin UI',
+                      }),
+                    });
+                    const json = (await res.json()) as {
+                      ok?: boolean;
+                      error?: string;
+                      durable_hint?: string;
+                    };
+                    if (!res.ok || !json.ok) {
+                      setError(json.error ?? 'Confirm failed');
+                      return;
+                    }
+                    setMessage(
+                      `Export confirmed. ${json.durable_hint ?? ''}`.trim(),
+                    );
+                    window.location.reload();
+                  } catch (e) {
+                    setError(
+                      e instanceof Error ? e.message : 'Confirm failed',
+                    );
+                  }
+                });
+              }}
+            >
+              Confirm offsite store
+            </Button>
           </CardContent>
         </Card>
       </div>

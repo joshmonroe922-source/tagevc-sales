@@ -243,6 +243,8 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
     archive_table_ready: archiveReady,
     recent_archive_count: archivesMapped?.length ?? 0,
     last_soak: lastSoak,
+    snapshots_table_row_count:
+      counts.os_store_snapshots ?? snapshotRows.length,
   });
 
   return {

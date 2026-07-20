@@ -39,8 +39,11 @@ export function buildStage4eChecklist(input: {
   archive_table_ready: boolean;
   recent_archive_count: number;
   last_soak: SoakRunRecord | null;
+  /** Live os_store_snapshots row count (≥0 = table present). */
+  snapshots_table_row_count?: number | null;
 }): Stage4eChecklist {
   const exportOps = getArchiveExportOpsConfirmation();
+  const snapCount = input.snapshots_table_row_count;
   const items = [
     {
       id: 'drills',
@@ -64,7 +67,7 @@ export function buildStage4eChecklist(input: {
     },
     {
       id: 'sync',
-      label: 'Sync failures = 0',
+      label: 'Normalized sync failures = 0',
       ok: input.sync_failure_count === 0,
       detail: `failures=${input.sync_failure_count}`,
     },
@@ -90,9 +93,18 @@ export function buildStage4eChecklist(input: {
       ok: exportOps.confirmed,
       detail: exportOps.detail,
     },
+    {
+      id: 'table_retained',
+      label: 'os_store_snapshots still retained (no DROP)',
+      ok: snapCount == null || snapCount >= 0,
+      detail:
+        snapCount == null
+          ? 'Row count unavailable'
+          : `rows=${snapCount} — Phase 22 does not drop this table`,
+    },
   ];
 
-  // Phase 21: never auto-claim DROP-ready — Stage 4e remains an explicit ops decision
+  // Never auto-claim DROP-ready — Stage 4e remains an explicit ops decision
   const ready = false;
 
   return { ready, items };

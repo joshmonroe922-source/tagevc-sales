@@ -460,10 +460,23 @@ Docs: `docs/OS_PHASE20.md`
 
 Docs: `docs/OS_PHASE21.md` · `docs/OS_DOCUSIGN.md` · `docs/OS_IT_ASSETS.md`
 
-### Phase 22+ backlog
+### Phase 22 scope (Marketing foundation + SS hub)
 
-- Signed PDF pull · DocuSign templates/void UI
-- IT offboarding automation · renewal digests
+| Area | Status |
+|------|--------|
+| Multichannel Marketing data model + stub AI/scheduler | Done |
+| Marketing hub UI | Done — `/shared-services/marketing` |
+| SS hub cards (live + foundation, by service) | Done |
+| Archive export confirm + Stage 4e table-retained check | Done |
+| Stage 4e DROP `os_store_snapshots` | Deferred |
+| SQL | Apply `phase22_marketing.sql` |
+
+Docs: `docs/OS_PHASE22.md` · `docs/OS_MARKETING.md`
+
+### Phase 23+ backlog
+
+- Live marketing AI + OAuth social posting workers
+- DocuSign signed PDF pull · IT offboarding
 - Stage 4e DROP when retention confirmed
 - Push · user admin
 
@@ -500,4 +513,4 @@ Set `DEV_BYPASS_AUTH=1` in `.env.local` to preview the shell as Visionary (local
 
 ## Next phases (from Cursor Brief)
 
-Phase 21 ships live DocuSign JWT/Connect and IT asset CRUD. Remaining: signed PDF pull, IT offboarding automation, Stage 4e drop, push, user admin.
+Phase 22 lays Multichannel Marketing foundations under Shared Services. Remaining: live AI + social posting, Stage 4e drop, DocuSign PDF pull, IT offboarding, push, user admin.

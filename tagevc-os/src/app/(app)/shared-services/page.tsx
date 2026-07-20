@@ -26,7 +26,10 @@ import {
   CONFIDENCE_DRAFT_MIN,
   CURRENT_POLICY_VERSION,
 } from '@/lib/shared-services/diagnose';
-import { SS_HUB_MODULES } from '@/lib/shared-services/modules';
+import {
+  getSsHubCardModules,
+  ssHubStatusLabel,
+} from '@/lib/shared-services/modules';
 import { AUTONOMY_BANDS } from '@/lib/types';
 import type { AutonomyBand } from '@/lib/types/enums';
 
@@ -45,7 +48,14 @@ export default async function SharedServicesPage() {
     (t) => t.status !== 'Resolved' && t.status !== 'Closed',
   );
 
-  const planned = SS_HUB_MODULES.filter((m) => m.status === 'planned');
+  const modules = getSsHubCardModules();
+  const byService = new Map<string, typeof modules>();
+  for (const m of modules) {
+    const list = byService.get(m.service) ?? [];
+    list.push(m);
+    byService.set(m.service, list);
+  }
+  const serviceOrder = ['Legal', 'IT', 'Marketing', 'Finance', 'HR', 'All'];
 
   return (
     <div className="space-y-8">
@@ -54,34 +64,57 @@ export default async function SharedServicesPage() {
           Shared Services
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Grok/Cursor ticketing (§7): Intake → Diagnose → Act → Resolve → Learn.
-          Policy version <code>{CURRENT_POLICY_VERSION}</code>. AUTO ≥
-          {CONFIDENCE_AUTO_MIN}% on allow-list; DRAFT {CONFIDENCE_DRAFT_MIN}–89%;
-          ESCALATE &lt;{CONFIDENCE_DRAFT_MIN}%, P0, or forbid-list.
+          Ticketing plus Legal, IT, and Marketing modules for Tage VC and
+          subsidiaries. Policy version <code>{CURRENT_POLICY_VERSION}</code>.
+          AUTO ≥{CONFIDENCE_AUTO_MIN}% on allow-list; DRAFT{' '}
+          {CONFIDENCE_DRAFT_MIN}–89%; ESCALATE &lt;{CONFIDENCE_DRAFT_MIN}%, P0,
+          or forbid-list.
         </p>
       </header>
 
-      <section className="space-y-3">
-        <h2 className="font-heading text-lg font-semibold text-[#3a414f]">
-          Service modules
-        </h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {planned.map((m) => (
-            <Link key={m.id} href={m.href} className="group block">
-              <Card className="h-full transition-colors group-hover:border-[#3a414f]/35">
-                <CardHeader>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="outline">{m.service}</Badge>
-                    <Badge variant="secondary">Planned</Badge>
-                  </div>
-                  <CardTitle className="font-heading text-base">
-                    {m.title}
-                  </CardTitle>
-                  <CardDescription>{m.description}</CardDescription>
-                </CardHeader>
-              </Card>
-            </Link>
-          ))}
+      <section className="space-y-4">
+        <div className="space-y-1">
+          <h2 className="font-heading text-lg font-semibold text-[#3a414f]">
+            Service modules
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Firm-wide hubs with entity-scoped data where applicable.
+          </p>
+        </div>
+        <div className="space-y-5">
+          {serviceOrder
+            .filter((s) => byService.has(s))
+            .map((service) => (
+              <div key={service} className="space-y-2">
+                <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  {service}
+                </h3>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {(byService.get(service) ?? []).map((m) => (
+                    <Link key={m.id} href={m.href} className="group block">
+                      <Card className="h-full transition-colors group-hover:border-[#3a414f]/35">
+                        <CardHeader>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="outline">{m.service}</Badge>
+                            <Badge
+                              variant={
+                                m.status === 'live' ? 'default' : 'secondary'
+                              }
+                            >
+                              {ssHubStatusLabel(m.status)}
+                            </Badge>
+                          </div>
+                          <CardTitle className="font-heading text-base">
+                            {m.title}
+                          </CardTitle>
+                          <CardDescription>{m.description}</CardDescription>
+                        </CardHeader>
+                      </Card>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ))}
         </div>
       </section>
 

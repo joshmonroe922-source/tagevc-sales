@@ -1,6 +1,5 @@
 /**
- * Shared Services hub module catalog.
- * Ticketing + DocuSign + IT assets are live surfaces (Phase 21).
+ * Shared Services hub module catalog (Phase 22).
  */
 
 export type SsHubModule = {
@@ -8,7 +7,7 @@ export type SsHubModule = {
   href: string;
   title: string;
   service: 'Legal' | 'IT' | 'Finance' | 'HR' | 'Marketing' | 'All';
-  status: 'live' | 'planned';
+  status: 'live' | 'planned' | 'foundation';
   description: string;
   docs?: string;
 };
@@ -43,4 +42,27 @@ export const SS_HUB_MODULES: SsHubModule[] = [
       'CRUD assets/licenses · assign/return · seat grant/revoke · history.',
     docs: 'docs/OS_IT_ASSETS.md',
   },
+  {
+    id: 'marketing',
+    href: '/shared-services/marketing',
+    title: 'Multichannel Marketing',
+    service: 'Marketing',
+    status: 'foundation',
+    description:
+      'Campaigns, content, social accounts, AI + schedule frameworks for firm and subsidiaries.',
+    docs: 'docs/OS_MARKETING.md',
+  },
 ];
+
+/** Modules shown as navigable cards on the hub (exclude self-link tickets). */
+export function getSsHubCardModules(): SsHubModule[] {
+  return SS_HUB_MODULES.filter((m) => m.id !== 'tickets');
+}
+
+export function ssHubStatusLabel(
+  status: SsHubModule['status'],
+): string {
+  if (status === 'live') return 'Live';
+  if (status === 'foundation') return 'Foundation';
+  return 'Planned';
+}

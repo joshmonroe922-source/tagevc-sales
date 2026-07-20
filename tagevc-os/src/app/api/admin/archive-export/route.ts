@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import {
+  confirmArchiveExportOffsite,
   getArchiveExportOpsConfirmation,
   recordArchiveExport,
 } from '@/lib/data/archive-export-state';
@@ -69,7 +70,7 @@ export async function GET(request: Request) {
       exported_at,
       retention_days_target: 90,
       retention_note:
-        'Retain ≥90 days before Stage 4e DROP. Table os_store_snapshots is not dropped in Phase 21. After offsite store, set ARCHIVE_EXPORT_CONFIRMED_AT.',
+        'Retain ≥90 days before Stage 4e DROP. Table os_store_snapshots is not dropped in Phase 22. After offsite store, POST confirm or set ARCHIVE_EXPORT_CONFIRMED_AT.',
       ops_confirmation: ops,
       count: rows.length,
       archives: rows,
@@ -90,6 +91,34 @@ export async function GET(request: Request) {
         ok: false,
         error: e instanceof Error ? e.message : 'export failed',
       },
+      { status: 500 },
+    );
+  }
+}
+
+/** Mark offsite retention confirmed (in-process; prefer ARCHIVE_EXPORT_CONFIRMED_AT for durable). */
+export async function POST(request: Request) {
+  const gate = await guardPermission('admin:users');
+  if (!gate.ok) {
+    return NextResponse.json({ ok: false, error: gate.error }, { status: 403 });
+  }
+
+  try {
+    const body = (await request.json().catch(() => ({}))) as {
+      note?: string;
+    };
+    const confirmed = confirmArchiveExportOffsite({ note: body.note ?? null });
+    return NextResponse.json({
+      ok: true,
+      confirmed,
+      ops_confirmation: getArchiveExportOpsConfirmation(),
+      durable_hint:
+        'Also set ARCHIVE_EXPORT_CONFIRMED_AT on Vercel so confirmation survives deploys',
+    });
+  } catch (e) {
+    captureException(e, { route: 'archive-export-confirm' });
+    return NextResponse.json(
+      { ok: false, error: e instanceof Error ? e.message : 'confirm failed' },
       { status: 500 },
     );
   }
