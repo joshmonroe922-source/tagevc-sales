@@ -1,6 +1,6 @@
 # Snapshot Retirement Plan — `os_store_snapshots`
 
-**Status:** Phase 19 — Stage 4b SQL-only hydrate + 4d export. Table retained until Stage 4e.
+**Status:** Phase 20 — Stage 4b/4d tooling + soak checklist. Table retained until Stage 4e.
 
 ## Dual-write / dual-read map
 

@@ -17,8 +17,8 @@ export default async function AdminPage() {
           Admin
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Ops tooling for schema normalization, write cutover, and platform
-          health. User/role management remains forthcoming.
+          Ops tooling for schema normalization, write cutover, soak health, and
+          Stage 4 readiness. User/role management remains forthcoming.
         </p>
       </header>
 
@@ -28,8 +28,8 @@ export default async function AdminPage() {
             <CardHeader>
               <CardTitle className="text-base">Normalization health</CardTitle>
               <CardDescription>
-                Snapshot write gates, sync failures, soft-archive cut-over
-                domains.
+              Snapshot write/read gates, soak last-run, Stage 4e checklist,
+              soft-archive and archive export.
               </CardDescription>
             </CardHeader>
           </Card>

@@ -8,9 +8,11 @@ import {
 export default function StubPage({
   title,
   description,
+  footnote = 'This surface is scaffolded for a later phase. Navigation and architecture docs land first; business logic follows.',
 }: {
   title: string;
   description: string;
+  footnote?: string;
 }) {
   return (
     <div className="space-y-6">
@@ -25,10 +27,7 @@ export default function StubPage({
       <Card className="border-dashed">
         <CardHeader>
           <CardTitle className="text-base">Coming in a later phase</CardTitle>
-          <CardDescription>
-            Phase 0 ships identity, RBAC, layout, and Command Center. This
-            module is scaffolded in navigation only.
-          </CardDescription>
+          <CardDescription>{footnote}</CardDescription>
         </CardHeader>
       </Card>
     </div>

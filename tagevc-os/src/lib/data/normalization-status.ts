@@ -20,6 +20,12 @@ import {
   runEmptySnapshotDrills,
   type EmptySnapshotDrillReport,
 } from '@/lib/data/snapshot-drills';
+import {
+  buildStage4eChecklist,
+  getLastSoakRun,
+  type SoakRunRecord,
+  type Stage4eChecklist,
+} from '@/lib/data/soak-state';
 import { getPipelineNullEntityMode } from '@/lib/rbac/entity-scope';
 import { isSentryConfigured } from '@/lib/observability';
 import { createPersistClient } from '@/lib/supabase/persist-client';
@@ -68,6 +74,8 @@ export type NormalizationStatus = {
   }>;
   empty_snapshot_drills: EmptySnapshotDrillReport;
   stage4_ready: boolean;
+  last_soak: SoakRunRecord | null;
+  stage4e_checklist: Stage4eChecklist;
   fetched_at: string;
   cutover_hints: {
     stage:
@@ -218,6 +226,25 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
     stage = 'read_cutover';
   }
 
+  const archivesMapped =
+    archives?.map((a) => ({
+      id: String(a.id),
+      collection: String(a.collection),
+      archived_at: String(a.archived_at),
+      note: (a.note as string | null) ?? null,
+    })) ?? null;
+
+  const lastSoak = getLastSoakRun();
+  const stage4e_checklist = buildStage4eChecklist({
+    stage4_ready: drills.stage4_ready,
+    sql_only_hydrate_active: sqlOnlyHydrateActive,
+    fk_orphan_total: fkOrphanTotal,
+    sync_failure_count: syncFailures.length,
+    archive_table_ready: archiveReady,
+    recent_archive_count: archivesMapped?.length ?? 0,
+    last_soak: lastSoak,
+  });
+
   return {
     ok: true,
     prefer_normalized_tables: preferNormalizedTables(),
@@ -245,16 +272,12 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
     fk_orphan_total: fkOrphanTotal,
     empty_snapshot_drills: drills,
     stage4_ready: drills.stage4_ready,
+    last_soak: lastSoak,
+    stage4e_checklist,
     fetched_at: new Date().toISOString(),
     row_counts: counts,
     snapshots: snapshotRows,
-    recent_archives:
-      archives?.map((a) => ({
-        id: String(a.id),
-        collection: String(a.collection),
-        archived_at: String(a.archived_at),
-        note: (a.note as string | null) ?? null,
-      })) ?? null,
+    recent_archives: archivesMapped,
     cutover_hints: {
       stage,
       next:
@@ -265,7 +288,7 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
             : stage === 'read_cutover'
               ? 'Enable WRITE_CUTOVER_MATURE=1 when handoffs/audits tables are ready'
               : stage === 'sql_only_hydrate'
-                ? 'Stage 4b active (SQL-only hydrate) — retain archive backup; table drop still deferred (Stage 4e)'
+                ? 'Stage 4b active — review Stage 4e checklist; DROP still deferred'
                 : stage === 'stage4_ready'
                   ? 'Drills passed — SQL-only hydrate follows write cutover automatically; see OS_SNAPSHOT_STAGE4.md'
                   : fkOrphanTotal > 0

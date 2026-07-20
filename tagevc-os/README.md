@@ -437,10 +437,22 @@ Docs: `docs/OS_PHASE18.md` · `docs/OS_SNAPSHOT_STAGE4.md`
 
 Docs: `docs/OS_PHASE19.md`
 
-### Phase 20+ backlog
+### Phase 20 scope (SS foundations + Stage 4 polish)
 
-- Stage 4c/4e when soak confirmed; matching RLS for null-hide
-- KPI batch/period UI; DocuSign · push · user admin
+| Area | Status |
+|------|--------|
+| Soak last-run + Stage 4e checklist on Admin | Done |
+| DocuSign architecture + stub hub | Done — `docs/OS_DOCUSIGN.md` |
+| IT assets/licensing architecture + stub hub | Done — `docs/OS_IT_ASSETS.md` |
+| Optional SQL stubs | `phase20_docusign_events.sql`, `phase20_it_assets.sql` |
+
+Docs: `docs/OS_PHASE20.md`
+
+### Phase 21+ backlog
+
+- Real DocuSign Connect; IT inventory CRUD
+- Stage 4c/4e when soak confirmed
+- Push · user admin
 
 
 ## Run locally
@@ -475,4 +487,4 @@ Set `DEV_BYPASS_AUTH=1` in `.env.local` to preview the shell as Visionary (local
 
 ## Next phases (from Cursor Brief)
 
-Phase 19 advances Stage 4b SQL-only hydrate, CORE/FLEX KPI edits, harder pipeline scope, and archive export. Remaining: Stage 4e drop, DocuSign, push, user admin.
+Phase 20 lays DocuSign and IT asset foundations under Shared Services and polishes Stage 4 observability. Remaining: real DocuSign, IT CRUD, Stage 4e drop, push, user admin.

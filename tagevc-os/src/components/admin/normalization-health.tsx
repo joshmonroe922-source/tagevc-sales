@@ -111,6 +111,110 @@ export function NormalizationHealthPanel({
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
+            <CardTitle className="text-base">Last soak run</CardTitle>
+            <CardDescription>
+              Updated when cron or admin hits{' '}
+              <code className="text-xs">/api/admin/soak-health</code>.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            {status.last_soak ? (
+              <>
+                <Row
+                  label="Status"
+                  value={status.last_soak.healthy ? 'healthy' : 'degraded'}
+                />
+                <Row
+                  label="Fetched"
+                  value={new Date(status.last_soak.fetched_at).toLocaleString()}
+                />
+                <Row label="Source" value={status.last_soak.source} />
+                <Row label="Stage" value={status.last_soak.stage} />
+                <Row
+                  label="Issues"
+                  value={
+                    status.last_soak.issues.length
+                      ? status.last_soak.issues.join('; ')
+                      : '—'
+                  }
+                />
+              </>
+            ) : (
+              <p className="text-muted-foreground">
+                No soak run recorded in this process yet.
+              </p>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={pending}
+              onClick={() => {
+                setMessage(null);
+                setError(null);
+                startTransition(async () => {
+                  try {
+                    const res = await fetch('/api/admin/soak-health');
+                    const data = (await res.json()) as {
+                      ok: boolean;
+                      healthy?: boolean;
+                      error?: string;
+                    };
+                    if (!res.ok || !data.ok) {
+                      setError(data.error ?? 'Soak failed');
+                      return;
+                    }
+                    setMessage(
+                      data.healthy ? 'Soak healthy' : 'Soak degraded — see card',
+                    );
+                    router.refresh();
+                  } catch (e) {
+                    setError(e instanceof Error ? e.message : 'Soak failed');
+                  }
+                });
+              }}
+            >
+              {pending ? 'Running…' : 'Run soak now'}
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Stage 4e DROP checklist</CardTitle>
+            <CardDescription>
+              Informational only — Phase 20 never drops{' '}
+              <code className="text-xs">os_store_snapshots</code>.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-1 text-sm">
+            {status.stage4e_checklist.items.map((item) => (
+              <div
+                key={item.id}
+                className="border-b border-border/40 py-1.5 last:border-0"
+              >
+                <div className="flex justify-between gap-2">
+                  <span>{item.label}</span>
+                  <span
+                    className={
+                      item.ok ? 'text-emerald-700' : 'text-muted-foreground'
+                    }
+                  >
+                    {item.ok ? '✓' : '○'}
+                  </span>
+                </div>
+                {item.detail ? (
+                  <p className="text-xs text-muted-foreground">{item.detail}</p>
+                ) : null}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
             <CardTitle className="text-base">Snapshot write gates</CardTitle>
             <CardDescription>
               allow=false means SQL-first (snapshot writes suppressed).

@@ -1,17 +1,17 @@
 import { NextResponse } from 'next/server';
 import { getNormalizationStatus } from '@/lib/data/normalization-status';
 import { runEmptySnapshotDrills } from '@/lib/data/snapshot-drills';
+import { recordSoakRun } from '@/lib/data/soak-state';
 import { captureException, captureMessage } from '@/lib/observability';
 import { guardPermission } from '@/lib/rbac/session';
 
 async function authorize(request: Request): Promise<
-  | { ok: true }
+  | { ok: true; source: 'cron' | 'admin' }
   | { ok: false; status: number; error: string }
 > {
   const secret =
     process.env.DIGEST_SECRET || process.env.CRON_SECRET || '';
   const header = request.headers.get('x-tagevc-digest-secret');
-  // Vercel Cron sends Authorization: Bearer <CRON_SECRET>
   const bearer = request.headers.get('authorization');
   const bearerOk =
     Boolean(secret) &&
@@ -19,11 +19,11 @@ async function authorize(request: Request): Promise<
     bearer === `Bearer ${secret}`;
 
   if ((secret && header === secret) || bearerOk) {
-    return { ok: true };
+    return { ok: true, source: 'cron' };
   }
 
   const gate = await guardPermission('admin:users');
-  if (gate.ok) return { ok: true };
+  if (gate.ok) return { ok: true, source: 'admin' };
 
   if (secret) {
     return { ok: false, status: 401, error: 'Unauthorized' };
@@ -31,10 +31,6 @@ async function authorize(request: Request): Promise<
   return { ok: false, status: 403, error: gate.error };
 }
 
-/**
- * Soak / system health check for cron or admin.
- * Alerts Sentry when sync failures, FK orphans, or empty-snapshot drills fail.
- */
 async function runSoak(request: Request) {
   const auth = await authorize(request);
   if (!auth.ok) {
@@ -65,6 +61,19 @@ async function runSoak(request: Request) {
     }
 
     const healthy = issues.length === 0;
+    const fetched_at = new Date().toISOString();
+    recordSoakRun({
+      fetched_at,
+      healthy,
+      issues,
+      stage: status.cutover_hints.stage,
+      sync_failure_count: status.sync_failure_count,
+      fk_orphan_total: status.fk_orphan_total,
+      stage4_ready: drills.stage4_ready,
+      drill_summary: drills.summary,
+      source: auth.source,
+    });
+
     if (!healthy) {
       captureMessage(`Soak health degraded: ${issues.join('; ')}`, 'warning', {
         route: 'soak-health',
@@ -86,7 +95,7 @@ async function runSoak(request: Request) {
       stage4_ready: drills.stage4_ready,
       drill_summary: drills.summary,
       sentry_configured: status.sentry_configured,
-      fetched_at: new Date().toISOString(),
+      fetched_at,
     });
   } catch (e) {
     captureException(e, { route: 'soak-health' });

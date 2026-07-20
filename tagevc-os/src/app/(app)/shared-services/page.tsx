@@ -26,6 +26,7 @@ import {
   CONFIDENCE_DRAFT_MIN,
   CURRENT_POLICY_VERSION,
 } from '@/lib/shared-services/diagnose';
+import { SS_HUB_MODULES } from '@/lib/shared-services/modules';
 import { AUTONOMY_BANDS } from '@/lib/types';
 import type { AutonomyBand } from '@/lib/types/enums';
 
@@ -44,6 +45,8 @@ export default async function SharedServicesPage() {
     (t) => t.status !== 'Resolved' && t.status !== 'Closed',
   );
 
+  const planned = SS_HUB_MODULES.filter((m) => m.status === 'planned');
+
   return (
     <div className="space-y-8">
       <header className="space-y-2">
@@ -57,6 +60,30 @@ export default async function SharedServicesPage() {
           ESCALATE &lt;{CONFIDENCE_DRAFT_MIN}%, P0, or forbid-list.
         </p>
       </header>
+
+      <section className="space-y-3">
+        <h2 className="font-heading text-lg font-semibold text-[#3a414f]">
+          Service modules
+        </h2>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {planned.map((m) => (
+            <Link key={m.id} href={m.href} className="group block">
+              <Card className="h-full transition-colors group-hover:border-[#3a414f]/35">
+                <CardHeader>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline">{m.service}</Badge>
+                    <Badge variant="secondary">Planned</Badge>
+                  </div>
+                  <CardTitle className="font-heading text-base">
+                    {m.title}
+                  </CardTitle>
+                  <CardDescription>{m.description}</CardDescription>
+                </CardHeader>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      </section>
 
       <section className="grid gap-3 sm:grid-cols-3">
         {AUTONOMY_BANDS.map((band) => (
@@ -82,55 +109,55 @@ export default async function SharedServicesPage() {
             />
           </div>
         ) : (
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-muted/40 hover:bg-muted/40">
-              <TableHead>Ticket</TableHead>
-              <TableHead>Service</TableHead>
-              <TableHead>Priority</TableHead>
-              <TableHead>Band</TableHead>
-              <TableHead>Confidence</TableHead>
-              <TableHead>Status</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {open.map((t) => (
-              <TableRow key={t.ticket_id}>
-                <TableCell>
-                  <Link
-                    href={`/shared-services/tickets/${t.ticket_id}`}
-                    className="font-medium underline-offset-4 hover:underline"
-                  >
-                    {t.title}
-                  </Link>
-                  <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                    <span>{t.ticket_id}</span>
-                    {t.ai_generated ? (
-                      <Badge
-                        variant="outline"
-                        className="border-sky-200 bg-sky-50 text-sky-950"
-                      >
-                        AI
-                      </Badge>
-                    ) : null}
-                    {t.forbid_hits.length
-                      ? ` · forbid: ${t.forbid_hits.join(', ')}`
-                      : null}
-                  </div>
-                </TableCell>
-                <TableCell>{t.service}</TableCell>
-                <TableCell>
-                  <Badge variant="outline">{t.priority}</Badge>
-                </TableCell>
-                <TableCell>
-                  <BandBadge band={t.autonomy_band} />
-                </TableCell>
-                <TableCell className="tabular-nums">{t.confidence}%</TableCell>
-                <TableCell>{t.status}</TableCell>
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/40 hover:bg-muted/40">
+                <TableHead>Ticket</TableHead>
+                <TableHead>Service</TableHead>
+                <TableHead>Priority</TableHead>
+                <TableHead>Band</TableHead>
+                <TableHead>Confidence</TableHead>
+                <TableHead>Status</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {open.map((t) => (
+                <TableRow key={t.ticket_id}>
+                  <TableCell>
+                    <Link
+                      href={`/shared-services/tickets/${t.ticket_id}`}
+                      className="font-medium underline-offset-4 hover:underline"
+                    >
+                      {t.title}
+                    </Link>
+                    <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                      <span>{t.ticket_id}</span>
+                      {t.ai_generated ? (
+                        <Badge
+                          variant="outline"
+                          className="border-sky-200 bg-sky-50 text-sky-950"
+                        >
+                          AI
+                        </Badge>
+                      ) : null}
+                      {t.forbid_hits.length
+                        ? ` · forbid: ${t.forbid_hits.join(', ')}`
+                        : null}
+                    </div>
+                  </TableCell>
+                  <TableCell>{t.service}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{t.priority}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    <BandBadge band={t.autonomy_band} />
+                  </TableCell>
+                  <TableCell className="tabular-nums">{t.confidence}%</TableCell>
+                  <TableCell>{t.status}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
       </div>
 

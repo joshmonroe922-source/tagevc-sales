@@ -1,7 +1,7 @@
 # Snapshot Stage 4 — Final retirement plan
 
-**Status:** Phase 19 — Stage 4b (SQL-only hydrate) + 4d export tooling shipped.  
-**Non-goal:** Dropping `os_store_snapshots` in Phase 19.
+**Status:** Phase 20 — Stage 4e checklist + soak last-run on Admin.  
+**Non-goal:** Dropping `os_store_snapshots` in Phase 20.
 
 ## Preconditions (all must be green)
 
@@ -16,11 +16,11 @@
 
 | Step | Action | Status |
 |------|--------|--------|
-| 4a | Confirm drills + soak cron healthy | Ops / ongoing |
-| 4b | SQL-only hydrate for cut-over domains | **Done (Phase 19)** — `shouldLoadSnapshotPayload` |
-| 4c | Stop reading `os_store_snapshots` entirely | Partial (4b skips payload); full stop later |
-| 4d | Export archive table; retain ≥90 days | **Tooling done** — `/api/admin/archive-export` |
-| 4e | `DROP TABLE os_store_snapshots` | Deferred |
+| 4a | Confirm drills + soak cron healthy | **UI + cron** — last soak on Admin |
+| 4b | SQL-only hydrate for cut-over domains | **Done (Phase 19)** |
+| 4c | Stop reading `os_store_snapshots` entirely | Partial (4b skips payload) |
+| 4d | Export archive table; retain ≥90 days | **Tooling done** |
+| 4e | `DROP TABLE os_store_snapshots` | Deferred — checklist on Admin |
 
 ## Stage 4b behavior
 
@@ -43,31 +43,19 @@ Rollback hydrate: `SNAPSHOT_READ_FORCE=1` then redeploy.
 
 - Cron: `GET /api/admin/soak-health` every 6h (`tagevc-os/vercel.json`)  
 - Auth: `Authorization: Bearer $CRON_SECRET` or `x-tagevc-digest-secret`  
+- Admin: **Run soak now** + last-run card  
 - Alerts via Sentry when sync failures, FK orphans, or drills fail  
 
 ## Archive retention (4d)
 
-- UI / API: `GET /api/admin/archive-export` (admin session or digest secret)  
+- UI / API: `GET /api/admin/archive-export`  
 - Keep `os_store_snapshot_archive` indefinitely until Stage 4e  
 - Retain export ≥90 days offsite before any drop  
 
+## Stage 4e
+
+Admin Normalization shows an informational checklist. **Export retention is always ops-manual** — the app never marks DROP as ready automatically.
+
 ## Rollback
 
-Unset cutover env vars and restore live payload from archive:
-
-```sql
-update public.os_store_snapshots s
-set payload = a.payload,
-    version = a.version,
-    updated_at = now()
-from public.os_store_snapshot_archive a
-where a.collection = s.collection
-  and a.id = (
-    select id from public.os_store_snapshot_archive x
-    where x.collection = s.collection
-    order by archived_at desc
-    limit 1
-  );
-```
-
-Then set `SNAPSHOT_READ_FORCE=1` briefly if needed to re-adopt payloads.
+Unset cutover env vars and restore live payload from archive (see Phase 19 docs). Then set `SNAPSHOT_READ_FORCE=1` briefly if needed.
