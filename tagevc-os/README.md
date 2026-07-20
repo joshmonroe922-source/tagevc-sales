@@ -365,10 +365,23 @@ Docs: `docs/OS_PHASE12.md`
 
 Docs: `docs/OS_PHASE13.md`
 
-### Phase 14+ backlog
+### Phase 14 scope (Portfolio/Entity + soak)
 
-- Snapshot soak → read cutover
-- Portfolio / Entity Master DB
+| Area | Status |
+|------|--------|
+| Entity Master + Portfolio Active SQL dual-read | Done |
+| P&L / CORE+FLEX KPI sync from seed | Done |
+| Shared dual-read gate + sync stats | Done |
+| Normalization status API + counts view | Done |
+| Snapshot retirement soak docs | Done — `docs/OS_SNAPSHOT_RETIREMENT.md` |
+| SQL | Apply `supabase/phase14_portfolio_entity.sql` |
+
+Docs: `docs/OS_PHASE14.md`
+
+### Phase 15+ backlog
+
+- Write cutover (stop snapshot persists for healthy domains)
+- Normalize handoffs + audit trails
 - Push notifications; richer moderation
 - Real DocuSign + observability
 
@@ -405,4 +418,4 @@ Set `DEV_BYPASS_AUTH=1` in `.env.local` to preview the shell as Visionary (local
 
 ## Next phases (from Cursor Brief)
 
-Phase 13 adds Storage uploads, private channels, RE normalize, and digests. Remaining: snapshot cutover, Portfolio DB, DocuSign, push, observability.
+Phase 14 adds Portfolio/Entity Master live tables and snapshot soak tooling. Remaining: write cutover, handoff/audit normalize, DocuSign, push, observability.

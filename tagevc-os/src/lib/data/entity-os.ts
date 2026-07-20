@@ -1,13 +1,4 @@
-import {
-  SEED_ENTITIES,
-  SEED_ENTITY_MONTH_PNL,
-  SEED_PERIOD,
-  SEED_PORTFOLIO_COMPANIES,
-} from '@/lib/data/seed';
-import {
-  SEED_ENTITY_MONTH_KPI,
-  SEED_ENTITY_MONTH_KPI_FLEX,
-} from '@/lib/data/entity-kpi-seed';
+import { ensureMasterData } from '@/lib/data/master-data';
 import { listDocuments } from '@/lib/data/document-store';
 import {
   getDealFlowStore,
@@ -41,20 +32,21 @@ function openStatuses(status: string): boolean {
 export async function getEntityOperatingView(
   entityId: string,
 ): Promise<EntityOperatingView | null> {
-  const entity = SEED_ENTITIES.find((e) => e.entity_id === entityId) ?? null;
+  const master = await ensureMasterData();
+  const entity = master.entities.find((e) => e.entity_id === entityId) ?? null;
   if (!entity) return null;
 
   const portfolio =
-    SEED_PORTFOLIO_COMPANIES.find((c) => c.entity_id === entityId) ?? null;
-  const period = SEED_PERIOD;
+    master.companies.find((c) => c.entity_id === entityId) ?? null;
+  const period = master.period;
   const pnl =
-    SEED_ENTITY_MONTH_PNL.find(
+    master.pnl.find(
       (r) => r.entity_id === entityId && r.period === period,
     ) ?? null;
-  const core_kpis = SEED_ENTITY_MONTH_KPI.filter(
+  const core_kpis = master.coreKpis.filter(
     (k) => k.entity_id === entityId && k.period === period,
   );
-  const flex_kpis = SEED_ENTITY_MONTH_KPI_FLEX.filter(
+  const flex_kpis = master.flexKpis.filter(
     (k) => k.entity_id === entityId && k.period === period,
   );
 
@@ -213,7 +205,11 @@ export async function getEntityOperatingView(
 }
 
 export async function listSubsidiaryEntities() {
-  return SEED_ENTITIES.filter(
-    (e) => e.entity_type === 'Subsidiary' || e.entity_type === 'RE Asset Entity',
-  ).sort((a, b) => a.canonical_name.localeCompare(b.canonical_name));
+  const master = await ensureMasterData();
+  return master.entities
+    .filter(
+      (e) =>
+        e.entity_type === 'Subsidiary' || e.entity_type === 'RE Asset Entity',
+    )
+    .sort((a, b) => a.canonical_name.localeCompare(b.canonical_name));
 }

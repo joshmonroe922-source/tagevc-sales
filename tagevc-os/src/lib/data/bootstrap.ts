@@ -4,12 +4,16 @@ export async function bootstrapDomainStores() {
   const { hydrateDocStore } = await import('./document-store');
   const { hydrateMaStore } = await import('./ma-store');
   const { hydrateReStore } = await import('./re-store');
+  const { hydrateMasterData } = await import('./master-data');
   const { hydrateAllStores } = await import('./persist');
-  await hydrateAllStores({
-    dealFlow: hydrateDealFlowStore,
-    tickets: hydrateTicketStore,
-    documents: hydrateDocStore,
-    ma: hydrateMaStore,
-    re: hydrateReStore,
-  });
+  await Promise.all([
+    hydrateMasterData(),
+    hydrateAllStores({
+      dealFlow: hydrateDealFlowStore,
+      tickets: hydrateTicketStore,
+      documents: hydrateDocStore,
+      ma: hydrateMaStore,
+      re: hydrateReStore,
+    }),
+  ]);
 }

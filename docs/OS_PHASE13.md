@@ -36,8 +36,8 @@
 
 ## Phase 14+ recommendations
 
-1. Execute snapshot soak → read cutover for dual-written domains  
-2. Portfolio / Entity Master live tables  
+1. Execute snapshot soak → read cutover for dual-written domains — **moved to Phase 14**  
+2. Portfolio / Entity Master live tables — **moved to Phase 14**  
 3. Richer moderation (pin, audit log, report)  
 4. Real DocuSign + document storage buckets  
 5. Push notifications (web push / mobile)  

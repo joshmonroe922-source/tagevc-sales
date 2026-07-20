@@ -17,8 +17,8 @@ import {
   syncReDealsAndTasks,
 } from '@/lib/data/normalized/re-repo';
 import {
-  preferNormalizedTables,
   queueNormalizedSync,
+  shouldUseNormalizedRows,
 } from '@/lib/data/normalized/sync';
 import { createHandoffPack } from '@/lib/deal-flow/handoff';
 import { spawnReTasksForStage } from '@/lib/deal-flow/re/spawn-tasks';
@@ -80,7 +80,7 @@ export async function hydrateReStore() {
     fetchAllReDeals(),
     fetchAllReTasks(),
   ]);
-  if (sqlDeals && (sqlDeals.length > 0 || preferNormalizedTables())) {
+  if (shouldUseNormalizedRows(sqlDeals)) {
     if (sqlDeals.length > 0) store.deals = sqlDeals;
     if (sqlTasks && sqlTasks.length > 0) store.tasks = sqlTasks;
   } else if (sqlDeals !== null && store.deals.length > 0) {

@@ -6,9 +6,10 @@ import {
   syncDocuments,
 } from '@/lib/data/normalized/documents-repo';
 import {
-  preferNormalizedTables,
   queueNormalizedSync,
+  shouldUseNormalizedRows,
 } from '@/lib/data/normalized/sync';
+import { getEntitySync } from '@/lib/data/master-data';
 import {
   isStoreHydrated,
   loadStoreSnapshot,
@@ -215,7 +216,7 @@ export async function hydrateDocStore() {
 
   const store = getDocStore();
   const sqlDocs = await fetchAllDocuments();
-  if (sqlDocs && (sqlDocs.length > 0 || preferNormalizedTables())) {
+  if (shouldUseNormalizedRows(sqlDocs)) {
     if (sqlDocs.length > 0) store.docs = sqlDocs;
   } else if (sqlDocs !== null && store.docs.length > 0) {
     await syncDocuments(store.docs);
@@ -308,7 +309,7 @@ export function createDocumentFromTemplate(
   const store = getDocStore();
   const tpl = getTemplate(input.template_id);
   if (!tpl) throw new Error('Unknown template');
-  const entity = SEED_ENTITIES.find((e) => e.entity_id === input.entity_id);
+  const entity = getEntitySync(input.entity_id);
   if (!entity) throw new Error('Unknown entity');
 
   const deal =
@@ -401,7 +402,7 @@ export type UploadDocumentInput = {
 /** Simple organize/upload into entity folder (content stored as text stub). */
 export function uploadDocument(input: UploadDocumentInput): DocumentRecord {
   const store = getDocStore();
-  const entity = SEED_ENTITIES.find((e) => e.entity_id === input.entity_id);
+  const entity = getEntitySync(input.entity_id);
   if (!entity) throw new Error('Unknown entity');
   const docId = nextDocId(store.docs);
   const file = sanitizeFileName(`${docId}_${input.title}.txt`);

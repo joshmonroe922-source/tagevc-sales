@@ -1,9 +1,5 @@
-import {
-  SEED_ENTITIES,
-  SEED_ENTITY_MONTH_PNL,
-  SEED_PERIOD,
-  SEED_PORTFOLIO_COMPANIES,
-} from '@/lib/data/seed';
+import { SEED_PERIOD } from '@/lib/data/seed';
+import { ensureMasterData } from '@/lib/data/master-data';
 import {
   listActiveDeals,
   listActiveLeads,
@@ -22,7 +18,8 @@ import type {
 export async function listActivePortfolioCompanies(): Promise<
   PortfolioCompany[]
 > {
-  return [...SEED_PORTFOLIO_COMPANIES].sort((a, b) =>
+  const master = await ensureMasterData();
+  return [...master.companies].sort((a, b) =>
     a.company_name.localeCompare(b.company_name),
   );
 }
@@ -30,37 +27,40 @@ export async function listActivePortfolioCompanies(): Promise<
 export async function getPortfolioCompanyById(
   portfolioId: string,
 ): Promise<PortfolioCompanyDetail | null> {
-  const company = SEED_PORTFOLIO_COMPANIES.find(
-    (c) => c.portfolio_id === portfolioId,
-  );
+  const master = await ensureMasterData();
+  const company = master.companies.find((c) => c.portfolio_id === portfolioId);
   if (!company) return null;
   const entity =
-    SEED_ENTITIES.find((e) => e.entity_id === company.entity_id) ?? null;
+    master.entities.find((e) => e.entity_id === company.entity_id) ?? null;
   return { ...company, entity };
 }
 
 export async function listEntities(): Promise<Entity[]> {
-  return [...SEED_ENTITIES];
+  const master = await ensureMasterData();
+  return [...master.entities];
 }
 
 export async function getEntityById(entityId: string): Promise<Entity | null> {
-  return SEED_ENTITIES.find((e) => e.entity_id === entityId) ?? null;
+  const master = await ensureMasterData();
+  return master.entities.find((e) => e.entity_id === entityId) ?? null;
 }
 
 export async function getPortfolioRollup(
-  period: string = SEED_PERIOD,
+  period?: string,
 ): Promise<PortfolioRollup> {
+  const master = await ensureMasterData();
   const companies = await listActivePortfolioCompanies();
   return computePortfolioRollup({
-    period,
+    period: period ?? master.period ?? SEED_PERIOD,
     companies,
-    pnlRows: SEED_ENTITY_MONTH_PNL,
+    pnlRows: master.pnl,
   });
 }
 
 export async function getCommandCenterSnapshot(): Promise<CommandCenterSnapshot> {
+  const master = await ensureMasterData();
   const companies = await listActivePortfolioCompanies();
-  const rollup = await getPortfolioRollup(SEED_PERIOD);
+  const rollup = await getPortfolioRollup(master.period);
   const activeLeads = listActiveLeads();
   const readyForDd = activeLeads.filter((l) => l.stage === 'Ready for DD');
   const openTasks = listOpenLeadTasks();
@@ -75,7 +75,7 @@ export async function getCommandCenterSnapshot(): Promise<CommandCenterSnapshot>
 
   return {
     period: rollup.period,
-    freshness: 'FRESH',
+    freshness: master.source === 'sql' ? 'FRESH' : 'UNKNOWN',
     funnel: {
       active_leads: activeLeads.length,
       ready_for_dd: readyForDd.length,

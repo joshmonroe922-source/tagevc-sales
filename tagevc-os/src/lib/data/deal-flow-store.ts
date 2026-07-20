@@ -24,8 +24,8 @@ import {
   syncIcReviews,
 } from '@/lib/data/normalized/ic-repo';
 import {
-  preferNormalizedTables,
   queueNormalizedSync,
+  shouldUseNormalizedRows,
 } from '@/lib/data/normalized/sync';
 import {
   isStoreHydrated,
@@ -127,24 +127,24 @@ export async function hydrateDealFlowStore() {
     fetchAllIcReviews(),
   ]);
 
-  // Prefer normalized rows when present (or forced via env).
-  if (sqlLeads && (sqlLeads.length > 0 || preferNormalizedTables())) {
-    if (sqlLeads.length > 0) store.leads = sqlLeads;
+  // Prefer normalized rows when present (or forced via USE_NORMALIZED_TABLES).
+  if (shouldUseNormalizedRows(sqlLeads)) {
+    if (sqlLeads && sqlLeads.length > 0) store.leads = sqlLeads;
     if (sqlTasks && sqlTasks.length > 0) store.tasks = sqlTasks;
   } else if (sqlLeads !== null && store.leads.length > 0) {
     // Tables exist but empty — migrate snapshot/seed into SQL once.
     await syncLeadsAndTasks(store.leads, store.tasks);
   }
 
-  if (sqlDeals && (sqlDeals.length > 0 || preferNormalizedTables())) {
-    if (sqlDeals.length > 0) store.deals = sqlDeals;
+  if (shouldUseNormalizedRows(sqlDeals)) {
+    if (sqlDeals && sqlDeals.length > 0) store.deals = sqlDeals;
     if (sqlDealTasks && sqlDealTasks.length > 0) store.dealTasks = sqlDealTasks;
   } else if (sqlDeals !== null && store.deals.length > 0) {
     await syncDealsAndTasks(store.deals, store.dealTasks);
   }
 
-  if (sqlIc && (sqlIc.length > 0 || preferNormalizedTables())) {
-    if (sqlIc.length > 0) store.icReviews = sqlIc;
+  if (shouldUseNormalizedRows(sqlIc)) {
+    if (sqlIc && sqlIc.length > 0) store.icReviews = sqlIc;
   } else if (sqlIc !== null && store.icReviews.length > 0) {
     await syncIcReviews(store.icReviews);
   }

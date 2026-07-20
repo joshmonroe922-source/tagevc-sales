@@ -1,0 +1,321 @@
+import { createPersistClient } from '@/lib/supabase/persist-client';
+import type {
+  EntityMonthKpi,
+  EntityMonthKpiFlex,
+  EntityMonthPnl,
+  PortfolioCompany,
+} from '@/lib/types';
+
+function companyToRow(c: PortfolioCompany) {
+  return {
+    id: c.id,
+    portfolio_id: c.portfolio_id,
+    entity_id: c.entity_id,
+    company_name: c.company_name,
+    deal_id: c.deal_id,
+    path: c.path,
+    close_date: c.close_date,
+    coo_owner: c.coo_owner,
+    board_lead: c.board_lead,
+    arr_k: c.arr_k,
+    mom_growth: c.mom_growth,
+    net_burn_k: c.net_burn_k,
+    runway_mo: c.runway_mo,
+    cash_k: c.cash_k,
+    health: c.health,
+    top_risk: c.top_risk,
+    next_milestone: c.next_milestone,
+    last_update: c.last_update,
+    notes: c.notes,
+    created_at: c.created_at,
+    updated_at: c.updated_at,
+  };
+}
+
+function rowToCompany(row: Record<string, unknown>): PortfolioCompany {
+  return {
+    id: String(row.id),
+    portfolio_id: String(row.portfolio_id),
+    entity_id: String(row.entity_id),
+    company_name: String(row.company_name),
+    deal_id: (row.deal_id as string | null) ?? null,
+    path: (row.path as PortfolioCompany['path']) ?? null,
+    close_date: row.close_date == null ? null : String(row.close_date),
+    coo_owner: (row.coo_owner as string | null) ?? null,
+    board_lead: (row.board_lead as string | null) ?? null,
+    arr_k: Number(row.arr_k ?? 0),
+    mom_growth: row.mom_growth == null ? null : Number(row.mom_growth),
+    net_burn_k: Number(row.net_burn_k ?? 0),
+    runway_mo: row.runway_mo == null ? null : Number(row.runway_mo),
+    cash_k: Number(row.cash_k ?? 0),
+    health: row.health as PortfolioCompany['health'],
+    top_risk: (row.top_risk as string | null) ?? null,
+    next_milestone: (row.next_milestone as string | null) ?? null,
+    last_update: row.last_update == null ? null : String(row.last_update),
+    notes: (row.notes as string | null) ?? null,
+    created_at: String(row.created_at),
+    updated_at: String(row.updated_at),
+  };
+}
+
+function pnlToRow(r: EntityMonthPnl) {
+  return {
+    id: r.id,
+    entity_id: r.entity_id,
+    period: r.period,
+    revenue_arr_k: r.revenue_arr_k,
+    cogs_k: r.cogs_k,
+    opex_k: r.opex_k,
+    net_burn_k: r.net_burn_k,
+    ending_cash_k: r.ending_cash_k,
+    is_firm: r.is_firm,
+  };
+}
+
+function rowToPnl(row: Record<string, unknown>): EntityMonthPnl {
+  return {
+    id: String(row.id),
+    entity_id: String(row.entity_id),
+    period: String(row.period),
+    revenue_arr_k: Number(row.revenue_arr_k ?? 0),
+    cogs_k: Number(row.cogs_k ?? 0),
+    opex_k: Number(row.opex_k ?? 0),
+    net_burn_k: Number(row.net_burn_k ?? 0),
+    ending_cash_k: Number(row.ending_cash_k ?? 0),
+    is_firm: Boolean(row.is_firm),
+  };
+}
+
+function kpiToRow(k: EntityMonthKpi) {
+  return {
+    id: k.id,
+    entity_id: k.entity_id,
+    period: k.period,
+    kpi_key: k.kpi_key,
+    label: k.label,
+    value_num: k.value_num,
+    value_text: k.value_text,
+    unit: k.unit,
+    method: k.method,
+    standard: k.standard,
+  };
+}
+
+function rowToKpi(row: Record<string, unknown>): EntityMonthKpi {
+  return {
+    id: String(row.id),
+    entity_id: String(row.entity_id),
+    period: String(row.period),
+    kpi_key: String(row.kpi_key),
+    label: String(row.label),
+    value_num: row.value_num == null ? null : Number(row.value_num),
+    value_text: (row.value_text as string | null) ?? null,
+    unit: (row.unit as string | null) ?? null,
+    method: row.method as EntityMonthKpi['method'],
+    standard: 'CORE',
+  };
+}
+
+function flexToRow(k: EntityMonthKpiFlex) {
+  return {
+    id: k.id,
+    entity_id: k.entity_id,
+    period: k.period,
+    flex_key: k.flex_key,
+    label: k.label,
+    value_num: k.value_num,
+    value_text: k.value_text,
+    unit: k.unit,
+    industry_module: k.industry_module,
+    standard: k.standard,
+  };
+}
+
+function rowToFlex(row: Record<string, unknown>): EntityMonthKpiFlex {
+  return {
+    id: String(row.id),
+    entity_id: String(row.entity_id),
+    period: String(row.period),
+    flex_key: String(row.flex_key),
+    label: String(row.label),
+    value_num: row.value_num == null ? null : Number(row.value_num),
+    value_text: (row.value_text as string | null) ?? null,
+    unit: (row.unit as string | null) ?? null,
+    industry_module: String(row.industry_module),
+    standard: 'FLEX',
+  };
+}
+
+export async function fetchAllPortfolioCompanies(): Promise<
+  PortfolioCompany[] | null
+> {
+  try {
+    const supabase = await createPersistClient();
+    const { data, error } = await supabase
+      .from('portfolio_companies')
+      .select('*')
+      .order('company_name', { ascending: true });
+    if (error) {
+      console.error('fetchAllPortfolioCompanies', error.message);
+      return null;
+    }
+    return (data ?? []).map((r) => rowToCompany(r as Record<string, unknown>));
+  } catch (e) {
+    console.error('fetchAllPortfolioCompanies', e);
+    return null;
+  }
+}
+
+export async function fetchAllEntityMonthPnl(): Promise<EntityMonthPnl[] | null> {
+  try {
+    const supabase = await createPersistClient();
+    const { data, error } = await supabase
+      .from('entity_month_pnl')
+      .select('*')
+      .order('period', { ascending: false });
+    if (error) {
+      console.error('fetchAllEntityMonthPnl', error.message);
+      return null;
+    }
+    return (data ?? []).map((r) => rowToPnl(r as Record<string, unknown>));
+  } catch (e) {
+    console.error('fetchAllEntityMonthPnl', e);
+    return null;
+  }
+}
+
+export async function fetchAllEntityMonthKpis(): Promise<EntityMonthKpi[] | null> {
+  try {
+    const supabase = await createPersistClient();
+    const { data, error } = await supabase
+      .from('entity_month_kpi')
+      .select('*')
+      .order('kpi_key', { ascending: true });
+    if (error) {
+      console.error('fetchAllEntityMonthKpis', error.message);
+      return null;
+    }
+    return (data ?? []).map((r) => rowToKpi(r as Record<string, unknown>));
+  } catch (e) {
+    console.error('fetchAllEntityMonthKpis', e);
+    return null;
+  }
+}
+
+export async function fetchAllEntityMonthKpiFlex(): Promise<
+  EntityMonthKpiFlex[] | null
+> {
+  try {
+    const supabase = await createPersistClient();
+    const { data, error } = await supabase
+      .from('entity_month_kpi_flex')
+      .select('*')
+      .order('flex_key', { ascending: true });
+    if (error) {
+      console.error('fetchAllEntityMonthKpiFlex', error.message);
+      return null;
+    }
+    return (data ?? []).map((r) => rowToFlex(r as Record<string, unknown>));
+  } catch (e) {
+    console.error('fetchAllEntityMonthKpiFlex', e);
+    return null;
+  }
+}
+
+export async function syncPortfolioCompanies(
+  companies: PortfolioCompany[],
+): Promise<boolean> {
+  try {
+    if (companies.length === 0) return true;
+    const supabase = await createPersistClient();
+    const { error } = await supabase
+      .from('portfolio_companies')
+      .upsert(companies.map(companyToRow), { onConflict: 'portfolio_id' });
+    if (error) {
+      console.error('syncPortfolioCompanies', error.message);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error('syncPortfolioCompanies', e);
+    return false;
+  }
+}
+
+export async function syncEntityMonthPnl(
+  rows: EntityMonthPnl[],
+): Promise<boolean> {
+  try {
+    if (rows.length === 0) return true;
+    const supabase = await createPersistClient();
+    const { error } = await supabase
+      .from('entity_month_pnl')
+      .upsert(rows.map(pnlToRow), { onConflict: 'entity_id,period' });
+    if (error) {
+      console.error('syncEntityMonthPnl', error.message);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error('syncEntityMonthPnl', e);
+    return false;
+  }
+}
+
+export async function syncEntityMonthKpis(
+  rows: EntityMonthKpi[],
+): Promise<boolean> {
+  try {
+    if (rows.length === 0) return true;
+    const supabase = await createPersistClient();
+    const { error } = await supabase
+      .from('entity_month_kpi')
+      .upsert(rows.map(kpiToRow), { onConflict: 'entity_id,period,kpi_key' });
+    if (error) {
+      console.error('syncEntityMonthKpis', error.message);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error('syncEntityMonthKpis', e);
+    return false;
+  }
+}
+
+export async function syncEntityMonthKpiFlex(
+  rows: EntityMonthKpiFlex[],
+): Promise<boolean> {
+  try {
+    if (rows.length === 0) return true;
+    const supabase = await createPersistClient();
+    const { error } = await supabase
+      .from('entity_month_kpi_flex')
+      .upsert(rows.map(flexToRow), {
+        onConflict: 'entity_id,period,flex_key',
+      });
+    if (error) {
+      console.error('syncEntityMonthKpiFlex', error.message);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error('syncEntityMonthKpiFlex', e);
+    return false;
+  }
+}
+
+/** Seed → SQL migrate for all portfolio master tables (entities first). */
+export async function syncPortfolioMaster(input: {
+  companies: PortfolioCompany[];
+  pnl: EntityMonthPnl[];
+  coreKpis: EntityMonthKpi[];
+  flexKpis: EntityMonthKpiFlex[];
+}): Promise<boolean> {
+  const a = await syncPortfolioCompanies(input.companies);
+  if (!a) return false;
+  const b = await syncEntityMonthPnl(input.pnl);
+  if (!b) return false;
+  const c = await syncEntityMonthKpis(input.coreKpis);
+  if (!c) return false;
+  return syncEntityMonthKpiFlex(input.flexKpis);
+}

@@ -9,20 +9,27 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { listSubsidiaryEntities } from '@/lib/data/entity-os';
-import { SEED_PORTFOLIO_COMPANIES } from '@/lib/data/seed';
+import { ensureMasterData, getMasterDataSource } from '@/lib/data/master-data';
 
 export default async function EntitiesIndexPage() {
-  const entities = await listSubsidiaryEntities();
-  const byEntity = new Map(
-    SEED_PORTFOLIO_COMPANIES.map((c) => [c.entity_id, c]),
-  );
+  const [entities, master] = await Promise.all([
+    listSubsidiaryEntities(),
+    ensureMasterData(),
+  ]);
+  const byEntity = new Map(master.companies.map((c) => [c.entity_id, c]));
+  const source = getMasterDataSource();
 
   return (
     <div className="space-y-8">
       <header className="space-y-2">
-        <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#3a414f]">
-          Entities
-        </h1>
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#3a414f]">
+            Entities
+          </h1>
+          <Badge variant="outline" className="font-normal capitalize">
+            {source === 'sql' ? 'Live DB' : source === 'seed+migrating' ? 'Migrating' : 'Seed'}
+          </Badge>
+        </div>
         <p className="max-w-2xl text-sm text-muted-foreground">
           Subsidiary Operating System hub — Entity Master rows with CORE KPIs,
           docs, tickets, leads, and tasks. Demo: Instant NDA (ENT-002).

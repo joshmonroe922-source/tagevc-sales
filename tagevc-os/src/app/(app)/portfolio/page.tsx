@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { getMasterDataSource } from '@/lib/data/master-data';
 import { listActivePortfolioCompanies, getPortfolioRollup } from '@/lib/data/repositories';
 import {
   formatPct,
@@ -21,6 +22,7 @@ export default async function PortfolioPage() {
     listActivePortfolioCompanies(),
     getPortfolioRollup(),
   ]);
+  const source = getMasterDataSource();
 
   return (
     <div className="space-y-8">
@@ -31,6 +33,9 @@ export default async function PortfolioPage() {
           </h1>
           <Badge variant="outline" className="font-normal">
             Period {rollup.period}
+          </Badge>
+          <Badge variant="outline" className="font-normal capitalize">
+            {source === 'sql' ? 'Live DB' : source === 'seed+migrating' ? 'Migrating' : 'Seed'}
           </Badge>
         </div>
         <p className="max-w-2xl text-sm text-muted-foreground">

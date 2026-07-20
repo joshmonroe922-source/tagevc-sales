@@ -10,8 +10,8 @@ import {
   syncMaTargetsAndTasks,
 } from '@/lib/data/normalized/ma-repo';
 import {
-  preferNormalizedTables,
   queueNormalizedSync,
+  shouldUseNormalizedRows,
 } from '@/lib/data/normalized/sync';
 import {
   isStoreHydrated,
@@ -79,7 +79,7 @@ export async function hydrateMaStore() {
     fetchAllMaTargets(),
     fetchAllMaTasks(),
   ]);
-  if (sqlTargets && (sqlTargets.length > 0 || preferNormalizedTables())) {
+  if (shouldUseNormalizedRows(sqlTargets)) {
     if (sqlTargets.length > 0) store.targets = sqlTargets;
     if (sqlTasks && sqlTasks.length > 0) store.tasks = sqlTasks;
   } else if (sqlTargets !== null && store.targets.length > 0) {

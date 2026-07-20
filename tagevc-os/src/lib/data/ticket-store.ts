@@ -1,8 +1,8 @@
 import { createHash, randomUUID } from 'crypto';
 import { logActivity } from '@/lib/data/activity';
 import {
-  preferNormalizedTables,
   queueNormalizedSync,
+  shouldUseNormalizedRows,
 } from '@/lib/data/normalized/sync';
 import {
   fetchAllTickets,
@@ -186,7 +186,7 @@ export async function hydrateTicketStore() {
 
   const store = getTicketStore();
   const sqlTickets = await fetchAllTickets();
-  if (sqlTickets && (sqlTickets.length > 0 || preferNormalizedTables())) {
+  if (shouldUseNormalizedRows(sqlTickets)) {
     if (sqlTickets.length > 0) store.tickets = sqlTickets;
   } else if (sqlTickets !== null && store.tickets.length > 0) {
     await syncTickets(store.tickets);
