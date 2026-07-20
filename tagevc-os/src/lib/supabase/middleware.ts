@@ -58,6 +58,16 @@ export async function updateSession(request: NextRequest) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = '/login';
     redirectUrl.searchParams.set('next', path);
+    // Preserve OAuth error params when Supabase redirects to Site URL
+    const err = request.nextUrl.searchParams.get('error');
+    const errDesc = request.nextUrl.searchParams.get('error_description');
+    if (err || errDesc) {
+      redirectUrl.searchParams.set('error', 'auth');
+      redirectUrl.searchParams.set(
+        'detail',
+        errDesc || err || 'oauth_failed',
+      );
+    }
     return NextResponse.redirect(redirectUrl);
   }
 

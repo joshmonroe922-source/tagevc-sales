@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import {
@@ -14,6 +14,20 @@ import {
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const detail = params.get('detail');
+    const err = params.get('error');
+    if (!err && !detail) return;
+    setError(
+      detail
+        ? decodeURIComponent(detail.replace(/\+/g, ' '))
+        : err === 'auth'
+          ? 'Microsoft sign-in failed. Check Azure provider settings in Supabase.'
+          : decodeURIComponent((err || '').replace(/\+/g, ' ')),
+    );
+  }, []);
 
   async function signInWithMicrosoft() {
     setLoading(true);
