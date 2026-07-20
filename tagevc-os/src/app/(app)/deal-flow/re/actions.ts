@@ -7,6 +7,7 @@ import {
   updateReStage,
   updateReTaskStatus,
 } from '@/lib/data/re-store';
+import { guardPermission } from '@/lib/rbac/session';
 import {
   PRIORITIES,
   RE_ROUTES,
@@ -21,6 +22,8 @@ export type ActionResult =
 function revalidateRe(reId?: string) {
   revalidatePath('/deal-flow');
   revalidatePath('/deal-flow/re');
+  revalidatePath('/activity');
+  revalidatePath('/command-center');
   if (reId) revalidatePath(`/deal-flow/re/${reId}`);
 }
 
@@ -40,6 +43,8 @@ export async function createReDealAction(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
+  const gate = await guardPermission('write:re_pipeline');
+  if (!gate.ok) return gate;
   const parsed = createSchema.safeParse({
     asset_name: formData.get('asset_name'),
     route: formData.get('route'),
@@ -67,6 +72,8 @@ export async function changeReStageAction(
   reId: string,
   stage: string,
 ): Promise<ActionResult> {
+  const gate = await guardPermission('write:re_pipeline');
+  if (!gate.ok) return gate;
   if (!(RE_STAGES as readonly string[]).includes(stage)) {
     return { ok: false, error: 'Invalid RE stage' };
   }
@@ -94,6 +101,8 @@ export async function setReTaskStatusAction(
   status: string,
   reId: string,
 ): Promise<ActionResult> {
+  const gate = await guardPermission('write:re_pipeline');
+  if (!gate.ok) return gate;
   if (!(TASK_STATUSES as readonly string[]).includes(status)) {
     return { ok: false, error: 'Invalid status' };
   }

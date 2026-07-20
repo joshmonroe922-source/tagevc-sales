@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { listRecentActivity } from '@/lib/data/activity';
 import {
   getCommandCenterSnapshot,
   listActivePortfolioCompanies,
@@ -45,10 +46,11 @@ function Metric({
 }
 
 export default async function CommandCenterPage() {
-  const [profile, snap, companies] = await Promise.all([
+  const [profile, snap, companies, activity] = await Promise.all([
     getProfile(),
     getCommandCenterSnapshot(),
     listActivePortfolioCompanies(),
+    listRecentActivity(8),
   ]);
 
   return (
@@ -68,9 +70,9 @@ export default async function CommandCenterPage() {
           ) : null}
         </div>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Firm funnel · capital pulse · portfolio health. Capital block is
-          computed from Portfolio Roll-up (SUM / WEIGHTED / MIN). Health COUNTs
-          come from Portfolio Active.
+          Firm funnel · capital pulse · portfolio health. Funnel counts are live
+          from Deal Flow (persisted). Capital/health use Portfolio Active seeds
+          until Phase 1 cutover.
           {profile ? (
             <>
               {' '}
@@ -83,6 +85,29 @@ export default async function CommandCenterPage() {
           ) : null}
         </p>
       </header>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium tracking-wide text-[#7c7871] uppercase">
+          Quick actions
+        </h2>
+        <div className="flex flex-wrap gap-2">
+          {[
+            { href: '/deal-flow/vc/intake', label: 'New lead' },
+            { href: '/deal-flow/vc', label: 'VC pipeline' },
+            { href: '/shared-services', label: 'Shared Services' },
+            { href: '/documents', label: 'Documents' },
+            { href: '/activity', label: 'Activity log' },
+          ].map((a) => (
+            <Link
+              key={a.href}
+              href={a.href}
+              className="inline-flex h-8 items-center rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground hover:bg-muted"
+            >
+              {a.label}
+            </Link>
+          ))}
+        </div>
+      </section>
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium tracking-wide text-[#7c7871] uppercase">
@@ -210,6 +235,42 @@ export default async function CommandCenterPage() {
               <HealthBadge health={c.health} />
             </Link>
           ))}
+        </CardContent>
+      </Card>
+
+      <Card className="border-dashed">
+        <CardHeader className="flex flex-row items-center justify-between gap-4">
+          <div>
+            <CardTitle className="text-base">Recent activity</CardTitle>
+            <CardDescription>
+              Firm-wide actions persisted in Supabase.
+            </CardDescription>
+          </div>
+          <Link
+            href="/activity"
+            className="text-sm font-medium text-[#3a414f] underline-offset-4 hover:underline"
+          >
+            View all →
+          </Link>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {activity.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No events yet. Apply Phase 7 SQL, then create a lead or ticket.
+            </p>
+          ) : (
+            activity.map((e) => (
+              <div
+                key={e.event_id}
+                className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border py-2 last:border-0"
+              >
+                <p className="text-sm font-medium text-foreground">{e.title}</p>
+                <p className="text-xs text-muted-foreground">
+                  {new Date(e.created_at).toLocaleString()}
+                </p>
+              </div>
+            ))
+          )}
         </CardContent>
       </Card>
 

@@ -12,6 +12,7 @@ import {
   updateLeadStage,
   updateTaskStatus,
 } from '@/lib/data/deal-flow-store';
+import { guardPermission } from '@/lib/rbac/session';
 import {
   EXEC_STAGES,
   IC_DECISIONS,
@@ -46,6 +47,7 @@ function revalidateDealFlow(
   revalidatePath('/deal-flow/vc/deals');
   revalidatePath('/deal-flow/vc/ic');
   revalidatePath('/command-center');
+  revalidatePath('/activity');
   revalidatePath('/entities');
   if (leadId) revalidatePath(`/deal-flow/vc/leads/${leadId}`);
   if (dealId) revalidatePath(`/deal-flow/vc/deals/${dealId}`);
@@ -60,6 +62,9 @@ export async function createLeadAction(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
+  const gate = await guardPermission('write:vc_pipeline');
+  if (!gate.ok) return gate;
+
   const relatedRaw = formData.get('related_entity_id');
   const parsed = createLeadSchema.safeParse({
     company_name: formData.get('company_name'),
@@ -94,6 +99,8 @@ export async function changeLeadStageAction(
   leadId: string,
   stage: string,
 ): Promise<ActionResult> {
+  const gate = await guardPermission('write:vc_pipeline');
+  if (!gate.ok) return gate;
   if (!(PIPELINE_STAGES as readonly string[]).includes(stage)) {
     return { ok: false, error: 'Invalid stage' };
   }
@@ -121,6 +128,8 @@ export async function setTaskStatusAction(
   status: string,
   leadId: string,
 ): Promise<ActionResult> {
+  const gate = await guardPermission('write:vc_pipeline');
+  if (!gate.ok) return gate;
   if (!(TASK_STATUSES as readonly string[]).includes(status)) {
     return { ok: false, error: 'Invalid status' };
   }
@@ -136,6 +145,8 @@ export async function setTaskStatusAction(
 export async function convertLeadToDealAction(
   leadId: string,
 ): Promise<ActionResult> {
+  const gate = await guardPermission('write:vc_pipeline');
+  if (!gate.ok) return gate;
   try {
     const deal = convertLeadToDeal(leadId);
     revalidateDealFlow(leadId, deal.deal_id);
@@ -154,6 +165,8 @@ export async function changeDealExecStageAction(
   dealId: string,
   stage: string,
 ): Promise<ActionResult> {
+  const gate = await guardPermission('write:vc_pipeline');
+  if (!gate.ok) return gate;
   if (!(EXEC_STAGES as readonly string[]).includes(stage)) {
     return { ok: false, error: 'Invalid exec stage' };
   }
@@ -181,6 +194,8 @@ export async function setDealTaskStatusAction(
   status: string,
   dealId: string,
 ): Promise<ActionResult> {
+  const gate = await guardPermission('write:vc_pipeline');
+  if (!gate.ok) return gate;
   if (!(TASK_STATUSES as readonly string[]).includes(status)) {
     return { ok: false, error: 'Invalid status' };
   }
@@ -194,6 +209,8 @@ export async function setDealTaskStatusAction(
 }
 
 export async function submitIcAction(dealId: string): Promise<ActionResult> {
+  const gate = await guardPermission('write:vc_pipeline');
+  if (!gate.ok) return gate;
   try {
     submitIcForReview(dealId);
     revalidateDealFlow(undefined, dealId);
@@ -208,6 +225,8 @@ export async function recordIcDecisionAction(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
+  const gate = await guardPermission('action:ic_vote');
+  if (!gate.ok) return gate;
   const icId = String(formData.get('ic_id') ?? '');
   const decision = String(formData.get('decision') ?? '');
   if (!(IC_DECISIONS as readonly string[]).includes(decision)) {

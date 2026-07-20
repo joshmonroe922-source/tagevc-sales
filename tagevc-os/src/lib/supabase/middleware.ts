@@ -13,12 +13,16 @@ export async function updateSession(request: NextRequest) {
     path === '/favicon.ico';
 
   if (process.env.DEV_BYPASS_AUTH === '1') {
-    if (path === '/login') {
-      const redirectUrl = request.nextUrl.clone();
-      redirectUrl.pathname = '/command-center';
-      return NextResponse.redirect(redirectUrl);
+    if (process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production') {
+      console.error('DEV_BYPASS_AUTH is set in production — ignoring for safety');
+    } else {
+      if (path === '/login') {
+        const redirectUrl = request.nextUrl.clone();
+        redirectUrl.pathname = '/command-center';
+        return NextResponse.redirect(redirectUrl);
+      }
+      return supabaseResponse;
     }
-    return supabaseResponse;
   }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

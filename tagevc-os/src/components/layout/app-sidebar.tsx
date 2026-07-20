@@ -6,6 +6,7 @@ import {
   Building2,
   Briefcase,
   FileText,
+  History,
   Home,
   Landmark,
   LayoutDashboard,
@@ -65,7 +66,10 @@ export function AppSidebar({ role, fullName, email }: Props) {
 
       <nav className="flex-1 space-y-1 px-3 pb-4">
         {items.map((item) => {
-          const Icon = ICONS[item.module] ?? Home;
+          const Icon =
+            item.href === '/activity'
+              ? History
+              : (ICONS[item.module] ?? Home);
           const active =
             item.href === '/deal-flow'
               ? pathname === '/deal-flow'

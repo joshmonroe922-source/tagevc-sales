@@ -1,4 +1,12 @@
 import { randomUUID } from 'crypto';
+import { logActivity } from '@/lib/data/activity';
+import {
+  isStoreHydrated,
+  loadStoreSnapshot,
+  markStoreHydrated,
+  queueStorePersist,
+  saveStoreSnapshot,
+} from '@/lib/data/persist';
 import {
   buildInitialReTasks,
   INITIAL_RE_DEALS,
@@ -40,8 +48,25 @@ export function getReStore(): ReStore {
   return globalThis.__tageReStore;
 }
 
+function touchRe() {
+  queueStorePersist('re', () => structuredClone(getReStore()));
+}
+
+export async function hydrateReStore() {
+  if (isStoreHydrated('re')) return;
+  const snap = await loadStoreSnapshot<ReStore>('re');
+  if (snap?.payload?.deals) {
+    globalThis.__tageReStore = snap.payload;
+  } else {
+    const store = getReStore();
+    await saveStoreSnapshot('re', store);
+  }
+  markStoreHydrated('re');
+}
+
 export function resetReStore() {
   globalThis.__tageReStore = createStore();
+  touchRe();
 }
 
 function nextReId(deals: ReDeal[]): string {
@@ -99,6 +124,14 @@ export function createReDeal(input: CreateReDealInput): ReDeal {
   store.deals.push(deal);
   const spawned = spawnReTasksForStage(deal, store.tasks, 'Sourced');
   store.tasks.push(...spawned);
+  touchRe();
+  void logActivity({
+    module: 're',
+    action: 'deal_created',
+    title: `RE deal created: ${deal.asset_name}`,
+    ref_type: 're',
+    ref_id: deal.re_id,
+  });
   return deal;
 }
 
@@ -125,6 +158,14 @@ export function updateReStage(
     ensureReHandoff(deal);
   }
 
+  touchRe();
+  void logActivity({
+    module: 're',
+    action: 're_stage',
+    title: `${deal.asset_name} → ${stage}`,
+    ref_type: 're',
+    ref_id: deal.re_id,
+  });
   return { deal, spawned };
 }
 
@@ -144,6 +185,7 @@ function ensureReHandoff(deal: ReDeal): HandoffPack {
   store.handoffs.push(pack);
   deal.handoff_id = pack.handoff_id;
   deal.updated_at = new Date().toISOString();
+  touchRe();
   return pack;
 }
 
@@ -158,6 +200,7 @@ export function updateReTaskStatus(
   task.status = status;
   task.updated_at = now;
   task.completed_at = status === 'Completed' ? now : null;
+  touchRe();
   return task;
 }
 

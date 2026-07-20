@@ -1,6 +1,14 @@
 import { createHash, randomUUID } from 'crypto';
-import { SEED_ENTITIES } from '@/lib/data/seed';
+import { logActivity } from '@/lib/data/activity';
 import { listActiveDeals } from '@/lib/data/deal-flow-store';
+import {
+  isStoreHydrated,
+  loadStoreSnapshot,
+  markStoreHydrated,
+  queueStorePersist,
+  saveStoreSnapshot,
+} from '@/lib/data/persist';
+import { SEED_ENTITIES } from '@/lib/data/seed';
 import {
   applyAiReviewToDocument,
   spawnTicketForSuggestion,
@@ -180,6 +188,22 @@ export function getDocStore(): DocStore {
   return globalThis.__tageDocStore;
 }
 
+function touchDocs() {
+  queueStorePersist('documents', () => structuredClone(getDocStore()));
+}
+
+export async function hydrateDocStore() {
+  if (isStoreHydrated('documents')) return;
+  const snap = await loadStoreSnapshot<DocStore>('documents');
+  if (snap?.payload?.docs) {
+    globalThis.__tageDocStore = snap.payload;
+  } else {
+    const store = getDocStore();
+    await saveStoreSnapshot('documents', store);
+  }
+  markStoreHydrated('documents');
+}
+
 function nextDocId(docs: DocumentRecord[]): string {
   const max = docs.reduce((m, d) => {
     const n = Number(d.doc_id.replace(/\D/g, ''));
@@ -333,7 +357,16 @@ export function createDocumentFromTemplate(
     'human',
     `template=${tpl.template_id}; capital=${isCapitalDocument(tpl.doc_type)}`,
   );
-  return runAiReviewOnDocument(doc.doc_id);
+  const reviewed = runAiReviewOnDocument(doc.doc_id);
+  void logActivity({
+    module: 'documents',
+    action: 'doc_created',
+    title: `Document created: ${doc.title}`,
+    ref_type: 'document',
+    ref_id: doc.doc_id,
+    entity_id: doc.entity_id ?? undefined,
+  });
+  return reviewed;
 }
 
 export type UploadDocumentInput = {
@@ -380,7 +413,16 @@ export function uploadDocument(input: UploadDocumentInput): DocumentRecord {
   };
   store.docs.push(doc);
   audit(store, doc.doc_id, 'uploaded', 'human', `folder=${input.folder}`);
-  return runAiReviewOnDocument(doc.doc_id);
+  const reviewed = runAiReviewOnDocument(doc.doc_id);
+  void logActivity({
+    module: 'documents',
+    action: 'doc_uploaded',
+    title: `Document uploaded: ${doc.title}`,
+    ref_type: 'document',
+    ref_id: doc.doc_id,
+    entity_id: doc.entity_id ?? undefined,
+  });
+  return reviewed;
 }
 
 /**
@@ -393,6 +435,7 @@ export function runAiReviewOnDocument(docId: string): DocumentRecord {
   if (!doc) throw new Error('Document not found');
   const { auditDetail } = applyAiReviewToDocument(doc);
   audit(store, doc.doc_id, 'ai_review', 'ai', auditDetail);
+  touchDocs();
   return doc;
 }
 
@@ -441,6 +484,7 @@ export function updateAiSuggestion(
       'human',
       `suggestion=${suggestionId}`,
     );
+    touchDocs();
     return doc;
   }
 
@@ -456,6 +500,15 @@ export function updateAiSuggestion(
       'human',
       `suggestion=${suggestionId}; ticket=${suggestion.ticket_id}`,
     );
+    touchDocs();
+    void logActivity({
+      module: 'documents',
+      action: 'ai_suggestion_accepted',
+      title: `AI suggestion accepted: ${suggestion.title}`,
+      ref_type: 'document',
+      ref_id: doc.doc_id,
+      entity_id: doc.entity_id ?? undefined,
+    });
     return doc;
   }
 
@@ -470,6 +523,15 @@ export function updateAiSuggestion(
     'human',
     `suggestion=${suggestionId}; ticket=${suggestion.ticket_id ?? 'none'}`,
   );
+  touchDocs();
+  void logActivity({
+    module: 'documents',
+    action: 'ai_suggestion_dismissed',
+    title: `AI suggestion dismissed: ${suggestion.title}`,
+    ref_type: 'document',
+    ref_id: doc.doc_id,
+    entity_id: doc.entity_id ?? undefined,
+  });
   return doc;
 }
 
@@ -507,6 +569,15 @@ export function sendDocument(args: {
     'human',
     `envelope=${doc.envelope_id}; capital=${isCapitalDocument(doc.doc_type)}`,
   );
+  touchDocs();
+  void logActivity({
+    module: 'documents',
+    action: 'docusign_send',
+    title: `Document sent: ${doc.title}`,
+    ref_type: 'document',
+    ref_id: doc.doc_id,
+    entity_id: doc.entity_id ?? undefined,
+  });
   return doc;
 }
 
@@ -549,6 +620,7 @@ export function applyDocuSignWebhook(args: {
     'webhook',
     `envelope=${doc.envelope_id}`,
   );
+  touchDocs();
   return doc;
 }
 

@@ -75,3 +75,7 @@ docs/finance/*.csv
 docs/finance/_extracted.txt
 docs/finance/_seed_controls.py.out.sql
 !docs/finance/README.md
+.env
+.env.*
+!.env.example
+!**/.env.example

@@ -82,11 +82,16 @@ const ALL_READ: Permission[] = [
 export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
   visionary: [
     ...ALL_READ,
+    'write:vc_pipeline',
+    'write:ma_pipeline',
+    'write:re_pipeline',
+    'write:shared_services',
+    'write:documents',
     'write:capital',
+    'write:portfolio_health',
     'action:ic_vote',
     'action:wire',
     'action:docusign_capital',
-    'write:portfolio_health',
     'admin:users',
     'admin:enums',
   ],

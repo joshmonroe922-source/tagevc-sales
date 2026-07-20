@@ -1,4 +1,12 @@
 import { createHash, randomUUID } from 'crypto';
+import { logActivity } from '@/lib/data/activity';
+import {
+  isStoreHydrated,
+  loadStoreSnapshot,
+  markStoreHydrated,
+  queueStorePersist,
+  saveStoreSnapshot,
+} from '@/lib/data/persist';
 import {
   assertCanAutoExecute,
   diagnoseTicket,
@@ -149,6 +157,22 @@ export function getTicketStore(): TicketStore {
     globalThis.__tageTicketStore = createStore();
   }
   return globalThis.__tageTicketStore;
+}
+
+function touchTickets() {
+  queueStorePersist('tickets', () => structuredClone(getTicketStore()));
+}
+
+export async function hydrateTicketStore() {
+  if (isStoreHydrated('tickets')) return;
+  const snap = await loadStoreSnapshot<TicketStore>('tickets');
+  if (snap?.payload?.tickets) {
+    globalThis.__tageTicketStore = snap.payload;
+  } else {
+    const store = getTicketStore();
+    await saveStoreSnapshot('tickets', store);
+  }
+  markStoreHydrated('tickets');
 }
 
 function nextTicketId(tickets: Ticket[]): string {
@@ -332,6 +356,15 @@ export function createTicket(input: CreateTicketInput): Ticket {
     }
   }
 
+  touchTickets();
+  void logActivity({
+    module: 'shared_services',
+    action: 'ticket_created',
+    title: `Ticket created: ${ticket.title}`,
+    ref_type: 'ticket',
+    ref_id: ticket.ticket_id,
+    entity_id: ticket.entity_id ?? undefined,
+  });
   return ticket;
 }
 
@@ -392,6 +425,14 @@ export function setDraftApproval(
     payload_hash: null,
     actor: 'human',
   });
+  touchTickets();
+  void logActivity({
+    module: 'shared_services',
+    action: `draft_${approval}`,
+    title: `Draft ${approval}: ${ticket.title}`,
+    ref_type: 'ticket',
+    ref_id: ticket.ticket_id,
+  });
   return ticket;
 }
 
@@ -417,6 +458,14 @@ export function resolveTicket(ticketId: string): Ticket {
     approval: 'human',
     payload_hash: null,
     actor: 'human',
+  });
+  touchTickets();
+  void logActivity({
+    module: 'shared_services',
+    action: 'ticket_resolved',
+    title: `Ticket resolved: ${ticket.title}`,
+    ref_type: 'ticket',
+    ref_id: ticket.ticket_id,
   });
   return ticket;
 }

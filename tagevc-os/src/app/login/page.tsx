@@ -67,8 +67,8 @@ export default function LoginPage() {
             Sign in
           </CardTitle>
           <CardDescription className="text-[#535c63]">
-            Use your Microsoft 365 work account to access the Tage VC Operating
-            System.
+            Use your Microsoft 365 work account (@tagevc.com) to access the
+            Operating System at app.tagevc.com.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -78,17 +78,36 @@ export default function LoginPage() {
             disabled={loading}
             onClick={signInWithMicrosoft}
           >
-            {loading ? 'Redirecting…' : 'Continue with Microsoft'}
+            {loading ? 'Redirecting to Microsoft…' : 'Continue with Microsoft'}
           </Button>
           {error ? (
-            <p className="text-sm text-destructive" role="alert">
-              {error}
-            </p>
+            <div
+              className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2"
+              role="alert"
+            >
+              <p className="text-sm font-medium text-destructive">
+                Sign-in failed
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-destructive/90">
+                {error}
+              </p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                If this persists, confirm Azure redirect URIs include{' '}
+                <code className="rounded bg-muted px-1">
+                  /auth/v1/callback
+                </code>{' '}
+                (Supabase) and site URL is{' '}
+                <code className="rounded bg-muted px-1">
+                  https://app.tagevc.com
+                </code>
+                .
+              </p>
+            </div>
           ) : null}
           <p className="text-xs leading-relaxed text-muted-foreground">
-            Enable the Azure provider in Supabase Auth and register the callback
-            URL. Role assignment comes from your{' '}
-            <code className="rounded bg-muted px-1">profiles</code> row.
+            Access is limited to firm accounts. Your role comes from your{' '}
+            <code className="rounded bg-muted px-1">profiles</code> row after
+            first successful login.
           </p>
         </CardContent>
       </Card>

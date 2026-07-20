@@ -7,6 +7,7 @@ import {
   resolveTicket,
   setDraftApproval,
 } from '@/lib/data/ticket-store';
+import { guardPermission } from '@/lib/rbac/session';
 import { SS_SERVICES, TICKET_PRIORITIES } from '@/lib/types';
 
 export type TicketActionResult =
@@ -28,6 +29,8 @@ const createSchema = z.object({
 
 function revalidateTickets(ticketId?: string) {
   revalidatePath('/shared-services');
+  revalidatePath('/activity');
+  revalidatePath('/command-center');
   if (ticketId) revalidatePath(`/shared-services/tickets/${ticketId}`);
 }
 
@@ -35,6 +38,8 @@ export async function createTicketAction(
   _prev: TicketActionResult | null,
   formData: FormData,
 ): Promise<TicketActionResult> {
+  const gate = await guardPermission('write:shared_services');
+  if (!gate.ok) return gate;
   const parsed = createSchema.safeParse({
     title: formData.get('title'),
     description: formData.get('description') || undefined,
@@ -66,6 +71,8 @@ export async function createTicketAction(
 export async function approveDraftAction(
   ticketId: string,
 ): Promise<TicketActionResult> {
+  const gate = await guardPermission('write:shared_services');
+  if (!gate.ok) return gate;
   try {
     setDraftApproval(ticketId, 'approved');
     revalidateTickets(ticketId);
@@ -78,6 +85,8 @@ export async function approveDraftAction(
 export async function rejectDraftAction(
   ticketId: string,
 ): Promise<TicketActionResult> {
+  const gate = await guardPermission('write:shared_services');
+  if (!gate.ok) return gate;
   try {
     setDraftApproval(ticketId, 'rejected');
     revalidateTickets(ticketId);
@@ -90,6 +99,8 @@ export async function rejectDraftAction(
 export async function resolveTicketAction(
   ticketId: string,
 ): Promise<TicketActionResult> {
+  const gate = await guardPermission('write:shared_services');
+  if (!gate.ok) return gate;
   try {
     resolveTicket(ticketId);
     revalidateTickets(ticketId);

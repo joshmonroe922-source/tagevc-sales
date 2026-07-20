@@ -1,8 +1,16 @@
 import { randomUUID } from 'crypto';
+import { logActivity } from '@/lib/data/activity';
 import {
   buildInitialMaTasks,
   INITIAL_MA_TARGETS,
 } from '@/lib/data/ma-seed';
+import {
+  isStoreHydrated,
+  loadStoreSnapshot,
+  markStoreHydrated,
+  queueStorePersist,
+  saveStoreSnapshot,
+} from '@/lib/data/persist';
 import { createHandoffPack } from '@/lib/deal-flow/handoff';
 import { spawnMaTasksForStage } from '@/lib/deal-flow/ma/spawn-tasks';
 import type {
@@ -39,8 +47,25 @@ export function getMaStore(): MaStore {
   return globalThis.__tageMaStore;
 }
 
+function touchMa() {
+  queueStorePersist('ma', () => structuredClone(getMaStore()));
+}
+
+export async function hydrateMaStore() {
+  if (isStoreHydrated('ma')) return;
+  const snap = await loadStoreSnapshot<MaStore>('ma');
+  if (snap?.payload?.targets) {
+    globalThis.__tageMaStore = snap.payload;
+  } else {
+    const store = getMaStore();
+    await saveStoreSnapshot('ma', store);
+  }
+  markStoreHydrated('ma');
+}
+
 export function resetMaStore() {
   globalThis.__tageMaStore = createStore();
+  touchMa();
 }
 
 function nextMaId(targets: MaTarget[]): string {
@@ -97,6 +122,14 @@ export function createMaTarget(input: CreateMaTargetInput): MaTarget {
   store.targets.push(target);
   const spawned = spawnMaTasksForStage(target, store.tasks, 'Sourced');
   store.tasks.push(...spawned);
+  touchMa();
+  void logActivity({
+    module: 'ma',
+    action: 'target_created',
+    title: `M&A target created: ${target.company_name}`,
+    ref_type: 'ma',
+    ref_id: target.ma_id,
+  });
   return target;
 }
 
@@ -123,6 +156,14 @@ export function updateMaStage(
     ensureMaHandoff(target);
   }
 
+  touchMa();
+  void logActivity({
+    module: 'ma',
+    action: 'ma_stage',
+    title: `${target.company_name} → ${stage}`,
+    ref_type: 'ma',
+    ref_id: target.ma_id,
+  });
   return { target, spawned };
 }
 
@@ -142,6 +183,7 @@ function ensureMaHandoff(target: MaTarget): HandoffPack {
   store.handoffs.push(pack);
   target.handoff_id = pack.handoff_id;
   target.updated_at = new Date().toISOString();
+  touchMa();
   return pack;
 }
 
@@ -156,6 +198,7 @@ export function updateMaTaskStatus(
   task.status = status;
   task.updated_at = now;
   task.completed_at = status === 'Completed' ? now : null;
+  touchMa();
   return task;
 }
 

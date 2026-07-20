@@ -181,8 +181,39 @@ Overview · Financials · CORE KPIs · FLEX KPIs · Leads · Tasks (Deal Flow vs
 - M&A Integration Day-1/100 workstreams UI · M&A Scorecard/Model
 - RE Underwrite blocks · RE Portfolio (PFRE) persistence
 - Handoff → auto-issue ENT + Portfolio Active row
-- Persist stores to Supabase (phase SQL stubs)
 - Live website webhook → intake (edge function cutover)
+
+## Phase 7 scope (Production Readiness)
+
+Live at **https://app.tagevc.com**. Focus: stability, persistence across redeploys, auth UX, activity.
+
+| Area | Status |
+|------|--------|
+| Microsoft login error surfacing + production redirect hints | Done |
+| `DEV_BYPASS_AUTH` disabled in production | Done |
+| Supabase JSONB store snapshots (VC / MA / RE / tickets / docs) | Done — apply `supabase/phase7_production.sql` |
+| Hydrate on app layout + debounced persist | Done |
+| Activity log (`/activity`) + Command Center recent feed | Done |
+| Broadcast notifications (new lead, doc signed) | Done |
+| App error / loading / not-found | Done |
+| RBAC guards on VC / MA / RE / SS / Documents mutations | Done |
+| Visionary full write access | Done |
+| DocuSign webhook optional secret (`DOCUSIGN_WEBHOOK_SECRET`) | Done |
+| `.env.example` production secrets checklist | Done |
+
+### Required ops step
+
+1. In Supabase SQL editor for project `opdqybaatfbwkokbzwli`, run **`supabase/phase7_production.sql`**.
+2. Optionally set on Vercel: `SUPABASE_SERVICE_ROLE_KEY`, `DOCUSIGN_WEBHOOK_SECRET`.
+3. Redeploy after merge so hydrate/persist ships.
+
+### Still future (post Phase 7)
+
+- Normalize JSONB snapshots → first-class Postgres tables (leads, deals, tickets, docs)
+- Portfolio / Entity Master cutover from seed → live tables
+- Per-user notification inbox + read/unread UI
+- Real DocuSign Connect + storage buckets
+- Observability (Sentry) · uptime checks · backup runbooks
 
 
 ## Run locally
@@ -217,4 +248,4 @@ Set `DEV_BYPASS_AUTH=1` in `.env.local` to preview the shell as Visionary (local
 
 ## Next phases (from Cursor Brief)
 
-P1: VC pipeline + live Command Center counts · P2: Close + docs · M&A/RE · Portfolio · Shared Services
+Phase 7 production hardening is in progress. Remaining: normalized schema cutover, portfolio DB, full DocuSign, observability.

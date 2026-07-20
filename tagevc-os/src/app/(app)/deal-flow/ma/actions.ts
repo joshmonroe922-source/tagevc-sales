@@ -7,6 +7,7 @@ import {
   updateMaStage,
   updateMaTaskStatus,
 } from '@/lib/data/ma-store';
+import { guardPermission } from '@/lib/rbac/session';
 import {
   MA_DEAL_TYPES,
   MA_STAGES,
@@ -21,6 +22,8 @@ export type ActionResult =
 function revalidateMa(maId?: string) {
   revalidatePath('/deal-flow');
   revalidatePath('/deal-flow/ma');
+  revalidatePath('/activity');
+  revalidatePath('/command-center');
   if (maId) revalidatePath(`/deal-flow/ma/${maId}`);
 }
 
@@ -42,6 +45,8 @@ export async function createMaTargetAction(
   _prev: ActionResult | null,
   formData: FormData,
 ): Promise<ActionResult> {
+  const gate = await guardPermission('write:ma_pipeline');
+  if (!gate.ok) return gate;
   const parsed = createSchema.safeParse({
     company_name: formData.get('company_name'),
     website: formData.get('website') || undefined,
@@ -71,6 +76,8 @@ export async function changeMaStageAction(
   maId: string,
   stage: string,
 ): Promise<ActionResult> {
+  const gate = await guardPermission('write:ma_pipeline');
+  if (!gate.ok) return gate;
   if (!(MA_STAGES as readonly string[]).includes(stage)) {
     return { ok: false, error: 'Invalid M&A stage' };
   }
@@ -98,6 +105,8 @@ export async function setMaTaskStatusAction(
   status: string,
   maId: string,
 ): Promise<ActionResult> {
+  const gate = await guardPermission('write:ma_pipeline');
+  if (!gate.ok) return gate;
   if (!(TASK_STATUSES as readonly string[]).includes(status)) {
     return { ok: false, error: 'Invalid status' };
   }

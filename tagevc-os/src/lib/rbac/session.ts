@@ -20,7 +20,11 @@ const DEV_PROFILE: Profile = {
 };
 
 export async function getSessionUser() {
-  if (process.env.DEV_BYPASS_AUTH === '1') {
+  if (
+    process.env.DEV_BYPASS_AUTH === '1' &&
+    process.env.NODE_ENV !== 'production' &&
+    process.env.VERCEL_ENV !== 'production'
+  ) {
     return { id: DEV_PROFILE.id, email: DEV_PROFILE.email };
   }
   const supabase = await createClient();
@@ -31,7 +35,11 @@ export async function getSessionUser() {
 }
 
 export async function getProfile(): Promise<Profile | null> {
-  if (process.env.DEV_BYPASS_AUTH === '1') {
+  if (
+    process.env.DEV_BYPASS_AUTH === '1' &&
+    process.env.NODE_ENV !== 'production' &&
+    process.env.VERCEL_ENV !== 'production'
+  ) {
     return DEV_PROFILE;
   }
 
@@ -41,16 +49,24 @@ export async function getProfile(): Promise<Profile | null> {
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('profiles')
     .select('*')
     .eq('id', user.id)
     .maybeSingle();
 
-  if (data) return data as Profile;
+  if (error) {
+    console.error('profiles lookup failed', error.message);
+  }
 
-  const role = normalizeRole(user.user_metadata?.role) ?? 'associate';
-  return {
+  if (data) {
+    const profile = data as Profile;
+    if (!profile.active) return null;
+    return profile;
+  }
+
+  // Bootstrap a row for first login if the trigger missed this user.
+  const bootstrap = {
     id: user.id,
     email: user.email ?? '',
     full_name:
@@ -58,10 +74,26 @@ export async function getProfile(): Promise<Profile | null> {
       user.user_metadata?.name ??
       user.email?.split('@')[0] ??
       null,
-    role,
+    role: (normalizeRole(user.user_metadata?.role) ?? 'associate') as AppRole,
     entity_id: null,
     avatar_url: user.user_metadata?.avatar_url ?? null,
     active: true,
+  };
+
+  const { data: inserted, error: insertError } = await supabase
+    .from('profiles')
+    .upsert(bootstrap, { onConflict: 'id' })
+    .select('*')
+    .maybeSingle();
+
+  if (insertError) {
+    console.error('profiles bootstrap failed', insertError.message);
+  }
+
+  if (inserted) return inserted as Profile;
+
+  return {
+    ...bootstrap,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
@@ -87,4 +119,16 @@ export async function requirePermission(permission: Permission) {
     throw new Error('Forbidden');
   }
   return profile;
+}
+
+/** Soft permission check for server actions (returns error string). */
+export async function guardPermission(
+  permission: Permission,
+): Promise<{ ok: true; profile: Profile } | { ok: false; error: string }> {
+  const profile = await getProfile();
+  if (!profile) return { ok: false, error: 'Not signed in' };
+  if (!roleHasPermission(profile.role, permission)) {
+    return { ok: false, error: 'You do not have permission for this action' };
+  }
+  return { ok: true, profile };
 }

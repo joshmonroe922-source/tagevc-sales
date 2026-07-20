@@ -9,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { EmptyState } from '@/components/ui/empty-state';
 import {
   Table,
   TableBody,
@@ -64,6 +65,14 @@ export default async function SharedServicesPage() {
       </section>
 
       <div className="overflow-hidden rounded-lg border border-border bg-card">
+        {open.length === 0 ? (
+          <div className="p-4">
+            <EmptyState
+              title="No open tickets"
+              description="Create a ticket below or wait for AI document suggestions to open work."
+            />
+          </div>
+        ) : (
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/40 hover:bg-muted/40">
@@ -113,6 +122,7 @@ export default async function SharedServicesPage() {
             ))}
           </TableBody>
         </Table>
+        )}
       </div>
 
       <CreateTicketForm />

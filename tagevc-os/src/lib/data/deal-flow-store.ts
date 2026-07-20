@@ -8,6 +8,14 @@ import {
   INITIAL_IC_REVIEWS,
   INITIAL_LEADS,
 } from '@/lib/data/deal-flow-seed';
+import { createBroadcastNotification, logActivity } from '@/lib/data/activity';
+import {
+  isStoreHydrated,
+  loadStoreSnapshot,
+  markStoreHydrated,
+  queueStorePersist,
+  saveStoreSnapshot,
+} from '@/lib/data/persist';
 import { createHandoffPack } from '@/lib/deal-flow/handoff';
 import { spawnTasksForStage } from '@/lib/deal-flow/spawn-tasks';
 import { isReadyForDealConversion } from '@/lib/deal-flow/stage';
@@ -64,8 +72,25 @@ export function getDealFlowStore(): DealFlowStore {
   return globalThis.__tageDealFlowStore;
 }
 
+function touchDealFlow() {
+  queueStorePersist('deal_flow', () => structuredClone(getDealFlowStore()));
+}
+
+export async function hydrateDealFlowStore() {
+  if (isStoreHydrated('deal_flow')) return;
+  const snap = await loadStoreSnapshot<DealFlowStore>('deal_flow');
+  if (snap?.payload?.leads) {
+    globalThis.__tageDealFlowStore = snap.payload;
+  } else {
+    const store = getDealFlowStore();
+    await saveStoreSnapshot('deal_flow', store);
+  }
+  markStoreHydrated('deal_flow');
+}
+
 export function resetDealFlowStore() {
   globalThis.__tageDealFlowStore = createStore();
+  touchDealFlow();
 }
 
 function nextLeadId(leads: Lead[]): string {
@@ -149,6 +174,21 @@ export function createLead(input: CreateLeadInput): Lead {
   store.leads.push(lead);
   const spawned = spawnTasksForStage(lead, store.tasks, 'Sourced');
   store.tasks.push(...spawned);
+  touchDealFlow();
+  void logActivity({
+    module: 'vc',
+    action: 'lead_created',
+    title: `Lead created: ${lead.company_name}`,
+    ref_type: 'lead',
+    ref_id: lead.lead_id,
+    entity_id: lead.related_entity_id ?? undefined,
+  });
+  void createBroadcastNotification({
+    kind: 'new_lead',
+    title: `New lead: ${lead.company_name}`,
+    body: `Source: ${lead.source}`,
+    href: `/deal-flow/vc/leads/${lead.lead_id}`,
+  });
   return lead;
 }
 
@@ -164,6 +204,14 @@ export function updateLeadStage(
   lead.updated_at = now;
   const spawned = spawnTasksForStage(lead, store.tasks, stage);
   store.tasks.push(...spawned);
+  touchDealFlow();
+  void logActivity({
+    module: 'vc',
+    action: 'lead_stage',
+    title: `${lead.company_name} → ${stage}`,
+    ref_type: 'lead',
+    ref_id: lead.lead_id,
+  });
   return { lead, spawned };
 }
 
@@ -187,6 +235,7 @@ export function updateLeadFields(
   const lead = store.leads.find((l) => l.lead_id === leadId);
   if (!lead) throw new Error(`Lead ${leadId} not found`);
   Object.assign(lead, patch, { updated_at: new Date().toISOString() });
+  touchDealFlow();
   return lead;
 }
 
@@ -201,6 +250,7 @@ export function updateTaskStatus(
   task.status = status;
   task.updated_at = now;
   task.completed_at = status === 'Completed' ? now : null;
+  touchDealFlow();
   return task;
 }
 
@@ -278,6 +328,14 @@ export function convertLeadToDeal(leadId: string): Deal {
     created_at: now,
   });
 
+  touchDealFlow();
+  void logActivity({
+    module: 'vc',
+    action: 'deal_opened',
+    title: `Deal opened: ${deal.company_name}`,
+    ref_type: 'deal',
+    ref_id: deal.deal_id,
+  });
   return deal;
 }
 
@@ -316,6 +374,14 @@ export function updateDealExecStage(
     ensureVcHandoff(deal);
   }
 
+  touchDealFlow();
+  void logActivity({
+    module: 'vc',
+    action: 'deal_stage',
+    title: `${deal.company_name} → ${stage}`,
+    ref_type: 'deal',
+    ref_id: deal.deal_id,
+  });
   return { deal, spawned };
 }
 
@@ -335,6 +401,7 @@ function ensureVcHandoff(deal: Deal): HandoffPack {
   store.handoffs.push(pack);
   deal.handoff_id = pack.handoff_id;
   deal.updated_at = new Date().toISOString();
+  touchDealFlow();
   return pack;
 }
 
@@ -349,6 +416,7 @@ export function updateDealTaskStatus(
   task.status = status;
   task.updated_at = now;
   task.completed_at = status === 'Completed' ? now : null;
+  touchDealFlow();
   return task;
 }
 
@@ -415,6 +483,14 @@ export function recordIcDecision(input: RecordIcDecisionInput): IcReview {
     }
   }
 
+  touchDealFlow();
+  void logActivity({
+    module: 'vc',
+    action: 'ic_decision',
+    title: `IC ${input.decision}: ${review.company_name}`,
+    ref_type: 'ic',
+    ref_id: review.ic_id,
+  });
   return review;
 }
 
@@ -455,6 +531,7 @@ export function submitIcForReview(dealId: string): IcReview {
     actor: deal.owner ?? 'Partner',
     created_at: now,
   });
+  touchDealFlow();
   return review;
 }
 

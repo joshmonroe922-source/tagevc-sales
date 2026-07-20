@@ -15,6 +15,12 @@ export const MAIN_NAV: NavItem[] = [
     description: 'Firm funnel · capital · portfolio pulse',
   },
   {
+    module: 'command_center',
+    href: '/activity',
+    label: 'Activity',
+    description: 'Recent firm actions',
+  },
+  {
     module: 'deal_flow_vc',
     href: '/deal-flow',
     label: 'Deal Flow',

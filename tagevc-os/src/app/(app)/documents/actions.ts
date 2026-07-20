@@ -10,6 +10,7 @@ import {
   updateAiSuggestion,
   uploadDocument,
 } from '@/lib/data/document-store';
+import { guardPermission } from '@/lib/rbac/session';
 import { DOC_TYPES, ENTITY_DOC_FOLDERS } from '@/lib/types/enums';
 
 export type DocActionResult =
@@ -19,6 +20,7 @@ export type DocActionResult =
 function revalidateDocs(entityId?: string | null, docId?: string) {
   revalidatePath('/documents');
   revalidatePath('/shared-services');
+  revalidatePath('/activity');
   if (entityId) revalidatePath(`/documents/entities/${entityId}`);
   if (docId) revalidatePath(`/documents/${docId}`);
 }
@@ -27,6 +29,8 @@ export async function createFromTemplateAction(
   _prev: DocActionResult | null,
   formData: FormData,
 ): Promise<DocActionResult> {
+  const gate = await guardPermission('write:documents');
+  if (!gate.ok) return gate;
   const schema = z.object({
     template_id: z.string().min(1),
     entity_id: z.string().min(1),
@@ -67,6 +71,8 @@ export async function uploadDocumentAction(
   _prev: DocActionResult | null,
   formData: FormData,
 ): Promise<DocActionResult> {
+  const gate = await guardPermission('write:documents');
+  if (!gate.ok) return gate;
   const schema = z.object({
     entity_id: z.string().min(1),
     folder: z.enum(ENTITY_DOC_FOLDERS),
@@ -104,6 +110,8 @@ export async function sendDocumentAction(
   docId: string,
   sentBy: string,
 ): Promise<DocActionResult> {
+  const gate = await guardPermission('write:documents');
+  if (!gate.ok) return gate;
   try {
     const doc = sendDocument({
       doc_id: docId,
