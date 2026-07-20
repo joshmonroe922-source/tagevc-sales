@@ -133,6 +133,7 @@ export async function startChannelAction(input: {
   memberIds?: string[];
   entityId?: string | null;
   topic?: string | null;
+  isPrivate?: boolean;
 }) {
   const auth = await requireUser();
   if (!auth.ok) return auth;
@@ -143,13 +144,14 @@ export async function startChannelAction(input: {
     p_member_ids: input.memberIds ?? [],
     p_entity_id: input.entityId ?? null,
     p_topic: input.topic ?? null,
+    p_is_private: input.isPrivate ?? false,
   });
 
   if (error) {
     return {
       ok: false as const,
       error: error.message.includes('create_channel')
-        ? 'Channels require Phase 12 SQL. Apply phase12_channels_and_normalize.sql.'
+        ? 'Channels require Phase 12/13 SQL. Apply phase12 then phase13 SQL.'
         : error.message,
     };
   }
@@ -172,12 +174,19 @@ export async function sendMessageAction(
   body: string,
   parentId?: string | null,
   attachments?: Array<{ doc_id: string; title: string }>,
+  uploadedFiles?: Array<{
+    storage_path: string;
+    file_name: string;
+    mime_type: string;
+    size_bytes: number;
+  }>,
 ) {
   const auth = await requireUser();
   if (!auth.ok) return auth;
 
   const text = body.trim();
-  if (!text && !(attachments && attachments.length > 0)) {
+  const hasFiles = Boolean(uploadedFiles?.length);
+  if (!text && !(attachments && attachments.length > 0) && !hasFiles) {
     return { ok: false as const, error: 'Message is empty' };
   }
   if (text.length > 8000) {
@@ -187,13 +196,26 @@ export async function sendMessageAction(
   const directory = await listDirectoryProfiles();
   const profiles = directory.ok ? directory.profiles : [];
   const { mentionedIds, normalizedBody } = resolveMentions(
-    text || (attachments?.length ? `Shared ${attachments.length} document(s)` : ''),
+    text ||
+      (hasFiles
+        ? `Shared ${uploadedFiles!.length} file(s)`
+        : attachments?.length
+          ? `Shared ${attachments.length} document(s)`
+          : ''),
     profiles,
   );
 
   const metadata: Record<string, unknown> = {};
   if (mentionedIds.length) metadata.mentions = mentionedIds;
   if (attachments?.length) metadata.attachments = attachments;
+  if (hasFiles) {
+    metadata.files = uploadedFiles!.map((f) => ({
+      storage_path: f.storage_path,
+      file_name: f.file_name,
+      mime_type: f.mime_type,
+      size_bytes: f.size_bytes,
+    }));
+  }
 
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -211,6 +233,23 @@ export async function sendMessageAction(
     .maybeSingle();
 
   if (error) return { ok: false as const, error: error.message };
+
+  if (data && uploadedFiles?.length) {
+    const { error: fileErr } = await supabase.from('os_message_files').insert(
+      uploadedFiles.map((f) => ({
+        message_id: data.id,
+        conversation_id: conversationId,
+        uploader_id: auth.profile.id,
+        storage_path: f.storage_path,
+        file_name: f.file_name,
+        mime_type: f.mime_type,
+        size_bytes: f.size_bytes,
+      })),
+    );
+    if (fileErr) {
+      console.error('os_message_files insert', fileErr.message);
+    }
+  }
 
   if (data && mentionedIds.length > 0) {
     await supabase.rpc('notify_message_mentions', {
@@ -487,4 +526,110 @@ export async function searchConversationMessagesAction(
       sender_id: string;
     }>,
   };
+}
+
+export async function softDeleteMessageAction(messageId: string) {
+  const auth = await requireUser();
+  if (!auth.ok) return auth;
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('soft_delete_message', {
+    p_message_id: messageId,
+  });
+  if (error) {
+    return {
+      ok: false as const,
+      error: error.message.includes('soft_delete_message')
+        ? 'Moderation requires Phase 13 SQL.'
+        : error.message,
+    };
+  }
+  revalidatePath('/messages');
+  return { ok: true as const };
+}
+
+export async function updateChannelSettingsAction(input: {
+  conversationId: string;
+  title?: string;
+  description?: string | null;
+  isPrivate?: boolean;
+}) {
+  const auth = await requireUser();
+  if (!auth.ok) return auth;
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('update_channel_settings', {
+    cid: input.conversationId,
+    p_title: input.title ?? null,
+    p_description: input.description ?? null,
+    p_is_private: input.isPrivate ?? null,
+  });
+  if (error) return { ok: false as const, error: error.message };
+  revalidatePath('/messages');
+  return { ok: true as const };
+}
+
+export async function addChannelMembersAction(
+  conversationId: string,
+  memberIds: string[],
+) {
+  const auth = await requireUser();
+  if (!auth.ok) return auth;
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('add_channel_members', {
+    cid: conversationId,
+    p_member_ids: memberIds,
+  });
+  if (error) return { ok: false as const, error: error.message };
+  revalidatePath('/messages');
+  return { ok: true as const };
+}
+
+export async function removeChannelMemberAction(
+  conversationId: string,
+  userId: string,
+) {
+  const auth = await requireUser();
+  if (!auth.ok) return auth;
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('remove_channel_member', {
+    cid: conversationId,
+    p_user_id: userId,
+  });
+  if (error) return { ok: false as const, error: error.message };
+  revalidatePath('/messages');
+  return { ok: true as const };
+}
+
+export async function muteConversationAction(
+  conversationId: string,
+  mute: boolean,
+) {
+  const auth = await requireUser();
+  if (!auth.ok) return auth;
+  const supabase = await createClient();
+  const { data: prefs } = await supabase
+    .from('os_notification_prefs')
+    .select('muted_conversation_ids')
+    .eq('user_id', auth.profile.id)
+    .maybeSingle();
+
+  const current = new Set<string>(
+    ((prefs?.muted_conversation_ids as string[]) ?? []).map(String),
+  );
+  if (mute) current.add(conversationId);
+  else current.delete(conversationId);
+
+  const { error } = await supabase.rpc('upsert_notification_prefs', {
+    p_muted_conversation_ids: [...current],
+  });
+  if (error) {
+    return {
+      ok: false as const,
+      error: error.message.includes('upsert_notification_prefs')
+        ? 'Notification prefs require Phase 13 SQL.'
+        : error.message,
+    };
+  }
+  revalidatePath('/messages');
+  revalidatePath('/settings/notifications');
+  return { ok: true as const };
 }

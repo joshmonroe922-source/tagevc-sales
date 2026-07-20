@@ -11,6 +11,15 @@ import {
   buildInitialReTasks,
   INITIAL_RE_DEALS,
 } from '@/lib/data/re-seed';
+import {
+  fetchAllReDeals,
+  fetchAllReTasks,
+  syncReDealsAndTasks,
+} from '@/lib/data/normalized/re-repo';
+import {
+  preferNormalizedTables,
+  queueNormalizedSync,
+} from '@/lib/data/normalized/sync';
 import { createHandoffPack } from '@/lib/deal-flow/handoff';
 import { spawnReTasksForStage } from '@/lib/deal-flow/re/spawn-tasks';
 import type {
@@ -50,6 +59,10 @@ export function getReStore(): ReStore {
 
 function touchRe() {
   queueStorePersist('re', () => structuredClone(getReStore()));
+  queueNormalizedSync('os_re', async () => {
+    const store = getReStore();
+    await syncReDealsAndTasks(store.deals, store.tasks);
+  });
 }
 
 export async function hydrateReStore() {
@@ -61,6 +74,19 @@ export async function hydrateReStore() {
     const store = getReStore();
     await saveStoreSnapshot('re', store);
   }
+
+  const store = getReStore();
+  const [sqlDeals, sqlTasks] = await Promise.all([
+    fetchAllReDeals(),
+    fetchAllReTasks(),
+  ]);
+  if (sqlDeals && (sqlDeals.length > 0 || preferNormalizedTables())) {
+    if (sqlDeals.length > 0) store.deals = sqlDeals;
+    if (sqlTasks && sqlTasks.length > 0) store.tasks = sqlTasks;
+  } else if (sqlDeals !== null && store.deals.length > 0) {
+    await syncReDealsAndTasks(store.deals, store.tasks);
+  }
+
   markStoreHydrated('re');
 }
 

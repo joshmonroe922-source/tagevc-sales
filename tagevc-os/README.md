@@ -351,6 +351,27 @@ Docs: `docs/OS_PHASE12.md`
 - Private channels + moderation
 - Real DocuSign
 
+## Phase 13 scope (Uploads + private channels + RE)
+
+| Area | Status |
+|------|--------|
+| Chat file uploads (Storage) + previews | Done |
+| Private channels + member management | Done |
+| Soft-delete + channel settings + mute | Done |
+| Notification prefs + digest API | Done |
+| `os_re_deals` / `os_re_tasks` dual-write | Done |
+| Snapshot retirement plan | Done — `docs/OS_SNAPSHOT_RETIREMENT.md` |
+| SQL | Apply `supabase/phase13_uploads_and_re.sql` |
+
+Docs: `docs/OS_PHASE13.md`
+
+### Phase 14+ backlog
+
+- Snapshot soak → read cutover
+- Portfolio / Entity Master DB
+- Push notifications; richer moderation
+- Real DocuSign + observability
+
 
 ## Run locally
 
@@ -384,4 +405,4 @@ Set `DEV_BYPASS_AUTH=1` in `.env.local` to preview the shell as Visionary (local
 
 ## Next phases (from Cursor Brief)
 
-Phase 12 adds channels, mentions, attachments, and IC/MA normalization. Remaining: digests/email, RE normalize, snapshot retirement, DocuSign, storage.
+Phase 13 adds Storage uploads, private channels, RE normalize, and digests. Remaining: snapshot cutover, Portfolio DB, DocuSign, push, observability.

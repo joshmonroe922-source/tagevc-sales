@@ -246,12 +246,53 @@ export async function listMessages(
     } = await supabase.auth.getUser();
     const myId = user?.id ?? '';
 
+    const filesByMessage = new Map<
+      string,
+      Array<{
+        id: string;
+        storage_path: string;
+        file_name: string;
+        mime_type: string;
+        size_bytes: number;
+        signed_url?: string | null;
+      }>
+    >();
+    if (messageIds.length > 0) {
+      const { data: files } = await supabase
+        .from('os_message_files')
+        .select('id, message_id, storage_path, file_name, mime_type, size_bytes')
+        .in('message_id', messageIds);
+      for (const f of files ?? []) {
+        const mid = f.message_id as string;
+        let signed_url: string | null = null;
+        try {
+          const { data: signed } = await supabase.storage
+            .from('chat-attachments')
+            .createSignedUrl(f.storage_path as string, 3600);
+          signed_url = signed?.signedUrl ?? null;
+        } catch {
+          signed_url = null;
+        }
+        const list = filesByMessage.get(mid) ?? [];
+        list.push({
+          id: f.id as string,
+          storage_path: f.storage_path as string,
+          file_name: f.file_name as string,
+          mime_type: f.mime_type as string,
+          size_bytes: Number(f.size_bytes ?? 0),
+          signed_url,
+        });
+        filesByMessage.set(mid, list);
+      }
+    }
+
     return {
       ok: true,
       messages: rows.map((r) => ({
         ...r,
         sender: map.get(r.sender_id) ?? null,
         reactions: reactionSummary(reactionsByMessage.get(r.id) ?? [], myId),
+        files: filesByMessage.get(r.id) ?? [],
       })),
     };
   } catch (e) {

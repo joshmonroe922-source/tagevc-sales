@@ -32,6 +32,8 @@ export type ConversationRow = {
   last_message_at: string | null;
   last_message_preview: string | null;
   archived_at: string | null;
+  is_private?: boolean;
+  description?: string | null;
 };
 
 export type ConversationListItem = ConversationRow & {
@@ -53,6 +55,7 @@ export type MessageRow = {
   deleted_at: string | null;
   sender?: DirectoryProfile | null;
   reactions?: Array<{ emoji: string; count: number; mine: boolean }>;
+  files?: MessageFile[];
 };
 
 export type MessageAttachment = {
@@ -60,9 +63,35 @@ export type MessageAttachment = {
   title: string;
 };
 
+export type UploadedChatFile = {
+  storage_path: string;
+  file_name: string;
+  mime_type: string;
+  size_bytes: number;
+};
+
+export type MessageFile = {
+  id: string;
+  storage_path: string;
+  file_name: string;
+  mime_type: string;
+  size_bytes: number;
+  signed_url?: string | null;
+};
+
 export type AttachableDocument = {
   doc_id: string;
   title: string;
   entity_id: string | null;
   status: string;
+};
+
+export type NotificationPrefs = {
+  user_id: string;
+  email_digests: boolean;
+  digest_frequency: 'off' | 'daily' | 'weekly';
+  notify_mentions: boolean;
+  notify_chat_messages: boolean;
+  muted_conversation_ids: string[];
+  updated_at: string;
 };

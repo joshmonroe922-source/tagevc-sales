@@ -55,7 +55,13 @@ export default async function ActivityPage() {
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
           Notification inbox (including chat) and recent firm actions across
-          Deal Flow, Shared Services, Documents, and Messages.
+          Deal Flow, Shared Services, Documents, and Messages.{' '}
+          <Link
+            href="/settings/notifications"
+            className="font-medium text-[#3a414f] underline-offset-4 hover:underline"
+          >
+            Notification preferences
+          </Link>
         </p>
       </header>
 
