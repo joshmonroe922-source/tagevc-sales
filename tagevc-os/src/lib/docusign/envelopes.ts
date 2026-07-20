@@ -185,6 +185,105 @@ export async function voidEnvelope(
   }
 }
 
+/** Resend notifications / remind pending signers (Phase 26). */
+export async function remindEnvelope(
+  envelopeId: string,
+): Promise<{ ok: true; status: string } | { ok: false; error: string }> {
+  if (envelopeId.startsWith('ENV-')) {
+    return { ok: true, status: 'reminded' };
+  }
+  const cfg = getDocuSignConfig();
+  if (!cfg) return { ok: false, error: 'DocuSign is not configured' };
+
+  try {
+    const res = await docusignFetch(
+      cfg,
+      `/envelopes/${encodeURIComponent(envelopeId)}?resend_envelope=true`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({}),
+      },
+    );
+    const json = (await res.json().catch(() => ({}))) as {
+      message?: string;
+      errorCode?: string;
+    };
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: json.message || json.errorCode || `HTTP ${res.status}`,
+      };
+    }
+    return { ok: true, status: 'reminded' };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'remind failed',
+    };
+  }
+}
+
+/** List account templates from DocuSign API. */
+export async function listDocuSignTemplatesFromApi(opts?: {
+  count?: number;
+}): Promise<
+  | {
+      ok: true;
+      templates: Array<{
+        templateId: string;
+        name: string;
+        description?: string;
+        shared?: boolean;
+        lastModified?: string;
+        raw: unknown;
+      }>;
+    }
+  | { ok: false; error: string }
+> {
+  const cfg = getDocuSignConfig();
+  if (!cfg) return { ok: false, error: 'DocuSign is not configured' };
+
+  try {
+    const count = opts?.count ?? 40;
+    const res = await docusignFetch(
+      cfg,
+      `/templates?count=${count}&include=recipients`,
+    );
+    const json = (await res.json().catch(() => ({}))) as {
+      envelopeTemplates?: Array<{
+        templateId?: string;
+        name?: string;
+        description?: string;
+        shared?: boolean | string;
+        lastModified?: string;
+      }>;
+      message?: string;
+    };
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: json.message || `HTTP ${res.status}`,
+      };
+    }
+    const templates = (json.envelopeTemplates ?? [])
+      .filter((t) => t.templateId)
+      .map((t) => ({
+        templateId: String(t.templateId),
+        name: t.name || t.templateId || 'Untitled',
+        description: t.description,
+        shared: t.shared === true || t.shared === 'true',
+        lastModified: t.lastModified,
+        raw: t,
+      }));
+    return { ok: true, templates };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'list templates failed',
+    };
+  }
+}
+
 /** Download Certificate of Completion PDF bytes (live envelopes). */
 export async function downloadCertificateOfCompletion(
   envelopeId: string,

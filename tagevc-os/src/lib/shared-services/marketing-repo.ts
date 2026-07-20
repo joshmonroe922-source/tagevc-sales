@@ -487,6 +487,6 @@ export function getMarketingFoundationStatus() {
     facebook_oauth: platforms.facebook.configured,
     instagram_oauth: platforms.instagram.configured,
     youtube_oauth: platforms.youtube.configured,
-    phase: 25,
+    phase: 26,
   };
 }

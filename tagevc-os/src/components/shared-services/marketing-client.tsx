@@ -182,14 +182,20 @@ export function MarketingClient({
             </p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Impressions / clicks / likes</p>
+            <p className="text-xs text-muted-foreground">Impressions / eng. rate</p>
             <p className="text-lg font-semibold tabular-nums">
-              {analytics.engagement_impressions} / {analytics.engagement_clicks}{' '}
-              / {analytics.engagement_likes}
+              {analytics.engagement_impressions}
+              {analytics.engagement_rate != null ? (
+                <span className="ml-1 text-xs font-normal text-muted-foreground">
+                  ({(analytics.engagement_rate * 100).toFixed(1)}%)
+                </span>
+              ) : null}
             </p>
             <p className="text-xs text-muted-foreground">
-              API {analytics.engagement_api ?? 0} · manual{' '}
-              {analytics.engagement_manual ?? 0}
+              likes {analytics.engagement_likes} · comments{' '}
+              {analytics.engagement_comments ?? 0} · shares{' '}
+              {analytics.engagement_shares ?? 0} · API{' '}
+              {analytics.engagement_api ?? 0}
             </p>
           </div>
           <div>
@@ -228,8 +234,24 @@ export function MarketingClient({
             </table>
           </div>
         ) : null}
-        {analytics.engagement_by_platform &&
-        Object.keys(analytics.engagement_by_platform).length > 0 ? (
+        {analytics.platform_rank && analytics.platform_rank.length > 0 ? (
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground">
+              Platform comparison (by impressions)
+            </p>
+            <ul className="text-xs text-muted-foreground space-y-0.5">
+              {analytics.platform_rank.map((p, i) => (
+                <li key={p.platform}>
+                  #{i + 1} {p.platform} · {p.impressions} impr.
+                  {p.engagement_rate != null
+                    ? ` · ${(p.engagement_rate * 100).toFixed(1)}% rate`
+                    : ''}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : analytics.engagement_by_platform &&
+          Object.keys(analytics.engagement_by_platform).length > 0 ? (
           <p className="text-xs text-muted-foreground">
             Engagement by platform:{' '}
             {Object.entries(analytics.engagement_by_platform)

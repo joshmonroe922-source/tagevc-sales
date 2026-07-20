@@ -13,12 +13,17 @@ import {
   startOffboardingAction,
   startOffboardingFromTicketAction,
   scanInactiveOffboardingAction,
+  startOnboardingAction,
+  executeOnboardingAction,
+  completeOnboardingAction,
+  startOnboardingFromTicketAction,
   type ItAssetActionResult,
 } from '@/app/(app)/shared-services/it/assets/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { OffboardingRun } from '@/lib/shared-services/it-offboarding';
+import type { OnboardingRun } from '@/lib/shared-services/it-onboarding';
 import type {
   ItAssignmentEvent,
   ItHardwareAsset,
@@ -40,7 +45,9 @@ export function ItAssetsClient({
   licenses,
   events,
   offboarding,
+  onboarding = [],
   candidateTickets,
+  onboardingTickets = [],
   canWrite,
   tableError,
 }: {
@@ -48,7 +55,14 @@ export function ItAssetsClient({
   licenses: ItSoftwareLicense[];
   events: ItAssignmentEvent[];
   offboarding: OffboardingRun[];
+  onboarding?: OnboardingRun[];
   candidateTickets: Array<{
+    ticket_id: string;
+    title: string;
+    service: string;
+    status: string;
+  }>;
+  onboardingTickets?: Array<{
     ticket_id: string;
     title: string;
     service: string;
@@ -85,7 +99,7 @@ export function ItAssetsClient({
     <div className="space-y-8">
       {tableError && (
         <p className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-          Tables unavailable — apply phase20_it_assets.sql (+ phase21). {tableError}
+          Tables unavailable — apply phase20–26 IT SQL. {tableError}
         </p>
       )}
       {(msg || err) && (
@@ -309,6 +323,132 @@ export function ItAssetsClient({
               </tbody>
             </table>
           </div>
+        )}
+      </section>
+
+
+      <section className="space-y-3">
+        <h2 className="text-base font-semibold">Onboarding</h2>
+        {canWrite && (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={pending}
+              onClick={() => {
+                const userId = window.prompt('User UUID to onboard:');
+                if (!userId) return;
+                const auto = window.confirm(
+                  'Auto-assign stock hardware + grant seats now?',
+                );
+                run(() =>
+                  startOnboardingAction(userId.trim(), undefined, auto),
+                );
+              }}
+            >
+              Start onboarding
+            </Button>
+          </div>
+        )}
+        {onboardingTickets.length > 0 && (
+          <div className="space-y-2 rounded-md border border-border/60 p-3">
+            <p className="text-xs font-medium text-muted-foreground">
+              HR/IT tickets that look like onboarding (include{' '}
+              <code className="text-xs">user:&lt;uuid&gt;</code> in description)
+            </p>
+            <ul className="space-y-1 text-sm">
+              {onboardingTickets.map((t) => (
+                <li
+                  key={t.ticket_id}
+                  className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 py-1.5"
+                >
+                  <span>
+                    <a
+                      href={`/shared-services/tickets/${t.ticket_id}`}
+                      className="font-medium underline-offset-4 hover:underline"
+                    >
+                      {t.ticket_id}
+                    </a>
+                    {' · '}
+                    {t.title}
+                  </span>
+                  {canWrite && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={pending}
+                      onClick={() =>
+                        run(() =>
+                          startOnboardingFromTicketAction(t.ticket_id, true),
+                        )
+                      }
+                    >
+                      Start from ticket
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {onboarding.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No onboarding runs yet.</p>
+        ) : (
+          <ul className="space-y-2 text-sm">
+            {onboarding.map((r) => (
+              <li key={r.run_id} className="rounded-md border border-border/60 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span>
+                    <span className="font-mono text-xs">{r.run_id}</span>
+                    {' · '}
+                    {r.status}
+                    {' · '}
+                    {r.source}
+                    {r.ticket_id ? ` · ${r.ticket_id}` : ''}
+                    {' · user '}
+                    {r.user_id.slice(0, 8)}…
+                  </span>
+                  {canWrite && r.status !== 'completed' && (
+                    <div className="flex gap-1">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={pending}
+                        onClick={() =>
+                          run(() => executeOnboardingAction(r.run_id))
+                        }
+                      >
+                        Execute
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={pending}
+                        onClick={() =>
+                          run(() => completeOnboardingAction(r.run_id))
+                        }
+                      >
+                        Mark complete
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+                  {r.checklist.map((c) => (
+                    <li key={c.id}>
+                      {c.status === 'done' ? '✓' : c.status === 'failed' ? '✗' : '○'}{' '}
+                      {c.label}
+                      {c.detail ? ` · ${c.detail}` : ''}
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
         )}
       </section>
 

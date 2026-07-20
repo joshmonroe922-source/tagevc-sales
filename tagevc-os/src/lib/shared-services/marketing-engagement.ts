@@ -1,5 +1,5 @@
 /**
- * Live engagement pull from LinkedIn / Meta (Phase 25).
+ * Live engagement pull from LinkedIn / Meta / X (Phases 25–26).
  * Uses schedule job result.external_id + OAuth tokens.
  */
 
@@ -78,6 +78,56 @@ async function fetchLinkedInEngagement(
   } catch (e) {
     return {
       error: e instanceof Error ? e.message : 'LinkedIn engagement failed',
+    };
+  }
+}
+
+async function fetchXEngagement(
+  accessToken: string,
+  tweetId: string,
+): Promise<{
+  impressions: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  clicks: number;
+} | { error: string }> {
+  try {
+    const res = await fetch(
+      `https://api.x.com/2/tweets/${encodeURIComponent(tweetId)}?tweet.fields=public_metrics`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
+    const json = (await res.json().catch(() => ({}))) as {
+      data?: {
+        public_metrics?: {
+          impression_count?: number;
+          like_count?: number;
+          reply_count?: number;
+          retweet_count?: number;
+          quote_count?: number;
+        };
+      };
+      detail?: string;
+      title?: string;
+    };
+    if (!res.ok) {
+      return {
+        error: json.detail || json.title || `X HTTP ${res.status}`,
+      };
+    }
+    const m = json.data?.public_metrics ?? {};
+    return {
+      impressions: Number(m.impression_count ?? 0),
+      likes: Number(m.like_count ?? 0),
+      comments: Number(m.reply_count ?? 0),
+      shares: Number(m.retweet_count ?? 0) + Number(m.quote_count ?? 0),
+      clicks: 0,
+    };
+  } catch (e) {
+    return {
+      error: e instanceof Error ? e.message : 'X engagement failed',
     };
   }
 }
@@ -196,13 +246,18 @@ export async function pullLiveEngagement(opts?: {
       platform = platformFromPublisher(job.publisher, accountPlatform);
     }
 
-    if (platform !== 'linkedin' && platform !== 'facebook' && platform !== 'instagram') {
+    if (
+      platform !== 'linkedin' &&
+      platform !== 'facebook' &&
+      platform !== 'instagram' &&
+      platform !== 'x'
+    ) {
       results.push({
         job_id: job.job_id,
         platform,
         ok: true,
         skipped: true,
-        reason: 'Platform not supported for live pull (LinkedIn/Meta only)',
+        reason: 'Platform not supported for live pull (LinkedIn/Meta/X only)',
       });
       continue;
     }
@@ -233,7 +288,9 @@ export async function pullLiveEngagement(opts?: {
     const metrics =
       platform === 'linkedin'
         ? await fetchLinkedInEngagement(fresh.token, externalId)
-        : await fetchMetaEngagement(fresh.token, externalId);
+        : platform === 'x'
+          ? await fetchXEngagement(fresh.token, externalId)
+          : await fetchMetaEngagement(fresh.token, externalId);
 
     if ('error' in metrics) {
       results.push({

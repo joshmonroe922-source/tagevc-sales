@@ -274,3 +274,77 @@ export async function scanInactiveOffboardingAction(): Promise<ItAssetActionResu
     message: `Status scan: ${res.started} started, ${res.skipped} skipped (${res.scanned} inactive)`,
   };
 }
+
+export async function startOnboardingAction(
+  userId: string,
+  entityId?: string,
+  autoExecute?: boolean,
+): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('write:it_assets');
+  if (!gate.ok) return gate;
+  const { startOnboarding } = await import(
+    '@/lib/shared-services/it-onboarding'
+  );
+  const res = await startOnboarding({
+    user_id: userId,
+    entity_id: entityId || null,
+    actor_id: gate.profile.id,
+    auto_execute: Boolean(autoExecute),
+  });
+  if (!res.ok) return res;
+  revalidateAssets();
+  return {
+    ok: true,
+    message: `Onboarding ${res.run.run_id} · ${res.run.checklist.length} items · ${res.run.status}`,
+  };
+}
+
+export async function executeOnboardingAction(
+  runId: string,
+): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('write:it_assets');
+  if (!gate.ok) return gate;
+  const { executeOnboarding } = await import(
+    '@/lib/shared-services/it-onboarding'
+  );
+  const res = await executeOnboarding(runId, { actor_id: gate.profile.id });
+  if (!res.ok) return res;
+  revalidateAssets();
+  return { ok: true, message: `Executed onboarding ${runId}` };
+}
+
+export async function completeOnboardingAction(
+  runId: string,
+): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('write:it_assets');
+  if (!gate.ok) return gate;
+  const { completeOnboarding } = await import(
+    '@/lib/shared-services/it-onboarding'
+  );
+  const res = await completeOnboarding(runId);
+  if (!res.ok) return res;
+  revalidateAssets();
+  return { ok: true, message: `Completed onboarding ${runId}` };
+}
+
+export async function startOnboardingFromTicketAction(
+  ticketId: string,
+  autoExecute?: boolean,
+): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('write:it_assets');
+  if (!gate.ok) return gate;
+  const { startOnboardingFromHrTicket } = await import(
+    '@/lib/shared-services/it-onboarding'
+  );
+  const res = await startOnboardingFromHrTicket({
+    ticket_id: ticketId,
+    actor_id: gate.profile.id,
+    auto_execute: Boolean(autoExecute),
+  });
+  if (!res.ok) return res;
+  revalidateAssets();
+  return {
+    ok: true,
+    message: `Onboarding ${res.run.run_id} from ${ticketId}`,
+  };
+}

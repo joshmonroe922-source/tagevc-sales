@@ -510,11 +510,22 @@ Docs: `docs/OS_PHASE24.md` · `docs/OS_MARKETING.md`
 
 Docs: `docs/OS_PHASE25.md`
 
-### Phase 26+ backlog
+### Phase 26 scope (X engagement · reminders · onboarding)
 
-- X engagement · Marketing API impressions · approval SLA
-- DocuSign reminders / templates
-- Full MDM · Stage 4e offline DROP
+| Area | Status |
+|------|--------|
+| X engagement + richer analytics | Done |
+| DocuSign reminders + template cache | Done |
+| IT onboarding mirror + MDM lifecycle | Done |
+| Stage 4e gates (no DROP) | Retained |
+| SQL | Apply `phase26_onboarding_templates.sql` |
+
+Docs: `docs/OS_PHASE26.md`
+
+### Phase 27+ backlog
+
+- Approval SLA · Marketing API impressions · template-based send
+- Intune Graph · Stage 4e offline DROP
 - Push · user admin
 
 
@@ -550,4 +561,4 @@ Set `DEV_BYPASS_AUTH=1` in `.env.local` to preview the shell as Visionary (local
 
 ## Next phases (from Cursor Brief)
 
-Phase 25 advances live engagement analytics, DocuSign CoC/void/backfill, and status-change offboarding. Remaining: Stage 4e offline DROP (after approval), push, user admin.
+Phase 26 advances X engagement analytics, DocuSign reminders/templates, and IT onboarding. Remaining: Stage 4e offline DROP (after approval), push, user admin.

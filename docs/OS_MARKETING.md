@@ -1,4 +1,4 @@
-# Multichannel Marketing System — Architecture (Phases 22–24)
+# Multichannel Marketing System — Architecture (Phases 22–26)
 
 **Status:** Functional · hub under Shared Services · Marketing.  
 **Live at:** `/shared-services/marketing`
@@ -20,30 +20,30 @@
 | OAuth / tokens | `marketing-oauth.ts`, `marketing-crypto.ts`, `marketing-token-refresh.ts` |
 | Publishers | `marketing-social.ts` |
 | Scheduler | `marketing-scheduler.ts` |
-| Analytics | `marketing-analytics.ts` |
-| SQL | `phase22_marketing.sql` + `phase23_automation.sql` + `phase24_maturation.sql` |
+| Analytics / engagement | `marketing-analytics.ts`, `marketing-engagement.ts` |
+| SQL | `phase22`–`phase25` marketing SQL |
 
 ## Data model
 
 ```
 os_marketing_campaigns
-os_marketing_content
+os_marketing_content                 — + external_post_id (Phase 25)
 os_marketing_social_accounts
-os_marketing_oauth_tokens          — encrypted vault (+ refresh metadata Phase 24)
+os_marketing_oauth_tokens
 os_marketing_brand_voices
 os_marketing_schedule_jobs
 os_marketing_generation_jobs
-os_marketing_analytics_events      — Phase 24 post/engagement events
+os_marketing_analytics_events
 ```
 
 ## Platforms
 
-| Platform | OAuth | Publish | Token refresh |
-|----------|-------|---------|---------------|
-| LinkedIn | Yes | Yes | Yes |
-| X | Yes | Yes | Yes |
-| Facebook / Instagram (Meta) | Yes | Basic | Yes |
-| YouTube | Yes (Google) | Stub/limited | Via Google refresh |
+| Platform | OAuth | Publish | Token refresh | Live engagement |
+|----------|-------|---------|---------------|-----------------|
+| LinkedIn | Yes | Yes | Yes | Yes |
+| X | Yes | Yes | Yes | Yes (Phase 26) |
+| Facebook / Instagram (Meta) | Yes | Basic | Yes | Yes |
+| YouTube | Yes (Google) | Stub/limited | Via Google refresh | No |
 
 ## Permissions
 
@@ -52,8 +52,8 @@ os_marketing_analytics_events      — Phase 24 post/engagement events
 | `read:marketing` | visionary, partner, coo, service_lead, sub_lead, admin |
 | `write:marketing` | visionary, coo, service_lead, admin |
 
-## Phase 25+
+## Phase 27+
 
-1. X engagement pull; richer Marketing API impressions  
-2. Approval SLA tied to Shared Services tickets  
+1. Approval SLA tied to Shared Services tickets  
+2. LinkedIn Marketing API impressions / YouTube analytics  
 3. Paid media / ads (out of current scope)  

@@ -14,6 +14,7 @@ import {
   listDocuSignEvents,
 } from '@/lib/docusign/events-repo';
 import { listSignedFiles } from '@/lib/docusign/signed-docs';
+import { listCachedTemplates } from '@/lib/docusign/templates';
 import { DOCUSIGN_ENV_KEYS } from '@/lib/docusign/types';
 import { roleHasPermission } from '@/lib/types/roles';
 import { getSessionContext, requirePermission } from '@/lib/rbac/session';
@@ -34,10 +35,11 @@ export default async function DocuSignModulePage() {
   const canWrite = ctx
     ? roleHasPermission(ctx.profile.role, 'write:documents')
     : false;
-  const [events, count, signed] = await Promise.all([
+  const [events, count, signed, templates] = await Promise.all([
     listDocuSignEvents({ limit: 25 }),
     countDocuSignEvents(),
     listSignedFiles({ limit: 20, withDownloadUrls: true }),
+    listCachedTemplates(40),
   ]);
 
   const missingEnv = DOCUSIGN_ENV_KEYS.filter((k) => {
@@ -66,13 +68,12 @@ export default async function DocuSignModulePage() {
           <Badge variant={mode === 'live' ? 'default' : 'secondary'}>
             {mode === 'live' ? 'Live JWT' : 'Mock envelopes'}
           </Badge>
-          <Badge variant="secondary">Phase 25</Badge>
+          <Badge variant="secondary">Phase 26</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">DocuSign</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Combined signed PDFs and Certificates of Completion archive to
-          Storage. Void envelopes from the hub; backfill legacy inline rows.
-          Capital sends still require{' '}
+          Remind pending envelopes, sync templates, archive CoC/combined PDFs
+          to Storage, and void when needed. Capital sends still require{' '}
           <code className="text-xs">action:docusign_capital</code>.
         </p>
         <DocuSignHubActions canWrite={canWrite} />
@@ -121,8 +122,8 @@ export default async function DocuSignModulePage() {
           <CardHeader>
             <CardTitle className="text-base">Links</CardTitle>
             <CardDescription>
-              Apply <code className="text-xs">phase25_engagement_docusign.sql</code>{' '}
-              for <code className="text-xs">file_kind</code>.
+              Apply <code className="text-xs">phase26_onboarding_templates.sql</code>{' '}
+              for templates + onboarding tables.
             </CardDescription>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground space-y-1">
@@ -132,6 +133,43 @@ export default async function DocuSignModulePage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Templates</CardTitle>
+          <CardDescription>
+            Cached from DocuSign account — use Refresh templates to sync
+            {templates.error ? ` · ${templates.error}` : ''}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {templates.rows.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No templates cached yet — configure JWT and click Refresh templates.
+            </p>
+          ) : (
+            <ul className="space-y-1 text-sm max-h-48 overflow-y-auto">
+              {templates.rows.map((t) => (
+                <li
+                  key={t.template_id}
+                  className="border-b border-border/40 py-1.5"
+                >
+                  <span className="font-medium">{t.name}</span>
+                  {t.shared ? (
+                    <span className="ml-1 text-xs text-muted-foreground">shared</span>
+                  ) : null}
+                  <span className="block font-mono text-xs text-muted-foreground">
+                    {t.template_id}
+                    {t.last_modified
+                      ? ` · ${t.last_modified.slice(0, 10)}`
+                      : ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

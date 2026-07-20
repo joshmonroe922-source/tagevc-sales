@@ -127,7 +127,7 @@ export function buildStage4eChecklist(input: {
       detail:
         snapCount == null
           ? 'Row count unavailable'
-          : `rows=${snapCount} — Phase 25 does not drop this table from the app`,
+          : `rows=${snapCount} — Phase 26 does not drop this table from the app`,
     },
   ];
 

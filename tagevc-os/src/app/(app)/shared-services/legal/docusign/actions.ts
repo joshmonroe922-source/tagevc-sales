@@ -3,8 +3,9 @@
 import { revalidatePath } from 'next/cache';
 import { applyDocuSignWebhook } from '@/lib/data/document-store';
 import { insertDocuSignEvent } from '@/lib/docusign/events-repo';
-import { voidEnvelope } from '@/lib/docusign/envelopes';
+import { remindEnvelope, voidEnvelope } from '@/lib/docusign/envelopes';
 import { backfillSignedFilesToStorage } from '@/lib/docusign/signed-docs';
+import { syncDocuSignTemplates } from '@/lib/docusign/templates';
 import { logActivity } from '@/lib/data/activity';
 import { guardPermission } from '@/lib/rbac/session';
 
@@ -33,7 +34,7 @@ export async function voidEnvelopeAction(
   try {
     applyDocuSignWebhook({ envelope_id: id, status: 'voided' });
   } catch {
-    // Envelope may be Connect-only / unknown locally — still log event
+    // Envelope may be Connect-only / unknown locally
   }
 
   await insertDocuSignEvent({
@@ -53,6 +54,46 @@ export async function voidEnvelopeAction(
 
   revalidateDocuSign();
   return { ok: true, message: `Voided ${id}` };
+}
+
+export async function remindEnvelopeAction(
+  envelopeId: string,
+): Promise<DocuSignActionResult> {
+  const gate = await guardPermission('write:documents');
+  if (!gate.ok) return gate;
+
+  const id = envelopeId.trim();
+  if (!id) return { ok: false, error: 'envelope_id required' };
+
+  const api = await remindEnvelope(id);
+  if (!api.ok) return api;
+
+  await insertDocuSignEvent({
+    envelope_id: id,
+    status: 'sent',
+    event_type: 'envelope-reminded',
+    raw_payload: { source: 'hub' },
+  });
+
+  void logActivity({
+    module: 'documents',
+    action: 'docusign_reminded',
+    title: `Envelope reminded: ${id.slice(0, 18)}`,
+    ref_type: 'document',
+    ref_id: id,
+  });
+
+  revalidateDocuSign();
+  return { ok: true, message: `Reminder sent for ${id}` };
+}
+
+export async function syncTemplatesAction(): Promise<DocuSignActionResult> {
+  const gate = await guardPermission('write:documents');
+  if (!gate.ok) return gate;
+  const res = await syncDocuSignTemplates();
+  if (!res.ok) return res;
+  revalidateDocuSign();
+  return { ok: true, message: `Synced ${res.count} templates` };
 }
 
 export async function backfillSignedStorageAction(): Promise<DocuSignActionResult> {

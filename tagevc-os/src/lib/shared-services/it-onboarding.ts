@@ -1,14 +1,15 @@
 /**
- * IT offboarding automation (Phase 23) — checklist + auto return/revoke.
+ * IT onboarding automation (Phase 26) — mirror of offboarding.
+ * Assign in-stock hardware + grant seats + MDM onboard webhook.
  */
 
 import { randomUUID } from 'crypto';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 import {
+  assignHardware,
+  grantLicenseSeat,
   listHardwareAssets,
   listSoftwareLicenses,
-  returnHardware,
-  revokeLicenseSeat,
 } from '@/lib/shared-services/it-assets-repo';
 import { getTicket, listTickets } from '@/lib/data/ticket-store';
 import {
@@ -17,21 +18,21 @@ import {
 } from '@/lib/data/activity';
 import { invokeMdmLifecycleHook } from '@/lib/shared-services/it-mdm';
 
-export type OffboardingChecklistItem = {
+export type OnboardingChecklistItem = {
   id: string;
-  kind: 'hardware_return' | 'license_revoke' | 'access_note';
+  kind: 'hardware_assign' | 'license_grant' | 'access_note';
   ref_id: string;
   label: string;
   status: 'pending' | 'done' | 'skipped' | 'failed';
   detail?: string;
 };
 
-export type OffboardingRun = {
+export type OnboardingRun = {
   run_id: string;
   user_id: string;
   entity_id: string | null;
   status: 'open' | 'in_progress' | 'completed' | 'cancelled';
-  checklist: OffboardingChecklistItem[];
+  checklist: OnboardingChecklistItem[];
   notes: string | null;
   ticket_id: string | null;
   source: 'manual' | 'hr_ticket' | 'status_change';
@@ -39,32 +40,32 @@ export type OffboardingRun = {
   completed_at: string | null;
 };
 
-function mapRun(row: Record<string, unknown>): OffboardingRun {
+function mapRun(row: Record<string, unknown>): OnboardingRun {
   const checklist = Array.isArray(row.checklist)
-    ? (row.checklist as OffboardingChecklistItem[])
+    ? (row.checklist as OnboardingChecklistItem[])
     : [];
   return {
     run_id: String(row.run_id),
     user_id: String(row.user_id),
     entity_id: (row.entity_id as string) ?? null,
-    status: row.status as OffboardingRun['status'],
+    status: row.status as OnboardingRun['status'],
     checklist,
     notes: (row.notes as string) ?? null,
     ticket_id: (row.ticket_id as string) ?? null,
-    source: (row.source as OffboardingRun['source']) || 'manual',
+    source: (row.source as OnboardingRun['source']) || 'manual',
     created_at: String(row.created_at),
     completed_at: (row.completed_at as string) ?? null,
   };
 }
 
-export async function listOffboardingRuns(limit = 30): Promise<{
-  rows: OffboardingRun[];
+export async function listOnboardingRuns(limit = 30): Promise<{
+  rows: OnboardingRun[];
   error?: string;
 }> {
   try {
     const sb = await createPersistClient();
     const { data, error } = await sb
-      .from('os_it_offboarding_runs')
+      .from('os_it_onboarding_runs')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(limit);
@@ -77,21 +78,19 @@ export async function listOffboardingRuns(limit = 30): Promise<{
   }
 }
 
-/**
- * Build checklist from assigned hardware + active license seats for a user.
- * License seats are firm-level counts — we add revoke tasks for each license
- * with seats_used > 0 when user_id matches assignment events (best-effort),
- * else one revoke suggestion per active license for the entity.
- */
-export async function startOffboarding(input: {
+export async function startOnboarding(input: {
   user_id: string;
   entity_id?: string | null;
   actor_id?: string | null;
   notes?: string | null;
   auto_execute?: boolean;
   ticket_id?: string | null;
-  source?: OffboardingRun['source'];
-}): Promise<{ ok: true; run: OffboardingRun } | { ok: false; error: string }> {
+  source?: OnboardingRun['source'];
+  /** Prefer specific in-stock hardware asset ids */
+  hardware_asset_ids?: string[];
+  /** Prefer specific license ids to grant */
+  license_ids?: string[];
+}): Promise<{ ok: true; run: OnboardingRun } | { ok: false; error: string }> {
   const userId = input.user_id.trim();
   if (!userId) return { ok: false, error: 'user_id required' };
 
@@ -101,33 +100,53 @@ export async function startOffboarding(input: {
       listSoftwareLicenses(200),
     ]);
 
-    const checklist: OffboardingChecklistItem[] = [];
+    const checklist: OnboardingChecklistItem[] = [];
+    const preferHw = new Set(input.hardware_asset_ids ?? []);
+    const preferLic = new Set(input.license_ids ?? []);
 
-    for (const a of hw.rows) {
-      if (a.assigned_user_id === userId && a.status === 'assigned') {
-        checklist.push({
-          id: `hw-${a.asset_id}`,
-          kind: 'hardware_return',
-          ref_id: a.asset_id,
-          label: `Return ${a.kind}${a.model ? ` · ${a.model}` : ''} (${a.asset_id})`,
-          status: 'pending',
-        });
-      }
+    const stock = hw.rows.filter((a) => a.status === 'in_stock');
+    const hwCandidates =
+      preferHw.size > 0
+        ? stock.filter((a) => preferHw.has(a.asset_id))
+        : stock
+            .filter(
+              (a) =>
+                !input.entity_id ||
+                !a.entity_id ||
+                a.entity_id === input.entity_id,
+            )
+            .slice(0, 1);
+
+    for (const a of hwCandidates) {
+      checklist.push({
+        id: `hw-${a.asset_id}`,
+        kind: 'hardware_assign',
+        ref_id: a.asset_id,
+        label: `Assign ${a.kind}${a.model ? ` · ${a.model}` : ''} (${a.asset_id})`,
+        status: 'pending',
+      });
     }
 
-    // Best-effort: licenses with seats in use — revoke one seat per license
-    // when entity matches (or all active licenses if no entity filter)
-    for (const l of lic.rows) {
-      if (l.status !== 'active') continue;
-      if (input.entity_id && l.entity_id && l.entity_id !== input.entity_id) {
-        continue;
-      }
-      if ((l.seats_used ?? 0) <= 0) continue;
+    const licCandidates =
+      preferLic.size > 0
+        ? lic.rows.filter((l) => preferLic.has(l.license_id) && l.status === 'active')
+        : lic.rows
+            .filter((l) => {
+              if (l.status !== 'active') return false;
+              if (input.entity_id && l.entity_id && l.entity_id !== input.entity_id) {
+                return false;
+              }
+              const used = l.seats_used ?? 0;
+              return l.seat_count == null || used < l.seat_count;
+            })
+            .slice(0, 3);
+
+    for (const l of licCandidates) {
       checklist.push({
         id: `lic-${l.license_id}`,
-        kind: 'license_revoke',
+        kind: 'license_grant',
         ref_id: l.license_id,
-        label: `Revoke seat · ${l.product_name} (${l.license_id})`,
+        label: `Grant seat · ${l.product_name} (${l.license_id})`,
         status: 'pending',
       });
     }
@@ -136,25 +155,23 @@ export async function startOffboarding(input: {
       id: 'access-mdm',
       kind: 'access_note',
       ref_id: 'mdm',
-      label: 'MDM / device retire (webhook if MDM_WEBHOOK_URL set)',
+      label: 'MDM enroll / provision (webhook if MDM_WEBHOOK_URL set)',
       status: 'pending',
-      detail:
-        'Phase 25: posts to MDM_WEBHOOK_URL when configured; otherwise manual',
+      detail: 'Phase 26: posts action=onboard when configured',
     });
     checklist.push({
       id: 'access-sso',
       kind: 'access_note',
       ref_id: 'sso',
-      label: 'Confirm SSO / email / SaaS access removed (manual)',
+      label: 'Confirm SSO / email / SaaS access granted (manual)',
       status: 'pending',
-      detail: 'Operator confirmation required',
     });
 
-    const run_id = `OFF-${Date.now().toString(36).toUpperCase()}-${randomUUID().slice(0, 4)}`;
+    const run_id = `ONB-${Date.now().toString(36).toUpperCase()}-${randomUUID().slice(0, 4)}`;
     const now = new Date().toISOString();
     const sb = await createPersistClient();
     const { data, error } = await sb
-      .from('os_it_offboarding_runs')
+      .from('os_it_onboarding_runs')
       .insert({
         run_id,
         user_id: userId,
@@ -175,7 +192,7 @@ export async function startOffboarding(input: {
     let run = mapRun(data as Record<string, unknown>);
 
     if (input.auto_execute) {
-      const exec = await executeOffboarding(run.run_id, {
+      const exec = await executeOnboarding(run.run_id, {
         actor_id: input.actor_id,
       });
       if (exec.ok) run = exec.run;
@@ -185,19 +202,19 @@ export async function startOffboarding(input: {
   } catch (e) {
     return {
       ok: false,
-      error: e instanceof Error ? e.message : 'start offboarding failed',
+      error: e instanceof Error ? e.message : 'start onboarding failed',
     };
   }
 }
 
-export async function executeOffboarding(
+export async function executeOnboarding(
   runId: string,
   opts?: { actor_id?: string | null },
-): Promise<{ ok: true; run: OffboardingRun } | { ok: false; error: string }> {
+): Promise<{ ok: true; run: OnboardingRun } | { ok: false; error: string }> {
   try {
     const sb = await createPersistClient();
     const { data: existing, error: findErr } = await sb
-      .from('os_it_offboarding_runs')
+      .from('os_it_onboarding_runs')
       .select('*')
       .eq('run_id', runId)
       .maybeSingle();
@@ -211,26 +228,27 @@ export async function executeOffboarding(
     for (const item of checklist) {
       if (item.status === 'done' || item.status === 'skipped') continue;
 
-      if (item.kind === 'hardware_return') {
-        const res = await returnHardware({
+      if (item.kind === 'hardware_assign') {
+        const res = await assignHardware({
           asset_id: item.ref_id,
+          user_id: userId,
           actor_id: opts?.actor_id ?? null,
-          note: `Offboarding ${runId}`,
+          note: `Onboarding ${runId}`,
         });
         item.status = res.ok ? 'done' : 'failed';
         item.detail = res.ok ? undefined : res.error;
-      } else if (item.kind === 'license_revoke') {
-        const res = await revokeLicenseSeat({
+      } else if (item.kind === 'license_grant') {
+        const res = await grantLicenseSeat({
           license_id: item.ref_id,
           user_id: userId,
           actor_id: opts?.actor_id ?? null,
-          note: `Offboarding ${runId}`,
+          note: `Onboarding ${runId}`,
         });
         item.status = res.ok ? 'done' : 'failed';
         item.detail = res.ok ? undefined : res.error;
       } else if (item.kind === 'access_note' && item.ref_id === 'mdm') {
         const mdm = await invokeMdmLifecycleHook({
-          action: 'offboard',
+          action: 'onboard',
           user_id: userId,
           run_id: runId,
           entity_id: run.entity_id,
@@ -242,19 +260,12 @@ export async function executeOffboarding(
       }
     }
 
-    const autoDone = checklist.filter(
-      (c) => c.kind !== 'access_note' && c.status === 'done',
-    ).length;
-    const autoTotal = checklist.filter((c) => c.kind !== 'access_note').length;
     const now = new Date().toISOString();
-    const allAutoDone = autoTotal === 0 || autoDone === autoTotal;
-    const status = allAutoDone ? 'in_progress' : 'in_progress';
-
     const { data, error } = await sb
-      .from('os_it_offboarding_runs')
+      .from('os_it_onboarding_runs')
       .update({
         checklist,
-        status,
+        status: 'in_progress',
         updated_at: now,
       })
       .eq('run_id', runId)
@@ -271,13 +282,13 @@ export async function executeOffboarding(
   }
 }
 
-export async function completeOffboarding(
+export async function completeOnboarding(
   runId: string,
-): Promise<{ ok: true; run: OffboardingRun } | { ok: false; error: string }> {
+): Promise<{ ok: true; run: OnboardingRun } | { ok: false; error: string }> {
   try {
     const sb = await createPersistClient();
     const { data: existing, error: findErr } = await sb
-      .from('os_it_offboarding_runs')
+      .from('os_it_onboarding_runs')
       .select('*')
       .eq('run_id', runId)
       .maybeSingle();
@@ -292,7 +303,7 @@ export async function completeOffboarding(
     );
     const now = new Date().toISOString();
     const { data, error } = await sb
-      .from('os_it_offboarding_runs')
+      .from('os_it_onboarding_runs')
       .update({
         checklist,
         status: 'completed',
@@ -306,15 +317,15 @@ export async function completeOffboarding(
     const completed = mapRun(data as Record<string, unknown>);
     void logActivity({
       module: 'shared_services',
-      action: 'it_offboarding_completed',
-      title: `Offboarding completed: ${completed.run_id}`,
+      action: 'it_onboarding_completed',
+      title: `Onboarding completed: ${completed.run_id}`,
       ref_type: 'ticket',
       ref_id: completed.ticket_id ?? completed.run_id,
       entity_id: completed.entity_id ?? undefined,
     });
     void createBroadcastNotification({
       kind: 'ticket_update',
-      title: `IT offboarding ${completed.run_id} completed`,
+      title: `IT onboarding ${completed.run_id} completed`,
       body: completed.ticket_id
         ? `Linked ticket ${completed.ticket_id}`
         : `User ${completed.user_id.slice(0, 8)}…`,
@@ -329,21 +340,17 @@ export async function completeOffboarding(
   }
 }
 
-/**
- * Start offboarding from an HR Shared Services ticket.
- * Expects title/description to include `user:<uuid>` or `user_id=<uuid>`.
- */
-export async function startOffboardingFromHrTicket(input: {
+export async function startOnboardingFromHrTicket(input: {
   ticket_id: string;
   actor_id?: string | null;
   auto_execute?: boolean;
-}): Promise<{ ok: true; run: OffboardingRun } | { ok: false; error: string }> {
+}): Promise<{ ok: true; run: OnboardingRun } | { ok: false; error: string }> {
   const ticket = getTicket(input.ticket_id);
   if (!ticket) return { ok: false, error: 'Ticket not found' };
   if (ticket.service !== 'HR' && ticket.service !== 'IT') {
     return {
       ok: false,
-      error: 'Ticket service must be HR or IT for offboarding',
+      error: 'Ticket service must be HR or IT for onboarding',
     };
   }
 
@@ -359,7 +366,7 @@ export async function startOffboardingFromHrTicket(input: {
     };
   }
 
-  return startOffboarding({
+  return startOnboarding({
     user_id: match[1],
     entity_id: ticket.entity_id,
     actor_id: input.actor_id,
@@ -370,8 +377,7 @@ export async function startOffboardingFromHrTicket(input: {
   });
 }
 
-/** Open HR/IT tickets that look like offboarding requests. */
-export function listOffboardingCandidateTickets(): Array<{
+export function listOnboardingCandidateTickets(): Array<{
   ticket_id: string;
   title: string;
   service: string;
@@ -383,10 +389,10 @@ export function listOffboardingCandidateTickets(): Array<{
       if (t.service !== 'HR' && t.service !== 'IT') return false;
       const blob = `${t.title} ${t.description ?? ''}`.toLowerCase();
       return (
-        blob.includes('offboard') ||
-        blob.includes('termination') ||
-        blob.includes('exit') ||
-        blob.includes('revoke access')
+        blob.includes('onboard') ||
+        blob.includes('new hire') ||
+        blob.includes('provision') ||
+        blob.includes('start date')
       );
     })
     .slice(0, 20)
@@ -397,111 +403,3 @@ export function listOffboardingCandidateTickets(): Array<{
       status: t.status,
     }));
 }
-
-/** Optional MDM webhook — set MDM_WEBHOOK_URL for Phase 25 hooks. */
-export async function invokeMdmOffboardHook(input: {
-  user_id: string;
-  run_id: string;
-  entity_id?: string | null;
-}): Promise<{ ok: boolean; skipped?: boolean; detail: string }> {
-  const { invokeMdmLifecycleHook } = await import(
-    '@/lib/shared-services/it-mdm'
-  );
-  return invokeMdmLifecycleHook({ ...input, action: 'offboard' });
-}
-
-/**
- * Scan inactive profiles and start offboarding (source=status_change)
- * when no open/in_progress run exists.
- */
-export async function scanInactiveProfilesForOffboarding(opts?: {
-  limit?: number;
-  auto_execute?: boolean;
-  actor_id?: string | null;
-}): Promise<{
-  scanned: number;
-  started: number;
-  skipped: number;
-  results: Array<{ user_id: string; ok: boolean; detail: string }>;
-}> {
-  const limit = opts?.limit ?? 20;
-  const sb = await createPersistClient();
-  const { data: profiles, error } = await sb
-    .from('profiles')
-    .select('id, email, active, entity_id')
-    .eq('active', false)
-    .order('updated_at', { ascending: false })
-    .limit(limit);
-
-  if (error) {
-    return {
-      scanned: 0,
-      started: 0,
-      skipped: 0,
-      results: [{ user_id: '-', ok: false, detail: error.message }],
-    };
-  }
-
-  const { data: openRuns } = await sb
-    .from('os_it_offboarding_runs')
-    .select('user_id, status')
-    .in('status', ['open', 'in_progress']);
-
-  const busy = new Set((openRuns ?? []).map((r) => String(r.user_id)));
-  const results: Array<{ user_id: string; ok: boolean; detail: string }> = [];
-  let started = 0;
-  let skipped = 0;
-
-  for (const p of profiles ?? []) {
-    const userId = String(p.id);
-    if (busy.has(userId)) {
-      skipped += 1;
-      results.push({
-        user_id: userId,
-        ok: true,
-        detail: 'Open offboarding run already exists',
-      });
-      continue;
-    }
-    const res = await startOffboarding({
-      user_id: userId,
-      entity_id: (p.entity_id as string) ?? null,
-      actor_id: opts?.actor_id ?? null,
-      notes: `Auto from inactive profile${p.email ? ` (${p.email})` : ''}`,
-      source: 'status_change',
-      auto_execute: opts?.auto_execute ?? true,
-    });
-    if (res.ok) {
-      started += 1;
-      results.push({
-        user_id: userId,
-        ok: true,
-        detail: `Started ${res.run.run_id}`,
-      });
-      void logActivity({
-        module: 'shared_services',
-        action: 'it_offboarding_status_change',
-        title: `Offboarding from inactive profile: ${res.run.run_id}`,
-        ref_type: 'ticket',
-        ref_id: res.run.run_id,
-        entity_id: res.run.entity_id ?? undefined,
-      });
-      void createBroadcastNotification({
-        kind: 'ticket_update',
-        title: `IT offboarding started (status change)`,
-        body: res.run.run_id,
-        href: '/shared-services/it/assets',
-      });
-    } else {
-      results.push({ user_id: userId, ok: false, detail: res.error });
-    }
-  }
-
-  return {
-    scanned: (profiles ?? []).length,
-    started,
-    skipped,
-    results,
-  };
-}
-

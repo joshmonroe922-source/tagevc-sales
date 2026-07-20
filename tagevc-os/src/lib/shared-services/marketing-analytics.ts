@@ -26,12 +26,25 @@ export type MarketingAnalyticsSummary = {
   by_campaign: Record<string, number>;
   engagement_by_platform: Record<
     string,
-    { impressions: number; clicks: number; likes: number }
+    {
+      impressions: number;
+      clicks: number;
+      likes: number;
+      comments: number;
+      shares: number;
+      posts: number;
+      /** (likes+comments+shares+clicks) / impressions when impressions > 0 */
+      engagement_rate: number | null;
+    }
   >;
   recent: MarketingAnalyticsEvent[];
   engagement_impressions: number;
   engagement_clicks: number;
   engagement_likes: number;
+  engagement_comments: number;
+  engagement_shares: number;
+  /** Overall engagement rate across all platforms */
+  engagement_rate: number | null;
   engagement_api: number;
   engagement_manual: number;
   /** Last 7 calendar days: YYYY-MM-DD → post + engagement counts */
@@ -40,6 +53,12 @@ export type MarketingAnalyticsSummary = {
     posts: number;
     engagement_events: number;
     impressions: number;
+  }>;
+  /** Platforms ranked by impressions (Phase 26 comparison) */
+  platform_rank: Array<{
+    platform: string;
+    impressions: number;
+    engagement_rate: number | null;
   }>;
 };
 
@@ -148,9 +167,13 @@ export async function getMarketingAnalyticsSummary(opts?: {
     engagement_impressions: 0,
     engagement_clicks: 0,
     engagement_likes: 0,
+    engagement_comments: 0,
+    engagement_shares: 0,
+    engagement_rate: null,
     engagement_api: 0,
     engagement_manual: 0,
     trend_7d: emptyTrend7d(),
+    platform_rank: [],
   };
 
   try {
@@ -174,6 +197,7 @@ export async function getMarketingAnalyticsSummary(opts?: {
     const dayIndex = new Map(
       summary.trend_7d.map((t, i) => [t.day, i] as const),
     );
+    const postsByPlatform: Record<string, number> = {};
 
     for (const e of events) {
       const day = e.occurred_at.slice(0, 10);
@@ -183,15 +207,22 @@ export async function getMarketingAnalyticsSummary(opts?: {
         summary.posts_succeeded += 1;
         if (e.metrics.stub) summary.posts_stub += 1;
         if (ti != null) summary.trend_7d[ti].posts += 1;
+        if (e.platform) {
+          postsByPlatform[e.platform] = (postsByPlatform[e.platform] ?? 0) + 1;
+        }
       } else if (e.kind === 'post_failed') {
         summary.posts_failed += 1;
       } else if (e.kind === 'engagement') {
         const impressions = Number(e.metrics.impressions ?? 0);
         const clicks = Number(e.metrics.clicks ?? 0);
         const likes = Number(e.metrics.likes ?? 0);
+        const comments = Number(e.metrics.comments ?? 0);
+        const shares = Number(e.metrics.shares ?? 0);
         summary.engagement_impressions += impressions;
         summary.engagement_clicks += clicks;
         summary.engagement_likes += likes;
+        summary.engagement_comments += comments;
+        summary.engagement_shares += shares;
         if (e.metrics.source === 'api') summary.engagement_api += 1;
         else summary.engagement_manual += 1;
         if (ti != null) {
@@ -203,10 +234,16 @@ export async function getMarketingAnalyticsSummary(opts?: {
             impressions: 0,
             clicks: 0,
             likes: 0,
+            comments: 0,
+            shares: 0,
+            posts: 0,
+            engagement_rate: null,
           };
           bucket.impressions += impressions;
           bucket.clicks += clicks;
           bucket.likes += likes;
+          bucket.comments += comments;
+          bucket.shares += shares;
           summary.engagement_by_platform[e.platform] = bucket;
         }
       }
@@ -219,6 +256,32 @@ export async function getMarketingAnalyticsSummary(opts?: {
           (summary.by_campaign[e.campaign_id] ?? 0) + 1;
       }
     }
+
+    const engTotal =
+      summary.engagement_likes +
+      summary.engagement_comments +
+      summary.engagement_shares +
+      summary.engagement_clicks;
+    summary.engagement_rate =
+      summary.engagement_impressions > 0
+        ? engTotal / summary.engagement_impressions
+        : null;
+
+    for (const [plat, bucket] of Object.entries(summary.engagement_by_platform)) {
+      bucket.posts = postsByPlatform[plat] ?? 0;
+      const t =
+        bucket.likes + bucket.comments + bucket.shares + bucket.clicks;
+      bucket.engagement_rate =
+        bucket.impressions > 0 ? t / bucket.impressions : null;
+    }
+
+    summary.platform_rank = Object.entries(summary.engagement_by_platform)
+      .map(([platform, m]) => ({
+        platform,
+        impressions: m.impressions,
+        engagement_rate: m.engagement_rate,
+      }))
+      .sort((a, b) => b.impressions - a.impressions);
 
     if (summary.posts_succeeded + summary.posts_failed === 0) {
       const { data: jobs } = await sb
