@@ -242,7 +242,7 @@ export async function syncPortfolioCompanies(
   }
 }
 
-/** Partial SQL-first update for narrative Portfolio Active fields. */
+/** Partial SQL-first update for Portfolio Active narrative + CORE $ fields. */
 export async function updatePortfolioCompanyFields(
   portfolioId: string,
   patch: Partial<
@@ -255,6 +255,11 @@ export async function updatePortfolioCompanyFields(
       | 'coo_owner'
       | 'board_lead'
       | 'last_update'
+      | 'arr_k'
+      | 'mom_growth'
+      | 'net_burn_k'
+      | 'runway_mo'
+      | 'cash_k'
     >
   >,
 ): Promise<PortfolioCompany | null> {
@@ -310,6 +315,52 @@ export async function syncEntityMonthPnl(
     return true;
   } catch (e) {
     console.error('syncEntityMonthPnl', e);
+    return false;
+  }
+}
+
+/** Upsert a single period P&L row (rollup-aligned with Portfolio CORE). */
+export async function upsertEntityMonthPnlRow(
+  row: EntityMonthPnl,
+): Promise<EntityMonthPnl | null> {
+  const ok = await syncEntityMonthPnl([row]);
+  return ok ? row : null;
+}
+
+export async function insertFinancialAudit(input: {
+  audit_id: string;
+  entity_id: string;
+  portfolio_id: string | null;
+  period: string;
+  actor_id: string | null;
+  actor_email: string | null;
+  patch: Record<string, unknown>;
+  before_snapshot: Record<string, unknown>;
+  after_snapshot: Record<string, unknown>;
+}): Promise<boolean> {
+  try {
+    const supabase = await createPersistClient();
+    const { error } = await supabase.from('os_financial_audits').insert({
+      audit_id: input.audit_id,
+      entity_id: input.entity_id,
+      portfolio_id: input.portfolio_id,
+      period: input.period,
+      actor_id: input.actor_id,
+      actor_email: input.actor_email,
+      patch: input.patch,
+      before_snapshot: input.before_snapshot,
+      after_snapshot: input.after_snapshot,
+    });
+    if (error) {
+      // Table may not exist until Phase 18 SQL — non-fatal
+      if (!error.message.includes('os_financial_audits')) {
+        console.error('insertFinancialAudit', error.message);
+      }
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error('insertFinancialAudit', e);
     return false;
   }
 }

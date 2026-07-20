@@ -4,13 +4,13 @@ import {
   defaultArchiveCandidates,
   listSnapshotArchives,
 } from '@/lib/data/snapshot-archive';
+import { assertArchiveSafe } from '@/lib/data/snapshot-drills';
 import {
   ALL_PIPELINE_SNAPSHOT_DOMAINS,
   shouldWriteSnapshot,
   type StoreCollection,
 } from '@/lib/data/persist';
 import { captureException } from '@/lib/observability';
-import { createPersistClient } from '@/lib/supabase/persist-client';
 import { guardPermission } from '@/lib/rbac/session';
 
 function authorize(request: Request): Promise<
@@ -98,18 +98,10 @@ export async function POST(request: Request) {
       });
     }
 
-    // Safety: require SQL row presence for core tables before archiving
-    const supabase = await createPersistClient();
-    const { count: leadCount } = await supabase
-      .from('os_leads')
-      .select('*', { count: 'exact', head: true });
-    if ((leadCount ?? 0) === 0 && targets.includes('deal_flow')) {
+    const safety = await assertArchiveSafe(targets);
+    if (!safety.ok) {
       return NextResponse.json(
-        {
-          ok: false,
-          error:
-            'Safety check failed: os_leads is empty — refuse to archive deal_flow',
-        },
+        { ok: false, error: safety.error },
         { status: 409 },
       );
     }

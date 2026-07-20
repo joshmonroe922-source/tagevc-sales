@@ -6,15 +6,17 @@ import {
 } from '@/components/deal-flow/pipeline-table';
 import { Badge } from '@/components/ui/badge';
 import {
-  listActiveDeals,
-  listActiveLeads,
-  listOpenLeadTasks,
-} from '@/lib/data/deal-flow-store';
+  listScopedActiveDeals,
+  listScopedActiveLeads,
+  listScopedOpenLeadTasks,
+} from '@/lib/data/pipeline-scope';
 
 export default async function VcDealFlowPage() {
-  const leads = listActiveLeads();
-  const openTasks = listOpenLeadTasks();
-  const deals = listActiveDeals();
+  const [leads, openTasks, deals] = await Promise.all([
+    listScopedActiveLeads(),
+    listScopedOpenLeadTasks(),
+    listScopedActiveDeals(),
+  ]);
   const ready = leads.filter((l) => l.stage === 'Ready for DD').length;
 
   return (

@@ -18,7 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { countByBand, listTickets } from '@/lib/data/ticket-store';
+import { listScopedTickets } from '@/lib/data/pipeline-scope';
 import { FORBID_LIST } from '@/lib/shared-services/forbid-list';
 import { ALLOW_LIST } from '@/lib/shared-services/allow-list';
 import {
@@ -27,10 +27,19 @@ import {
   CURRENT_POLICY_VERSION,
 } from '@/lib/shared-services/diagnose';
 import { AUTONOMY_BANDS } from '@/lib/types';
+import type { AutonomyBand } from '@/lib/types/enums';
 
 export default async function SharedServicesPage() {
-  const tickets = listTickets();
-  const bands = countByBand();
+  const tickets = await listScopedTickets();
+  const bands: Record<AutonomyBand, number> = {
+    AUTO: 0,
+    DRAFT: 0,
+    ESCALATE: 0,
+  };
+  for (const t of tickets) {
+    if (t.status === 'Closed' || t.status === 'Resolved') continue;
+    bands[t.autonomy_band] += 1;
+  }
   const open = tickets.filter(
     (t) => t.status !== 'Resolved' && t.status !== 'Closed',
   );

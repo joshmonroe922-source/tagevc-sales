@@ -16,8 +16,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { listAllLeads } from '@/lib/data/deal-flow-store';
 import { listSubsidiaryEntities } from '@/lib/data/entity-os';
+import { listScopedAllLeads } from '@/lib/data/pipeline-scope';
 import { formatDate } from '@/lib/format';
 
 /**
@@ -28,7 +28,7 @@ import { formatDate } from '@/lib/format';
 export default async function LeadIntakePage() {
   const [entities, leads] = await Promise.all([
     listSubsidiaryEntities(),
-    Promise.resolve(listAllLeads()),
+    listScopedAllLeads(),
   ]);
   const recent = leads.slice(0, 12);
   const inbound = leads.filter((l) => l.source === 'Inbound').slice(0, 8);

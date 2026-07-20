@@ -15,6 +15,10 @@ import {
   type StoreCollection,
 } from '@/lib/data/persist';
 import { listSnapshotArchives } from '@/lib/data/snapshot-archive';
+import {
+  runEmptySnapshotDrills,
+  type EmptySnapshotDrillReport,
+} from '@/lib/data/snapshot-drills';
 import { isSentryConfigured } from '@/lib/observability';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 
@@ -57,13 +61,16 @@ export type NormalizationStatus = {
     lastError: string | null;
     lastFailAt: string | null;
   }>;
+  empty_snapshot_drills: EmptySnapshotDrillReport;
+  stage4_ready: boolean;
   fetched_at: string;
   cutover_hints: {
     stage:
       | 'soak'
       | 'read_cutover'
       | 'write_cutover_partial'
-      | 'write_cutover';
+      | 'write_cutover'
+      | 'stage4_ready';
     next: string;
   };
 };
@@ -164,20 +171,8 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
     (d) => !shouldWriteSnapshot(d).allow,
   );
 
-  let stage: NormalizationStatus['cutover_hints']['stage'] = 'soak';
-  if (allPipelineCutoverActive || !writeConfig.write_snapshots_enabled) {
-    stage = 'write_cutover';
-  } else if (
-    matureCutoverActive ||
-    writeConfig.snapshot_skip_domains.length > 0 ||
-    writeConfig.write_cutover_all
-  ) {
-    stage = 'write_cutover_partial';
-  } else if (preferNormalizedTables()) {
-    stage = 'read_cutover';
-  }
-
   const archives = await listSnapshotArchives(10);
+  const drills = await runEmptySnapshotDrills();
 
   const snapshotRows = (snapshots ?? []).map((s) => {
     const payload = s.payload as unknown;
@@ -193,6 +188,21 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
       payload_empty: empty,
     };
   });
+
+  let stage: NormalizationStatus['cutover_hints']['stage'] = 'soak';
+  if (drills.stage4_ready && allPipelineCutoverActive) {
+    stage = 'stage4_ready';
+  } else if (allPipelineCutoverActive || !writeConfig.write_snapshots_enabled) {
+    stage = 'write_cutover';
+  } else if (
+    matureCutoverActive ||
+    writeConfig.snapshot_skip_domains.length > 0 ||
+    writeConfig.write_cutover_all
+  ) {
+    stage = 'write_cutover_partial';
+  } else if (preferNormalizedTables()) {
+    stage = 'read_cutover';
+  }
 
   return {
     ok: true,
@@ -216,6 +226,8 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
     sync_failures: syncFailures,
     fk_integrity: fkIntegrity,
     fk_orphan_total: fkOrphanTotal,
+    empty_snapshot_drills: drills,
+    stage4_ready: drills.stage4_ready,
     fetched_at: new Date().toISOString(),
     row_counts: counts,
     snapshots: snapshotRows,
@@ -235,9 +247,11 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
             ? 'Extend with WRITE_CUTOVER_ALL=1 (includes MA/RE), monitor skips, then archive cut-over collections'
             : stage === 'read_cutover'
               ? 'Enable WRITE_CUTOVER_MATURE=1 when handoffs/audits tables are ready'
-              : fkOrphanTotal > 0
-                ? 'Write cutover active — apply phase17_validate_fks.sql to clear FK orphans'
-                : 'Write cutover healthy — apply phase17_entity_rls.sql for subsidiary scope; Stage 4 drop later',
+              : stage === 'stage4_ready'
+                ? 'Empty-snapshot drills passed — follow docs/OS_SNAPSHOT_STAGE4.md (table drop still deferred)'
+                : fkOrphanTotal > 0
+                  ? 'Write cutover active — clear FK orphans before Stage 4'
+                  : 'Write cutover healthy — run empty-snapshot drills; Stage 4 drop later',
     },
   };
 }

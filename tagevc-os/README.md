@@ -414,12 +414,24 @@ Docs: `docs/OS_PHASE16.md`
 
 Docs: `docs/OS_PHASE17.md`
 
-### Phase 18+ backlog
+### Phase 18 scope (Snapshot drills + pipeline scope + CORE $)
 
-- Stage 4 snapshot retirement planning / drills
-- Financial portfolio edits; pipeline entity scope
+| Area | Status |
+|------|--------|
+| Empty-snapshot drills + Stage 4 plan | Done |
+| Pipeline entity RLS + scoped list pages | Done — `phase18_pipeline_entity_rls.sql` |
+| CORE financial edits + audit | Done — `phase18_financial_audit.sql` |
+| Soak health cron + Sentry tags | Done |
+| SQL | Apply both Phase 18 SQL files |
+
+Docs: `docs/OS_PHASE18.md` · `docs/OS_SNAPSHOT_STAGE4.md`
+
+### Phase 19+ backlog
+
+- Stage 4 hydrate SQL-only + eventual snapshot drop
+- Harder subsidiary pipeline scope; KPI flex edits
 - Push notifications; richer moderation
-- Real DocuSign
+- Real DocuSign · user admin UI
 
 
 ## Run locally
@@ -454,4 +466,4 @@ Set `DEV_BYPASS_AUTH=1` in `.env.local` to preview the shell as Visionary (local
 
 ## Next phases (from Cursor Brief)
 
-Phase 17 hardens FKs, adds entity-scoped access, pins the sidebar, and polishes Portfolio/Entity edits. Remaining: Stage 4 snapshot drop, financial edits, DocuSign, push.
+Phase 18 advances empty-snapshot drills, pipeline entity scope, CORE financial edits, and soak monitoring. Remaining: Stage 4 snapshot drop, DocuSign, push, user admin.

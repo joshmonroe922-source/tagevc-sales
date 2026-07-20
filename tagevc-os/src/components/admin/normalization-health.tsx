@@ -77,6 +77,14 @@ export function NormalizationHealthPanel({
         <Badge variant="outline">
           Master · {status.master_data_source}
         </Badge>
+        <Badge
+          variant={status.stage4_ready ? 'secondary' : 'outline'}
+          className={
+            status.stage4_ready ? 'border-emerald-600 text-emerald-800' : ''
+          }
+        >
+          Stage 4 drills · {status.stage4_ready ? 'pass' : 'pending'}
+        </Badge>
         <Badge variant={status.sentry_configured ? 'secondary' : 'outline'}>
           Sentry · {status.sentry_configured ? 'on' : 'off'}
         </Badge>
@@ -149,6 +157,73 @@ export function NormalizationHealthPanel({
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Empty-snapshot drills</CardTitle>
+          <CardDescription>
+            Read-only checks: write cutover, empty live payload, normalized
+            rows, and archive presence. {status.empty_snapshot_drills.summary}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          {status.empty_snapshot_drills.results.map((r) => (
+            <div
+              key={r.collection}
+              className="border-b border-border/40 py-2 last:border-0"
+            >
+              <div className="flex justify-between gap-2 font-medium">
+                <span>{r.collection}</span>
+                <span
+                  className={
+                    r.pass ? 'text-emerald-700' : 'text-destructive'
+                  }
+                >
+                  {r.pass ? 'pass' : 'fail'}
+                </span>
+              </div>
+              <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                {r.checks.map((c) => (
+                  <li key={c.name}>
+                    {c.ok ? '✓' : '✗'} {c.name}
+                    {c.detail ? ` · ${c.detail}` : ''}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={pending}
+            onClick={() => {
+              setMessage(null);
+              setError(null);
+              startTransition(async () => {
+                try {
+                  const res = await fetch('/api/admin/snapshot-drill');
+                  const data = (await res.json()) as {
+                    ok: boolean;
+                    summary?: string;
+                    error?: string;
+                  };
+                  if (!res.ok || !data.ok) {
+                    setError(data.error ?? 'Drill failed');
+                    return;
+                  }
+                  setMessage(data.summary ?? 'Drills complete');
+                  router.refresh();
+                } catch (e) {
+                  setError(e instanceof Error ? e.message : 'Drill failed');
+                }
+              });
+            }}
+          >
+            {pending ? 'Running…' : 'Re-run drills'}
+          </Button>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

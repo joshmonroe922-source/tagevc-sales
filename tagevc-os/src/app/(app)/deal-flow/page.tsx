@@ -6,18 +6,25 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { listActiveDeals, listActiveLeads, listIcQueue } from '@/lib/data/deal-flow-store';
-import { listActiveMaTargets } from '@/lib/data/ma-store';
-import { listActiveReDeals } from '@/lib/data/re-store';
+import {
+  listScopedActiveDeals,
+  listScopedActiveLeads,
+  listScopedActiveMaTargets,
+  listScopedActiveReDeals,
+  listScopedIcQueue,
+} from '@/lib/data/pipeline-scope';
 
 export default async function DealFlowHubPage() {
-  const leads = listActiveLeads();
-  const deals = listActiveDeals();
-  const icPending = listIcQueue().filter(
+  const [leads, deals, icQueue, ma, re] = await Promise.all([
+    listScopedActiveLeads(),
+    listScopedActiveDeals(),
+    listScopedIcQueue(),
+    listScopedActiveMaTargets(),
+    listScopedActiveReDeals(),
+  ]);
+  const icPending = icQueue.filter(
     (r) => r.status === 'Pending' || r.status === 'In Review',
   ).length;
-  const ma = listActiveMaTargets();
-  const re = listActiveReDeals();
   const resi = re.filter((d) => d.route === 'Residential').length;
   const cre = re.filter((d) => d.route === 'Commercial').length;
 

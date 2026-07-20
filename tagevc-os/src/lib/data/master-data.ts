@@ -191,6 +191,11 @@ export async function patchPortfolioCompany(
       | 'notes'
       | 'coo_owner'
       | 'board_lead'
+      | 'arr_k'
+      | 'mom_growth'
+      | 'net_burn_k'
+      | 'runway_mo'
+      | 'cash_k'
     >
   >,
 ): Promise<PortfolioCompany> {
@@ -224,6 +229,125 @@ export async function patchPortfolioCompany(
   cache.source = 'sql';
   recordNormalizedSyncResult('portfolio_company_patch', true);
   return updated;
+}
+
+export type CoreFinancialPatch = {
+  arr_k: number;
+  net_burn_k: number;
+  cash_k: number;
+  runway_mo: number | null;
+  mom_growth: number | null;
+  cogs_k?: number;
+  opex_k?: number;
+};
+
+/**
+ * Update Portfolio CORE $ fields and keep same-period entity_month_pnl aligned
+ * so Portfolio Roll-up SUM/WEIGHTED/MIN stay consistent.
+ */
+export async function patchPortfolioCoreFinancials(
+  portfolioId: string,
+  patch: CoreFinancialPatch,
+  opts?: {
+    actorId?: string | null;
+    actorEmail?: string | null;
+  },
+): Promise<{ company: PortfolioCompany; pnl: EntityMonthPnl }> {
+  await ensureMasterData();
+  const cache = getCache();
+  const company = cache.companies.find((c) => c.portfolio_id === portfolioId);
+  if (!company) throw new Error(`Unknown portfolio ${portfolioId}`);
+
+  const period = cache.period;
+  const existingPnl =
+    cache.pnl.find(
+      (r) => r.entity_id === company.entity_id && r.period === period,
+    ) ?? null;
+
+  const before = {
+    company: {
+      arr_k: company.arr_k,
+      net_burn_k: company.net_burn_k,
+      cash_k: company.cash_k,
+      runway_mo: company.runway_mo,
+      mom_growth: company.mom_growth,
+    },
+    pnl: existingPnl
+      ? {
+          revenue_arr_k: existingPnl.revenue_arr_k,
+          cogs_k: existingPnl.cogs_k,
+          opex_k: existingPnl.opex_k,
+          net_burn_k: existingPnl.net_burn_k,
+          ending_cash_k: existingPnl.ending_cash_k,
+        }
+      : null,
+  };
+
+  const updatedCompany = await patchPortfolioCompany(portfolioId, {
+    arr_k: patch.arr_k,
+    net_burn_k: patch.net_burn_k,
+    cash_k: patch.cash_k,
+    runway_mo: patch.runway_mo,
+    mom_growth: patch.mom_growth,
+  });
+
+  const nextPnl: EntityMonthPnl = {
+    id: existingPnl?.id ?? crypto.randomUUID(),
+    entity_id: company.entity_id,
+    period,
+    revenue_arr_k: patch.arr_k,
+    cogs_k: patch.cogs_k ?? existingPnl?.cogs_k ?? 0,
+    opex_k: patch.opex_k ?? existingPnl?.opex_k ?? 0,
+    net_burn_k: patch.net_burn_k,
+    ending_cash_k: patch.cash_k,
+    is_firm: existingPnl?.is_firm ?? company.entity_id === 'ENT-FIRM',
+  };
+
+  const { upsertEntityMonthPnlRow, insertFinancialAudit } = await import(
+    '@/lib/data/normalized/portfolio-repo'
+  );
+  const savedPnl = await upsertEntityMonthPnlRow(nextPnl);
+  if (!savedPnl) {
+    throw new Error(
+      'Could not save P&L row — apply Phase 14 SQL and confirm Live DB.',
+    );
+  }
+
+  const pnlIdx = cache.pnl.findIndex(
+    (r) => r.entity_id === company.entity_id && r.period === period,
+  );
+  if (pnlIdx >= 0) cache.pnl[pnlIdx] = savedPnl;
+  else cache.pnl.push(savedPnl);
+
+  await insertFinancialAudit({
+    audit_id: `FA-${crypto.randomUUID().slice(0, 8)}`,
+    entity_id: company.entity_id,
+    portfolio_id: portfolioId,
+    period,
+    actor_id: opts?.actorId ?? null,
+    actor_email: opts?.actorEmail ?? null,
+    patch: { ...patch },
+    before_snapshot: before,
+    after_snapshot: {
+      company: {
+        arr_k: updatedCompany.arr_k,
+        net_burn_k: updatedCompany.net_burn_k,
+        cash_k: updatedCompany.cash_k,
+        runway_mo: updatedCompany.runway_mo,
+        mom_growth: updatedCompany.mom_growth,
+      },
+      pnl: {
+        revenue_arr_k: savedPnl.revenue_arr_k,
+        cogs_k: savedPnl.cogs_k,
+        opex_k: savedPnl.opex_k,
+        net_burn_k: savedPnl.net_burn_k,
+        ending_cash_k: savedPnl.ending_cash_k,
+      },
+    },
+  });
+
+  recordNormalizedSyncResult('portfolio_core_financials', true);
+  return { company: updatedCompany, pnl: savedPnl };
 }
 
 export async function patchEntity(

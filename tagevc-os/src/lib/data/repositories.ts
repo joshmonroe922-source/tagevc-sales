@@ -1,12 +1,13 @@
 import { SEED_PERIOD } from '@/lib/data/seed';
 import { ensureMasterData } from '@/lib/data/master-data';
 import {
-  listActiveDeals,
-  listActiveLeads,
-  listOpenLeadTasks,
-} from '@/lib/data/deal-flow-store';
+  listScopedActiveDeals,
+  listScopedActiveLeads,
+  listScopedOpenLeadTasks,
+} from '@/lib/data/pipeline-scope';
 import { computePortfolioRollup } from '@/lib/portfolio/rollup';
 import {
+  buildParentIndex,
   canAccessEntityId,
   isFirmWideAccess,
 } from '@/lib/rbac/entity-scope';
@@ -21,12 +22,17 @@ import type {
 } from '@/lib/types';
 
 async function scopeFilter() {
-  const session = await getSessionContext();
+  const [session, master] = await Promise.all([
+    getSessionContext(),
+    ensureMasterData(),
+  ]);
+  const parentByEntityId = buildParentIndex(master.entities);
   if (!session) {
     return {
       firmWide: false,
       role: null as null,
       entityId: null as string | null,
+      parentByEntityId,
     };
   }
   return {
@@ -36,6 +42,7 @@ async function scopeFilter() {
     ),
     role: session.profile.role,
     entityId: session.profile.entity_id,
+    parentByEntityId,
   };
 }
 
@@ -45,7 +52,12 @@ function filterCompanies(
 ): PortfolioCompany[] {
   if (scope.firmWide || !scope.role) return companies;
   return companies.filter((c) =>
-    canAccessEntityId(scope.role!, scope.entityId, c.entity_id),
+    canAccessEntityId(
+      scope.role!,
+      scope.entityId,
+      c.entity_id,
+      scope.parentByEntityId,
+    ),
   );
 }
 
@@ -55,7 +67,12 @@ function filterEntities(
 ): Entity[] {
   if (scope.firmWide || !scope.role) return entities;
   return entities.filter((e) =>
-    canAccessEntityId(scope.role!, scope.entityId, e.entity_id),
+    canAccessEntityId(
+      scope.role!,
+      scope.entityId,
+      e.entity_id,
+      scope.parentByEntityId,
+    ),
   );
 }
 
@@ -65,7 +82,12 @@ function filterPnl(
 ): EntityMonthPnl[] {
   if (scope.firmWide || !scope.role) return pnl;
   return pnl.filter((r) =>
-    canAccessEntityId(scope.role!, scope.entityId, r.entity_id),
+    canAccessEntityId(
+      scope.role!,
+      scope.entityId,
+      r.entity_id,
+      scope.parentByEntityId,
+    ),
   );
 }
 
@@ -93,7 +115,12 @@ export async function getPortfolioCompanyById(
   if (!company) return null;
   if (
     scope.role &&
-    !canAccessEntityId(scope.role, scope.entityId, company.entity_id)
+    !canAccessEntityId(
+      scope.role,
+      scope.entityId,
+      company.entity_id,
+      scope.parentByEntityId,
+    )
   ) {
     return null;
   }
@@ -117,7 +144,12 @@ export async function getEntityById(entityId: string): Promise<Entity | null> {
   ]);
   if (
     scope.role &&
-    !canAccessEntityId(scope.role, scope.entityId, entityId)
+    !canAccessEntityId(
+      scope.role,
+      scope.entityId,
+      entityId,
+      scope.parentByEntityId,
+    )
   ) {
     return null;
   }
@@ -143,11 +175,13 @@ export async function getCommandCenterSnapshot(): Promise<CommandCenterSnapshot>
   const master = await ensureMasterData();
   const companies = await listActivePortfolioCompanies();
   const rollup = await getPortfolioRollup(master.period);
-  const activeLeads = listActiveLeads();
+  const [activeLeads, openTasks, deals] = await Promise.all([
+    listScopedActiveLeads(),
+    listScopedOpenLeadTasks(),
+    listScopedActiveDeals(),
+  ]);
   const readyForDd = activeLeads.filter((l) => l.stage === 'Ready for DD');
-  const openTasks = listOpenLeadTasks();
   const blocked = openTasks.filter((t) => t.status === 'Blocked');
-  const deals = listActiveDeals();
   const closing = deals.filter(
     (d) =>
       d.exec_stage === 'Closing Conditions' ||

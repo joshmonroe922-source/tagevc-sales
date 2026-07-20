@@ -9,12 +9,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { listActiveMaTargets } from '@/lib/data/ma-store';
+import { listScopedActiveMaTargets } from '@/lib/data/pipeline-scope';
 import { formatDate } from '@/lib/format';
 import { MA_STAGES } from '@/lib/types';
 
 export default async function MaPipelinePage() {
-  const targets = listActiveMaTargets();
+  const targets = await listScopedActiveMaTargets();
   const exclusivity = targets.filter((t) => t.stage === 'LOI / Exclusivity').length;
 
   return (

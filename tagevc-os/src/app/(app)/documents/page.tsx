@@ -17,7 +17,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { listEntities } from '@/lib/data/repositories';
-import { listDocuments, listTemplates } from '@/lib/data/document-store';
+import { listTemplates } from '@/lib/data/document-store';
+import { listScopedDocuments } from '@/lib/data/pipeline-scope';
 import { isCapitalDocument } from '@/lib/documents/capital-gate';
 import { FIRM_FOLDERS } from '@/lib/documents/library';
 import { ENTITY_DOC_FOLDERS } from '@/lib/types/enums';
@@ -25,7 +26,7 @@ import { ENTITY_DOC_FOLDERS } from '@/lib/types/enums';
 export default async function DocumentsPage() {
   const [entities, docs, templates] = await Promise.all([
     listEntities(),
-    Promise.resolve(listDocuments()),
+    listScopedDocuments(),
     Promise.resolve(listTemplates()),
   ]);
   const subs = entities.filter((e) => e.entity_type !== 'Firm');

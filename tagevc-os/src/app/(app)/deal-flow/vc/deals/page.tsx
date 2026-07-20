@@ -14,11 +14,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { listActiveDeals } from '@/lib/data/deal-flow-store';
+import { listScopedActiveDeals } from '@/lib/data/pipeline-scope';
 import { formatUsdK } from '@/lib/format';
 
 export default async function DealsPage() {
-  const deals = listActiveDeals();
+  const deals = await listScopedActiveDeals();
 
   return (
     <div className="space-y-8">

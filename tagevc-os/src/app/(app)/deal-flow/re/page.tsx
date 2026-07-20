@@ -9,12 +9,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { listActiveReDeals } from '@/lib/data/re-store';
+import { listScopedActiveReDeals } from '@/lib/data/pipeline-scope';
 import { formatDate, formatUsdK } from '@/lib/format';
 import { RE_STAGES } from '@/lib/types';
 
 export default async function RePipelinePage() {
-  const deals = listActiveReDeals();
+  const deals = await listScopedActiveReDeals();
   const resi = deals.filter((d) => d.route === 'Residential').length;
   const cre = deals.filter((d) => d.route === 'Commercial').length;
 

@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useState } from 'react';
 import {
   updateEntityNotesAction,
+  updatePortfolioCoreFinancialsAction,
   updatePortfolioPulseAction,
   type MasterDataActionResult,
 } from '@/app/(app)/portfolio/actions';
@@ -68,8 +69,8 @@ export function PortfolioPulseForm({
       <div>
         <p className="text-sm font-medium text-[#3a414f]">Edit portfolio pulse</p>
         <p className="text-xs text-muted-foreground">
-          SQL-first · Health, risk, milestone, notes. Financial CORE $ fields
-          stay read-only (rollup-safe).
+          SQL-first · Health, risk, milestone, notes. Use CORE financials form
+          for ARR / burn / cash (rollup-aligned).
         </p>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -150,6 +151,135 @@ export function PortfolioPulseEmpty({ entityId }: { entityId: string }) {
       title="No Portfolio Active row"
       description={`Entity ${entityId} is not on Portfolio Active (RE assets use RE Portfolio). Narrative edits are unavailable until a PF-* row exists.`}
     />
+  );
+}
+
+export function PortfolioCoreFinancialForm({
+  company,
+  pnl,
+}: {
+  company: PortfolioCompany;
+  pnl: { cogs_k: number; opex_k: number } | null;
+}) {
+  const [result, action, pending] = useActionState(
+    updatePortfolioCoreFinancialsAction,
+    null,
+  );
+  const momPct =
+    company.mom_growth == null
+      ? ''
+      : String(Math.round(company.mom_growth * 1000) / 10);
+
+  return (
+    <form
+      action={action}
+      className="space-y-3 rounded-lg border border-border bg-card/40 p-4"
+    >
+      <input type="hidden" name="portfolio_id" value={company.portfolio_id} />
+      <div>
+        <p className="text-sm font-medium text-[#3a414f]">Edit CORE financials</p>
+        <p className="text-xs text-muted-foreground">
+          SQL-first · Updates Portfolio Active and same-period P&L so roll-ups
+          stay consistent. Leave runway blank to auto-calc from cash ÷ burn.
+        </p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="space-y-1.5">
+          <Label htmlFor="arr_k">ARR ($k)</Label>
+          <Input
+            id="arr_k"
+            name="arr_k"
+            type="number"
+            step="0.1"
+            min="0"
+            defaultValue={company.arr_k}
+            disabled={pending}
+            required
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="net_burn_k">Net burn ($k)</Label>
+          <Input
+            id="net_burn_k"
+            name="net_burn_k"
+            type="number"
+            step="0.1"
+            min="0"
+            defaultValue={company.net_burn_k}
+            disabled={pending}
+            required
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="cash_k">Ending cash ($k)</Label>
+          <Input
+            id="cash_k"
+            name="cash_k"
+            type="number"
+            step="0.1"
+            min="0"
+            defaultValue={company.cash_k}
+            disabled={pending}
+            required
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="runway_mo">Runway (mo)</Label>
+          <Input
+            id="runway_mo"
+            name="runway_mo"
+            type="number"
+            step="0.1"
+            min="0"
+            defaultValue={company.runway_mo ?? ''}
+            disabled={pending}
+            placeholder="Auto from cash ÷ burn"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="mom_growth">MoM growth (%)</Label>
+          <Input
+            id="mom_growth"
+            name="mom_growth"
+            type="number"
+            step="0.1"
+            defaultValue={momPct}
+            disabled={pending}
+            placeholder="e.g. 12"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="cogs_k">COGS ($k)</Label>
+          <Input
+            id="cogs_k"
+            name="cogs_k"
+            type="number"
+            step="0.1"
+            min="0"
+            defaultValue={pnl?.cogs_k ?? 0}
+            disabled={pending}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="opex_k">OpEx ($k)</Label>
+          <Input
+            id="opex_k"
+            name="opex_k"
+            type="number"
+            step="0.1"
+            min="0"
+            defaultValue={pnl?.opex_k ?? 0}
+            disabled={pending}
+          />
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button type="submit" disabled={pending} variant="secondary">
+          {pending ? 'Saving…' : 'Save CORE financials'}
+        </Button>
+        <ResultBanner result={result} />
+      </div>
+    </form>
   );
 }
 

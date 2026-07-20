@@ -16,12 +16,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { getDeal, listIcQueue } from '@/lib/data/deal-flow-store';
+import { getDeal } from '@/lib/data/deal-flow-store';
+import { listScopedIcQueue } from '@/lib/data/pipeline-scope';
 import { isImpersonating } from '@/lib/rbac/session';
 
 export default async function IcQueuePage() {
   const [reviews, breakGlassBlocked] = await Promise.all([
-    Promise.resolve(listIcQueue()),
+    listScopedIcQueue(),
     isImpersonating(),
   ]);
   const open = reviews.filter(

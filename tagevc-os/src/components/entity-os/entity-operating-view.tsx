@@ -5,6 +5,7 @@ import { StartChatButton } from '@/components/messaging/start-chat-button';
 import { HealthBadge } from '@/components/portfolio/health-badge';
 import {
   EntityMasterForm,
+  PortfolioCoreFinancialForm,
   PortfolioPulseEmpty,
   PortfolioPulseForm,
 } from '@/components/portfolio/master-data-forms';
@@ -289,6 +290,9 @@ export function EntityOperatingViewPanel({
               core
             />
           </section>
+        ) : null}
+        {portfolio ? (
+          <PortfolioCoreFinancialForm company={portfolio} pnl={pnl} />
         ) : null}
         <Card>
           <CardHeader>
