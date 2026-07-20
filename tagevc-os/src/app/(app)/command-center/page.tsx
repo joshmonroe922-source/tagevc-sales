@@ -46,12 +46,13 @@ function Metric({
 }
 
 export default async function CommandCenterPage() {
-  const [profile, snap, companies, activity] = await Promise.all([
+  const [profile, snap, companies, activityResult] = await Promise.all([
     getProfile(),
     getCommandCenterSnapshot(),
     listActivePortfolioCompanies(),
     listRecentActivity(8),
   ]);
+  const activity = activityResult.events;
 
   return (
     <div className="space-y-8">
@@ -254,7 +255,9 @@ export default async function CommandCenterPage() {
           </Link>
         </CardHeader>
         <CardContent className="space-y-2">
-          {activity.length === 0 ? (
+          {!activityResult.ok ? (
+            <p className="text-sm text-destructive">{activityResult.error}</p>
+          ) : activity.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No events yet. Apply Phase 7 SQL, then create a lead or ticket.
             </p>

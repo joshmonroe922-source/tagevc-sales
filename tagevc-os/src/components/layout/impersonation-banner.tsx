@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import { stopImpersonationAction } from '@/app/(app)/impersonation/actions';
 import { APP_ROLE_LABELS, type AppRole } from '@/lib/types/roles';
 import { Button } from '@/components/ui/button';
@@ -13,10 +13,16 @@ type Props = {
 export function ImpersonationBanner({ role }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
 
   function exit() {
+    setError(null);
     startTransition(async () => {
-      await stopImpersonationAction();
+      const result = await stopImpersonationAction();
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
       router.refresh();
     });
   }
@@ -30,15 +36,16 @@ export function ImpersonationBanner({ role }: Props) {
         <p className="font-medium tracking-tight">
           Viewing as:{' '}
           <span className="text-[#d7d3c3]">{APP_ROLE_LABELS[role]}</span>
-          <span className="mx-2 text-white/40">·</span>
-          <span className="font-normal text-white/80">
-            Exit Impersonation
-          </span>
         </p>
         <p className="text-xs font-normal text-amber-200/90">
           Break-glass: capital wires, IC decisions, and capital DocuSign are
           blocked until you exit.
         </p>
+        {error ? (
+          <p className="text-xs text-red-200" role="alert">
+            {error}
+          </p>
+        ) : null}
       </div>
       <Button
         type="button"

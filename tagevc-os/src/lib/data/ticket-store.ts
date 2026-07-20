@@ -1,6 +1,14 @@
 import { createHash, randomUUID } from 'crypto';
 import { logActivity } from '@/lib/data/activity';
 import {
+  preferNormalizedTables,
+  queueNormalizedSync,
+} from '@/lib/data/normalized/sync';
+import {
+  fetchAllTickets,
+  syncTickets,
+} from '@/lib/data/normalized/tickets-repo';
+import {
   isStoreHydrated,
   loadStoreSnapshot,
   markStoreHydrated,
@@ -161,6 +169,9 @@ export function getTicketStore(): TicketStore {
 
 function touchTickets() {
   queueStorePersist('tickets', () => structuredClone(getTicketStore()));
+  queueNormalizedSync('os_tickets', async () => {
+    await syncTickets(getTicketStore().tickets);
+  });
 }
 
 export async function hydrateTicketStore() {
@@ -172,6 +183,15 @@ export async function hydrateTicketStore() {
     const store = getTicketStore();
     await saveStoreSnapshot('tickets', store);
   }
+
+  const store = getTicketStore();
+  const sqlTickets = await fetchAllTickets();
+  if (sqlTickets && (sqlTickets.length > 0 || preferNormalizedTables())) {
+    if (sqlTickets.length > 0) store.tickets = sqlTickets;
+  } else if (sqlTickets !== null && store.tickets.length > 0) {
+    await syncTickets(store.tickets);
+  }
+
   markStoreHydrated('tickets');
 }
 

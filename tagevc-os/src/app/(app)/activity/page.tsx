@@ -33,11 +33,12 @@ function hrefFor(refType: string | null, refId: string | null): string | null {
   if (refType === 'ma') return `/deal-flow/ma/${refId}`;
   if (refType === 're') return `/deal-flow/re/${refId}`;
   if (refType === 'ic') return `/deal-flow/vc/ic`;
+  if (refType === 'role') return '/activity';
   return null;
 }
 
 export default async function ActivityPage() {
-  const [events, notifications] = await Promise.all([
+  const [activity, notes] = await Promise.all([
     listRecentActivity(50),
     listMyNotifications(12),
   ]);
@@ -50,28 +51,29 @@ export default async function ActivityPage() {
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
           Recent firm actions across Deal Flow, Shared Services, and Documents.
-          Events persist in Supabase.
+          Events persist in Supabase. Impersonation start/stop is included.
         </p>
       </header>
 
-      {notifications.length > 0 ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Notifications</CardTitle>
-            <CardDescription>
-              Important events (new leads, signed docs).
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {notifications.map((n) => {
-              const row = n as {
-                notification_id: string;
-                title: string;
-                body: string | null;
-                href: string | null;
-                created_at: string;
-                kind: string;
-              };
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Notifications</CardTitle>
+          <CardDescription>
+            Important events (new leads, signed docs).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {!notes.ok ? (
+            <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              {notes.error}
+            </p>
+          ) : notes.notifications.length === 0 ? (
+            <EmptyState
+              title="No notifications yet"
+              description="Broadcast alerts will appear here when leads are created or capital docs are signed."
+            />
+          ) : (
+            notes.notifications.map((row) => {
               const inner = (
                 <div className="flex flex-wrap items-baseline justify-between gap-2 rounded-lg border border-border px-3 py-2">
                   <div>
@@ -96,25 +98,31 @@ export default async function ActivityPage() {
               ) : (
                 <div key={row.notification_id}>{inner}</div>
               );
-            })}
-          </CardContent>
-        </Card>
-      ) : null}
+            })
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Recent actions</CardTitle>
           <CardDescription>
-            {events.length === 0
-              ? 'No activity yet — create a lead, ticket, or document to start the feed.'
-              : `${events.length} most recent events`}
+            {!activity.ok
+              ? 'Could not load activity'
+              : activity.events.length === 0
+                ? 'No activity yet — create a lead, ticket, or document to start the feed.'
+                : `${activity.events.length} most recent events`}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {events.length === 0 ? (
+          {!activity.ok ? (
+            <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+              {activity.error}
+            </p>
+          ) : activity.events.length === 0 ? (
             <EmptyState
               title="No activity yet"
-              description="Apply Phase 7 SQL in Supabase, then create a lead, ticket, or document. Events will appear here."
+              description="Apply Phase 7 SQL if tables are missing, then create a lead, ticket, or document."
               action={
                 <Link
                   href="/deal-flow/vc/intake"
@@ -125,7 +133,7 @@ export default async function ActivityPage() {
               }
             />
           ) : (
-            events.map((e) => {
+            activity.events.map((e) => {
               const href = hrefFor(e.ref_type, e.ref_id);
               const body = (
                 <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-border px-4 py-3">
@@ -134,6 +142,11 @@ export default async function ActivityPage() {
                       <Badge variant="secondary" className="font-normal">
                         {MODULE_LABEL[e.module] ?? e.module}
                       </Badge>
+                      {e.impersonating_as ? (
+                        <Badge variant="outline" className="font-normal">
+                          as {e.impersonating_as}
+                        </Badge>
+                      ) : null}
                       <span className="text-sm font-medium text-foreground">
                         {e.title}
                       </span>
@@ -142,14 +155,19 @@ export default async function ActivityPage() {
                       <p className="text-xs text-muted-foreground">{e.detail}</p>
                     ) : null}
                     <p className="text-xs text-muted-foreground">
-                      {e.actor_name || e.actor_email || 'System'} ·{' '}
+                      {e.actor_name || e.actor_email || 'System'}
+                      {e.real_role ? ` · ${e.real_role}` : ''} ·{' '}
                       {new Date(e.created_at).toLocaleString()}
                     </p>
                   </div>
                 </div>
               );
               return href ? (
-                <Link key={e.event_id} href={href} className="block hover:opacity-90">
+                <Link
+                  key={e.event_id}
+                  href={href}
+                  className="block hover:opacity-90"
+                >
                   {body}
                 </Link>
               ) : (

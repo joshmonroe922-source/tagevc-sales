@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import {
   startImpersonationAction,
   stopImpersonationAction,
@@ -21,6 +21,10 @@ export function RoleSwitcher({ roles, current }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string>(current ?? roles[0] ?? '');
 
+  useEffect(() => {
+    setSelected(current ?? roles[0] ?? '');
+  }, [current, roles]);
+
   function apply() {
     setError(null);
     startTransition(async () => {
@@ -37,7 +41,11 @@ export function RoleSwitcher({ roles, current }: Props) {
   function exit() {
     setError(null);
     startTransition(async () => {
-      await stopImpersonationAction();
+      const result = await stopImpersonationAction();
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
       router.refresh();
     });
   }

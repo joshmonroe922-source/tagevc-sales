@@ -247,6 +247,31 @@ Exit impersonation to unlock.
 4. Open IC queue or a capital document — actions should be disabled
 5. **Exit Impersonation** (banner or switcher)
 
+## Phase 9 scope (Schema Normalization Foundation)
+
+| Area | Status |
+|------|--------|
+| Stabilization of Phase 7–8 impersonation / activity UX | Done |
+| Break-glass on capital DocuSign simulate webhook | Done |
+| Activity/notifications distinguish empty vs load failure | Done |
+| Impersonation context on activity audit rows | Done |
+| `os_leads` + `os_lead_tasks` + `os_tickets` tables | Done — apply `supabase/phase9_normalized.sql` |
+| Dual-write: mutations → JSONB snapshot **and** normalized tables | Done |
+| Dual-read: prefer SQL rows when present; migrate snapshot→SQL once | Done |
+| Deals / IC / docs / MA / RE still on JSONB snapshots | Deferred |
+
+### Required ops step
+
+Run **`supabase/phase9_normalized.sql`** in the tagevc-os Supabase SQL editor. After apply, create or edit a lead/ticket — rows should appear in Table Editor under `os_leads` / `os_tickets`. Snapshots continue as backup.
+
+### Still future (post Phase 9)
+
+- Normalize Deals, IC, Documents, MA, RE (stop writing those into JSONB)
+- Portfolio Active + Entity Master live tables
+- Drop snapshot dependency after dual-run soak
+- Per-user notification read/unread inbox UI
+- Real DocuSign Connect + storage · Sentry
+
 
 ## Run locally
 
@@ -280,4 +305,4 @@ Set `DEV_BYPASS_AUTH=1` in `.env.local` to preview the shell as Visionary (local
 
 ## Next phases (from Cursor Brief)
 
-Phase 8 Role Impersonation is available for Visionary. Remaining production work: normalized schema cutover, portfolio DB, full DocuSign, observability.
+Phase 9 lays normalized Leads/Tickets with dual-write. Remaining: Deals/IC/Docs/MA/RE cutover, Portfolio/Entity Master DB, DocuSign, observability.

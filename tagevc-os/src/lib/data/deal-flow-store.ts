@@ -10,6 +10,15 @@ import {
 } from '@/lib/data/deal-flow-seed';
 import { createBroadcastNotification, logActivity } from '@/lib/data/activity';
 import {
+  fetchAllLeadTasks,
+  fetchAllLeads,
+  syncLeadsAndTasks,
+} from '@/lib/data/normalized/leads-repo';
+import {
+  preferNormalizedTables,
+  queueNormalizedSync,
+} from '@/lib/data/normalized/sync';
+import {
   isStoreHydrated,
   loadStoreSnapshot,
   markStoreHydrated,
@@ -73,11 +82,17 @@ export function getDealFlowStore(): DealFlowStore {
 }
 
 function touchDealFlow() {
-  queueStorePersist('deal_flow', () => structuredClone(getDealFlowStore()));
+  const getPayload = () => structuredClone(getDealFlowStore());
+  queueStorePersist('deal_flow', getPayload);
+  queueNormalizedSync('os_leads', async () => {
+    const store = getDealFlowStore();
+    await syncLeadsAndTasks(store.leads, store.tasks);
+  });
 }
 
 export async function hydrateDealFlowStore() {
   if (isStoreHydrated('deal_flow')) return;
+
   const snap = await loadStoreSnapshot<DealFlowStore>('deal_flow');
   if (snap?.payload?.leads) {
     globalThis.__tageDealFlowStore = snap.payload;
@@ -85,6 +100,22 @@ export async function hydrateDealFlowStore() {
     const store = getDealFlowStore();
     await saveStoreSnapshot('deal_flow', store);
   }
+
+  const store = getDealFlowStore();
+  const [sqlLeads, sqlTasks] = await Promise.all([
+    fetchAllLeads(),
+    fetchAllLeadTasks(),
+  ]);
+
+  // Prefer normalized rows when present (or forced via env).
+  if (sqlLeads && (sqlLeads.length > 0 || preferNormalizedTables())) {
+    if (sqlLeads.length > 0) store.leads = sqlLeads;
+    if (sqlTasks && sqlTasks.length > 0) store.tasks = sqlTasks;
+  } else if (sqlLeads !== null && store.leads.length > 0) {
+    // Tables exist but empty — migrate snapshot/seed into SQL once.
+    await syncLeadsAndTasks(store.leads, store.tasks);
+  }
+
   markStoreHydrated('deal_flow');
 }
 

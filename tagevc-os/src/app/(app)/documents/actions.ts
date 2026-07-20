@@ -140,7 +140,15 @@ export async function sendDocumentAction(
 export async function simulateWebhookAction(
   docId: string,
 ): Promise<DocActionResult> {
+  const gate = await guardPermission('write:documents');
+  if (!gate.ok) return gate;
   try {
+    const existing = getDocument(docId);
+    if (!existing) return { ok: false, error: 'Document not found' };
+    if (isCapitalDocument(existing.doc_type)) {
+      const capitalGate = await guardPermission('action:docusign_capital');
+      if (!capitalGate.ok) return capitalGate;
+    }
     const doc = simulateDocuSignProgress(docId);
     revalidateDocs(doc.entity_id, doc.doc_id);
     return {

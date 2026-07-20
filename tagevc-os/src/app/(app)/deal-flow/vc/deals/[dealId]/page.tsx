@@ -31,7 +31,7 @@ import {
   listTasksForDeal,
 } from '@/lib/data/deal-flow-store';
 import { formatUsdK } from '@/lib/format';
-import { getSessionContext } from '@/lib/rbac/session';
+import { isImpersonating } from '@/lib/rbac/session';
 
 type Props = { params: Promise<{ dealId: string }> };
 
@@ -39,8 +39,7 @@ export default async function DealDetailPage({ params }: Props) {
   const { dealId } = await params;
   const deal = getDeal(dealId);
   if (!deal) notFound();
-  const session = await getSessionContext();
-  const breakGlassBlocked = Boolean(session?.impersonatingAs);
+  const breakGlassBlocked = await isImpersonating();
   const lead = deal.lead_id ? getLead(deal.lead_id) : null;
   const tasks = listTasksForDeal(deal.deal_id);
   const open = tasks.filter((t) => t.status !== 'Completed');

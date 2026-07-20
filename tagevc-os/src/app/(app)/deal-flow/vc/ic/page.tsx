@@ -17,14 +17,13 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { getDeal, listIcQueue } from '@/lib/data/deal-flow-store';
-import { getSessionContext } from '@/lib/rbac/session';
+import { isImpersonating } from '@/lib/rbac/session';
 
 export default async function IcQueuePage() {
-  const [reviews, session] = await Promise.all([
+  const [reviews, breakGlassBlocked] = await Promise.all([
     Promise.resolve(listIcQueue()),
-    getSessionContext(),
+    isImpersonating(),
   ]);
-  const breakGlassBlocked = Boolean(session?.impersonatingAs);
   const open = reviews.filter(
     (r) => r.status === 'Pending' || r.status === 'In Review',
   );
