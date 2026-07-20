@@ -215,6 +215,38 @@ Live at **https://app.tagevc.com**. Focus: stability, persistence across redeplo
 - Real DocuSign Connect + storage buckets
 - Observability (Sentry) · uptime checks · backup runbooks
 
+## Phase 8 scope (Role Impersonation)
+
+| Area | Status |
+|------|--------|
+| Visionary-only Role Switcher in sidebar | Done |
+| httpOnly impersonation cookie (ignored unless real role is Visionary) | Done |
+| Effective role drives nav + `guardPermission` / `requirePermission` | Done |
+| Persistent “Viewing as … · Exit Impersonation” banner | Done |
+| Exit impersonation + clear on sign-out | Done |
+| Activity audit (`impersonation_start` / `impersonation_stop`) | Done |
+| **Break-glass:** block IC vote, wire (`Wired / Closed`), capital DocuSign, `write:capital` while impersonating | Done |
+| Break-glass UI messaging (banner, IC form, capital send, stage select) | Done |
+
+### Break-glass rules
+
+While Visionary is viewing as another role, these are blocked at permission **and** UI level:
+
+- `action:ic_vote` — IC decisions
+- `action:wire` — advancing Deal Active to **Wired / Closed**
+- `action:docusign_capital` — DocuSign send on capital docs
+- `write:capital` — firm capital mutations
+
+Exit impersonation to unlock.
+
+### Try Role Impersonation
+
+1. Sign in as Visionary
+2. Sidebar → **Role switcher** → pick Associate → **View as**
+3. Confirm nav shrinks and banner appears (includes break-glass notice)
+4. Open IC queue or a capital document — actions should be disabled
+5. **Exit Impersonation** (banner or switcher)
+
 
 ## Run locally
 
@@ -248,4 +280,4 @@ Set `DEV_BYPASS_AUTH=1` in `.env.local` to preview the shell as Visionary (local
 
 ## Next phases (from Cursor Brief)
 
-Phase 7 production hardening is in progress. Remaining: normalized schema cutover, portfolio DB, full DocuSign, observability.
+Phase 8 Role Impersonation is available for Visionary. Remaining production work: normalized schema cutover, portfolio DB, full DocuSign, observability.

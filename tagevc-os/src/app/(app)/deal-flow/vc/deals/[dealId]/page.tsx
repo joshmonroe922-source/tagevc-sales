@@ -31,6 +31,7 @@ import {
   listTasksForDeal,
 } from '@/lib/data/deal-flow-store';
 import { formatUsdK } from '@/lib/format';
+import { getSessionContext } from '@/lib/rbac/session';
 
 type Props = { params: Promise<{ dealId: string }> };
 
@@ -38,6 +39,8 @@ export default async function DealDetailPage({ params }: Props) {
   const { dealId } = await params;
   const deal = getDeal(dealId);
   if (!deal) notFound();
+  const session = await getSessionContext();
+  const breakGlassBlocked = Boolean(session?.impersonatingAs);
   const lead = deal.lead_id ? getLead(deal.lead_id) : null;
   const tasks = listTasksForDeal(deal.deal_id);
   const open = tasks.filter((t) => t.status !== 'Completed');
@@ -83,7 +86,11 @@ export default async function DealDetailPage({ params }: Props) {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <DealExecStageSelect dealId={deal.deal_id} stage={deal.exec_stage} />
+            <DealExecStageSelect
+              dealId={deal.deal_id}
+              stage={deal.exec_stage}
+              breakGlassBlocked={breakGlassBlocked}
+            />
             {deal.exec_stage === 'IC Approved' && needsIc ? (
               <SubmitIcButton dealId={deal.deal_id} />
             ) : null}
@@ -153,7 +160,10 @@ export default async function DealDetailPage({ params }: Props) {
               </p>
             ) : null}
             {ic && ic.status !== 'Decided' ? (
-              <IcDecisionForm icId={ic.ic_id} />
+              <IcDecisionForm
+                icId={ic.ic_id}
+                breakGlassBlocked={breakGlassBlocked}
+              />
             ) : null}
             {audits.length > 0 ? (
               <ul className="space-y-2 text-sm">

@@ -16,15 +16,18 @@ export function DocumentSendActions({
   docId,
   docType,
   status,
+  breakGlassBlocked = false,
 }: {
   docId: string;
   docType: DocType;
   status: string;
+  breakGlassBlocked?: boolean;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [sentBy, setSentBy] = useState('Counsel');
   const capital = isCapitalDocument(docType);
+  const capitalBlocked = capital && breakGlassBlocked;
   const canSend = status === 'Ready to Send' || status === 'Draft';
   const canSimulate =
     status === 'Sent' || status === 'Delivered' || status === 'Signed';
@@ -32,10 +35,16 @@ export function DocumentSendActions({
   return (
     <div className="space-y-3 rounded-lg border border-border bg-card p-4">
       {capital ? (
-        <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
           Capital document — human Click Send required (never silent / never
           agent AUTO). Aligns with forbid-list{' '}
           <code>docusign_capital_send</code>.
+        </p>
+      ) : null}
+      {capitalBlocked ? (
+        <p className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+          Capital DocuSign is blocked while impersonating. Exit impersonation to
+          send this document.
         </p>
       ) : null}
       <div className="flex flex-wrap items-end gap-3">
@@ -46,10 +55,11 @@ export function DocumentSendActions({
             value={sentBy}
             onChange={(e) => setSentBy(e.target.value)}
             className="w-48"
+            disabled={capitalBlocked}
           />
         </div>
         <Button
-          disabled={!canSend || pending || !sentBy.trim()}
+          disabled={!canSend || pending || !sentBy.trim() || capitalBlocked}
           onClick={() =>
             start(async () => {
               const res = await sendDocumentAction(docId, sentBy);
@@ -62,7 +72,7 @@ export function DocumentSendActions({
         </Button>
         <Button
           variant="outline"
-          disabled={!canSimulate || pending}
+          disabled={!canSimulate || pending || capitalBlocked}
           onClick={() =>
             start(async () => {
               const res = await simulateWebhookAction(docId);

@@ -17,9 +17,14 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { getDeal, listIcQueue } from '@/lib/data/deal-flow-store';
+import { getSessionContext } from '@/lib/rbac/session';
 
 export default async function IcQueuePage() {
-  const reviews = listIcQueue();
+  const [reviews, session] = await Promise.all([
+    Promise.resolve(listIcQueue()),
+    getSessionContext(),
+  ]);
+  const breakGlassBlocked = Boolean(session?.impersonatingAs);
   const open = reviews.filter(
     (r) => r.status === 'Pending' || r.status === 'In Review',
   );
@@ -69,7 +74,10 @@ export default async function IcQueuePage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <IcDecisionForm icId={r.ic_id} />
+                <IcDecisionForm
+                  icId={r.ic_id}
+                  breakGlassBlocked={breakGlassBlocked}
+                />
               </CardContent>
             </Card>
           ))}

@@ -16,6 +16,7 @@ import {
 } from '@/lib/data/document-store';
 import { isCapitalDocument } from '@/lib/documents/capital-gate';
 import { formatDate } from '@/lib/format';
+import { getSessionContext } from '@/lib/rbac/session';
 
 type Props = { params: Promise<{ docId: string }> };
 
@@ -23,6 +24,8 @@ export default async function DocumentDetailPage({ params }: Props) {
   const { docId } = await params;
   const doc = getDocument(docId);
   if (!doc) notFound();
+  const session = await getSessionContext();
+  const breakGlassBlocked = Boolean(session?.impersonatingAs);
   const audits = listDocAudits(doc.doc_id);
   const capital = isCapitalDocument(doc.doc_type);
 
@@ -62,6 +65,7 @@ export default async function DocumentDetailPage({ params }: Props) {
         docId={doc.doc_id}
         docType={doc.doc_type}
         status={doc.status}
+        breakGlassBlocked={breakGlassBlocked}
       />
 
       <AiReviewPanel docId={doc.doc_id} review={doc.ai_review} />

@@ -6,6 +6,11 @@ import {
   roleHasPermission,
   type Permission,
 } from '@/lib/types/roles';
+import {
+  readImpersonationCookie,
+  BREAK_GLASS_MESSAGE,
+  isBreakGlassPermission,
+} from '@/lib/rbac/impersonation';
 
 const DEV_PROFILE: Profile = {
   id: '00000000-0000-0000-0000-000000000001',
@@ -19,12 +24,25 @@ const DEV_PROFILE: Profile = {
   updated_at: new Date().toISOString(),
 };
 
-export async function getSessionUser() {
-  if (
+export type SessionContext = {
+  /** Profile with effective (possibly impersonated) role for UI + permissions. */
+  profile: Profile;
+  /** Role stored on the profile row — never overridden by impersonation. */
+  realRole: AppRole;
+  /** Active impersonation target, or null. */
+  impersonatingAs: AppRole | null;
+};
+
+function isDevBypass() {
+  return (
     process.env.DEV_BYPASS_AUTH === '1' &&
     process.env.NODE_ENV !== 'production' &&
     process.env.VERCEL_ENV !== 'production'
-  ) {
+  );
+}
+
+export async function getSessionUser() {
+  if (isDevBypass()) {
     return { id: DEV_PROFILE.id, email: DEV_PROFILE.email };
   }
   const supabase = await createClient();
@@ -34,12 +52,9 @@ export async function getSessionUser() {
   return user;
 }
 
-export async function getProfile(): Promise<Profile | null> {
-  if (
-    process.env.DEV_BYPASS_AUTH === '1' &&
-    process.env.NODE_ENV !== 'production' &&
-    process.env.VERCEL_ENV !== 'production'
-  ) {
+/** Real profile from DB / bootstrap — ignores impersonation cookie. */
+export async function getRealProfile(): Promise<Profile | null> {
+  if (isDevBypass()) {
     return DEV_PROFILE;
   }
 
@@ -65,7 +80,6 @@ export async function getProfile(): Promise<Profile | null> {
     return profile;
   }
 
-  // Bootstrap a row for first login if the trigger missed this user.
   const bootstrap = {
     id: user.id,
     email: user.email ?? '',
@@ -99,6 +113,35 @@ export async function getProfile(): Promise<Profile | null> {
   };
 }
 
+/**
+ * Session with optional Visionary role impersonation applied.
+ * Cookie is ignored unless the real role is Visionary (security boundary).
+ */
+export async function getSessionContext(): Promise<SessionContext | null> {
+  const real = await getRealProfile();
+  if (!real) return null;
+
+  const realRole = real.role;
+  let impersonatingAs: AppRole | null = null;
+
+  // Cookie is only honored for Visionary — never elevates other roles.
+  if (realRole === 'visionary') {
+    impersonatingAs = await readImpersonationCookie();
+  }
+
+  const profile: Profile = impersonatingAs
+    ? { ...real, role: impersonatingAs }
+    : real;
+
+  return { profile, realRole, impersonatingAs };
+}
+
+/** Effective profile (impersonated role when active). Use for UI + permissions. */
+export async function getProfile(): Promise<Profile | null> {
+  const ctx = await getSessionContext();
+  return ctx?.profile ?? null;
+}
+
 export function normalizeRole(value: unknown): AppRole | null {
   if (typeof value !== 'string') return null;
   const v = value.toLowerCase().replace(/[\s/-]+/g, '_');
@@ -114,21 +157,34 @@ export function normalizeRole(value: unknown): AppRole | null {
 }
 
 export async function requirePermission(permission: Permission) {
-  const profile = await getProfile();
-  if (!profile || !roleHasPermission(profile.role, permission)) {
+  const ctx = await getSessionContext();
+  if (!ctx) throw new Error('Forbidden');
+  if (ctx.impersonatingAs && isBreakGlassPermission(permission)) {
+    throw new Error(BREAK_GLASS_MESSAGE);
+  }
+  if (!roleHasPermission(ctx.profile.role, permission)) {
     throw new Error('Forbidden');
   }
-  return profile;
+  return ctx.profile;
 }
 
 /** Soft permission check for server actions (returns error string). */
 export async function guardPermission(
   permission: Permission,
 ): Promise<{ ok: true; profile: Profile } | { ok: false; error: string }> {
-  const profile = await getProfile();
-  if (!profile) return { ok: false, error: 'Not signed in' };
-  if (!roleHasPermission(profile.role, permission)) {
+  const ctx = await getSessionContext();
+  if (!ctx) return { ok: false, error: 'Not signed in' };
+  if (ctx.impersonatingAs && isBreakGlassPermission(permission)) {
+    return { ok: false, error: BREAK_GLASS_MESSAGE };
+  }
+  if (!roleHasPermission(ctx.profile.role, permission)) {
     return { ok: false, error: 'You do not have permission for this action' };
   }
-  return { ok: true, profile };
+  return { ok: true, profile: ctx.profile };
+}
+
+/** True when Visionary is actively viewing as another role. */
+export async function isImpersonating(): Promise<boolean> {
+  const ctx = await getSessionContext();
+  return Boolean(ctx?.impersonatingAs);
 }

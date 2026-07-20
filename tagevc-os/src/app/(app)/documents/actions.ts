@@ -4,12 +4,14 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import {
   createDocumentFromTemplate,
+  getDocument,
   runAiReviewOnDocument,
   sendDocument,
   simulateDocuSignProgress,
   updateAiSuggestion,
   uploadDocument,
 } from '@/lib/data/document-store';
+import { isCapitalDocument } from '@/lib/documents/capital-gate';
 import { guardPermission } from '@/lib/rbac/session';
 import { DOC_TYPES, ENTITY_DOC_FOLDERS } from '@/lib/types/enums';
 
@@ -113,6 +115,12 @@ export async function sendDocumentAction(
   const gate = await guardPermission('write:documents');
   if (!gate.ok) return gate;
   try {
+    const existing = getDocument(docId);
+    if (!existing) return { ok: false, error: 'Document not found' };
+    if (isCapitalDocument(existing.doc_type)) {
+      const capitalGate = await guardPermission('action:docusign_capital');
+      if (!capitalGate.ok) return capitalGate;
+    }
     const doc = sendDocument({
       doc_id: docId,
       sent_by: sentBy,

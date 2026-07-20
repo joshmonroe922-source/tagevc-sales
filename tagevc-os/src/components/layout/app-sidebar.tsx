@@ -15,9 +15,15 @@ import {
   Ticket,
   Warehouse,
 } from 'lucide-react';
+import { stopImpersonationAction } from '@/app/(app)/impersonation/actions';
+import { RoleSwitcher } from '@/components/layout/role-switcher';
 import { createClient } from '@/lib/supabase/client';
 import { MAIN_NAV } from '@/lib/nav';
-import { roleCanAccessModule, type AppRole, APP_ROLE_LABELS } from '@/lib/types/roles';
+import {
+  roleCanAccessModule,
+  type AppRole,
+  APP_ROLE_LABELS,
+} from '@/lib/types/roles';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -37,16 +43,30 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
 
 type Props = {
   role: AppRole;
+  realRole: AppRole;
   fullName: string | null;
   email: string;
+  impersonatingAs: AppRole | null;
+  impersonatableRoles: AppRole[];
 };
 
-export function AppSidebar({ role, fullName, email }: Props) {
+export function AppSidebar({
+  role,
+  realRole,
+  fullName,
+  email,
+  impersonatingAs,
+  impersonatableRoles,
+}: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const items = MAIN_NAV.filter((item) => roleCanAccessModule(role, item.module));
+  const showSwitcher = realRole === 'visionary' && impersonatableRoles.length > 0;
 
   async function signOut() {
+    if (impersonatingAs) {
+      await stopImpersonationAction();
+    }
     const supabase = createClient();
     await supabase.auth.signOut();
     router.push('/login');
@@ -106,14 +126,27 @@ export function AppSidebar({ role, fullName, email }: Props) {
 
       <Separator />
       <div className="space-y-3 px-4 py-4">
+        {showSwitcher ? (
+          <RoleSwitcher
+            roles={impersonatableRoles}
+            current={impersonatingAs}
+          />
+        ) : null}
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-sidebar-foreground">
             {fullName ?? email}
           </p>
           <p className="truncate text-xs text-sidebar-foreground/60">{email}</p>
-          <Badge variant="secondary" className="mt-2 font-normal">
-            {APP_ROLE_LABELS[role]}
-          </Badge>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <Badge variant="secondary" className="font-normal">
+              {APP_ROLE_LABELS[role]}
+            </Badge>
+            {impersonatingAs ? (
+              <Badge variant="outline" className="font-normal">
+                Real: Visionary
+              </Badge>
+            ) : null}
+          </div>
         </div>
         <Button
           variant="outline"

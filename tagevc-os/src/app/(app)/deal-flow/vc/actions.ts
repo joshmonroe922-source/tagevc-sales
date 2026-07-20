@@ -13,6 +13,7 @@ import {
   updateTaskStatus,
 } from '@/lib/data/deal-flow-store';
 import { guardPermission } from '@/lib/rbac/session';
+import { isBreakGlassExecStage } from '@/lib/rbac/impersonation';
 import {
   EXEC_STAGES,
   IC_DECISIONS,
@@ -169,6 +170,10 @@ export async function changeDealExecStageAction(
   if (!gate.ok) return gate;
   if (!(EXEC_STAGES as readonly string[]).includes(stage)) {
     return { ok: false, error: 'Invalid exec stage' };
+  }
+  if (isBreakGlassExecStage(stage)) {
+    const wireGate = await guardPermission('action:wire');
+    if (!wireGate.ok) return wireGate;
   }
   try {
     const { spawned } = updateDealExecStage(

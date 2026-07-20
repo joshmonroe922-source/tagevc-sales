@@ -10,11 +10,31 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { IC_DECISIONS } from '@/lib/types';
 
-export function IcDecisionForm({ icId }: { icId: string }) {
+export function IcDecisionForm({
+  icId,
+  breakGlassBlocked = false,
+}: {
+  icId: string;
+  breakGlassBlocked?: boolean;
+}) {
   const [state, action, pending] = useActionState<ActionResult | null, FormData>(
     recordIcDecisionAction,
     null,
   );
+
+  if (breakGlassBlocked) {
+    return (
+      <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-4">
+        <p className="text-sm font-medium text-amber-950">
+          IC decisions disabled while impersonating
+        </p>
+        <p className="text-xs text-amber-900/80">
+          Exit impersonation to record Approve / Pass / Defer. This is a
+          break-glass safety control.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <form action={action} className="space-y-3 rounded-lg border border-border bg-card p-4">

@@ -14,15 +14,23 @@ import { EXEC_STAGES, type ExecStage, type TaskStatus } from '@/lib/types';
 export function DealExecStageSelect({
   dealId,
   stage,
+  breakGlassBlocked = false,
 }: {
   dealId: string;
   stage: ExecStage;
+  breakGlassBlocked?: boolean;
 }) {
   return (
     <TrackStageSelect
       value={stage}
       stages={EXEC_STAGES}
       onChange={(next) => changeDealExecStageAction(dealId, next)}
+      disabledStages={breakGlassBlocked ? ['Wired / Closed'] : []}
+      disabledHint={
+        breakGlassBlocked
+          ? 'Wired / Closed is blocked while impersonating (break-glass).'
+          : undefined
+      }
     />
   );
 }
