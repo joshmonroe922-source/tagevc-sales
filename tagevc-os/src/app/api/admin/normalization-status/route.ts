@@ -27,7 +27,7 @@ export async function GET(request: Request) {
   try {
     const supabase = await createPersistClient();
 
-    let counts: Record<string, number> = {};
+    const counts: Record<string, number> = {};
     const { data: viewRows, error: viewError } = await supabase
       .from('os_normalization_counts')
       .select('domain, row_count');

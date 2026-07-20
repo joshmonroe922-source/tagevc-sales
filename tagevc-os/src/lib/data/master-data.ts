@@ -41,7 +41,6 @@ type MasterDataCache = {
 };
 
 declare global {
-  // eslint-disable-next-line no-var
   var __tageMasterData: MasterDataCache | undefined;
 }
 
