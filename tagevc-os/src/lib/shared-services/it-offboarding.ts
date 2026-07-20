@@ -229,11 +229,23 @@ export async function executeOffboarding(
         item.status = res.ok ? 'done' : 'failed';
         item.detail = res.ok ? undefined : res.error;
       } else if (item.kind === 'access_note' && item.ref_id === 'mdm') {
+        let email: string | null = null;
+        try {
+          const { data: profile } = await sb
+            .from('profiles')
+            .select('email')
+            .eq('id', userId)
+            .maybeSingle();
+          email = (profile?.email as string) ?? null;
+        } catch {
+          /* optional */
+        }
         const mdm = await invokeMdmLifecycleHook({
           action: 'offboard',
           user_id: userId,
           run_id: runId,
           entity_id: run.entity_id,
+          email,
         });
         item.status = mdm.ok ? 'done' : mdm.skipped ? 'pending' : 'failed';
         item.detail = mdm.detail;

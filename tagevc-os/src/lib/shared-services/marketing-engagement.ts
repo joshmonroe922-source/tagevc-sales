@@ -30,6 +30,49 @@ type JobRow = {
   published_url: string | null;
 };
 
+async function fetchLinkedInMarketingImpressions(
+  accessToken: string,
+  shareUrn: string,
+): Promise<number | null> {
+  const enabled =
+    process.env.LINKEDIN_MARKETING_API === '1' ||
+    process.env.LINKEDIN_MARKETING_API === 'true';
+  const orgUrn = process.env.LINKEDIN_ORG_URN?.trim();
+  if (!enabled || !orgUrn) return null;
+
+  try {
+    // Organizational share statistics (Marketing Developer Platform)
+    const u = new URL(
+      'https://api.linkedin.com/v2/organizationalEntityShareStatistics',
+    );
+    u.searchParams.set('q', 'organizationalEntity');
+    u.searchParams.set('organizationalEntity', orgUrn);
+    u.searchParams.set('shares', `List(${shareUrn})`);
+    const res = await fetch(u.toString(), {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'X-Restli-Protocol-Version': '2.0.0',
+      },
+    });
+    const json = (await res.json().catch(() => ({}))) as {
+      elements?: Array<{
+        totalShareStatistics?: {
+          impressionCount?: number;
+          uniqueImpressionsCount?: number;
+        };
+      }>;
+    };
+    if (!res.ok) return null;
+    const stats = json.elements?.[0]?.totalShareStatistics;
+    const n =
+      Number(stats?.impressionCount ?? stats?.uniqueImpressionsCount ?? 0) ||
+      0;
+    return n > 0 ? n : null;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchLinkedInEngagement(
   accessToken: string,
   shareUrn: string,
@@ -39,6 +82,7 @@ async function fetchLinkedInEngagement(
   comments: number;
   shares: number;
   clicks: number;
+  impression_source?: string;
 } | { error: string }> {
   try {
     const encoded = encodeURIComponent(shareUrn);
@@ -65,8 +109,23 @@ async function fetchLinkedInEngagement(
     const comments = Number(
       json.commentsSummary?.totalFirstLevelComments ?? 0,
     );
-    // LinkedIn member APIs rarely expose impressions without Marketing API —
-    // approximate reach as engagement * 10 when impressions unavailable.
+
+    const marketingImpressions = await fetchLinkedInMarketingImpressions(
+      accessToken,
+      shareUrn,
+    );
+    if (marketingImpressions != null) {
+      return {
+        impressions: marketingImpressions,
+        likes,
+        comments,
+        shares: 0,
+        clicks: 0,
+        impression_source: 'linkedin_marketing',
+      };
+    }
+
+    // Approximate reach when Marketing API unavailable
     const impressions = likes + comments > 0 ? (likes + comments) * 10 : 0;
     return {
       impressions,
@@ -74,6 +133,7 @@ async function fetchLinkedInEngagement(
       comments,
       shares: 0,
       clicks: 0,
+      impression_source: 'linkedin_approx',
     };
   } catch (e) {
     return {
@@ -325,6 +385,9 @@ export async function pullLiveEngagement(opts?: {
         likes: metrics.likes,
         comments: metrics.comments,
         shares: metrics.shares,
+        ...('impression_source' in metrics && metrics.impression_source
+          ? { impression_source: metrics.impression_source }
+          : {}),
       },
     });
 

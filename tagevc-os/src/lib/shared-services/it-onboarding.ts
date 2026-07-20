@@ -155,9 +155,10 @@ export async function startOnboarding(input: {
       id: 'access-mdm',
       kind: 'access_note',
       ref_id: 'mdm',
-      label: 'MDM enroll / provision (webhook if MDM_WEBHOOK_URL set)',
+      label:
+        'MDM enroll / provision (Graph Intune and/or MDM_WEBHOOK_URL)',
       status: 'pending',
-      detail: 'Phase 26: posts action=onboard when configured',
+      detail: 'Phase 27: Graph device inventory + optional webhook onboard',
     });
     checklist.push({
       id: 'access-sso',
@@ -247,11 +248,23 @@ export async function executeOnboarding(
         item.status = res.ok ? 'done' : 'failed';
         item.detail = res.ok ? undefined : res.error;
       } else if (item.kind === 'access_note' && item.ref_id === 'mdm') {
+        let email: string | null = null;
+        try {
+          const { data: profile } = await sb
+            .from('profiles')
+            .select('email')
+            .eq('id', userId)
+            .maybeSingle();
+          email = (profile?.email as string) ?? null;
+        } catch {
+          /* optional */
+        }
         const mdm = await invokeMdmLifecycleHook({
           action: 'onboard',
           user_id: userId,
           run_id: runId,
           entity_id: run.entity_id,
+          email,
         });
         item.status = mdm.ok ? 'done' : mdm.skipped ? 'pending' : 'failed';
         item.detail = mdm.detail;
@@ -402,4 +415,112 @@ export function listOnboardingCandidateTickets(): Array<{
       service: t.service,
       status: t.status,
     }));
+}
+
+/**
+ * Scan recently-updated active profiles and start onboarding (source=status_change)
+ * when no prior onboarding run exists for that user.
+ * Lookback defaults to 14 days; set IT_AUTO_ONBOARD=1 to auto-execute by default.
+ */
+export async function scanNewlyActiveProfilesForOnboarding(opts?: {
+  limit?: number;
+  lookback_days?: number;
+  auto_execute?: boolean;
+  actor_id?: string | null;
+}): Promise<{
+  scanned: number;
+  started: number;
+  skipped: number;
+  results: Array<{ user_id: string; ok: boolean; detail: string }>;
+}> {
+  const limit = opts?.limit ?? 20;
+  const lookbackDays = opts?.lookback_days ?? 14;
+  const autoDefault =
+    process.env.IT_AUTO_ONBOARD === '1' ||
+    process.env.IT_AUTO_ONBOARD === 'true';
+  const autoExecute = opts?.auto_execute ?? autoDefault;
+
+  const since = new Date(
+    Date.now() - lookbackDays * 24 * 60 * 60 * 1000,
+  ).toISOString();
+
+  const sb = await createPersistClient();
+  const { data: profiles, error } = await sb
+    .from('profiles')
+    .select('id, email, active, entity_id, updated_at')
+    .eq('active', true)
+    .gte('updated_at', since)
+    .order('updated_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    return {
+      scanned: 0,
+      started: 0,
+      skipped: 0,
+      results: [{ user_id: '-', ok: false, detail: error.message }],
+    };
+  }
+
+  const { data: existingRuns } = await sb
+    .from('os_it_onboarding_runs')
+    .select('user_id, status');
+
+  const known = new Set((existingRuns ?? []).map((r) => String(r.user_id)));
+  const results: Array<{ user_id: string; ok: boolean; detail: string }> = [];
+  let started = 0;
+  let skipped = 0;
+
+  for (const p of profiles ?? []) {
+    const userId = String(p.id);
+    if (known.has(userId)) {
+      skipped += 1;
+      results.push({
+        user_id: userId,
+        ok: true,
+        detail: 'Onboarding run already exists',
+      });
+      continue;
+    }
+    const res = await startOnboarding({
+      user_id: userId,
+      entity_id: (p.entity_id as string) ?? null,
+      actor_id: opts?.actor_id ?? null,
+      notes: `Auto from active profile${p.email ? ` (${p.email})` : ''} · updated ${p.updated_at}`,
+      source: 'status_change',
+      auto_execute: autoExecute,
+    });
+    if (res.ok) {
+      started += 1;
+      known.add(userId);
+      results.push({
+        user_id: userId,
+        ok: true,
+        detail: `Started ${res.run.run_id}`,
+      });
+      void logActivity({
+        module: 'shared_services',
+        action: 'it_onboarding_status_change',
+        title: `Onboarding from active profile: ${res.run.run_id}`,
+        ref_type: 'ticket',
+        ref_id: res.run.run_id,
+        entity_id: res.run.entity_id ?? undefined,
+      });
+      void createBroadcastNotification({
+        kind: 'ticket_update',
+        title: `IT onboarding started (active profile)`,
+        body: res.run.run_id,
+        href: '/shared-services/it/assets',
+      });
+    } else {
+      results.push({ user_id: userId, ok: false, detail: res.error });
+    }
+  }
+
+  return {
+    scanned: (profiles ?? []).length,
+    started,
+    skipped,
+    results,
+  };
 }

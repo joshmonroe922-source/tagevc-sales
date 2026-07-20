@@ -112,6 +112,68 @@ export async function createEnvelope(
   };
 }
 
+export type CreateFromTemplateInput = {
+  templateId: string;
+  emailSubject: string;
+  signers: Array<{
+    email: string;
+    name: string;
+    roleName?: string;
+  }>;
+  status?: 'sent' | 'created';
+};
+
+/** Send an envelope from a DocuSign template (Phase 27). */
+export async function createEnvelopeFromTemplate(
+  input: CreateFromTemplateInput,
+): Promise<CreateEnvelopeResult> {
+  const cfg = getDocuSignConfig();
+  if (!cfg) throw new Error('DocuSign is not configured');
+
+  const roles = input.signers
+    .filter((s) => s.email?.trim())
+    .map((s, i) => ({
+      email: s.email.trim(),
+      name: s.name.trim() || s.email.trim(),
+      roleName: s.roleName?.trim() || (i === 0 ? 'Signer' : `Signer${i + 1}`),
+    }));
+
+  if (roles.length === 0) {
+    throw new Error('At least one signer is required');
+  }
+
+  const payload = {
+    emailSubject: input.emailSubject.slice(0, 100),
+    templateId: input.templateId,
+    templateRoles: roles,
+    status: input.status ?? 'sent',
+  };
+
+  const res = await docusignFetch(cfg, '/envelopes', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+
+  const json = (await res.json().catch(() => ({}))) as {
+    envelopeId?: string;
+    status?: string;
+    message?: string;
+    errorCode?: string;
+  };
+
+  if (!res.ok || !json.envelopeId) {
+    const detail =
+      json.message || json.errorCode || `HTTP ${res.status}`;
+    throw new Error(`DocuSign template send failed: ${detail}`);
+  }
+
+  return {
+    envelopeId: json.envelopeId,
+    status: json.status ?? 'sent',
+    raw: json,
+  };
+}
+
 export async function getEnvelopeStatus(envelopeId: string): Promise<{
   envelopeId: string;
   status: string;

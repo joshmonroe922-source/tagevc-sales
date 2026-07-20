@@ -17,6 +17,7 @@ import {
   executeOnboardingAction,
   completeOnboardingAction,
   startOnboardingFromTicketAction,
+  scanActiveOnboardingAction,
   type ItAssetActionResult,
 } from '@/app/(app)/shared-services/it/assets/actions';
 import { Button } from '@/components/ui/button';
@@ -348,6 +349,15 @@ export function ItAssetsClient({
               }}
             >
               Start onboarding
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={pending}
+              onClick={() => run(() => scanActiveOnboardingAction())}
+            >
+              Scan active profiles
             </Button>
           </div>
         )}

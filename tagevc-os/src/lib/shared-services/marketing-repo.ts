@@ -66,6 +66,8 @@ function mapContent(row: Record<string, unknown>): MarketingContent {
       (row.generation_meta as Record<string, unknown>) ?? null,
     scheduled_at: (row.scheduled_at as string) ?? null,
     published_at: (row.published_at as string) ?? null,
+    approval_due_at: (row.approval_due_at as string) ?? null,
+    approval_ticket_id: (row.approval_ticket_id as string) ?? null,
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
   };
@@ -459,17 +461,105 @@ export async function runContentGeneration(input: {
 /** @deprecated use runContentGeneration */
 export const runStubGeneration = runContentGeneration;
 
+export async function submitContentForReview(
+  contentId: string,
+  opts?: { slaHours?: number },
+): Promise<
+  | { ok: true; approval_due_at: string; approval_ticket_id: string | null }
+  | { ok: false; error: string }
+> {
+  try {
+    const sb = await createPersistClient();
+    const { data: existing, error: findErr } = await sb
+      .from('os_marketing_content')
+      .select('*')
+      .eq('content_id', contentId)
+      .maybeSingle();
+    if (findErr) return { ok: false, error: findErr.message };
+    if (!existing) return { ok: false, error: 'Content not found' };
+
+    const row = existing as Record<string, unknown>;
+    const status = String(row.status);
+    if (status !== 'draft' && status !== 'review') {
+      return { ok: false, error: `Cannot submit from status ${status}` };
+    }
+
+    const hours =
+      opts?.slaHours ??
+      Number(process.env.MARKETING_APPROVAL_SLA_HOURS?.trim() || 48) ||
+      48;
+    const due = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
+
+    let ticketId: string | null = (row.approval_ticket_id as string) ?? null;
+    try {
+      const { createTicket } = await import('@/lib/data/ticket-store');
+      if (!ticketId) {
+        const ticket = createTicket({
+          title: `Approve marketing: ${String(row.title).slice(0, 80)}`,
+          description: `Content ${contentId} awaiting approval before publish.`,
+          service: 'Marketing',
+          priority: 'P2',
+          entity_id: (row.entity_id as string) || undefined,
+          links: '/shared-services/marketing',
+          sla_due_at: due.slice(0, 10),
+        });
+        ticketId = ticket.ticket_id;
+      }
+    } catch {
+      // Ticket store may be unavailable in some envs — still set review
+    }
+
+    const now = new Date().toISOString();
+    const { error } = await sb
+      .from('os_marketing_content')
+      .update({
+        status: 'review',
+        approval_due_at: due,
+        approval_ticket_id: ticketId,
+        updated_at: now,
+      })
+      .eq('content_id', contentId);
+    if (error) return { ok: false, error: error.message };
+    return {
+      ok: true,
+      approval_due_at: due,
+      approval_ticket_id: ticketId,
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'submit for review failed',
+    };
+  }
+}
+
 export async function approveContent(
   contentId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const sb = await createPersistClient();
+    const { data: existing } = await sb
+      .from('os_marketing_content')
+      .select('approval_ticket_id')
+      .eq('content_id', contentId)
+      .maybeSingle();
+    const ticketId = (existing?.approval_ticket_id as string) || null;
+
     const now = new Date().toISOString();
     const { error } = await sb
       .from('os_marketing_content')
       .update({ status: 'approved', updated_at: now })
       .eq('content_id', contentId);
     if (error) return { ok: false, error: error.message };
+
+    if (ticketId) {
+      try {
+        const { resolveTicket } = await import('@/lib/data/ticket-store');
+        resolveTicket(ticketId);
+      } catch {
+        // best-effort
+      }
+    }
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'approve failed' };
@@ -487,6 +577,11 @@ export function getMarketingFoundationStatus() {
     facebook_oauth: platforms.facebook.configured,
     instagram_oauth: platforms.instagram.configured,
     youtube_oauth: platforms.youtube.configured,
-    phase: 26,
+    linkedin_marketing_api:
+      process.env.LINKEDIN_MARKETING_API === '1' ||
+      process.env.LINKEDIN_MARKETING_API === 'true',
+    approval_sla_hours:
+      Number(process.env.MARKETING_APPROVAL_SLA_HOURS?.trim() || 48) || 48,
+    phase: 27,
   };
 }

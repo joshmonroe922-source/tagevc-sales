@@ -13,6 +13,7 @@ import {
   runScheduleWorkerAction,
   scheduleContentAction,
   stubConnectAccountAction,
+  submitForReviewAction,
   upsertBrandVoiceAction,
   type MarketingActionResult,
 } from '@/app/(app)/shared-services/marketing/actions';
@@ -81,6 +82,8 @@ export function MarketingClient({
     facebook_oauth?: boolean;
     instagram_oauth?: boolean;
     youtube_oauth?: boolean;
+    linkedin_marketing_api?: boolean;
+    approval_sla_hours?: number;
     phase: number;
   };
 }) {
@@ -135,12 +138,16 @@ export function MarketingClient({
         Token vault:{' '}
         {foundation.oauth_tokens_stored ? 'ready' : 'set MARKETING_TOKEN_SECRET'}
         {' · '}
-        LI:{foundation.linkedin_oauth ? 'oauth' : 'stub'} · X:
+        LI:{foundation.linkedin_oauth ? 'oauth' : 'stub'}
+        {foundation.linkedin_marketing_api ? '+mkt' : ''} · X:
         {foundation.x_oauth ? 'oauth' : 'stub'} · Meta:
         {foundation.facebook_oauth || foundation.instagram_oauth
           ? 'oauth'
           : 'stub'}{' '}
         · YT:{foundation.youtube_oauth ? 'oauth' : 'stub'}
+        {foundation.approval_sla_hours
+          ? ` · SLA ${foundation.approval_sla_hours}h`
+          : ''}
       </div>
 
       {tableError && (
@@ -566,10 +573,43 @@ export function MarketingClient({
                       {c.kind}
                       {c.platform ? `/${c.platform}` : ''}
                     </td>
-                    <td className="py-2 pr-2">{c.status}</td>
+                    <td className="py-2 pr-2">
+                      {c.status}
+                      {c.status === 'review' && c.approval_due_at ? (
+                        <span
+                          className={`ml-1 text-xs ${
+                            Date.parse(c.approval_due_at) < Date.now()
+                              ? 'text-amber-700'
+                              : 'text-muted-foreground'
+                          }`}
+                        >
+                          {Date.parse(c.approval_due_at) < Date.now()
+                            ? 'overdue'
+                            : `due ${c.approval_due_at.slice(0, 10)}`}
+                        </span>
+                      ) : null}
+                      {c.approval_ticket_id ? (
+                        <span className="block text-xs text-muted-foreground">
+                          {c.approval_ticket_id}
+                        </span>
+                      ) : null}
+                    </td>
                     <td className="py-2">
                       {canWrite && (
                         <div className="flex flex-wrap gap-1">
+                          {c.status === 'draft' && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={pending}
+                              onClick={() =>
+                                run(() => submitForReviewAction(c.content_id))
+                              }
+                            >
+                              Submit review
+                            </Button>
+                          )}
                           {(c.status === 'draft' || c.status === 'review') && (
                             <Button
                               type="button"

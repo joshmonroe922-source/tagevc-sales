@@ -76,14 +76,14 @@ export default async function MarketingModulePage({
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">Marketing</Badge>
-          <Badge variant="secondary">Phase 26</Badge>
+          <Badge variant="secondary">Phase 27</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Multichannel Marketing
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Live LinkedIn / Meta / X engagement, richer analytics, and campaign
-          reporting for Tage VC and subsidiaries.
+          Approval SLA workflows, LinkedIn Marketing impressions (when enabled),
+          and live LinkedIn / Meta / X engagement for Tage VC and subsidiaries.
         </p>
         {oauthFlash && (
           <p className="text-sm text-emerald-700">{oauthFlash}</p>

@@ -97,6 +97,8 @@ export type MarketingContent = {
   generation_meta: Record<string, unknown> | null;
   scheduled_at: string | null;
   published_at: string | null;
+  approval_due_at: string | null;
+  approval_ticket_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -149,7 +151,10 @@ export const MARKETING_ENV_KEYS = [
   'MARKETING_AI_PROVIDER',
   'MARKETING_SCHEDULER_ENABLED',
   'MARKETING_TOKEN_SECRET',
+  'MARKETING_APPROVAL_SLA_HOURS',
   'LINKEDIN_CLIENT_ID',
+  'LINKEDIN_MARKETING_API',
+  'LINKEDIN_ORG_URN',
   'X_CLIENT_ID',
   'META_APP_ID',
   'GOOGLE_OAUTH_CLIENT_ID',

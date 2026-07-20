@@ -255,6 +255,25 @@ export async function approveContentAction(
   return { ok: true, message: `Approved ${contentId}` };
 }
 
+export async function submitForReviewAction(
+  contentId: string,
+): Promise<MarketingActionResult> {
+  const gate = await guardPermission('write:marketing');
+  if (!gate.ok) return gate;
+  const { submitContentForReview } = await import(
+    '@/lib/shared-services/marketing-repo'
+  );
+  const res = await submitContentForReview(contentId);
+  if (!res.ok) return res;
+  revalidateMarketing();
+  return {
+    ok: true,
+    message: `Submitted for review · due ${res.approval_due_at.slice(0, 16)}${
+      res.approval_ticket_id ? ` · ${res.approval_ticket_id}` : ''
+    }`,
+  };
+}
+
 export async function stubConnectAccountAction(
   accountId: string,
 ): Promise<MarketingActionResult> {

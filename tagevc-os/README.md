@@ -522,10 +522,22 @@ Docs: `docs/OS_PHASE25.md`
 
 Docs: `docs/OS_PHASE26.md`
 
-### Phase 27+ backlog
+### Phase 27 scope (Approval SLA · impressions · template send · Graph)
 
-- Approval SLA · Marketing API impressions · template-based send
-- Intune Graph · Stage 4e offline DROP
+| Area | Status |
+|------|--------|
+| Marketing approval SLA + LinkedIn Marketing impressions | Done |
+| DocuSign send-from-template + scheduled reminder jobs | Done |
+| IT active-profile onboarding scan + Graph Intune | Done |
+| Stage 4e visibility (no DROP) | Retained |
+| SQL | Apply `phase27_approval_sla_reminders.sql` |
+
+Docs: `docs/OS_PHASE27.md`
+
+### Phase 28+ backlog
+
+- YouTube/TikTok analytics · CoC email · Graph license SKUs
+- Stage 4e offline DROP (after approval)
 - Push · user admin
 
 
@@ -561,4 +573,4 @@ Set `DEV_BYPASS_AUTH=1` in `.env.local` to preview the shell as Visionary (local
 
 ## Next phases (from Cursor Brief)
 
-Phase 26 advances X engagement analytics, DocuSign reminders/templates, and IT onboarding. Remaining: Stage 4e offline DROP (after approval), push, user admin.
+Phase 27 advances marketing approval SLA, LinkedIn Marketing impressions, DocuSign template send + reminder jobs, and Graph Intune onboarding. Remaining: Stage 4e offline DROP (after approval), push, user admin.

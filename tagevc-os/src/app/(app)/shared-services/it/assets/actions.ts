@@ -348,3 +348,21 @@ export async function startOnboardingFromTicketAction(
     message: `Onboarding ${res.run.run_id} from ${ticketId}`,
   };
 }
+
+export async function scanActiveOnboardingAction(): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('write:it_assets');
+  if (!gate.ok) return gate;
+  const { scanNewlyActiveProfilesForOnboarding } = await import(
+    '@/lib/shared-services/it-onboarding'
+  );
+  const res = await scanNewlyActiveProfilesForOnboarding({
+    limit: 20,
+    lookback_days: 14,
+    actor_id: gate.profile.id,
+  });
+  revalidateAssets();
+  return {
+    ok: true,
+    message: `Active scan: ${res.started} started, ${res.skipped} skipped (${res.scanned} active in lookback)`,
+  };
+}

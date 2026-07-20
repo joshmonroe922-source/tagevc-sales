@@ -14,6 +14,7 @@ import {
   listDocuSignEvents,
 } from '@/lib/docusign/events-repo';
 import { listSignedFiles } from '@/lib/docusign/signed-docs';
+import { listReminderJobs } from '@/lib/docusign/reminder-jobs';
 import { listCachedTemplates } from '@/lib/docusign/templates';
 import { DOCUSIGN_ENV_KEYS } from '@/lib/docusign/types';
 import { roleHasPermission } from '@/lib/types/roles';
@@ -35,11 +36,12 @@ export default async function DocuSignModulePage() {
   const canWrite = ctx
     ? roleHasPermission(ctx.profile.role, 'write:documents')
     : false;
-  const [events, count, signed, templates] = await Promise.all([
+  const [events, count, signed, templates, reminders] = await Promise.all([
     listDocuSignEvents({ limit: 25 }),
     countDocuSignEvents(),
     listSignedFiles({ limit: 20, withDownloadUrls: true }),
     listCachedTemplates(40),
+    listReminderJobs(20),
   ]);
 
   const missingEnv = DOCUSIGN_ENV_KEYS.filter((k) => {
@@ -68,12 +70,12 @@ export default async function DocuSignModulePage() {
           <Badge variant={mode === 'live' ? 'default' : 'secondary'}>
             {mode === 'live' ? 'Live JWT' : 'Mock envelopes'}
           </Badge>
-          <Badge variant="secondary">Phase 26</Badge>
+          <Badge variant="secondary">Phase 27</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">DocuSign</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Remind pending envelopes, sync templates, archive CoC/combined PDFs
-          to Storage, and void when needed. Capital sends still require{' '}
+          Send from templates, schedule reminders, sync templates, and archive
+          CoC/combined PDFs. Capital sends still require{' '}
           <code className="text-xs">action:docusign_capital</code>.
         </p>
         <DocuSignHubActions canWrite={canWrite} />
@@ -122,8 +124,8 @@ export default async function DocuSignModulePage() {
           <CardHeader>
             <CardTitle className="text-base">Links</CardTitle>
             <CardDescription>
-              Apply <code className="text-xs">phase26_onboarding_templates.sql</code>{' '}
-              for templates + onboarding tables.
+              Apply <code className="text-xs">phase27_approval_sla_reminders.sql</code>{' '}
+              for reminder jobs.
             </CardDescription>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground space-y-1">
@@ -164,6 +166,46 @@ export default async function DocuSignModulePage() {
                       ? ` · ${t.last_modified.slice(0, 10)}`
                       : ''}
                   </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Reminder queue</CardTitle>
+          <CardDescription>
+            Scheduled +1/+3/+7d reminders (daily worker)
+            {reminders.error ? ` · ${reminders.error}` : ''}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {reminders.rows.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Empty — schedule reminders from an envelope or template send.
+            </p>
+          ) : (
+            <ul className="space-y-1 text-sm max-h-40 overflow-y-auto text-muted-foreground">
+              {reminders.rows.map((j) => (
+                <li key={j.job_id}>
+                  <span
+                    className={
+                      j.status === 'pending'
+                        ? 'text-amber-700'
+                        : j.status === 'failed'
+                          ? 'text-destructive'
+                          : j.status === 'succeeded'
+                            ? 'text-emerald-700'
+                            : undefined
+                    }
+                  >
+                    {j.status}
+                  </span>
+                  {' · '}
+                  {j.scheduled_for.slice(0, 16).replace('T', ' ')} ·{' '}
+                  {j.envelope_id.slice(0, 16)}…
                 </li>
               ))}
             </ul>

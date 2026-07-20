@@ -1,4 +1,4 @@
-# Multichannel Marketing System — Architecture (Phases 22–26)
+# Multichannel Marketing System — Architecture (Phases 22–27)
 
 **Status:** Functional · hub under Shared Services · Marketing.  
 **Live at:** `/shared-services/marketing`
@@ -21,13 +21,13 @@
 | Publishers | `marketing-social.ts` |
 | Scheduler | `marketing-scheduler.ts` |
 | Analytics / engagement | `marketing-analytics.ts`, `marketing-engagement.ts` |
-| SQL | `phase22`–`phase25` marketing SQL |
+| SQL | `phase22`–`phase27` marketing SQL |
 
 ## Data model
 
 ```
 os_marketing_campaigns
-os_marketing_content                 — + external_post_id (Phase 25)
+os_marketing_content                 — + external_post_id · approval_due_at · approval_ticket_id
 os_marketing_social_accounts
 os_marketing_oauth_tokens
 os_marketing_brand_voices
@@ -40,8 +40,8 @@ os_marketing_analytics_events
 
 | Platform | OAuth | Publish | Token refresh | Live engagement |
 |----------|-------|---------|---------------|-----------------|
-| LinkedIn | Yes | Yes | Yes | Yes |
-| X | Yes | Yes | Yes | Yes (Phase 26) |
+| LinkedIn | Yes | Yes | Yes | Yes (+ Marketing API impressions opt-in) |
+| X | Yes | Yes | Yes | Yes |
 | Facebook / Instagram (Meta) | Yes | Basic | Yes | Yes |
 | YouTube | Yes (Google) | Stub/limited | Via Google refresh | No |
 
@@ -52,8 +52,14 @@ os_marketing_analytics_events
 | `read:marketing` | visionary, partner, coo, service_lead, sub_lead, admin |
 | `write:marketing` | visionary, coo, service_lead, admin |
 
-## Phase 27+
+## Phase 27 workflows
 
-1. Approval SLA tied to Shared Services tickets  
-2. LinkedIn Marketing API impressions / YouTube analytics  
+1. **Submit for review** sets `approval_due_at` from `MARKETING_APPROVAL_SLA_HOURS` (default 48) and may open an SS ticket.  
+2. **Approve** resolves linked ticket when present.  
+3. **Impressions:** set `LINKEDIN_MARKETING_API=1` + `LINKEDIN_ORG_URN` for Marketing API; else approximate from organic stats.
+
+## Phase 28+
+
+1. YouTube / TikTok analytics  
+2. SLA escalation digests  
 3. Paid media / ads (out of current scope)  

@@ -19,6 +19,14 @@
     {
       "path": "/api/it/offboarding-status-scan",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/it/onboarding-status-scan",
+      "schedule": "30 7 * * *"
+    },
+    {
+      "path": "/api/docusign/reminder-worker",
+      "schedule": "0 9 * * *"
     }
   ]
 }
