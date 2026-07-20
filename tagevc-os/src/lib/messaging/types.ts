@@ -52,4 +52,17 @@ export type MessageRow = {
   edited_at: string | null;
   deleted_at: string | null;
   sender?: DirectoryProfile | null;
+  reactions?: Array<{ emoji: string; count: number; mine: boolean }>;
+};
+
+export type MessageAttachment = {
+  doc_id: string;
+  title: string;
+};
+
+export type AttachableDocument = {
+  doc_id: string;
+  title: string;
+  entity_id: string | null;
+  status: string;
 };

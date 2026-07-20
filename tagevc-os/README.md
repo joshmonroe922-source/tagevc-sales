@@ -329,6 +329,28 @@ Docs: `docs/OS_PHASE11.md`
 - Normalize IC + MA/RE; snapshot retirement plan
 - Push/email digests; DocuSign + storage
 
+## Phase 12 scope (Channels + IC/MA normalize)
+
+| Area | Status |
+|------|--------|
+| Channels | Done |
+| @mentions + mention notifications | Done |
+| Document attachments + reactions | Done |
+| Global search + mobile chat panes | Done |
+| Notification digest grouping | Done |
+| `os_ic_reviews` + `os_ma_*` dual-write | Done |
+| SQL | Apply `supabase/phase12_channels_and_normalize.sql` |
+
+Docs: `docs/OS_PHASE12.md`
+
+### Phase 13+ backlog
+
+- Email/push digests + prefs
+- RE normalization; snapshot retirement soak
+- Binary file upload / storage
+- Private channels + moderation
+- Real DocuSign
+
 
 ## Run locally
 
@@ -362,4 +384,4 @@ Set `DEV_BYPASS_AUTH=1` in `.env.local` to preview the shell as Visionary (local
 
 ## Next phases (from Cursor Brief)
 
-Phase 11 adds contextual chat + Deals/Documents normalization. Remaining: channels/mentions/attachments, IC/MA/RE normalize, snapshot retirement, DocuSign, observability.
+Phase 12 adds channels, mentions, attachments, and IC/MA normalization. Remaining: digests/email, RE normalize, snapshot retirement, DocuSign, storage.

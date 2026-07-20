@@ -9,6 +9,7 @@ import {
   listMyConversations,
   totalUnreadCount,
 } from '@/lib/messaging/repo';
+import { resolveMentions } from '@/lib/messaging/mentions';
 import { logActivity } from '@/lib/data/activity';
 
 async function requireUser() {
@@ -127,19 +128,72 @@ export async function startGroupChatAction(title: string, memberIds: string[]) {
   return { ok: true as const, conversationId: data as string };
 }
 
+export async function startChannelAction(input: {
+  title: string;
+  memberIds?: string[];
+  entityId?: string | null;
+  topic?: string | null;
+}) {
+  const auth = await requireUser();
+  if (!auth.ok) return auth;
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('create_channel', {
+    p_title: input.title,
+    p_member_ids: input.memberIds ?? [],
+    p_entity_id: input.entityId ?? null,
+    p_topic: input.topic ?? null,
+  });
+
+  if (error) {
+    return {
+      ok: false as const,
+      error: error.message.includes('create_channel')
+        ? 'Channels require Phase 12 SQL. Apply phase12_channels_and_normalize.sql.'
+        : error.message,
+    };
+  }
+  revalidatePath('/messages');
+  return { ok: true as const, conversationId: data as string };
+}
+
+export async function joinChannelAction(conversationId: string) {
+  const auth = await requireUser();
+  if (!auth.ok) return auth;
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('join_channel', { cid: conversationId });
+  if (error) return { ok: false as const, error: error.message };
+  revalidatePath('/messages');
+  return { ok: true as const, conversationId };
+}
+
 export async function sendMessageAction(
   conversationId: string,
   body: string,
   parentId?: string | null,
+  attachments?: Array<{ doc_id: string; title: string }>,
 ) {
   const auth = await requireUser();
   if (!auth.ok) return auth;
 
   const text = body.trim();
-  if (!text) return { ok: false as const, error: 'Message is empty' };
+  if (!text && !(attachments && attachments.length > 0)) {
+    return { ok: false as const, error: 'Message is empty' };
+  }
   if (text.length > 8000) {
     return { ok: false as const, error: 'Message is too long' };
   }
+
+  const directory = await listDirectoryProfiles();
+  const profiles = directory.ok ? directory.profiles : [];
+  const { mentionedIds, normalizedBody } = resolveMentions(
+    text || (attachments?.length ? `Shared ${attachments.length} document(s)` : ''),
+    profiles,
+  );
+
+  const metadata: Record<string, unknown> = {};
+  if (mentionedIds.length) metadata.mentions = mentionedIds;
+  if (attachments?.length) metadata.attachments = attachments;
 
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -147,8 +201,9 @@ export async function sendMessageAction(
     .insert({
       conversation_id: conversationId,
       sender_id: auth.profile.id,
-      body: text,
+      body: normalizedBody || text || 'Attachment',
       parent_id: parentId || null,
+      metadata,
     })
     .select(
       'id, conversation_id, sender_id, body, parent_id, metadata, created_at, edited_at, deleted_at',
@@ -156,8 +211,127 @@ export async function sendMessageAction(
     .maybeSingle();
 
   if (error) return { ok: false as const, error: error.message };
+
+  if (data && mentionedIds.length > 0) {
+    await supabase.rpc('notify_message_mentions', {
+      p_message_id: data.id,
+      p_mentioned_user_ids: mentionedIds,
+    });
+  }
+
   revalidatePath('/messages');
+  revalidatePath('/activity');
   return { ok: true as const, message: data };
+}
+
+export async function toggleReactionAction(messageId: string, emoji: string) {
+  const auth = await requireUser();
+  if (!auth.ok) return auth;
+
+  const supabase = await createClient();
+  const { data: existing } = await supabase
+    .from('os_message_reactions')
+    .select('message_id')
+    .eq('message_id', messageId)
+    .eq('user_id', auth.profile.id)
+    .eq('emoji', emoji)
+    .maybeSingle();
+
+  if (existing) {
+    const { error } = await supabase
+      .from('os_message_reactions')
+      .delete()
+      .eq('message_id', messageId)
+      .eq('user_id', auth.profile.id)
+      .eq('emoji', emoji);
+    if (error) return { ok: false as const, error: error.message };
+  } else {
+    const { error } = await supabase.from('os_message_reactions').insert({
+      message_id: messageId,
+      user_id: auth.profile.id,
+      emoji,
+    });
+    if (error) {
+      return {
+        ok: false as const,
+        error: error.message.includes('os_message_reactions')
+          ? 'Reactions require Phase 12 SQL.'
+          : error.message,
+      };
+    }
+  }
+  return { ok: true as const };
+}
+
+export async function listAttachableDocumentsAction() {
+  const auth = await requireUser();
+  if (!auth.ok) return auth;
+  const { listDocuments } = await import('@/lib/data/document-store');
+  const docs = listDocuments().map((d) => ({
+    doc_id: d.doc_id,
+    title: d.title,
+    entity_id: d.entity_id,
+    status: d.status,
+  }));
+  return { ok: true as const, documents: docs };
+}
+
+export async function searchMessagesGlobalAction(query: string) {
+  const auth = await requireUser();
+  if (!auth.ok) return auth;
+  const q = query.trim();
+  if (q.length < 2) {
+    return { ok: true as const, results: [] as Array<{
+      id: string;
+      conversation_id: string;
+      body: string;
+      created_at: string;
+      conversation_title: string;
+    }> };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('search_messages_global', {
+    p_query: q,
+    p_limit: 30,
+  });
+
+  if (error) {
+    return {
+      ok: false as const,
+      error: error.message.includes('search_messages_global')
+        ? 'Global search requires Phase 12 SQL.'
+        : error.message,
+    };
+  }
+
+  return {
+    ok: true as const,
+    results: (data ?? []) as Array<{
+      id: string;
+      conversation_id: string;
+      body: string;
+      created_at: string;
+      conversation_title: string;
+    }>,
+  };
+}
+
+export async function listDiscoverableChannelsAction() {
+  const auth = await requireUser();
+  if (!auth.ok) return auth;
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('list_discoverable_channels');
+  if (error) {
+    return { ok: true as const, channels: [] as Array<{ id: string; title: string | null }> };
+  }
+  return {
+    ok: true as const,
+    channels: (data ?? []).map((c: { id: string; title: string | null }) => ({
+      id: c.id,
+      title: c.title,
+    })),
+  };
 }
 
 export async function markConversationReadAction(conversationId: string) {

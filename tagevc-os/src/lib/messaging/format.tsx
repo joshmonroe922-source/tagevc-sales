@@ -15,7 +15,7 @@ export function formatMessageBody(body: string): ReactNode {
 function formatInline(text: string): ReactNode[] {
   const nodes: ReactNode[] = [];
   const pattern =
-    /(\*\*([^*]+)\*\*|https?:\/\/[^\s<]+[^\s<.,;:!?)\]'"])/g;
+    /(\*\*([^*]+)\*\*|@[A-Za-z0-9._+\- ]{2,40}|https?:\/\/[^\s<]+[^\s<.,;:!?)\]'"])/g;
   let last = 0;
   let match: RegExpExecArray | null;
   let key = 0;
@@ -26,6 +26,17 @@ function formatInline(text: string): ReactNode[] {
     if (match[0].startsWith('**')) {
       nodes.push(
         createElement('strong', { key: `b-${key++}` }, match[2]),
+      );
+    } else if (match[0].startsWith('@')) {
+      nodes.push(
+        createElement(
+          'span',
+          {
+            key: `m-${key++}`,
+            className: 'rounded bg-[#9f957c]/20 px-0.5 font-medium text-[#3a414f]',
+          },
+          match[0].trimEnd(),
+        ),
       );
     } else {
       nodes.push(

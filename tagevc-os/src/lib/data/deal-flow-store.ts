@@ -20,6 +20,10 @@ import {
   syncDealsAndTasks,
 } from '@/lib/data/normalized/deals-repo';
 import {
+  fetchAllIcReviews,
+  syncIcReviews,
+} from '@/lib/data/normalized/ic-repo';
+import {
   preferNormalizedTables,
   queueNormalizedSync,
 } from '@/lib/data/normalized/sync';
@@ -97,6 +101,10 @@ function touchDealFlow() {
     const store = getDealFlowStore();
     await syncDealsAndTasks(store.deals, store.dealTasks);
   });
+  queueNormalizedSync('os_ic_reviews', async () => {
+    const store = getDealFlowStore();
+    await syncIcReviews(store.icReviews);
+  });
 }
 
 export async function hydrateDealFlowStore() {
@@ -111,11 +119,12 @@ export async function hydrateDealFlowStore() {
   }
 
   const store = getDealFlowStore();
-  const [sqlLeads, sqlTasks, sqlDeals, sqlDealTasks] = await Promise.all([
+  const [sqlLeads, sqlTasks, sqlDeals, sqlDealTasks, sqlIc] = await Promise.all([
     fetchAllLeads(),
     fetchAllLeadTasks(),
     fetchAllDeals(),
     fetchAllDealTasks(),
+    fetchAllIcReviews(),
   ]);
 
   // Prefer normalized rows when present (or forced via env).
@@ -132,6 +141,12 @@ export async function hydrateDealFlowStore() {
     if (sqlDealTasks && sqlDealTasks.length > 0) store.dealTasks = sqlDealTasks;
   } else if (sqlDeals !== null && store.deals.length > 0) {
     await syncDealsAndTasks(store.deals, store.dealTasks);
+  }
+
+  if (sqlIc && (sqlIc.length > 0 || preferNormalizedTables())) {
+    if (sqlIc.length > 0) store.icReviews = sqlIc;
+  } else if (sqlIc !== null && store.icReviews.length > 0) {
+    await syncIcReviews(store.icReviews);
   }
 
   markStoreHydrated('deal_flow');

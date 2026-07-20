@@ -5,6 +5,15 @@ import {
   INITIAL_MA_TARGETS,
 } from '@/lib/data/ma-seed';
 import {
+  fetchAllMaTargets,
+  fetchAllMaTasks,
+  syncMaTargetsAndTasks,
+} from '@/lib/data/normalized/ma-repo';
+import {
+  preferNormalizedTables,
+  queueNormalizedSync,
+} from '@/lib/data/normalized/sync';
+import {
   isStoreHydrated,
   loadStoreSnapshot,
   markStoreHydrated,
@@ -49,6 +58,10 @@ export function getMaStore(): MaStore {
 
 function touchMa() {
   queueStorePersist('ma', () => structuredClone(getMaStore()));
+  queueNormalizedSync('os_ma', async () => {
+    const store = getMaStore();
+    await syncMaTargetsAndTasks(store.targets, store.tasks);
+  });
 }
 
 export async function hydrateMaStore() {
@@ -60,6 +73,19 @@ export async function hydrateMaStore() {
     const store = getMaStore();
     await saveStoreSnapshot('ma', store);
   }
+
+  const store = getMaStore();
+  const [sqlTargets, sqlTasks] = await Promise.all([
+    fetchAllMaTargets(),
+    fetchAllMaTasks(),
+  ]);
+  if (sqlTargets && (sqlTargets.length > 0 || preferNormalizedTables())) {
+    if (sqlTargets.length > 0) store.targets = sqlTargets;
+    if (sqlTasks && sqlTasks.length > 0) store.tasks = sqlTasks;
+  } else if (sqlTargets !== null && store.targets.length > 0) {
+    await syncMaTargetsAndTasks(store.targets, store.tasks);
+  }
+
   markStoreHydrated('ma');
 }
 

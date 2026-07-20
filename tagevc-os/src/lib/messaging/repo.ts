@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { displayName } from '@/lib/messaging/repo-client';
+import { reactionSummary } from '@/lib/messaging/mentions';
 import type {
   ConversationListItem,
   ConversationMember,
@@ -222,11 +223,35 @@ export async function listMessages(
       ((profiles ?? []) as DirectoryProfile[]).map((p) => [p.id, p]),
     );
 
+    const messageIds = rows.map((r) => r.id);
+    const reactionsByMessage = new Map<
+      string,
+      Array<{ emoji: string; user_id: string }>
+    >();
+    if (messageIds.length > 0) {
+      const { data: reactions } = await supabase
+        .from('os_message_reactions')
+        .select('message_id, emoji, user_id')
+        .in('message_id', messageIds);
+      for (const r of reactions ?? []) {
+        const mid = r.message_id as string;
+        const list = reactionsByMessage.get(mid) ?? [];
+        list.push({ emoji: r.emoji as string, user_id: r.user_id as string });
+        reactionsByMessage.set(mid, list);
+      }
+    }
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const myId = user?.id ?? '';
+
     return {
       ok: true,
       messages: rows.map((r) => ({
         ...r,
         sender: map.get(r.sender_id) ?? null,
+        reactions: reactionSummary(reactionsByMessage.get(r.id) ?? [], myId),
       })),
     };
   } catch (e) {
