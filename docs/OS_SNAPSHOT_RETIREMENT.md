@@ -1,57 +1,49 @@
 # Snapshot Retirement Plan — `os_store_snapshots`
 
-**Status:** Phase 15 — Write cutover available (env-gated). Handoffs/audits dual-written.
+**Status:** Phase 16 — Full pipeline write cutover available; soft-archive ready. Table retained.
 
-## Current dual-write / dual-read map
+## Dual-write / dual-read map
 
-| Domain store key | Normalized tables | Phase | Snapshot writes |
-|------------------|-------------------|-------|-----------------|
-| `deal_flow` (leads/tasks/deals/IC) | `os_leads`, `os_deals`, `os_ic_reviews` | 9–12 | Optional — `WRITE_CUTOVER_MATURE` |
-| `deal_flow` (IC audits, handoffs) | `os_ic_audits`, `os_handoffs` | 15 | Same collection gate |
-| `documents` (+ audits) | `os_documents`, `os_doc_audits` | 11 / 15 | Optional mature cutover |
-| `tickets` (+ audits) | `os_tickets`, `os_ticket_audits` | 9 / 15 | Optional mature cutover |
-| `ma` (+ handoffs) | `os_ma_*`, `os_handoffs` | 12 / 15 | Still dual-write by default |
-| `re` (+ handoffs) | `os_re_*`, `os_handoffs` | 13 / 15 | Still dual-write by default |
-| Portfolio / Entity Master | `entities`, `portfolio_companies`, … | 14 | No snapshots (SQL-first) |
-| Messaging | First-class only | 10–13 | N/A |
+| Domain | Normalized tables | Snapshot writes |
+|--------|-------------------|-----------------|
+| `deal_flow` | leads/deals/IC + audits/handoffs | Skip via `WRITE_CUTOVER_MATURE` or `WRITE_CUTOVER_ALL` |
+| `tickets` / `documents` | + audit tables | Same |
+| `ma` / `re` | + handoffs | Skip via `WRITE_CUTOVER_ALL` or `SNAPSHOT_SKIP_DOMAINS` |
+| Portfolio / Entity | live tables | No snapshots |
+| Messaging | first-class | N/A |
 
-## Retirement stages
+## Stages
 
-1. **Soak** — Prefer SQL on hydrate; dual-write both paths.  
+1. **Soak** — Dual-write; prefer SQL on hydrate.  
 2. **Read cutover** — `USE_NORMALIZED_TABLES=1`.  
-3. **Write cutover (Phase 15)** — Gate in `persist.ts`:
-   - `WRITE_CUTOVER_MATURE=1` → skip `deal_flow`, `tickets`, `documents`
-   - `SNAPSHOT_SKIP_DOMAINS=…` → skip listed collections
-   - `WRITE_SNAPSHOTS=0` → suppress all unless `SNAPSHOT_WRITE_DOMAINS` allowlist
-   - Loads still work for rollback; SQL remains source of truth for mutations
-4. **Drop** — Archive rows; remove hydrate snapshot branches; do not drop table until all keys migrated.
+3. **Write cutover** — `WRITE_CUTOVER_MATURE` → then `WRITE_CUTOVER_ALL` (or skip list).  
+4. **Soft-archive (Phase 16)** — `archive_store_snapshot(collection)` copies to `os_store_snapshot_archive`, clears live payload to `{}`.  
+5. **Drop (later)** — Remove hydrate snapshot branches; drop table only when unused.
 
-## Ops checklist
+## Ops
 
-### Enable mature write cutover
-1. Apply `phase15_write_cutover.sql`.  
-2. Confirm `os_handoffs` / audit tables in `/api/admin/normalization-status`.  
-3. Confirm `sync_failure_count` is 0 after traffic.  
-4. Set `WRITE_CUTOVER_MATURE=1` on Vercel → redeploy.  
-5. Verify `write_cutover.snapshot_write_gates.deal_flow.allow === false` and `skips` increment on mutations.
+### Enable cutover
+```bash
+WRITE_CUTOVER_MATURE=1   # deal_flow, tickets, documents
+WRITE_CUTOVER_ALL=1      # + ma, re
+```
 
-### Rollback
-Unset `WRITE_CUTOVER_MATURE` / `WRITE_SNAPSHOTS` / `SNAPSHOT_SKIP_DOMAINS` and redeploy. Snapshot upserts resume immediately.
+### Soft-archive
+- UI: `/admin/normalization`  
+- API: `POST /api/admin/snapshot-archive` with `{ "only_cutover": true }`  
+- Requires Phase 16 SQL. Refuses `deal_flow` archive if `os_leads` is empty.
 
-## Exit criteria before Stage 4 (drop)
+### Rollback write cutover
+Unset cutover env vars and redeploy. Snapshot upserts resume. Restore from archive with a manual SQL insert if needed.
 
-- [ ] Mature domains on write cutover ≥14 days with zero SQL sync failures  
-- [ ] Staging empty-snapshot drill for `deal_flow`, `tickets`, `documents`  
-- [ ] MA/RE also cut over (or accepted residual dual-write)  
-- [ ] Backup of `os_store_snapshots` retained  
+## Exit criteria before drop
 
-## Blockers for fully retiring `os_store_snapshots`
-
-1. MA/RE still dual-writing by default (intentional).  
-2. No automated soak alerts (pull-based status API only).  
-3. Subsidiary entity-scoped RLS not yet required.
+- [ ] `WRITE_CUTOVER_ALL` (or equivalent) ≥14 days, `sync_failure_count=0`  
+- [ ] Soft-archive completed for cut-over collections  
+- [ ] Empty-snapshot drills pass  
+- [ ] Archive backup retained  
 
 ## Non-goals
 
-- Dropping the `os_store_snapshots` table in Phase 15  
-- Push / DocuSign / Sentry
+- Dropping `os_store_snapshots` in Phase 16  
+- DocuSign / push

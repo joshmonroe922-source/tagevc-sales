@@ -1,3 +1,5 @@
+import { captureException } from '@/lib/observability';
+
 /**
  * Debounced dual-write helpers for normalized tables.
  * Snapshots remain the fallback; these syncs are best-effort.
@@ -45,6 +47,9 @@ export function recordNormalizedSyncResult(
           ? error
           : 'sync failed';
     console.error(`normalized sync ${key}`, error ?? 'failed');
+    captureException(error ?? new Error(`normalized sync ${key} failed`), {
+      sync_key: key,
+    });
   }
 }
 

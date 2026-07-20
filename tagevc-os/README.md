@@ -390,12 +390,24 @@ Docs: `docs/OS_PHASE14.md`
 
 Docs: `docs/OS_PHASE15.md`
 
-### Phase 16+ backlog
+### Phase 16 scope (Cutover ops + observability)
 
-- Full write cutover for MA/RE; archive snapshot rows
-- Entity-scoped RLS; financial portfolio edits
+| Area | Status |
+|------|--------|
+| `WRITE_CUTOVER_ALL` (MA/RE included) | Done |
+| Snapshot soft-archive table + RPC + API | Done |
+| Admin normalization health UI | Done |
+| Optional Sentry (`SENTRY_DSN`) | Done |
+| SQL | Apply `supabase/phase16_snapshot_archive.sql` |
+
+Docs: `docs/OS_PHASE16.md`
+
+### Phase 17+ backlog
+
+- Validate FKs; drop/archive cleanup; entity-scoped RLS
+- Financial portfolio edits; soak cron alerts
 - Push notifications; richer moderation
-- Real DocuSign + observability
+- Real DocuSign
 
 
 ## Run locally
@@ -430,4 +442,4 @@ Set `DEV_BYPASS_AUTH=1` in `.env.local` to preview the shell as Visionary (local
 
 ## Next phases (from Cursor Brief)
 
-Phase 15 adds write cutover gates, handoff/audit tables, and Portfolio/Entity SQL-first edits. Remaining: full snapshot retirement, entity RLS, DocuSign, push, observability.
+Phase 16 advances write cutover (incl. MA/RE), soft-archives snapshots, and adds admin health + optional Sentry. Remaining: FK validation, entity RLS, DocuSign, push.

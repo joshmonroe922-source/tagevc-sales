@@ -46,17 +46,17 @@ Mutations remain **SQL-first** via `queueNormalizedSync`; snapshot writes are op
    ```
 6. Monitor: `GET /api/admin/normalization-status`
 
-## Still deferred
+## Still deferred (at Phase 15 ship)
 
 - Dropping `os_store_snapshots` (Stage 4)
-- MA/RE full write cutover (optional; leave dual-write until ready)
+- MA/RE full write cutover — **available in Phase 16 via WRITE_CUTOVER_ALL**
 - Financial field edits (ARR / burn / cash — rollup-sensitive)
-- DocuSign · push · Sentry
+- DocuSign · push
 
 ## Phase 16+ recommendations
 
-1. Full write cutover for MA/RE once handoffs soak clean  
-2. Empty-snapshot drills + archive snapshot rows for cut-over domains  
+1. Full write cutover for MA/RE once handoffs soak clean — **Phase 16**  
+2. Empty-snapshot drills + archive snapshot rows — **Phase 16 soft-archive**  
 3. Entity-scoped RLS for subsidiary portals  
 4. Portfolio financial edits with rollup guards  
-5. Observability (Sentry) · DocuSign · push
+5. Observability (Sentry) · DocuSign · push — **Sentry scaffolding in Phase 16**

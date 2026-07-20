@@ -15,6 +15,15 @@ export const MATURE_SNAPSHOT_DOMAINS: StoreCollection[] = [
   'documents',
 ];
 
+/** Phase 16 — all pipeline domains eligible for full write cutover. */
+export const ALL_PIPELINE_SNAPSHOT_DOMAINS: StoreCollection[] = [
+  'deal_flow',
+  'tickets',
+  'documents',
+  'ma',
+  're',
+];
+
 type SnapshotRow = {
   collection: string;
   payload: unknown;
@@ -58,13 +67,14 @@ function parseDomainList(raw: string | undefined): string[] {
 }
 
 /**
- * Phase 15 write-cutover gate (reversible via env).
+ * Phase 15–16 write-cutover gate (reversible via env).
  *
  * Defaults: all snapshot writes enabled (dual-write).
  *
  * - WRITE_SNAPSHOTS=0|false → suppress all unless listed in SNAPSHOT_WRITE_DOMAINS
- * - SNAPSHOT_SKIP_DOMAINS=deal_flow,tickets,documents → skip those even when writes on
+ * - SNAPSHOT_SKIP_DOMAINS=deal_flow,tickets,documents,ma,re → skip listed
  * - WRITE_CUTOVER_MATURE=1 → skip MATURE_SNAPSHOT_DOMAINS (leads/deals/tickets/docs)
+ * - WRITE_CUTOVER_ALL=1 → skip ALL_PIPELINE_SNAPSHOT_DOMAINS (includes MA/RE)
  */
 export function shouldWriteSnapshot(collection: StoreCollection): {
   allow: boolean;
@@ -85,6 +95,13 @@ export function shouldWriteSnapshot(collection: StoreCollection): {
   const skipList = parseDomainList(process.env.SNAPSHOT_SKIP_DOMAINS);
   if (skipList.includes(collection)) {
     return { allow: false, reason: 'SNAPSHOT_SKIP_DOMAINS' };
+  }
+
+  const allCutover =
+    process.env.WRITE_CUTOVER_ALL === '1' ||
+    process.env.WRITE_CUTOVER_ALL === 'true';
+  if (allCutover && ALL_PIPELINE_SNAPSHOT_DOMAINS.includes(collection)) {
+    return { allow: false, reason: 'WRITE_CUTOVER_ALL' };
   }
 
   const matureCutover =
@@ -110,7 +127,11 @@ export function getSnapshotWriteConfig() {
     write_cutover_mature:
       process.env.WRITE_CUTOVER_MATURE === '1' ||
       process.env.WRITE_CUTOVER_MATURE === 'true',
+    write_cutover_all:
+      process.env.WRITE_CUTOVER_ALL === '1' ||
+      process.env.WRITE_CUTOVER_ALL === 'true',
     mature_domains: [...MATURE_SNAPSHOT_DOMAINS],
+    all_pipeline_domains: [...ALL_PIPELINE_SNAPSHOT_DOMAINS],
   };
 }
 
