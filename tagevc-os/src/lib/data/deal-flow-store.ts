@@ -15,6 +15,11 @@ import {
   syncLeadsAndTasks,
 } from '@/lib/data/normalized/leads-repo';
 import {
+  fetchAllDealTasks,
+  fetchAllDeals,
+  syncDealsAndTasks,
+} from '@/lib/data/normalized/deals-repo';
+import {
   preferNormalizedTables,
   queueNormalizedSync,
 } from '@/lib/data/normalized/sync';
@@ -88,6 +93,10 @@ function touchDealFlow() {
     const store = getDealFlowStore();
     await syncLeadsAndTasks(store.leads, store.tasks);
   });
+  queueNormalizedSync('os_deals', async () => {
+    const store = getDealFlowStore();
+    await syncDealsAndTasks(store.deals, store.dealTasks);
+  });
 }
 
 export async function hydrateDealFlowStore() {
@@ -102,9 +111,11 @@ export async function hydrateDealFlowStore() {
   }
 
   const store = getDealFlowStore();
-  const [sqlLeads, sqlTasks] = await Promise.all([
+  const [sqlLeads, sqlTasks, sqlDeals, sqlDealTasks] = await Promise.all([
     fetchAllLeads(),
     fetchAllLeadTasks(),
+    fetchAllDeals(),
+    fetchAllDealTasks(),
   ]);
 
   // Prefer normalized rows when present (or forced via env).
@@ -114,6 +125,13 @@ export async function hydrateDealFlowStore() {
   } else if (sqlLeads !== null && store.leads.length > 0) {
     // Tables exist but empty — migrate snapshot/seed into SQL once.
     await syncLeadsAndTasks(store.leads, store.tasks);
+  }
+
+  if (sqlDeals && (sqlDeals.length > 0 || preferNormalizedTables())) {
+    if (sqlDeals.length > 0) store.deals = sqlDeals;
+    if (sqlDealTasks && sqlDealTasks.length > 0) store.dealTasks = sqlDealTasks;
+  } else if (sqlDeals !== null && store.deals.length > 0) {
+    await syncDealsAndTasks(store.deals, store.dealTasks);
   }
 
   markStoreHydrated('deal_flow');

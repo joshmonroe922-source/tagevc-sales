@@ -5,6 +5,7 @@ import {
   TaskStatusSelect,
 } from '@/components/deal-flow/lead-actions';
 import { StageSelect } from '@/components/deal-flow/stage-select';
+import { StartChatButton } from '@/components/messaging/start-chat-button';
 import { Badge } from '@/components/ui/badge';
 import {
   Card,
@@ -75,6 +76,12 @@ export default async function LeadDetailPage({ params }: Props) {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <StartChatButton
+              refType="lead"
+              refId={lead.lead_id}
+              title={`${lead.lead_id} · ${lead.company_name}`}
+              entityId={lead.related_entity_id}
+            />
             <StageSelect leadId={lead.lead_id} stage={lead.stage} />
             <ConvertToDealButton
               leadId={lead.lead_id}

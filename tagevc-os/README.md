@@ -304,6 +304,31 @@ Docs: `docs/OS_PHASE10.md`
 - Threading UI, search, push/email digests
 - Retention / moderation tools
 
+## Phase 11 scope (Contextual chat + Deals/Docs normalize)
+
+| Area | Status |
+|------|--------|
+| Threading / replies | Done |
+| Formatting + in-chat search | Done |
+| Link chats to leads/deals/entities/tasks/tickets/docs | Done |
+| Contextual Chat buttons on entity pages | Done |
+| Chat notifications + richer Activity inbox | Done |
+| `os_deals` / `os_deal_tasks` / `os_documents` dual-write | Done |
+| SQL | Apply `supabase/phase11_chat_and_normalize.sql` |
+
+### Required ops step
+
+Run **`supabase/phase11_chat_and_normalize.sql`** in the tagevc-os Supabase SQL editor, then redeploy.
+
+Docs: `docs/OS_PHASE11.md`
+
+### Phase 12+ backlog
+
+- Member invites on linked chats; task deep-links
+- Channels / @mentions / attachments
+- Normalize IC + MA/RE; snapshot retirement plan
+- Push/email digests; DocuSign + storage
+
 
 ## Run locally
 
@@ -337,4 +362,4 @@ Set `DEV_BYPASS_AUTH=1` in `.env.local` to preview the shell as Visionary (local
 
 ## Next phases (from Cursor Brief)
 
-Phase 10 adds firm messaging (`/messages`). Remaining: entity-linked chats, channels, Deals/IC/Docs normalization, Portfolio/Entity Master DB, DocuSign, observability.
+Phase 11 adds contextual chat + Deals/Documents normalization. Remaining: channels/mentions/attachments, IC/MA/RE normalize, snapshot retirement, DocuSign, observability.

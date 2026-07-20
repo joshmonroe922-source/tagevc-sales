@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { NotificationInbox } from '@/components/activity/notification-inbox';
 import { Badge } from '@/components/ui/badge';
 import {
   Card,
@@ -22,25 +23,28 @@ const MODULE_LABEL: Record<string, string> = {
   portfolio: 'Portfolio',
   auth: 'Auth',
   system: 'System',
+  messages: 'Messages',
 };
 
 function hrefFor(refType: string | null, refId: string | null): string | null {
   if (!refType || !refId) return null;
   if (refType === 'lead') return `/deal-flow/vc/leads/${refId}`;
   if (refType === 'deal') return `/deal-flow/vc/deals/${refId}`;
+  if (refType === 'entity') return `/entities/${refId}`;
   if (refType === 'ticket') return `/shared-services/tickets/${refId}`;
   if (refType === 'doc' || refType === 'document') return `/documents/${refId}`;
   if (refType === 'ma') return `/deal-flow/ma/${refId}`;
   if (refType === 're') return `/deal-flow/re/${refId}`;
   if (refType === 'ic') return `/deal-flow/vc/ic`;
   if (refType === 'role') return '/activity';
+  if (refType === 'conversation') return `/messages?c=${refId}`;
   return null;
 }
 
 export default async function ActivityPage() {
   const [activity, notes] = await Promise.all([
     listRecentActivity(50),
-    listMyNotifications(12),
+    listMyNotifications(40),
   ]);
 
   return (
@@ -50,8 +54,8 @@ export default async function ActivityPage() {
           Activity
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Recent firm actions across Deal Flow, Shared Services, and Documents.
-          Events persist in Supabase. Impersonation start/stop is included.
+          Notification inbox (including chat) and recent firm actions across
+          Deal Flow, Shared Services, Documents, and Messages.
         </p>
       </header>
 
@@ -59,47 +63,15 @@ export default async function ActivityPage() {
         <CardHeader>
           <CardTitle className="text-base">Notifications</CardTitle>
           <CardDescription>
-            Important events (new leads, signed docs).
+            Chat messages, leads, and capital events. Unread items are
+            highlighted.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-2">
-          {!notes.ok ? (
-            <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-              {notes.error}
-            </p>
-          ) : notes.notifications.length === 0 ? (
-            <EmptyState
-              title="No notifications yet"
-              description="Broadcast alerts will appear here when leads are created or capital docs are signed."
-            />
-          ) : (
-            notes.notifications.map((row) => {
-              const inner = (
-                <div className="flex flex-wrap items-baseline justify-between gap-2 rounded-lg border border-border px-3 py-2">
-                  <div>
-                    <p className="text-sm font-medium">{row.title}</p>
-                    {row.body ? (
-                      <p className="text-xs text-muted-foreground">{row.body}</p>
-                    ) : null}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(row.created_at).toLocaleString()}
-                  </p>
-                </div>
-              );
-              return row.href ? (
-                <Link
-                  key={row.notification_id}
-                  href={row.href}
-                  className="block hover:opacity-90"
-                >
-                  {inner}
-                </Link>
-              ) : (
-                <div key={row.notification_id}>{inner}</div>
-              );
-            })
-          )}
+        <CardContent>
+          <NotificationInbox
+            notifications={notes.ok ? notes.notifications : []}
+            error={notes.ok ? null : notes.error}
+          />
         </CardContent>
       </Card>
 
@@ -110,7 +82,7 @@ export default async function ActivityPage() {
             {!activity.ok
               ? 'Could not load activity'
               : activity.events.length === 0
-                ? 'No activity yet — create a lead, ticket, or document to start the feed.'
+                ? 'No activity yet — create a lead, ticket, document, or chat link to start the feed.'
                 : `${activity.events.length} most recent events`}
           </CardDescription>
         </CardHeader>

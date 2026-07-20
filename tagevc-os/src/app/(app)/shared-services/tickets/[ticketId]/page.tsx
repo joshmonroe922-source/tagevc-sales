@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { BandBadge } from '@/components/shared-services/band-badge';
 import { TicketHumanActions } from '@/components/shared-services/ticket-actions';
+import { StartChatButton } from '@/components/messaging/start-chat-button';
 import { Badge } from '@/components/ui/badge';
 import {
   Card,
@@ -59,10 +60,18 @@ export default async function TicketDetailPage({ params }: Props) {
               ) : null}
             </div>
           </div>
-          <TicketHumanActions
-            ticketId={ticket.ticket_id}
-            showDraftActions={showDraft}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <StartChatButton
+              refType="ticket"
+              refId={ticket.ticket_id}
+              title={`${ticket.ticket_id} · ${ticket.title}`}
+              entityId={ticket.entity_id}
+            />
+            <TicketHumanActions
+              ticketId={ticket.ticket_id}
+              showDraftActions={showDraft}
+            />
+          </div>
         </div>
       </div>
 

@@ -6,6 +6,7 @@ import {
   SubmitIcButton,
 } from '@/components/deal-flow/deal-actions';
 import { IcDecisionForm } from '@/components/deal-flow/ic-decision-form';
+import { StartChatButton } from '@/components/messaging/start-chat-button';
 import { Badge } from '@/components/ui/badge';
 import {
   Card,
@@ -85,6 +86,12 @@ export default async function DealDetailPage({ params }: Props) {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <StartChatButton
+              refType="deal"
+              refId={deal.deal_id}
+              title={`${deal.deal_id} · ${deal.company_name}`}
+              entityId={deal.entity_id}
+            />
             <DealExecStageSelect
               dealId={deal.deal_id}
               stage={deal.exec_stage}

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { EntitySectionNav } from '@/components/entity-os/entity-section-nav';
 import { StandardBadge } from '@/components/entity-os/standard-badge';
+import { StartChatButton } from '@/components/messaging/start-chat-button';
 import { HealthBadge } from '@/components/portfolio/health-badge';
 import { BandBadge } from '@/components/shared-services/band-badge';
 import { Badge } from '@/components/ui/badge';
@@ -155,7 +156,13 @@ export function EntityOperatingViewPanel({
               </p>
             ) : null}
           </div>
-          <div className="flex flex-wrap gap-2 text-sm">
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <StartChatButton
+              refType="entity"
+              refId={entity.entity_id}
+              title={`${entity.entity_id} · ${entity.canonical_name}`}
+              entityId={entity.entity_id}
+            />
             {portfolio ? (
               <Link
                 href={`/portfolio/${portfolio.portfolio_id}`}

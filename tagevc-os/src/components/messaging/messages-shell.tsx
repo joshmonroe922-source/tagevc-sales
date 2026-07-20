@@ -1,11 +1,29 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
-import { MessageSquarePlus, Search, Send, Users } from 'lucide-react';
+import Link from 'next/link';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from 'react';
+import {
+  Link2,
+  MessageSquarePlus,
+  Reply,
+  Search,
+  Send,
+  Users,
+  X,
+} from 'lucide-react';
 import {
   getMessagingBootstrapAction,
+  linkConversationAction,
   loadMessagesAction,
   markConversationReadAction,
+  searchConversationMessagesAction,
   sendMessageAction,
   startDirectMessageAction,
   startGroupChatAction,
@@ -15,6 +33,11 @@ import type {
   ConversationListItem,
   MessageRow,
 } from '@/lib/messaging/types';
+import {
+  formatMessageBody,
+  linkedObjectHref,
+  linkedObjectLabel,
+} from '@/lib/messaging/format';
 import { displayName } from '@/lib/messaging/repo-client';
 import { Avatar, AvatarFallback, AvatarImage, AvatarBadge } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -34,6 +57,24 @@ type Bootstrap = Extract<
   Awaited<ReturnType<typeof getMessagingBootstrapAction>>,
   { ok: true }
 >;
+
+type SearchHit = {
+  id: string;
+  body: string;
+  created_at: string;
+  sender_id: string;
+};
+
+type LinkRefType = 'lead' | 'deal' | 'entity' | 'task' | 'ticket' | 'document';
+
+const LINK_REF_TYPES: LinkRefType[] = [
+  'lead',
+  'deal',
+  'entity',
+  'task',
+  'ticket',
+  'document',
+];
 
 type Props = {
   initial: Bootstrap;
@@ -57,12 +98,19 @@ function formatTime(iso: string) {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
+function previewText(body: string, max = 72) {
+  const flat = body.replace(/\s+/g, ' ').trim();
+  if (flat.length <= max) return flat;
+  return `${flat.slice(0, max)}…`;
+}
+
 export function MessagesShell({ initial }: Props) {
   const [conversations, setConversations] = useState(initial.conversations);
   const [directory] = useState(initial.directory);
   const [selectedId, setSelectedId] = useState<string | null>(initial.selectedId);
   const [messages, setMessages] = useState<MessageRow[]>(initial.messages);
   const [draft, setDraft] = useState('');
+  const [replyTo, setReplyTo] = useState<MessageRow | null>(null);
   const [error, setError] = useState<string | null>(initial.messagesError);
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
   const [composerPending, startComposer] = useTransition();
@@ -71,6 +119,15 @@ export function MessagesShell({ initial }: Props) {
   const [groupTitle, setGroupTitle] = useState('');
   const [picked, setPicked] = useState<string[]>([]);
   const [query, setQuery] = useState('');
+  const [threadSearch, setThreadSearch] = useState('');
+  const [searchHits, setSearchHits] = useState<SearchHit[]>([]);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [linkRefType, setLinkRefType] = useState<LinkRefType>('lead');
+  const [linkRefId, setLinkRefId] = useState('');
+  const [linkEntityId, setLinkEntityId] = useState('');
+  const [linkPending, startLink] = useTransition();
   const bottomRef = useRef<HTMLDivElement>(null);
   const me = initial.me;
 
@@ -78,6 +135,12 @@ export function MessagesShell({ initial }: Props) {
     () => conversations.find((c) => c.id === selectedId) ?? null,
     [conversations, selectedId],
   );
+
+  const messagesById = useMemo(() => {
+    const map = new Map<string, MessageRow>();
+    for (const m of messages) map.set(m.id, m);
+    return map;
+  }, [messages]);
 
   const refreshList = useCallback(async (keepId?: string | null) => {
     const boot = await getMessagingBootstrapAction(keepId ?? selectedId);
@@ -92,27 +155,62 @@ export function MessagesShell({ initial }: Props) {
     }
   }, [selectedId]);
 
-  const selectConversation = useCallback(
-    async (id: string) => {
-      setSelectedId(id);
-      setError(null);
-      const result = await loadMessagesAction(id);
-      if (!result.ok) {
-        setError(result.error);
-        return;
-      }
-      setMessages(result.messages);
-      await markConversationReadAction(id);
-      setConversations((prev) =>
-        prev.map((c) => (c.id === id ? { ...c, unread_count: 0 } : c)),
-      );
-    },
-    [],
-  );
+  const selectConversation = useCallback(async (id: string) => {
+    setSelectedId(id);
+    setError(null);
+    setReplyTo(null);
+    setThreadSearch('');
+    setSearchHits([]);
+    setSearchOpen(false);
+    setHighlightId(null);
+    const result = await loadMessagesAction(id);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    setMessages(result.messages);
+    await markConversationReadAction(id);
+    setConversations((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, unread_count: 0 } : c)),
+    );
+  }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length, selectedId]);
+
+  useEffect(() => {
+    if (!selectedId || threadSearch.trim().length < 2) {
+      setSearchHits([]);
+      return;
+    }
+    let cancelled = false;
+    const handle = window.setTimeout(() => {
+      void (async () => {
+        const result = await searchConversationMessagesAction(
+          selectedId,
+          threadSearch.trim(),
+        );
+        if (cancelled) return;
+        if (!result.ok) {
+          setSearchHits([]);
+          return;
+        }
+        setSearchHits(result.results);
+        setSearchOpen(true);
+      })();
+    }, 220);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
+  }, [selectedId, threadSearch]);
+
+  useEffect(() => {
+    if (!highlightId) return;
+    const t = window.setTimeout(() => setHighlightId(null), 2200);
+    return () => window.clearTimeout(t);
+  }, [highlightId]);
 
   // Realtime: messages + conversation list updates
   useEffect(() => {
@@ -189,16 +287,25 @@ export function MessagesShell({ initial }: Props) {
     };
   }, [me.id]);
 
+  function scrollToMessage(id: string) {
+    setSearchOpen(false);
+    setHighlightId(id);
+    const el = document.getElementById(`msg-${id}`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
   function send() {
     if (!selectedId || !draft.trim() || composerPending) return;
     const text = draft.trim();
+    const parentId = replyTo?.id ?? null;
     setDraft('');
+    setReplyTo(null);
     const optimistic: MessageRow = {
       id: `tmp-${Date.now()}`,
       conversation_id: selectedId,
       sender_id: me.id,
       body: text,
-      parent_id: null,
+      parent_id: parentId,
       metadata: {},
       created_at: new Date().toISOString(),
       edited_at: null,
@@ -208,11 +315,15 @@ export function MessagesShell({ initial }: Props) {
     setMessages((prev) => [...prev, optimistic]);
 
     startComposer(async () => {
-      const result = await sendMessageAction(selectedId, text);
+      const result = await sendMessageAction(selectedId, text, parentId);
       if (!result.ok) {
         setError(result.error);
         setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
         setDraft(text);
+        if (parentId) {
+          const parent = messagesById.get(parentId);
+          if (parent) setReplyTo(parent);
+        }
         return;
       }
       setMessages((prev) =>
@@ -255,6 +366,26 @@ export function MessagesShell({ initial }: Props) {
     await selectConversation(result.conversationId);
   }
 
+  function submitLink() {
+    if (!selectedId || !linkRefId.trim() || linkPending) return;
+    startLink(async () => {
+      const result = await linkConversationAction({
+        conversationId: selectedId,
+        refType: linkRefType,
+        refId: linkRefId.trim(),
+        entityId: linkEntityId.trim() || null,
+      });
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      setLinkOpen(false);
+      setLinkRefId('');
+      setLinkEntityId('');
+      await refreshList(selectedId);
+    });
+  }
+
   const filteredDirectory = directory.filter((p) => {
     const q = query.trim().toLowerCase();
     if (!q) return true;
@@ -263,6 +394,13 @@ export function MessagesShell({ initial }: Props) {
       p.email.toLowerCase().includes(q)
     );
   });
+
+  const linkedHref = selected
+    ? linkedObjectHref(selected.linked_ref_type, selected.linked_ref_id)
+    : null;
+  const linkedLabel = selected
+    ? linkedObjectLabel(selected.linked_ref_type, selected.linked_ref_id)
+    : '';
 
   return (
     <div className="-mx-6 -my-8 md:-mx-10 flex h-[calc(100dvh)] min-h-[28rem] border-t border-border bg-background">
@@ -312,7 +450,7 @@ export function MessagesShell({ initial }: Props) {
       <section className="flex min-w-0 flex-1 flex-col">
         {selected ? (
           <>
-            <header className="flex items-center gap-3 border-b border-border px-5 py-3">
+            <header className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-3">
               <ConversationAvatar
                 conversation={selected}
                 meId={me.id}
@@ -330,12 +468,90 @@ export function MessagesShell({ initial }: Props) {
                       : 'Offline'}
                 </p>
               </div>
+              {linkedLabel ? (
+                linkedHref ? (
+                  <Badge
+                    variant="secondary"
+                    className="max-w-[10rem] truncate font-normal"
+                    render={<Link href={linkedHref} />}
+                  >
+                    {linkedLabel}
+                  </Badge>
+                ) : (
+                  <Badge
+                    variant="secondary"
+                    className="max-w-[10rem] truncate font-normal"
+                  >
+                    {linkedLabel}
+                  </Badge>
+                )
+              ) : null}
               {selected.kind === 'group' ? (
                 <Badge variant="secondary" className="gap-1 font-normal">
                   <Users className="size-3" />
                   Group
                 </Badge>
               ) : null}
+              <div className="relative w-full max-w-[14rem] sm:w-auto sm:flex-none">
+                <Search className="pointer-events-none absolute top-2.5 left-2.5 size-3.5 text-muted-foreground" />
+                <Input
+                  className="h-9 pl-8 text-sm"
+                  placeholder="Search messages…"
+                  value={threadSearch}
+                  onChange={(e) => {
+                    setThreadSearch(e.target.value);
+                    setSearchOpen(true);
+                  }}
+                  onFocus={() => {
+                    if (searchHits.length > 0) setSearchOpen(true);
+                  }}
+                  onBlur={() => {
+                    window.setTimeout(() => setSearchOpen(false), 150);
+                  }}
+                />
+                {searchOpen && threadSearch.trim().length >= 2 ? (
+                  <div className="absolute top-full right-0 z-20 mt-1 max-h-56 w-[min(20rem,calc(100vw-2rem))] overflow-y-auto rounded-lg border border-border bg-white py-1 shadow-md">
+                    {searchHits.length === 0 ? (
+                      <p className="px-3 py-2 text-xs text-muted-foreground">
+                        No matches
+                      </p>
+                    ) : (
+                      searchHits.map((hit) => (
+                        <button
+                          key={hit.id}
+                          type="button"
+                          className="block w-full px-3 py-2 text-left text-xs hover:bg-[#f7f5f2]"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => scrollToMessage(hit.id)}
+                        >
+                          <span className="line-clamp-2 text-[#3a414f]">
+                            {previewText(hit.body, 100)}
+                          </span>
+                          <span className="mt-0.5 block text-[10px] text-muted-foreground">
+                            {formatTime(hit.created_at)}
+                          </span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                ) : null}
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                onClick={() => {
+                  setLinkRefType(
+                    (selected.linked_ref_type as LinkRefType) || 'lead',
+                  );
+                  setLinkRefId(selected.linked_ref_id ?? '');
+                  setLinkEntityId(selected.entity_id ?? '');
+                  setLinkOpen(true);
+                }}
+              >
+                <Link2 className="size-3.5" />
+                Link
+              </Button>
             </header>
 
             <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
@@ -352,12 +568,21 @@ export function MessagesShell({ initial }: Props) {
                 messages.map((m) => {
                   const mine = m.sender_id === me.id;
                   const name = displayName(m.sender);
+                  const parent = m.parent_id
+                    ? messagesById.get(m.parent_id)
+                    : null;
+                  const parentName = parent
+                    ? displayName(parent.sender)
+                    : null;
                   return (
                     <div
                       key={m.id}
+                      id={`msg-${m.id}`}
                       className={cn(
-                        'flex gap-2',
+                        'flex scroll-mt-4 gap-2 transition-colors',
                         mine ? 'justify-end' : 'justify-start',
+                        m.parent_id && (mine ? 'pr-2' : 'pl-6'),
+                        highlightId === m.id && 'rounded-lg bg-[#ece9e6]/70 ring-2 ring-[#3a414f]/25',
                       )}
                     >
                       {!mine ? (
@@ -370,10 +595,14 @@ export function MessagesShell({ initial }: Props) {
                       ) : null}
                       <div
                         className={cn(
-                          'max-w-[min(36rem,75%)] rounded-2xl px-3.5 py-2 text-sm',
+                          'group relative max-w-[min(36rem,75%)] rounded-2xl px-3.5 py-2 text-sm',
                           mine
                             ? 'rounded-br-md bg-[#3a414f] text-white'
                             : 'rounded-bl-md bg-[#ece9e6] text-[#3a414f]',
+                          m.parent_id &&
+                            (mine
+                              ? 'border-r-2 border-white/40'
+                              : 'border-l-2 border-[#3a414f]/25'),
                         )}
                       >
                         {!mine ? (
@@ -381,15 +610,44 @@ export function MessagesShell({ initial }: Props) {
                             {name}
                           </p>
                         ) : null}
-                        <p className="whitespace-pre-wrap break-words">{m.body}</p>
-                        <p
-                          className={cn(
-                            'mt-1 text-[10px]',
-                            mine ? 'text-white/60' : 'text-muted-foreground',
-                          )}
-                        >
-                          {formatTime(m.created_at)}
-                        </p>
+                        {m.parent_id ? (
+                          <p
+                            className={cn(
+                              'mb-1 text-[11px]',
+                              mine ? 'text-white/70' : 'text-muted-foreground',
+                            )}
+                          >
+                            ↩ reply to{' '}
+                            {parentName ?? 'message'}
+                            {parent ? `: ${previewText(parent.body, 48)}` : ''}
+                          </p>
+                        ) : null}
+                        <div className="whitespace-pre-wrap break-words">
+                          {formatMessageBody(m.body)}
+                        </div>
+                        <div className="mt-1 flex items-center justify-between gap-2">
+                          <p
+                            className={cn(
+                              'text-[10px]',
+                              mine ? 'text-white/60' : 'text-muted-foreground',
+                            )}
+                          >
+                            {formatTime(m.created_at)}
+                          </p>
+                          <button
+                            type="button"
+                            className={cn(
+                              'inline-flex items-center gap-0.5 text-[10px] opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100',
+                              mine
+                                ? 'text-white/80 hover:text-white'
+                                : 'text-[#3a414f]/70 hover:text-[#3a414f]',
+                            )}
+                            onClick={() => setReplyTo(m)}
+                          >
+                            <Reply className="size-3" />
+                            Reply
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -398,29 +656,55 @@ export function MessagesShell({ initial }: Props) {
               <div ref={bottomRef} />
             </div>
 
-            <form
-              className="flex items-end gap-2 border-t border-border px-4 py-3"
-              onSubmit={(e) => {
-                e.preventDefault();
-                send();
-              }}
-            >
-              <Input
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                placeholder="Write a message…"
-                className="min-h-10 flex-1"
-                autoComplete="off"
-              />
-              <Button
-                type="submit"
-                disabled={!draft.trim() || composerPending}
-                className="gap-1.5"
+            <div className="border-t border-border">
+              {replyTo ? (
+                <div className="flex items-start gap-2 bg-[#f7f5f2] px-4 py-2 text-xs text-[#3a414f]">
+                  <Reply className="mt-0.5 size-3.5 shrink-0 opacity-60" />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium">
+                      Replying to {displayName(replyTo.sender)}
+                    </p>
+                    <p className="truncate text-muted-foreground">
+                      {previewText(replyTo.body)}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label="Clear reply"
+                    onClick={() => setReplyTo(null)}
+                  >
+                    <X className="size-3.5" />
+                  </Button>
+                </div>
+              ) : null}
+              <form
+                className="flex items-end gap-2 px-4 py-3"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  send();
+                }}
               >
-                <Send className="size-4" />
-                Send
-              </Button>
-            </form>
+                <Input
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  placeholder={
+                    replyTo ? 'Write a reply…' : 'Write a message…'
+                  }
+                  className="min-h-10 flex-1"
+                  autoComplete="off"
+                />
+                <Button
+                  type="submit"
+                  disabled={!draft.trim() || composerPending}
+                  className="gap-1.5"
+                >
+                  <Send className="size-4" />
+                  Send
+                </Button>
+              </form>
+            </div>
           </>
         ) : (
           <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
@@ -548,6 +832,59 @@ export function MessagesShell({ initial }: Props) {
               </Button>
             </div>
           ) : null}
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={linkOpen} onOpenChange={setLinkOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-md">
+          <SheetHeader>
+            <SheetTitle>Link conversation</SheetTitle>
+            <SheetDescription>
+              Attach this chat to a lead, deal, entity, task, ticket, or document.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="mt-4 space-y-3 px-4">
+            <label className="block space-y-1.5 text-sm">
+              <span className="text-muted-foreground">Type</span>
+              <select
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                value={linkRefType}
+                onChange={(e) => setLinkRefType(e.target.value as LinkRefType)}
+              >
+                {LINK_REF_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block space-y-1.5 text-sm">
+              <span className="text-muted-foreground">Ref ID</span>
+              <Input
+                value={linkRefId}
+                onChange={(e) => setLinkRefId(e.target.value)}
+                placeholder="Object id"
+                autoComplete="off"
+              />
+            </label>
+            <label className="block space-y-1.5 text-sm">
+              <span className="text-muted-foreground">Entity ID (optional)</span>
+              <Input
+                value={linkEntityId}
+                onChange={(e) => setLinkEntityId(e.target.value)}
+                placeholder="Related entity id"
+                autoComplete="off"
+              />
+            </label>
+            <Button
+              className="w-full gap-1.5"
+              disabled={!linkRefId.trim() || linkPending}
+              onClick={() => submitLink()}
+            >
+              <Link2 className="size-4" />
+              {linkPending ? 'Linking…' : 'Save link'}
+            </Button>
+          </div>
         </SheetContent>
       </Sheet>
     </div>

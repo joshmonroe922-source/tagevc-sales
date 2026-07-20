@@ -19,6 +19,7 @@ import {
 import { stopImpersonationAction } from '@/app/(app)/impersonation/actions';
 import { RoleSwitcher } from '@/components/layout/role-switcher';
 import { MessagesUnreadBadge } from '@/components/messaging/messages-unread-badge';
+import { ActivityUnreadBadge } from '@/components/layout/activity-unread-badge';
 import { createClient } from '@/lib/supabase/client';
 import { MAIN_NAV } from '@/lib/nav';
 import {
@@ -120,6 +121,7 @@ export function AppSidebar({
                 <span className="flex items-center gap-2">
                   <span className="block font-medium">{item.label}</span>
                   {item.href === '/messages' ? <MessagesUnreadBadge /> : null}
+                  {item.href === '/activity' ? <ActivityUnreadBadge /> : null}
                 </span>
                 {item.description ? (
                   <span className="mt-0.5 block text-xs opacity-70">

@@ -10,7 +10,8 @@ export type ActivityModule =
   | 'documents'
   | 'portfolio'
   | 'auth'
-  | 'system';
+  | 'system'
+  | 'messages';
 
 export type ActivityEvent = {
   id: string;
@@ -285,5 +286,46 @@ export async function markNotificationRead(notificationId: string) {
       .eq('user_id', user.id);
   } catch (e) {
     console.error('markNotificationRead', e);
+  }
+}
+
+export async function markAllMyNotificationsRead() {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { ok: false as const, error: 'Not signed in' };
+    const { error } = await supabase
+      .from('app_notifications')
+      .update({ read_at: new Date().toISOString() })
+      .eq('user_id', user.id)
+      .is('read_at', null);
+    if (error) return { ok: false as const, error: error.message };
+    return { ok: true as const };
+  } catch (e) {
+    return {
+      ok: false as const,
+      error: e instanceof Error ? e.message : 'Failed to mark read',
+    };
+  }
+}
+
+export async function countMyUnreadNotifications(): Promise<number> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return 0;
+    const { count, error } = await supabase
+      .from('app_notifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .is('read_at', null);
+    if (error) return 0;
+    return count ?? 0;
+  } catch {
+    return 0;
   }
 }

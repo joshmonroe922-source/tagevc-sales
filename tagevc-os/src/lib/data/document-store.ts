@@ -2,6 +2,14 @@ import { createHash, randomUUID } from 'crypto';
 import { logActivity } from '@/lib/data/activity';
 import { listActiveDeals } from '@/lib/data/deal-flow-store';
 import {
+  fetchAllDocuments,
+  syncDocuments,
+} from '@/lib/data/normalized/documents-repo';
+import {
+  preferNormalizedTables,
+  queueNormalizedSync,
+} from '@/lib/data/normalized/sync';
+import {
   isStoreHydrated,
   loadStoreSnapshot,
   markStoreHydrated,
@@ -190,6 +198,9 @@ export function getDocStore(): DocStore {
 
 function touchDocs() {
   queueStorePersist('documents', () => structuredClone(getDocStore()));
+  queueNormalizedSync('os_documents', async () => {
+    await syncDocuments(getDocStore().docs);
+  });
 }
 
 export async function hydrateDocStore() {
@@ -201,6 +212,15 @@ export async function hydrateDocStore() {
     const store = getDocStore();
     await saveStoreSnapshot('documents', store);
   }
+
+  const store = getDocStore();
+  const sqlDocs = await fetchAllDocuments();
+  if (sqlDocs && (sqlDocs.length > 0 || preferNormalizedTables())) {
+    if (sqlDocs.length > 0) store.docs = sqlDocs;
+  } else if (sqlDocs !== null && store.docs.length > 0) {
+    await syncDocuments(store.docs);
+  }
+
   markStoreHydrated('documents');
 }
 
