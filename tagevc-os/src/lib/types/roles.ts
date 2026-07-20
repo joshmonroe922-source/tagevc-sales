@@ -33,6 +33,7 @@ export const APP_ROLE_LABELS: Record<AppRole, string> = {
 /** Navigation module keys (Platform Spec M0–M8). */
 export const NAV_MODULES = [
   'command_center',
+  'messages',
   'deal_flow_vc',
   'deal_flow_ma',
   'deal_flow_re',
@@ -47,6 +48,8 @@ export type NavModule = (typeof NAV_MODULES)[number];
 
 export type Permission =
   | 'read:command_center'
+  | 'read:messages'
+  | 'write:messages'
   | 'read:vc_pipeline'
   | 'write:vc_pipeline'
   | 'read:ma_pipeline'
@@ -69,6 +72,7 @@ export type Permission =
 
 const ALL_READ: Permission[] = [
   'read:command_center',
+  'read:messages',
   'read:vc_pipeline',
   'read:ma_pipeline',
   'read:re_pipeline',
@@ -82,6 +86,7 @@ const ALL_READ: Permission[] = [
 export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
   visionary: [
     ...ALL_READ,
+    'write:messages',
     'write:vc_pipeline',
     'write:ma_pipeline',
     'write:re_pipeline',
@@ -97,6 +102,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
   ],
   partner: [
     ...ALL_READ,
+    'write:messages',
     'write:vc_pipeline',
     'write:ma_pipeline',
     'write:re_pipeline',
@@ -105,6 +111,8 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
   ],
   associate: [
     'read:command_center',
+    'read:messages',
+    'write:messages',
     'read:vc_pipeline',
     'write:vc_pipeline',
     'read:documents',
@@ -112,18 +120,24 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
   ],
   re_sourcer: [
     'read:command_center',
+    'read:messages',
+    'write:messages',
     'read:re_pipeline',
     'write:re_pipeline',
     'read:documents',
   ],
   ma_associate: [
     'read:command_center',
+    'read:messages',
+    'write:messages',
     'read:ma_pipeline',
     'write:ma_pipeline',
     'read:documents',
   ],
   coo: [
     'read:command_center',
+    'read:messages',
+    'write:messages',
     'read:portfolio',
     'write:portfolio_health',
     'read:shared_services',
@@ -133,18 +147,24 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
   ],
   sub_lead: [
     'read:command_center',
+    'read:messages',
+    'write:messages',
     'read:portfolio',
     'read:documents',
     'write:documents',
   ],
   service_lead: [
     'read:command_center',
+    'read:messages',
+    'write:messages',
     'read:shared_services',
     'write:shared_services',
     'read:documents',
   ],
   counsel_ops: [
     'read:command_center',
+    'read:messages',
+    'write:messages',
     'read:vc_pipeline',
     'read:ma_pipeline',
     'read:re_pipeline',
@@ -154,6 +174,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
   ],
   admin: [
     ...ALL_READ,
+    'write:messages',
     'write:vc_pipeline',
     'write:ma_pipeline',
     'write:re_pipeline',
@@ -173,6 +194,7 @@ export function roleHasPermission(role: AppRole, permission: Permission): boolea
 export function roleCanAccessModule(role: AppRole, module: NavModule): boolean {
   const map: Record<NavModule, Permission> = {
     command_center: 'read:command_center',
+    messages: 'read:messages',
     deal_flow_vc: 'read:vc_pipeline',
     deal_flow_ma: 'read:ma_pipeline',
     deal_flow_re: 'read:re_pipeline',

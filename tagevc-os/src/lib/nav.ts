@@ -15,6 +15,12 @@ export const MAIN_NAV: NavItem[] = [
     description: 'Firm funnel · capital · portfolio pulse',
   },
   {
+    module: 'messages',
+    href: '/messages',
+    label: 'Messages',
+    description: 'DMs · small groups',
+  },
+  {
     module: 'command_center',
     href: '/activity',
     label: 'Activity',

@@ -272,6 +272,38 @@ Run **`supabase/phase9_normalized.sql`** in the tagevc-os Supabase SQL editor. A
 - Per-user notification read/unread inbox UI
 - Real DocuSign Connect + storage · Sentry
 
+## Phase 10 scope (Internal Messaging Foundation)
+
+| Area | Status |
+|------|--------|
+| DM + small group chats | Done |
+| Realtime send/receive + history | Done |
+| Global Messages nav + unread badges | Done |
+| Presence (online/offline) | Done |
+| Schema stubs for entity linking + subsidiary scope | Done |
+| SQL | Apply `supabase/phase10_messaging.sql` |
+
+### Required ops step
+
+Run **`supabase/phase10_messaging.sql`** in the tagevc-os Supabase SQL editor, then open `/messages`.
+
+### Architecture (forward-looking)
+
+- `entity_id` on conversations → subsidiary-scoped messaging later
+- `linked_ref_type` / `linked_ref_id` → attach chats to leads, deals, entities, tasks
+- `parent_id` on messages → threading without shipping thread UI yet
+- `kind = channel` reserved; Phase 10 only uses `dm` and `group`
+
+Docs: `docs/OS_PHASE10.md`
+
+### Phase 11+ backlog (messaging)
+
+- Entity / deal / lead / task linked conversations
+- Subsidiary-scoped rooms
+- Channels, @mentions, attachments, rich text
+- Threading UI, search, push/email digests
+- Retention / moderation tools
+
 
 ## Run locally
 
@@ -305,4 +337,4 @@ Set `DEV_BYPASS_AUTH=1` in `.env.local` to preview the shell as Visionary (local
 
 ## Next phases (from Cursor Brief)
 
-Phase 9 lays normalized Leads/Tickets with dual-write. Remaining: Deals/IC/Docs/MA/RE cutover, Portfolio/Entity Master DB, DocuSign, observability.
+Phase 10 adds firm messaging (`/messages`). Remaining: entity-linked chats, channels, Deals/IC/Docs normalization, Portfolio/Entity Master DB, DocuSign, observability.

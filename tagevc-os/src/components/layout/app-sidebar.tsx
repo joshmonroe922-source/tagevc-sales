@@ -11,12 +11,14 @@ import {
   Landmark,
   LayoutDashboard,
   LogOut,
+  MessageSquare,
   Settings,
   Ticket,
   Warehouse,
 } from 'lucide-react';
 import { stopImpersonationAction } from '@/app/(app)/impersonation/actions';
 import { RoleSwitcher } from '@/components/layout/role-switcher';
+import { MessagesUnreadBadge } from '@/components/messaging/messages-unread-badge';
 import { createClient } from '@/lib/supabase/client';
 import { MAIN_NAV } from '@/lib/nav';
 import {
@@ -31,6 +33,7 @@ import { Badge } from '@/components/ui/badge';
 
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   command_center: Home,
+  messages: MessageSquare,
   deal_flow_vc: Briefcase,
   deal_flow_ma: Building2,
   deal_flow_re: Warehouse,
@@ -89,7 +92,9 @@ export function AppSidebar({
           const Icon =
             item.href === '/activity'
               ? History
-              : (ICONS[item.module] ?? Home);
+              : item.href === '/messages'
+                ? MessageSquare
+                : (ICONS[item.module] ?? Home);
           const active =
             item.href === '/deal-flow'
               ? pathname === '/deal-flow'
@@ -111,8 +116,11 @@ export function AppSidebar({
               )}
             >
               <Icon className="mt-0.5 size-4 shrink-0" />
-              <span className="min-w-0">
-                <span className="block font-medium">{item.label}</span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-2">
+                  <span className="block font-medium">{item.label}</span>
+                  {item.href === '/messages' ? <MessagesUnreadBadge /> : null}
+                </span>
                 {item.description ? (
                   <span className="mt-0.5 block text-xs opacity-70">
                     {item.description}
