@@ -5,6 +5,7 @@ import { recordSoakRun } from '@/lib/data/soak-state';
 import { captureException, captureMessage } from '@/lib/observability';
 import { guardPermission } from '@/lib/rbac/session';
 import { createPersistClient } from '@/lib/supabase/persist-client';
+import { persistSnapshotDrillEvidence } from '@/lib/data/snapshot-drill-evidence';
 
 async function authorize(request: Request): Promise<
   | { ok: true; source: 'cron' | 'admin' }
@@ -42,15 +43,37 @@ async function persistSoakEvidence(input: {
   drillSummary: string;
   source: 'cron' | 'admin';
   observedAt: string;
+  drillRunId: string | null;
+  configFingerprint: string | null;
+  evidenceSha256: string | null;
 }): Promise<{ error?: string; epochStatus?: string }> {
   const persist = await createPersistClient();
   const retiredTable =
     process.env.SNAPSHOT_RETIRED_TABLE_NAME?.trim() || null;
   let epochId: string | null = null;
-  let continuityStatus = retiredTable ? 'not_started' : 'pre_rename';
+  let continuityStatus =
+    input.source === 'admin'
+      ? 'manual_nonqualifying'
+      : retiredTable
+        ? 'not_started'
+        : 'pre_rename';
   let streakCount = 0;
   let streakStartedAt: string | null = null;
-  if (retiredTable) {
+  const bucket = new Date(input.observedAt);
+  bucket.setUTCMinutes(0, 0, 0);
+  bucket.setUTCHours(Math.floor(bucket.getUTCHours() / 6) * 6);
+  const observationKey = `${input.source}:${retiredTable ?? 'live'}:${bucket.toISOString()}`;
+  const { data: existingObservation } = await persist
+    .from('os_snapshot_soak_observations')
+    .select('continuity_status')
+    .eq('observation_key', observationKey)
+    .maybeSingle();
+  if (existingObservation) {
+    return {
+      epochStatus: `${String(existingObservation.continuity_status)}:duplicate_bucket`,
+    };
+  }
+  if (retiredTable && input.source === 'cron') {
     const { data: events } = await persist
       .from('os_snapshot_retirement_events')
       .select('event_id, stage, retired_table_name, occurred_at')
@@ -81,8 +104,24 @@ async function persistSoakEvidence(input: {
           streak_started_at: string | null;
           last_observed_at: string | null;
           healthy_count: number;
+          config_fingerprint: string | null;
         }
       | undefined;
+    if (
+      epoch &&
+      epoch.config_fingerprint &&
+      epoch.config_fingerprint !== input.configFingerprint
+    ) {
+      await persist
+        .from('os_snapshot_soak_epochs')
+        .update({
+          status: 'broken',
+          reset_reason: 'Stage 4e configuration fingerprint changed',
+          updated_at: input.observedAt,
+        })
+        .eq('epoch_id', epoch.epoch_id);
+      epoch = undefined;
+    }
     if (latestEvent?.stage === 'rollback') {
       if (epoch) {
         await persist
@@ -96,7 +135,9 @@ async function persistSoakEvidence(input: {
       }
       epoch = undefined;
       continuityStatus = 'rolled_back';
-    } else if (input.healthy) {
+    } else if (latestEvent?.stage !== 'rename_verified') {
+      continuityStatus = 'awaiting_rename_verification';
+    } else if (input.healthy && input.drillRunId) {
       const gapHours = epoch?.last_observed_at
         ? (Date.parse(input.observedAt) -
             Date.parse(epoch.last_observed_at)) /
@@ -123,6 +164,8 @@ async function persistSoakEvidence(input: {
             streak_started_at: input.observedAt,
             last_observed_at: input.observedAt,
             healthy_count: 1,
+            config_fingerprint: input.configFingerprint,
+            latest_drill_run_id: input.drillRunId,
           })
           .select('*')
           .single();
@@ -145,6 +188,7 @@ async function persistSoakEvidence(input: {
             healthy_count: nextCount,
             qualified_at: qualified ? input.observedAt : null,
             reset_reason: null,
+            latest_drill_run_id: input.drillRunId,
             updated_at: input.observedAt,
           })
           .eq('epoch_id', epoch.epoch_id);
@@ -190,7 +234,18 @@ async function persistSoakEvidence(input: {
     continuity_status: continuityStatus,
     healthy_streak_count: streakCount,
     healthy_streak_started_at: streakStartedAt,
+    observation_key: observationKey,
+    observation_bucket: bucket.toISOString(),
+    qualification_eligible:
+      input.source === 'cron' && input.healthy && Boolean(input.drillRunId),
+    drill_run_id: input.drillRunId,
+    config_fingerprint: input.configFingerprint,
+    code_revision: process.env.VERCEL_GIT_COMMIT_SHA?.trim() || 'local',
+    evidence_sha256: input.evidenceSha256,
   });
+  if (error?.code === '23505') {
+    return { epochStatus: `${continuityStatus}:duplicate_bucket` };
+  }
   return error
     ? { error: error.message }
     : { epochStatus: continuityStatus };
@@ -227,6 +282,14 @@ async function runSoak(request: Request) {
 
     let healthy = issues.length === 0;
     const fetched_at = new Date().toISOString();
+    const drillEvidence = await persistSnapshotDrillEvidence({
+      report: drills,
+      source: auth.source,
+    });
+    if (!drillEvidence.ok) {
+      issues.push(`drill_evidence=${drillEvidence.error}`);
+      healthy = false;
+    }
     recordSoakRun({
       fetched_at,
       healthy,
@@ -248,6 +311,13 @@ async function runSoak(request: Request) {
       drillSummary: drills.summary,
       source: auth.source,
       observedAt: fetched_at,
+      drillRunId: drillEvidence.ok ? drillEvidence.drill_run_id : null,
+      configFingerprint: drillEvidence.ok
+        ? drillEvidence.config_fingerprint
+        : null,
+      evidenceSha256: drillEvidence.ok
+        ? drillEvidence.evidence_sha256
+        : null,
     });
     const observationError = soakEvidence.error
       ? { message: soakEvidence.error }

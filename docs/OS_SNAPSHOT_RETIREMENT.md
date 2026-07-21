@@ -62,6 +62,21 @@ Unset cutover env vars and redeploy. Snapshot upserts resume. Restore from archi
 
 The Phase 33 application and guide contain no rename or DROP execution path.
 
+## Phase 34 evidence controls
+
+1. Apply `phase34_intune_drill_governance.sql`.
+2. Cron and operator drills persist a run, every domain/check result, deployment
+   revision, configuration fingerprint, and SHA-256 evidence hash.
+3. Only healthy cron observations in distinct six-hour buckets can advance an
+   epoch. Manual observations remain visible but are non-qualifying.
+4. Duplicate cron delivery is idempotent. A configuration fingerprint change,
+   unhealthy check, excessive gap, or rollback breaks continuity.
+5. An epoch cannot start until the latest matching durable event is
+   `rename_verified` and the structured drill passed.
+6. Review `phase34_stage4e_drill_governance.sql` for read-only evidence queries.
+
+Phase 34 adds no application relation-rename or destructive execution path.
+
 ## Exit criteria before drop
 
 - [x] Soft-archive completed for cut-over collections (Phase 16)  

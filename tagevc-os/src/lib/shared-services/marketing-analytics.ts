@@ -67,6 +67,16 @@ export type MarketingAnalyticsSummary = {
   paid_ctr: number | null;
   paid_currencies: string[];
   paid_currency_mixed: boolean;
+  paid_reporting_days: 7 | 30 | 90;
+  paid_data_through: string | null;
+  paid_typed: boolean;
+  paid_daily_trend: Array<{
+    day: string;
+    spend: number;
+    impressions: number;
+    clicks: number;
+    conversions: number;
+  }>;
   paid_campaigns: Array<{
     campaign_id: string;
     campaign_name: string | null;
@@ -188,6 +198,8 @@ export async function recordEngagement(input: {
 
 export async function getMarketingAnalyticsSummary(opts?: {
   limit?: number;
+  paidDays?: 7 | 30 | 90;
+  entityId?: string | null;
 }): Promise<{ summary: MarketingAnalyticsSummary; error?: string }> {
   const empty: MarketingAnalyticsSummary = {
     posts_succeeded: 0,
@@ -214,6 +226,10 @@ export async function getMarketingAnalyticsSummary(opts?: {
     paid_ctr: null,
     paid_currencies: [],
     paid_currency_mixed: false,
+    paid_reporting_days: opts?.paidDays ?? 30,
+    paid_data_through: null,
+    paid_typed: false,
+    paid_daily_trend: [],
     paid_campaigns: [],
   };
 
@@ -310,6 +326,7 @@ export async function getMarketingAnalyticsSummary(opts?: {
                 : null,
           });
         }
+        if (paid) continue;
         summary.engagement_impressions += impressions;
         summary.engagement_clicks += clicks;
         summary.engagement_likes += likes;
@@ -374,6 +391,148 @@ export async function getMarketingAnalyticsSummary(opts?: {
     if (summary.paid_currency_mixed) {
       summary.paid_roi = null;
       summary.paid_roas = null;
+    }
+
+    const paidDays = opts?.paidDays ?? 30;
+    const paidStart = new Date();
+    paidStart.setUTCDate(paidStart.getUTCDate() - paidDays);
+    let paidQuery = sb
+      .from('os_marketing_paid_metrics_daily')
+      .select(
+        'campaign_id, entity_id, provider, currency, metric_date, impressions, clicks, spend, conversions',
+      )
+      .gte('metric_date', paidStart.toISOString().slice(0, 10))
+      .order('metric_date', { ascending: true });
+    if (opts?.entityId) paidQuery = paidQuery.eq('entity_id', opts.entityId);
+    const { data: typedPaidRows } = await paidQuery;
+    if (typedPaidRows && typedPaidRows.length > 0) {
+      summary.paid_typed = true;
+      summary.paid_reporting_days = paidDays;
+      summary.paid_campaigns = [];
+      summary.paid_spend_k = 0;
+      summary.paid_revenue_k = 0;
+      summary.paid_roi = null;
+      summary.paid_roas = null;
+      const currencies = new Set<string>();
+      const campaignBuckets = new Map<
+        string,
+        {
+          campaign_id: string;
+          campaign_name: string | null;
+          entity_id: string | null;
+          platform: string;
+          currency: string;
+          impressions: number;
+          clicks: number;
+          conversions: number;
+          spend_k: number;
+          revenue_k: number;
+          roi: null;
+          roas: null;
+          cpc: number | null;
+          cpm: number | null;
+          cpa: number | null;
+          budget_utilization: null;
+          reporting_start: string | null;
+          reporting_end: string | null;
+        }
+      >();
+      const trend = new Map<
+        string,
+        {
+          day: string;
+          spend: number;
+          impressions: number;
+          clicks: number;
+          conversions: number;
+        }
+      >();
+      for (const row of typedPaidRows) {
+        const day = String(row.metric_date);
+        const spend = Number(row.spend ?? 0);
+        const impressions = Number(row.impressions ?? 0);
+        const clicks = Number(row.clicks ?? 0);
+        const conversions = Number(row.conversions ?? 0);
+        const currency = String(row.currency ?? 'USD');
+        const campaignId = String(row.campaign_id);
+        currencies.add(currency);
+        summary.paid_spend_k += spend / 1000;
+        summary.paid_data_through =
+          !summary.paid_data_through || day > summary.paid_data_through
+            ? day
+            : summary.paid_data_through;
+        const daily = trend.get(day) ?? {
+          day,
+          spend: 0,
+          impressions: 0,
+          clicks: 0,
+          conversions: 0,
+        };
+        daily.spend += spend;
+        daily.impressions += impressions;
+        daily.clicks += clicks;
+        daily.conversions += conversions;
+        trend.set(day, daily);
+        const bucket = campaignBuckets.get(campaignId) ?? {
+          campaign_id: campaignId,
+          campaign_name: null,
+          entity_id: (row.entity_id as string) ?? null,
+          platform: String(row.provider),
+          currency,
+          impressions: 0,
+          clicks: 0,
+          conversions: 0,
+          spend_k: 0,
+          revenue_k: 0,
+          roi: null,
+          roas: null,
+          cpc: null,
+          cpm: null,
+          cpa: null,
+          budget_utilization: null,
+          reporting_start: day,
+          reporting_end: day,
+        };
+        bucket.impressions += impressions;
+        bucket.clicks += clicks;
+        bucket.conversions += conversions;
+        bucket.spend_k += spend / 1000;
+        bucket.reporting_start =
+          !bucket.reporting_start || day < bucket.reporting_start
+            ? day
+            : bucket.reporting_start;
+        bucket.reporting_end =
+          !bucket.reporting_end || day > bucket.reporting_end
+            ? day
+            : bucket.reporting_end;
+        campaignBuckets.set(campaignId, bucket);
+      }
+      summary.paid_daily_trend = [...trend.values()];
+      summary.paid_campaigns = [...campaignBuckets.values()].map((bucket) => ({
+        ...bucket,
+        cpc:
+          bucket.clicks > 0 ? (bucket.spend_k * 1000) / bucket.clicks : null,
+        cpm:
+          bucket.impressions > 0
+            ? ((bucket.spend_k * 1000) / bucket.impressions) * 1000
+            : null,
+        cpa:
+          bucket.conversions > 0
+            ? (bucket.spend_k * 1000) / bucket.conversions
+            : null,
+      }));
+      summary.paid_currencies = [...currencies].sort();
+      summary.paid_currency_mixed = currencies.size > 1;
+      const typedImpressions = summary.paid_campaigns.reduce(
+        (total, campaign) => total + campaign.impressions,
+        0,
+      );
+      const typedClicks = summary.paid_campaigns.reduce(
+        (total, campaign) => total + campaign.clicks,
+        0,
+      );
+      summary.paid_ctr =
+        typedImpressions > 0 ? typedClicks / typedImpressions : null;
     }
 
     if (summary.paid_campaigns.length > 0) {

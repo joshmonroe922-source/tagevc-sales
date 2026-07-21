@@ -140,6 +140,58 @@ export function MarketingClient({
     });
   }
 
+  async function discoverAdAccount(accountId: string) {
+    setFlash(null);
+    setErr(null);
+    const res = await fetch(
+      `/api/marketing/ad-accounts?account_id=${encodeURIComponent(accountId)}`,
+    );
+    const json = (await res.json()) as {
+      error?: string;
+      accounts?: Array<{
+        externalAccountId: string;
+        name: string;
+        currency: string | null;
+        role: string | null;
+      }>;
+    };
+    if (!res.ok || !json.accounts) {
+      setErr(json.error || 'Provider account discovery failed');
+      return;
+    }
+    const listing = json.accounts
+      .map(
+        (account) =>
+          `${account.externalAccountId} — ${account.name}${
+            account.currency ? ` (${account.currency})` : ''
+          }`,
+      )
+      .join('\n');
+    const selectedId = window.prompt(
+      `Select a discovered provider account by ID:\n\n${listing}`,
+      json.accounts[0]?.externalAccountId ?? '',
+    );
+    if (!selectedId) return;
+    const selectRes = await fetch('/api/marketing/ad-accounts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        account_id: accountId,
+        external_account_id: selectedId.trim(),
+      }),
+    });
+    const selected = (await selectRes.json()) as {
+      error?: string;
+      selected?: { name?: string };
+    };
+    if (!selectRes.ok) {
+      setErr(selected.error || 'Provider account selection failed');
+      return;
+    }
+    setFlash(`Connected ${selected.selected?.name ?? selectedId}`);
+    window.location.reload();
+  }
+
   async function uploadTikTokVideo(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -383,6 +435,46 @@ export function MarketingClient({
             </p>
           </div>
         </div>
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+          <span>
+            {analytics.paid_typed ? 'Typed daily metrics' : 'Legacy snapshots'} ·{' '}
+            data through {analytics.paid_data_through ?? 'pending'}
+          </span>
+          <span className="flex gap-2">
+            {[7, 30, 90].map((days) => (
+              <a
+                key={days}
+                href={`/shared-services/marketing?paid_days=${days}`}
+                className={
+                  analytics.paid_reporting_days === days
+                    ? 'font-semibold text-foreground'
+                    : 'hover:text-foreground'
+                }
+              >
+                {days}d
+              </a>
+            ))}
+          </span>
+        </div>
+        {analytics.paid_daily_trend.length > 0 ? (
+          <div className="overflow-x-auto">
+            <p className="mb-1 text-xs font-medium text-muted-foreground">
+              Daily performance
+            </p>
+            <div className="flex min-w-max gap-2">
+              {analytics.paid_daily_trend.slice(-14).map((day) => (
+                <div
+                  className="min-w-24 rounded border px-2 py-1 text-xs"
+                  key={day.day}
+                >
+                  <p className="font-medium">{day.day.slice(5)}</p>
+                  <p>${day.spend.toFixed(2)} spend</p>
+                  <p>{day.clicks} clicks</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
         {analytics.paid_campaigns.length > 0 ? (
           <div className="overflow-x-auto">
             <p className="mb-1 text-xs font-medium text-muted-foreground">
@@ -552,6 +644,16 @@ export function MarketingClient({
               </div>
             </div>
             <div className="space-y-1">
+              <Label htmlFor="camp_conversion">
+                Provider conversion metric (optional)
+              </Label>
+              <Input
+                id="camp_conversion"
+                name="conversion_metric"
+                placeholder="Meta action type, e.g. lead"
+              />
+            </div>
+            <div className="space-y-1">
               <Label htmlFor="camp_ad">Ad platform</Label>
               <select id="camp_ad" name="ad_platform" className={field} defaultValue="">
                 <option value="">Organic / none</option>
@@ -705,7 +807,7 @@ export function MarketingClient({
             </div>
             <div className="space-y-1">
               <Label htmlFor="ac_external">
-                Provider account ID (required for paid ads)
+                Provider account ID (optional; discovery follows OAuth)
               </Label>
               <Input
                 id="ac_external"
@@ -1167,6 +1269,9 @@ export function MarketingClient({
                 {a.entity_id ? ` · ${a.entity_id}` : ' · firm'}
                 {a.external_account_id ? ` · ${a.external_account_id}` : ''}
                 {a.currency ? ` · ${a.currency}` : ''}
+                {a.account_type === 'paid_ads'
+                  ? ` · scopes ${a.scope_status}`
+                  : ''}
                 {canWrite &&
                   a.status !== 'connected' &&
                   OAUTH_SET.has(a.platform) && (
@@ -1177,7 +1282,19 @@ export function MarketingClient({
                       Connect
                     </a>
                   )}
-                {canWrite && a.status !== 'connected' && (
+                {canWrite && a.account_type === 'paid_ads' && (
+                  <button
+                    type="button"
+                    className="ml-2 text-xs font-medium underline-offset-4 hover:underline"
+                    disabled={pending}
+                    onClick={() => discoverAdAccount(a.account_id)}
+                  >
+                    Discover / select
+                  </button>
+                )}
+                {canWrite &&
+                  a.account_type === 'publisher' &&
+                  a.status !== 'connected' && (
                   <button
                     type="button"
                     className="ml-2 text-xs font-medium underline-offset-4 hover:underline"

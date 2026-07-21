@@ -90,6 +90,7 @@ export type MarketingCampaign = {
   ad_platform: string | null;
   external_campaign_id: string | null;
   ad_account_id: string | null;
+  conversion_metric: string | null;
   starts_at: string | null;
   ends_at: string | null;
   notes: string | null;
@@ -134,6 +135,9 @@ export type MarketingSocialAccount = {
   timezone: string | null;
   capabilities: Record<string, unknown>;
   verified_at: string | null;
+  scope_status: 'unknown' | 'healthy' | 'missing' | 'error';
+  scope_checked_at: string | null;
+  scope_error: string | null;
   last_synced_at: string | null;
   notes: string | null;
   created_at: string;

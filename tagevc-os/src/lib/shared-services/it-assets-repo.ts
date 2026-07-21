@@ -746,3 +746,60 @@ export async function commitWarrantyImport(input: {
     };
   }
 }
+
+export type ItIntuneAction = {
+  action_id: string;
+  run_id: string | null;
+  managed_device_id: string;
+  user_id: string | null;
+  entity_id: string | null;
+  status: string;
+  requested_at: string;
+  approved_at: string | null;
+  submitted_at: string | null;
+  verified_at: string | null;
+  graph_request_id: string | null;
+  attempt_count: number;
+  poll_count: number;
+  provider_state: string | null;
+  verification_code: string | null;
+  last_error: string | null;
+  request_metadata: Record<string, unknown>;
+  verification_evidence: Record<string, unknown>;
+};
+
+export async function listIntuneActions(
+  limit = 50,
+): Promise<{ rows: ItIntuneAction[]; error?: string }> {
+  try {
+    const sb = await createPersistClient();
+    const { data, error } = await sb
+      .from('os_it_intune_actions')
+      .select(
+        'action_id, run_id, managed_device_id, user_id, entity_id, status, requested_at, approved_at, submitted_at, verified_at, graph_request_id, attempt_count, poll_count, provider_state, verification_code, last_error, request_metadata, verification_evidence',
+      )
+      .order('requested_at', { ascending: false })
+      .limit(limit);
+    if (error) return { rows: [], error: error.message };
+    return { rows: (data ?? []) as ItIntuneAction[] };
+  } catch (error) {
+    return {
+      rows: [],
+      error: error instanceof Error ? error.message : 'Intune list failed',
+    };
+  }
+}
+
+export async function approveIntuneAction(input: {
+  action_id: string;
+  actor_id: string;
+  reason: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const sb = await createPersistClient();
+  const { error } = await sb.rpc('approve_it_intune_action', {
+    p_action_id: input.action_id,
+    p_actor_id: input.actor_id,
+    p_reason: input.reason,
+  });
+  return error ? { ok: false, error: error.message } : { ok: true };
+}

@@ -35,6 +35,14 @@
     {
       "path": "/api/docusign/reminder-worker",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/docusign/reconciliation-worker",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/it/intune-action-worker",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

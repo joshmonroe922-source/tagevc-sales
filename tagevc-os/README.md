@@ -607,12 +607,25 @@ Docs: `docs/OS_PHASE32.md`
 
 Docs: `docs/OS_PHASE33.md`
 
-### Phase 34+ backlog
+### Phase 34 scope (typed metrics · reconciliation · approved automation)
 
-- Provider account discovery and typed daily paid metrics
-- Intune polling/approval UI and asset correlation
-- DocuSign replacement reconciliation
-- Stage 4e soak/rollback drills; no app DROP
+- Provider-backed Meta/LinkedIn ad-account discovery and explicit selection
+- Typed daily paid metrics with entity-safe 7/30/90-day reporting
+- Observe-only DocuSign envelope/document/event/lineage reconciliation
+- Explicit Intune retirement approval and leased submit/poll worker
+- Structured, hashed Stage 4e drill runs and non-qualifying manual observations
+- SQL: apply `phase34_marketing_analytics.sql`,
+  `phase34_docusign_reconciliation.sql`, and
+  `phase34_intune_drill_governance.sql`
+
+Docs: `docs/OS_PHASE34.md`
+
+### Phase 35+ backlog
+
+- Paid-account scheduled backfill and provider fixture contract tests
+- DocuSign projection-backed send finalization and idempotent signed archives
+- Intune cancel/retry controls and explicit local-asset correlation
+- Two-actor offline rollback rehearsal attestations; no app rename/DROP
 - Push · user admin
 
 ## Run locally

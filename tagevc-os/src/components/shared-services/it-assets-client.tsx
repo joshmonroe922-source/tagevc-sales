@@ -21,6 +21,8 @@ import {
   scanLicenseRenewalsAction,
   bulkUpdateWarrantyAction,
   commitWarrantyImportAction,
+  approveIntuneActionAction,
+  runIntuneWorkerAction,
   type ItAssetActionResult,
 } from '@/app/(app)/shared-services/it/assets/actions';
 import { Button } from '@/components/ui/button';
@@ -33,7 +35,10 @@ import type {
   ItHardwareAsset,
   ItSoftwareLicense,
 } from '@/lib/shared-services/it-assets-types';
-import type { ItLifecycleEvent } from '@/lib/shared-services/it-assets-repo';
+import type {
+  ItIntuneAction,
+  ItLifecycleEvent,
+} from '@/lib/shared-services/it-assets-repo';
 
 function ActionMessage({ state }: { state: ItAssetActionResult | null }) {
   if (!state) return null;
@@ -73,6 +78,7 @@ export function ItAssetsClient({
   onboarding = [],
   candidateTickets,
   onboardingTickets = [],
+  intuneActions = [],
   canWrite,
   tableError,
 }: {
@@ -94,6 +100,7 @@ export function ItAssetsClient({
     service: string;
     status: string;
   }>;
+  intuneActions?: ItIntuneAction[];
   canWrite: boolean;
   tableError?: string;
 }) {
@@ -293,6 +300,90 @@ export function ItAssetsClient({
           <ActionMessage state={warrantyCommitState} />
         </form>
       )}
+
+      <section className="space-y-3 rounded-lg border p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="text-base font-semibold">Intune action queue</h2>
+            <p className="text-xs text-muted-foreground">
+              Inventory creates requested intents. Retirement requires explicit
+              approval, leased worker submission, and provider verification.
+            </p>
+          </div>
+          {canWrite ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={pending}
+              onClick={() => run(() => runIntuneWorkerAction())}
+            >
+              Run Intune worker
+            </Button>
+          ) : null}
+        </div>
+        {intuneActions.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No Intune actions.</p>
+        ) : (
+          <div className="space-y-2 text-xs">
+            {intuneActions.map((action) => {
+              const metadata = action.request_metadata;
+              return (
+                <div
+                  className="rounded border p-2"
+                  key={action.action_id}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span>
+                      <strong>{String(metadata.device_name ?? action.managed_device_id)}</strong>{' '}
+                      · {action.status} · {action.entity_id ?? 'firm'}
+                    </span>
+                    {canWrite && action.status === 'requested' ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={pending}
+                        onClick={() => {
+                          const confirmation = window.prompt(
+                            'Type RETIRE to confirm this irreversible Intune action:',
+                          );
+                          if (confirmation !== 'RETIRE') return;
+                          const reason = window.prompt(
+                            'Approval reason (required):',
+                          );
+                          if (!reason?.trim()) return;
+                          run(() =>
+                            approveIntuneActionAction(
+                              action.action_id,
+                              reason.trim(),
+                            ),
+                          );
+                        }}
+                      >
+                        Approve retire
+                      </Button>
+                    ) : null}
+                  </div>
+                  <p className="text-muted-foreground">
+                    device {action.managed_device_id} · serial{' '}
+                    {String(metadata.serial_number ?? 'unknown')} · attempts{' '}
+                    {action.attempt_count} · polls {action.poll_count}
+                  </p>
+                  <p className="text-muted-foreground">
+                    Graph {action.graph_request_id ?? 'not submitted'} · provider{' '}
+                    {action.provider_state ?? 'pending'} · verification{' '}
+                    {action.verification_code ?? 'pending'}
+                  </p>
+                  {action.last_error ? (
+                    <p className="text-destructive">{action.last_error}</p>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
       <section className="space-y-3">
         <h2 className="text-base font-semibold">Hardware</h2>

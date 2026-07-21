@@ -50,6 +50,7 @@ export async function createCampaignAction(
       ad_platform: z.enum(['linkedin_ads', 'meta_ads']).optional(),
       external_campaign_id: z.string().optional(),
       ad_account_id: z.string().optional(),
+      conversion_metric: z.string().max(120).optional(),
     })
     .safeParse({
       name: formData.get('name'),
@@ -63,6 +64,7 @@ export async function createCampaignAction(
       ad_platform: formData.get('ad_platform') || undefined,
       external_campaign_id: formData.get('external_campaign_id') || undefined,
       ad_account_id: formData.get('ad_account_id') || undefined,
+      conversion_metric: formData.get('conversion_metric') || undefined,
     });
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid' };
@@ -139,6 +141,7 @@ export async function createCampaignAction(
     ad_platform: parsed.data.ad_platform || null,
     external_campaign_id: parsed.data.external_campaign_id || null,
     ad_account_id: parsed.data.ad_account_id || null,
+    conversion_metric: parsed.data.conversion_metric || null,
   });
   if (!res.ok) return res;
   revalidateMarketing();
@@ -247,13 +250,12 @@ export async function registerAccountAction(
   }
   if (
     parsed.data.account_type === 'paid_ads' &&
-    (!parsed.data.external_account_id?.trim() ||
-      !['linkedin', 'facebook'].includes(parsed.data.platform))
+    !['linkedin', 'facebook'].includes(parsed.data.platform)
   ) {
     return {
       ok: false,
       error:
-        'Paid ad connections require LinkedIn or Facebook and an external ad account ID',
+        'Paid ad connections currently require LinkedIn or Facebook',
     };
   }
   if (

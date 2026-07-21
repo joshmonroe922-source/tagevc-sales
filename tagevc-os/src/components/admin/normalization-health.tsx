@@ -200,7 +200,7 @@ export function NormalizationHealthPanel({
                 Verified soft rename and soak gates are complete. The app has no
                 destructive execution path. Offline rename/rollback guidance:{' '}
                 <code className="text-[10px]">
-                  phase33_stage4e_soft_rename.sql
+                  phase34_stage4e_drill_governance.sql
                 </code>
                 .
               </div>
@@ -247,6 +247,23 @@ export function NormalizationHealthPanel({
                     Reset: {status.soak_epoch.reset_reason}
                   </p>
                 ) : null}
+              </div>
+            ) : null}
+            {status.latest_drill_evidence ? (
+              <div className="mt-3 rounded-md border border-border/60 p-3 text-xs">
+                <p className="font-medium">
+                  Structured drill: {status.latest_drill_evidence.status}
+                </p>
+                <p className="text-muted-foreground">
+                  {status.latest_drill_evidence.trigger_source} · run{' '}
+                  {status.latest_drill_evidence.drill_run_id} · revision{' '}
+                  {status.latest_drill_evidence.code_revision ?? 'unknown'}
+                </p>
+                <p className="break-all font-mono text-[10px] text-muted-foreground">
+                  config {status.latest_drill_evidence.config_fingerprint} ·
+                  evidence{' '}
+                  {status.latest_drill_evidence.evidence_sha256 ?? 'pending'}
+                </p>
               </div>
             ) : null}
             {status.retirement_timeline.length > 0 ? (

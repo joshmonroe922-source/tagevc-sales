@@ -58,6 +58,7 @@ function mapCampaign(row: Record<string, unknown>): MarketingCampaign {
     ad_platform: (row.ad_platform as string) ?? null,
     external_campaign_id: (row.external_campaign_id as string) ?? null,
     ad_account_id: (row.ad_account_id as string) ?? null,
+    conversion_metric: (row.conversion_metric as string) ?? null,
     starts_at: (row.starts_at as string) ?? null,
     ends_at: (row.ends_at as string) ?? null,
     notes: (row.notes as string) ?? null,
@@ -105,6 +106,14 @@ function mapAccount(row: Record<string, unknown>): MarketingSocialAccount {
     capabilities:
       (row.capabilities as Record<string, unknown>) ?? {},
     verified_at: (row.verified_at as string) ?? null,
+    scope_status:
+      row.scope_status === 'healthy' ||
+      row.scope_status === 'missing' ||
+      row.scope_status === 'error'
+        ? row.scope_status
+        : 'unknown',
+    scope_checked_at: (row.scope_checked_at as string) ?? null,
+    scope_error: (row.scope_error as string) ?? null,
     last_synced_at: (row.last_synced_at as string) ?? null,
     notes: (row.notes as string) ?? null,
     created_at: String(row.created_at),
@@ -257,6 +266,7 @@ export async function createCampaign(input: {
   ad_platform?: string | null;
   external_campaign_id?: string | null;
   ad_account_id?: string | null;
+  conversion_metric?: string | null;
 }): Promise<{ ok: true; campaign: MarketingCampaign } | { ok: false; error: string }> {
   try {
     const sb = await createPersistClient();
@@ -277,6 +287,7 @@ export async function createCampaign(input: {
         ad_platform: input.ad_platform || null,
         external_campaign_id: input.external_campaign_id || null,
         ad_account_id: input.ad_account_id || null,
+        conversion_metric: input.conversion_metric || null,
         notes: input.notes || null,
         updated_at: now,
       })
@@ -647,6 +658,6 @@ export function getMarketingFoundationStatus() {
       process.env.MARKETING_PAID_ADS_LIVE === '1' ||
       process.env.MARKETING_PAID_ADS_LIVE === 'true',
     tiktok_publish: true,
-    phase: 33,
+    phase: 34,
   };
 }

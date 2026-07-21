@@ -85,6 +85,16 @@ export type NormalizationStatus = {
     max_gap_hours: number;
     reset_reason: string | null;
   } | null;
+  latest_drill_evidence: {
+    drill_run_id: string;
+    status: string;
+    trigger_source: string;
+    config_fingerprint: string;
+    code_revision: string | null;
+    evidence_sha256: string | null;
+    completed_at: string | null;
+    summary: Record<string, unknown>;
+  } | null;
   retirement_timeline: Array<{
     stage: string;
     retired_table_name: string | null;
@@ -182,6 +192,13 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
       'observed_at, healthy, issues, stage, sync_failure_count, fk_orphan_total, stage4_ready, drill_summary, source',
     )
     .order('observed_at', { ascending: false })
+    .limit(1);
+  const { data: drillEvidenceRows } = await supabase
+    .from('os_snapshot_drill_runs')
+    .select(
+      'drill_run_id, status, trigger_source, config_fingerprint, code_revision, evidence_sha256, completed_at, summary',
+    )
+    .order('started_at', { ascending: false })
     .limit(1);
 
   const domains: StoreCollection[] = [
@@ -375,6 +392,10 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
     stage4_ready: drills.stage4_ready,
     last_soak: lastSoak,
     soak_epoch: soakEpoch,
+    latest_drill_evidence:
+      (drillEvidenceRows?.[0] as
+        | NormalizationStatus['latest_drill_evidence']
+        | undefined) ?? null,
     retirement_timeline: (retirementEvents ?? []).map((event) => ({
       stage: String(event.stage),
       retired_table_name: (event.retired_table_name as string) ?? null,
@@ -398,7 +419,7 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
             : stage === 'read_cutover'
               ? 'Enable WRITE_CUTOVER_MATURE=1 when handoffs/audits tables are ready'
               : stage === 'sql_only_hydrate'
-                ? 'Stage 4b active — governed soft rename path; DROP still deferred (Phase 33)'
+                ? 'Stage 4b active — governed soft rename path; DROP still deferred (Phase 34)'
                 : stage === 'stage4_ready'
                   ? 'Drills passed — SQL-only hydrate follows write cutover automatically; see OS_SNAPSHOT_STAGE4.md'
                   : fkOrphanTotal > 0

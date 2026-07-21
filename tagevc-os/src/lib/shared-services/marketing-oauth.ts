@@ -21,6 +21,13 @@ export const OAUTH_PLATFORMS = [
 ] as const;
 export type OAuthPlatform = (typeof OAUTH_PLATFORMS)[number];
 export type MarketingConnectionPurpose = 'publisher' | 'paid_ads';
+export type DiscoveredAdAccount = {
+  externalAccountId: string;
+  name: string;
+  currency: string | null;
+  timezone: string | null;
+  role: string | null;
+};
 
 export function isOAuthPlatform(p: string): p is OAuthPlatform {
   return (OAUTH_PLATFORMS as readonly string[]).includes(p);
@@ -383,6 +390,7 @@ export async function persistOAuthTokens(input: {
   currency?: string | null;
   timezone?: string | null;
   capabilities?: Record<string, unknown>;
+  markConnected?: boolean;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const accessCipher = encryptSecret(input.accessToken);
   if (!accessCipher) {
@@ -417,12 +425,12 @@ export async function persistOAuthTokens(input: {
     await sb
       .from('os_marketing_social_accounts')
       .update({
-        status: 'connected',
+        status: input.markConnected === false ? 'pending' : 'connected',
         external_account_id: input.externalAccountId ?? undefined,
         currency: input.currency ?? null,
         timezone: input.timezone ?? null,
         capabilities: input.capabilities ?? {},
-        verified_at: now,
+        verified_at: input.markConnected === false ? null : now,
         updated_at: now,
         last_synced_at: now,
       })
@@ -431,6 +439,126 @@ export async function persistOAuthTokens(input: {
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'persist failed' };
+  }
+}
+
+export async function discoverPaidAdAccounts(input: {
+  platform: OAuthPlatform;
+  accessToken: string;
+}): Promise<
+  { ok: true; accounts: DiscoveredAdAccount[] } | { ok: false; error: string }
+> {
+  try {
+    if (input.platform === 'facebook') {
+      const version = process.env.META_API_VERSION?.trim() || 'v25.0';
+      const accounts: DiscoveredAdAccount[] = [];
+      let after: string | null = null;
+      for (let page = 0; page < 5; page += 1) {
+        const params = new URLSearchParams({
+          fields:
+            'id,name,currency,timezone_name,account_status,disable_reason',
+          limit: '100',
+        });
+        if (after) params.set('after', after);
+        const res = await fetch(
+          `https://graph.facebook.com/${version}/me/adaccounts?${params.toString()}`,
+          { headers: { Authorization: `Bearer ${input.accessToken}` } },
+        );
+        const json = (await res.json().catch(() => ({}))) as {
+          data?: Array<{
+            id?: string;
+            name?: string;
+            currency?: string;
+            timezone_name?: string;
+            account_status?: number;
+          }>;
+          paging?: { cursors?: { after?: string }; next?: string };
+          error?: { message?: string };
+        };
+        if (!res.ok) {
+          return {
+            ok: false,
+            error: json.error?.message || `Meta ad accounts HTTP ${res.status}`,
+          };
+        }
+        for (const account of json.data ?? []) {
+          if (!account.id) continue;
+          accounts.push({
+            externalAccountId: account.id,
+            name: account.name || account.id,
+            currency: account.currency ?? null,
+            timezone: account.timezone_name ?? null,
+            role: account.account_status === 1 ? 'active' : 'restricted',
+          });
+        }
+        after = json.paging?.next
+          ? json.paging.cursors?.after ?? null
+          : null;
+        if (!after) break;
+      }
+      return { ok: true, accounts };
+    }
+    if (input.platform === 'linkedin') {
+      const version = process.env.LINKEDIN_API_VERSION?.trim() || '202607';
+      const headers = {
+        Authorization: `Bearer ${input.accessToken}`,
+        'LinkedIn-Version': version,
+        'X-Restli-Protocol-Version': '2.0.0',
+      };
+      const memberships = await fetch(
+        'https://api.linkedin.com/rest/adAccountUsers?q=authenticatedUser&count=100',
+        { headers },
+      );
+      const membershipJson = (await memberships.json().catch(() => ({}))) as {
+        elements?: Array<{
+          account?: string;
+          accountId?: number | string;
+          role?: string;
+        }>;
+        message?: string;
+      };
+      if (!memberships.ok) {
+        return {
+          ok: false,
+          error:
+            membershipJson.message ||
+            `LinkedIn account users HTTP ${memberships.status}`,
+        };
+      }
+      const accounts: DiscoveredAdAccount[] = [];
+      for (const membership of (membershipJson.elements ?? []).slice(0, 100)) {
+        const id =
+          membership.accountId != null
+            ? String(membership.accountId)
+            : membership.account?.match(/(\d+)$/)?.[1];
+        if (!id) continue;
+        const res = await fetch(
+          `https://api.linkedin.com/rest/adAccounts/${encodeURIComponent(id)}`,
+          { headers },
+        );
+        const json = (await res.json().catch(() => ({}))) as {
+          id?: number | string;
+          name?: string;
+          currency?: string;
+          message?: string;
+        };
+        if (!res.ok) continue;
+        accounts.push({
+          externalAccountId: String(json.id ?? id),
+          name: json.name || `LinkedIn Ads ${id}`,
+          currency: json.currency ?? null,
+          timezone: 'UTC',
+          role: membership.role ?? null,
+        });
+      }
+      return { ok: true, accounts };
+    }
+    return { ok: false, error: 'Paid discovery supports Meta and LinkedIn' };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'Account discovery failed',
+    };
   }
 }
 

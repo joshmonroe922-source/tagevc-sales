@@ -471,3 +471,46 @@ export async function commitWarrantyImportAction(
     message: `Warranty batch committed atomically · ${result.changed} assets changed`,
   };
 }
+
+export async function approveIntuneActionAction(
+  actionId: string,
+  reason: string,
+): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('write:it_assets');
+  if (!gate.ok) return gate;
+  if (!actionId.trim() || reason.trim().length < 5) {
+    return { ok: false, error: 'Action and approval reason are required' };
+  }
+  const { approveIntuneAction } = await import(
+    '@/lib/shared-services/it-assets-repo'
+  );
+  const result = await approveIntuneAction({
+    action_id: actionId,
+    actor_id: gate.profile.id,
+    reason: reason.trim(),
+  });
+  if (!result.ok) return result;
+  revalidateAssets();
+  return { ok: true, message: `Approved Intune action ${actionId}` };
+}
+
+export async function runIntuneWorkerAction(): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('write:it_assets');
+  if (!gate.ok) return gate;
+  const { processIntuneActions } = await import(
+    '@/lib/shared-services/it-intune-worker'
+  );
+  const result = await processIntuneActions(10);
+  revalidateAssets();
+  return result.ok
+    ? {
+        ok: true,
+        message: `Intune worker claimed ${result.claimed} action(s)`,
+      }
+    : {
+        ok: false,
+        error:
+          result.error ||
+          `Intune worker completed with ${result.processed.filter((item) => item.status === 'failed').length} failure(s)`,
+      };
+}

@@ -19,6 +19,10 @@ import {
 import { listSignedFiles } from '@/lib/docusign/signed-docs';
 import { listReminderJobs } from '@/lib/docusign/reminder-jobs';
 import { listCachedTemplates } from '@/lib/docusign/templates';
+import {
+  listDocuSignReconciliation,
+  listDocuSignReconciliationRuns,
+} from '@/lib/docusign/reconciliation-repo';
 import { DOCUSIGN_ENV_KEYS } from '@/lib/docusign/types';
 import { roleHasPermission } from '@/lib/types/roles';
 import { getSessionContext, requirePermission } from '@/lib/rbac/session';
@@ -88,8 +92,17 @@ export default async function DocuSignModulePage({
   const canWrite = ctx
     ? roleHasPermission(ctx.profile.role, 'write:documents')
     : false;
-  const [events, auditEvents, count, signed, templates, reminders, liveEnvelopes] =
-    await Promise.all([
+  const [
+    events,
+    auditEvents,
+    count,
+    signed,
+    templates,
+    reminders,
+    liveEnvelopes,
+    reconciliation,
+    reconciliationRuns,
+  ] = await Promise.all([
     listDocuSignEvents({
       limit: 40,
       status: eventStatusFilter,
@@ -125,6 +138,14 @@ export default async function DocuSignModulePage({
             previousStartPosition: null,
           },
         }),
+    listDocuSignReconciliation({
+      limit: 50,
+      entityId: ctx?.profile.entity_id ?? null,
+      firmWide: !ctx?.profile.entity_id,
+    }),
+    !ctx?.profile.entity_id
+      ? listDocuSignReconciliationRuns(8)
+      : Promise.resolve([]),
   ]);
 
   const voidPolicy = process.env.DOCUSIGN_VOID_POLICY?.trim() || 'allow';
@@ -136,10 +157,21 @@ export default async function DocuSignModulePage({
     return !process.env[k]?.trim();
   });
 
+  if (ctx?.profile.entity_id) {
+    signed.rows = signed.rows.filter(
+      (row) => row.entity_id === ctx.profile.entity_id,
+    );
+  }
   const storageOk = signed.rows.filter((r) => r.storage_path).length;
   const storageErr = signed.rows.filter((r) => r.storage_error).length;
   const cocCount = signed.rows.filter((r) => r.file_kind === 'certificate').length;
-  const voidEvents = auditEvents.filter(
+  const scopedEvents = ctx?.profile.entity_id
+    ? events.filter((event) => event.entity_id === ctx.profile.entity_id)
+    : events;
+  const scopedAuditEvents = ctx?.profile.entity_id
+    ? auditEvents.filter((event) => event.entity_id === ctx.profile.entity_id)
+    : auditEvents;
+  const voidEvents = scopedAuditEvents.filter(
     (e) =>
       e.event_type === 'envelope-voided' ||
       String(e.status).toLowerCase() === 'voided',
@@ -147,6 +179,12 @@ export default async function DocuSignModulePage({
   const templateRows = templates.rows;
   const liveRows = liveEnvelopes.ok
     ? liveEnvelopes.envelopes.filter((envelope) => {
+        if (ctx?.profile.entity_id) {
+          const mapped = reconciliation.find(
+            (row) => row.envelope_id === envelope.envelopeId,
+          );
+          if (mapped?.entity_id !== ctx.profile.entity_id) return false;
+        }
         if (!liveSearch) return true;
         return `${envelope.emailSubject ?? ''} ${envelope.envelopeId} ${envelope.recipients
           .map((recipient) => `${recipient.name ?? ''} ${recipient.email ?? ''}`)
@@ -178,7 +216,7 @@ export default async function DocuSignModulePage({
           <Badge variant={mode === 'live' ? 'default' : 'secondary'}>
             {mode === 'live' ? 'Live JWT' : 'Mock envelopes'}
           </Badge>
-          <Badge variant="secondary">Phase 33</Badge>
+          <Badge variant="secondary">Phase 34</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">DocuSign</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
@@ -199,6 +237,58 @@ export default async function DocuSignModulePage({
             .map((envelope) => envelope.envelopeId)}
           canWrite={canWrite}
         />
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Envelope reconciliation</CardTitle>
+            <CardDescription>
+              Observe-only matching across provider envelopes, local documents,
+              events, and replacement lineage. Ambiguities are never
+              auto-assigned.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2 text-xs">
+            <div className="grid gap-2 sm:grid-cols-4">
+              {['in_sync', 'manual_review', 'unmapped_expected', 'retry_wait'].map(
+                (state) => (
+                  <div className="rounded border p-2" key={state}>
+                    <p className="text-muted-foreground">
+                      {state.replaceAll('_', ' ')}
+                    </p>
+                    <p className="text-lg font-semibold">
+                      {
+                        reconciliation.filter(
+                          (row) => row.reconciliation_state === state,
+                        ).length
+                      }
+                    </p>
+                  </div>
+                ),
+              )}
+            </div>
+            {reconciliation.slice(0, 12).map((row) => (
+              <div
+                className="flex flex-wrap justify-between gap-2 border-b py-1"
+                key={row.envelope_id}
+              >
+                <span className="font-mono">{row.envelope_id}</span>
+                <span>
+                  {row.provider_status ?? 'unknown'} /{' '}
+                  {row.local_document_status ?? 'unmapped'} ·{' '}
+                  {row.reconciliation_state}
+                  {row.issue_code ? ` · ${row.issue_code}` : ''}
+                </span>
+              </div>
+            ))}
+            {reconciliationRuns.length > 0 ? (
+              <p className="text-muted-foreground">
+                Latest run: {String(reconciliationRuns[0].status)} ·{' '}
+                {String(reconciliationRuns[0].seen)} seen ·{' '}
+                {String(reconciliationRuns[0].matched)} matched ·{' '}
+                {String(reconciliationRuns[0].manual_review)} review
+              </p>
+            ) : null}
+          </CardContent>
+        </Card>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -703,7 +793,7 @@ export default async function DocuSignModulePage({
               Template sends
             </Link>
           </div>
-          {events.length === 0 ? (
+          {scopedEvents.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No events yet — send a document or wait for Connect.
             </p>
@@ -722,7 +812,7 @@ export default async function DocuSignModulePage({
                   </tr>
                 </thead>
                 <tbody>
-                  {events.map((e) => (
+                  {scopedEvents.map((e) => (
                     <tr key={e.id} className="border-b border-border/40">
                       <td className="py-2 pr-3 whitespace-nowrap text-xs text-muted-foreground">
                         {e.received_at.slice(0, 19).replace('T', ' ')}

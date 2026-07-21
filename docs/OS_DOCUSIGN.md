@@ -95,10 +95,25 @@ Unknown envelopes are acknowledged and still logged to `os_docusign_events`.
 
 SQL: `phase33_docusign_lineage.sql`.
 
+## Phase 34
+
+- `os_docusign_envelopes` is an entity-scoped projection of provider envelope,
+  local document, event, and replacement-lineage evidence.
+- Bounded manual and 30-minute reconciliation runs use exact identifiers only.
+  Ambiguous duplicate mappings and status drift are marked for review; the
+  worker never sends, voids, reassigns, or changes recipients.
+- The hub shows reconciliation state, issue codes, run counts, and limits
+  subsidiary users to projection-mapped envelopes and entity-scoped events and
+  signed files.
+- Connect/application event fallback IDs are deterministic payload hashes, so
+  duplicate deliveries are accepted without duplicate side effects.
+
+SQL: `phase34_docusign_reconciliation.sql`.
+
 ## Still deferred
 
 - Dedicated recipient detail drawer
-- Provider-side reconciliation for externally successful sends whose final
-  local audit write fails
+- Transactional send-intent/finalization projection and timeout recovery
+- Idempotent signed-archive metadata with content hashes
 - Retire simulate button in production  
 

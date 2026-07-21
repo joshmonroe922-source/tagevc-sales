@@ -80,11 +80,26 @@ SQL: through `phase32_operational_evidence.sql`.
 
 SQL: `phase33_it_warranty_intune_soak.sql`.
 
-## Phase 34+
+## Phase 34
 
-1. Dedicated Intune polling worker with explicit operator approval UI
+1. Offboarding inventory creates requested per-device Intune intents and never
+   submits a retirement inline.
+2. Operators must type `RETIRE`, provide an approval reason, and approve a
+   specific action before dispatch.
+3. A five-minute worker claims actions with database leases, correlates Graph
+   requests, separates HTTP acceptance from verification, and polls boundedly.
+4. Structured verification codes distinguish retired state, post-submission
+   absence, provider rejection, and poll timeout.
+5. The IT hub shows request metadata, attempts, poll count, Graph request ID,
+   provider state, errors, and verification evidence.
+
+SQL: `phase34_intune_drill_governance.sql`.
+
+## Phase 35+
+
+1. Cancel/retry controls with fresh approval and explicit local-asset matching
 2. Signed Exchange hold callback + deleted-user restore
-3. Downloadable warranty preview failure reports and serial/device correlation
+3. Downloadable warranty preview failure reports
 
 ## Out of scope
 

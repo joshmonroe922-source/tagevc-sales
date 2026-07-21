@@ -24,6 +24,26 @@ function revalidateDocuSign() {
   revalidatePath('/documents');
 }
 
+export async function reconcileDocuSignAction(): Promise<DocuSignActionResult> {
+  const gate = await guardPermission('write:documents');
+  if (!gate.ok) return gate;
+  const { reconcileDocuSignEnvelopes } = await import(
+    '@/lib/docusign/reconciliation-repo'
+  );
+  const result = await reconcileDocuSignEnvelopes({
+    trigger: 'manual',
+    requestedBy: gate.profile.id,
+    days: 30,
+  });
+  revalidateDocuSign();
+  return result.ok
+    ? {
+        ok: true,
+        message: `Reconciled ${result.seen} envelopes · ${result.matched} matched · ${result.manual_review} review`,
+      }
+    : { ok: false, error: result.error || 'Reconciliation failed' };
+}
+
 export async function voidEnvelopeAction(
   envelopeId: string,
   reason: string,
@@ -53,6 +73,7 @@ export async function voidEnvelopeAction(
           error:
             'Void blocked: capital document (DOCUSIGN_VOID_POLICY=block_capital)',
         };
+
       }
       if (policy === 'warn_capital') {
         // Allow but tag audit payload

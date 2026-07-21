@@ -58,8 +58,23 @@ Marketing needs no Phase 32 schema change.
 
 SQL: `phase33_marketing_connections.sql`.
 
-## Phase 34+
+## Phase 34
 
-1. Provider account discovery/selection and verified-scope health
-2. Typed daily paid metrics with 7/30/90-day trends
-3. Atomic scheduler leases and upload cancellation/reinitialization
+1. Paid OAuth grants remain pending until live Meta/LinkedIn discovery,
+   explicit provider-account selection, and a reporting permission probe pass.
+2. Paid campaign sync stores typed, idempotent daily rows by account, campaign,
+   and reporting date rather than relying only on overlapping JSON snapshots.
+3. The hub exposes 7/30/90-day daily spend/click trends, data-through dates,
+   account scope health, and provider conversion metric selection.
+4. Paid account/campaign bindings are checked in PostgreSQL for provider,
+   connection status, and entity consistency.
+5. Subsidiary pages filter campaigns, content, jobs, accounts, voices, and typed
+   analytics to the active entity.
+
+SQL: `phase34_marketing_analytics.sql`.
+
+## Phase 35+
+
+1. Scheduled account-level 90-day backfill and rolling attribution refresh
+2. Provider response fixtures, throttling contracts, and complete-window leases
+3. TikTok upload cancellation/reinitialization

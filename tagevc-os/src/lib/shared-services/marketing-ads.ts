@@ -94,7 +94,7 @@ export async function syncPaidCampaignStatus(
       ? await sb
           .from('os_marketing_social_accounts')
           .select(
-            'account_id, entity_id, platform, account_type, status, currency, external_account_id',
+            'account_id, entity_id, platform, account_type, status, currency, timezone, external_account_id',
           )
           .eq('account_id', adAccountId)
           .maybeSingle()
@@ -137,6 +137,8 @@ export async function syncPaidCampaignStatus(
         fresh.token,
         (account.currency as string) || 'USD',
         adAccountId,
+        String(account.external_account_id ?? ''),
+        String(account.timezone ?? 'UTC'),
       );
     }
     if (adPlatform === 'linkedin_ads') {
@@ -147,6 +149,7 @@ export async function syncPaidCampaignStatus(
         fresh.token,
         (account.currency as string) || 'USD',
         adAccountId,
+        String(account.external_account_id ?? ''),
       );
     }
 
@@ -171,6 +174,8 @@ async function syncMetaAdsStub(
   token: string,
   currency: string,
   adAccountId: string,
+  externalAccountId: string,
+  timezone: string,
 ): Promise<PaidAdsSyncResult> {
   if (!externalId) {
     return {
@@ -199,6 +204,9 @@ async function syncMetaAdsStub(
         impressions?: string;
         clicks?: string;
         spend?: string;
+        date_start?: string;
+        date_stop?: string;
+        actions?: Array<{ action_type?: string; value?: string }>;
       }>;
       error?: { message?: string };
     };
@@ -220,6 +228,52 @@ async function syncMetaAdsStub(
     const { impressions, clicks, spend } = totals;
     const budgetK = Number(row.budget_k ?? 0);
     const sb = await createPersistClient();
+    const conversionMetric =
+      typeof row.conversion_metric === 'string'
+        ? row.conversion_metric.trim()
+        : '';
+    const dailyRows = (json.data ?? [])
+      .filter((insight) => insight.date_start)
+      .map((insight) => ({
+        campaign_id: campaignId,
+        ad_account_id: adAccountId,
+        entity_id: (row.entity_id as string) ?? null,
+        provider: 'meta_ads',
+        external_account_id: externalAccountId,
+        external_campaign_id: externalId,
+        metric_date: insight.date_start,
+        reporting_timezone: timezone,
+        currency,
+        impressions: Number(insight.impressions ?? 0),
+        clicks: Number(insight.clicks ?? 0),
+        spend: Number(insight.spend ?? 0),
+        conversions: conversionMetric
+          ? Number(
+              insight.actions?.find(
+                (action) => action.action_type === conversionMetric,
+              )?.value ?? 0,
+            )
+          : null,
+        provider_metrics: {
+          conversion_metric: conversionMetric || null,
+          date_stop: insight.date_stop ?? null,
+        },
+        last_synced_at: new Date().toISOString(),
+      }));
+    if (dailyRows.length > 0) {
+      const { error: metricError } = await sb
+        .from('os_marketing_paid_metrics_daily')
+        .upsert(dailyRows, {
+          onConflict: 'ad_account_id,campaign_id,metric_date',
+        });
+      if (metricError) {
+        return {
+          campaign_id: campaignId,
+          ok: false,
+          detail: `Meta daily metrics save failed: ${metricError.message}`,
+        };
+      }
+    }
     const eventId = `PAD-META-${campaignId}-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}`;
     await sb.from('os_marketing_analytics_events').upsert({
       event_id: eventId,
@@ -270,6 +324,7 @@ async function syncLinkedInAdsStub(
   token: string,
   currency: string,
   adAccountId: string,
+  externalAccountId: string,
 ): Promise<PaidAdsSyncResult> {
   if (!externalId) {
     return {
@@ -290,11 +345,11 @@ async function syncLinkedInAdsStub(
     const params = new URLSearchParams({
       q: 'analytics',
       pivot: 'CAMPAIGN',
-      timeGranularity: 'ALL',
+      timeGranularity: 'DAILY',
       dateRange: `(start:${datePart(start)},end:${datePart(end)})`,
       campaigns: `List(${campaignUrn})`,
       fields:
-        'impressions,clicks,costInLocalCurrency,externalWebsiteConversions',
+        'dateRange,impressions,clicks,costInLocalCurrency,externalWebsiteConversions',
     });
     const res = await fetch(
       `https://api.linkedin.com/rest/adAnalytics?${params.toString()}`,
@@ -313,6 +368,10 @@ async function syncLinkedInAdsStub(
         clicks?: number;
         costInLocalCurrency?: string | number;
         externalWebsiteConversions?: number;
+        dateRange?: {
+          start?: { year?: number; month?: number; day?: number };
+          end?: { year?: number; month?: number; day?: number };
+        };
       }>;
       message?: string;
       code?: string;
@@ -350,6 +409,60 @@ async function syncLinkedInAdsStub(
     const now = new Date();
     const eventId = `PAD-LI-${campaignId}-${now.toISOString().slice(0, 10).replaceAll('-', '')}`;
     const sb = await createPersistClient();
+    const isoDate = (
+      value?: { year?: number; month?: number; day?: number },
+    ): string | null =>
+      value?.year && value.month && value.day
+        ? `${value.year}-${String(value.month).padStart(2, '0')}-${String(
+            value.day,
+          ).padStart(2, '0')}`
+        : null;
+    const dailyRows = (json.elements ?? [])
+      .map((insight) => ({
+        insight,
+        metricDate: isoDate(insight.dateRange?.start),
+      }))
+      .filter(
+        (
+          value,
+        ): value is {
+          insight: NonNullable<typeof json.elements>[number];
+          metricDate: string;
+        } => Boolean(value.metricDate),
+      )
+      .map(({ insight, metricDate }) => ({
+        campaign_id: campaignId,
+        ad_account_id: adAccountId,
+        entity_id: (row.entity_id as string) ?? null,
+        provider: 'linkedin_ads',
+        external_account_id: externalAccountId,
+        external_campaign_id: externalId,
+        metric_date: metricDate,
+        reporting_timezone: 'UTC',
+        currency,
+        impressions: Number(insight.impressions ?? 0),
+        clicks: Number(insight.clicks ?? 0),
+        spend: Number(insight.costInLocalCurrency ?? 0),
+        conversions: Number(insight.externalWebsiteConversions ?? 0),
+        provider_metrics: {
+          date_end: isoDate(insight.dateRange?.end),
+        },
+        last_synced_at: new Date().toISOString(),
+      }));
+    if (dailyRows.length > 0) {
+      const { error: metricError } = await sb
+        .from('os_marketing_paid_metrics_daily')
+        .upsert(dailyRows, {
+          onConflict: 'ad_account_id,campaign_id,metric_date',
+        });
+      if (metricError) {
+        return {
+          campaign_id: campaignId,
+          ok: false,
+          detail: `LinkedIn daily metrics save failed: ${metricError.message}`,
+        };
+      }
+    }
     const { error } = await sb.from('os_marketing_analytics_events').upsert(
       {
         event_id: eventId,

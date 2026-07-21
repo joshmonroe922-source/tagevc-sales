@@ -5,6 +5,7 @@ import {
   listAssignmentEvents,
   listHardwareAssets,
   listLifecycleEvents,
+  listIntuneActions,
   listSoftwareLicenses,
 } from '@/lib/shared-services/it-assets-repo';
 import {
@@ -21,13 +22,14 @@ import { getSessionContext, requirePermission } from '@/lib/rbac/session';
 export default async function ItAssetsModulePage() {
   await requirePermission('read:it_assets');
 
-  const [hw, lic, ev, lifecycle, off, onb] = await Promise.all([
+  const [hw, lic, ev, lifecycle, off, onb, intune] = await Promise.all([
     listHardwareAssets(),
     listSoftwareLicenses(),
     listAssignmentEvents(),
     listLifecycleEvents(),
     listOffboardingRuns(),
     listOnboardingRuns(),
+    listIntuneActions(),
   ]);
   const candidateTickets = listOffboardingCandidateTickets();
   const onboardingTickets = listOnboardingCandidateTickets();
@@ -36,6 +38,11 @@ export default async function ItAssetsModulePage() {
   const canWrite = ctx
     ? roleHasPermission(ctx.profile.role, 'write:it_assets')
     : false;
+  if (ctx?.profile.entity_id) {
+    intune.rows = intune.rows.filter(
+      (action) => action.entity_id === ctx.profile.entity_id,
+    );
+  }
 
   const tableError =
     hw.error || lic.error || ev.error || lifecycle.error || off.error || onb.error;
@@ -52,7 +59,7 @@ export default async function ItAssetsModulePage() {
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">IT</Badge>
-          <Badge variant="secondary">Phase 33</Badge>
+          <Badge variant="secondary">Phase 34</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Hardware &amp; licensing
@@ -72,8 +79,9 @@ export default async function ItAssetsModulePage() {
         onboarding={onb.rows}
         candidateTickets={candidateTickets}
         onboardingTickets={onboardingTickets}
+        intuneActions={intune.rows}
         canWrite={canWrite}
-        tableError={tableError}
+        tableError={tableError || intune.error}
       />
     </div>
   );

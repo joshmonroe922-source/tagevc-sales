@@ -6,6 +6,7 @@ import {
   createReplacementEnvelopeAction,
   emailCocAction,
   remindEnvelopeAction,
+  reconcileDocuSignAction,
   refreshTemplateRecipientsAction,
   runReminderWorkerAction,
   scheduleRemindersAction,
@@ -117,6 +118,15 @@ export function DocuSignHubActions({ canWrite }: { canWrite: boolean }) {
           onClick={() => run(() => runReminderWorkerAction())}
         >
           Run reminder worker
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={pending}
+          onClick={() => run(() => reconcileDocuSignAction())}
+        >
+          Reconcile envelopes
         </Button>
         <Button
           type="button"

@@ -28,10 +28,17 @@ export default async function MarketingModulePage({
         ? 'OAuth connected'
         : sp.oauth === 'stub'
           ? 'Stub-connected (OAuth apps not configured)'
+          : sp.oauth === 'select_account'
+            ? 'OAuth grant saved — use Discover / select on the paid account'
           : sp.oauth === 'error'
             ? `OAuth error: ${typeof sp.detail === 'string' ? sp.detail : 'failed'}`
             : null
       : null;
+  const paidDaysRaw =
+    typeof sp.paid_days === 'string' ? Number(sp.paid_days) : 30;
+  const paidDays: 7 | 30 | 90 =
+    paidDaysRaw === 7 || paidDaysRaw === 90 ? paidDaysRaw : 30;
+  const ctx = await getSessionContext();
 
   const [
     campaigns,
@@ -48,10 +55,28 @@ export default async function MarketingModulePage({
     listScheduleJobs(),
     listGenerationJobs(),
     listBrandVoices(),
-    getMarketingAnalyticsSummary({ limit: 200 }),
+    getMarketingAnalyticsSummary({
+      limit: 200,
+      paidDays,
+      entityId: ctx?.profile.entity_id ?? null,
+    }),
   ]);
+  if (ctx?.profile.entity_id) {
+    const entityId = ctx.profile.entity_id;
+    campaigns.rows = campaigns.rows.filter(
+      (row) => row.entity_id === entityId,
+    );
+    content.rows = content.rows.filter((row) => row.entity_id === entityId);
+    accounts.rows = accounts.rows.filter((row) => row.entity_id === entityId);
+    scheduleJobs.rows = scheduleJobs.rows.filter(
+      (row) => row.entity_id === entityId,
+    );
+    generationJobs.rows = generationJobs.rows.filter(
+      (row) => row.entity_id === entityId,
+    );
+    voices.rows = voices.rows.filter((row) => row.entity_id === entityId);
+  }
 
-  const ctx = await getSessionContext();
   const canWrite = ctx
     ? roleHasPermission(ctx.profile.role, 'write:marketing')
     : false;
@@ -76,7 +101,7 @@ export default async function MarketingModulePage({
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">Marketing</Badge>
-          <Badge variant="secondary">Phase 33</Badge>
+          <Badge variant="secondary">Phase 34</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Multichannel Marketing

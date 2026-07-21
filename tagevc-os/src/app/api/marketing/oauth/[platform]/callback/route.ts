@@ -72,13 +72,26 @@ export async function GET(
       dest.searchParams.set('detail', 'account_binding_changed');
       return NextResponse.redirect(dest.toString());
     }
-    const verified = await verifyOAuthConnection({
-      platform: raw,
-      purpose: stateResult.purpose,
-      accessToken: token.accessToken,
-      requestedExternalId:
-        (acct.external_account_id as string | null) ?? null,
-    });
+    const verified =
+      stateResult.purpose === 'paid_ads'
+        ? {
+            ok: true as const,
+            externalAccountId: null,
+            currency: null,
+            timezone: null,
+            capabilities: {
+              purpose: 'paid_ads',
+              grant_verified: true,
+              account_selection_required: true,
+            },
+          }
+        : await verifyOAuthConnection({
+            platform: raw,
+            purpose: stateResult.purpose,
+            accessToken: token.accessToken,
+            requestedExternalId:
+              (acct.external_account_id as string | null) ?? null,
+          });
     if (!verified.ok) {
       dest.searchParams.set('oauth', 'error');
       dest.searchParams.set('detail', verified.error);
@@ -101,6 +114,7 @@ export async function GET(
         connected_by: stateResult.actor_id,
         provider: raw,
       },
+      markConnected: stateResult.purpose !== 'paid_ads',
     });
 
     if (!saved.ok) {
@@ -109,7 +123,12 @@ export async function GET(
       return NextResponse.redirect(dest.toString());
     }
 
-    dest.searchParams.set('oauth', 'connected');
+    dest.searchParams.set(
+      'oauth',
+      stateResult.purpose === 'paid_ads'
+        ? 'select_account'
+        : 'connected',
+    );
     dest.searchParams.set('account_id', accountId);
     return NextResponse.redirect(dest.toString());
   } catch (e) {

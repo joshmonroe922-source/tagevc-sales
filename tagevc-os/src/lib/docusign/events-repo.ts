@@ -3,7 +3,7 @@
  * Schema: phase20_docusign_events.sql + phase21 extensions (deal_id, ticket_id, event_type).
  */
 
-import { randomUUID } from 'crypto';
+import { createHash } from 'crypto';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 
 export type DocuSignEventInsert = {
@@ -17,6 +17,8 @@ export type DocuSignEventInsert = {
   deal_id?: string | null;
   ticket_id?: string | null;
   raw_payload?: Record<string, unknown> | null;
+  occurred_at?: string | null;
+  source?: string;
 };
 
 export type DocuSignEventRow = {
@@ -38,7 +40,25 @@ export async function insertDocuSignEvent(
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   try {
     const sb = await createPersistClient();
-    const eventId = row.event_id?.trim() || `evt-${randomUUID()}`;
+    const payloadJson = JSON.stringify(row.raw_payload ?? {});
+    const payloadSha256 = createHash('sha256')
+      .update(payloadJson)
+      .digest('hex');
+    const dedupeKey = row.event_id?.trim()
+      ? `provider:${row.event_id.trim()}`
+      : createHash('sha256')
+          .update(
+            [
+              row.envelope_id,
+              row.event_type ?? row.status,
+              row.status,
+              row.occurred_at ?? '',
+              payloadSha256,
+            ].join('|'),
+          )
+          .digest('hex');
+    const eventId =
+      row.event_id?.trim() || `evt-${dedupeKey.slice(0, 32)}`;
     const { data, error } = await sb
       .from('os_docusign_events')
       .insert({
@@ -51,16 +71,34 @@ export async function insertDocuSignEvent(
         deal_id: row.deal_id ?? null,
         ticket_id: row.ticket_id ?? null,
         raw_payload: row.raw_payload ?? null,
+        dedupe_key: dedupeKey,
+        payload_sha256: payloadSha256,
+        occurred_at: row.occurred_at ?? null,
+        source: row.source ?? 'application',
+        processing_status: 'recorded',
+        processed_at: new Date().toISOString(),
       })
       .select('id')
       .single();
 
     if (error) {
+      if (error.code === '23505') {
+        const { data: existing } = await sb
+          .from('os_docusign_events')
+          .select('id')
+          .eq('dedupe_key', dedupeKey)
+          .maybeSingle();
+        if (existing?.id) return { ok: true, id: String(existing.id) };
+      }
       // Retry without Phase 21 columns if table is Phase 20-only
       if (
         error.message.includes('deal_id') ||
         error.message.includes('ticket_id') ||
-        error.message.includes('event_type')
+        error.message.includes('event_type') ||
+        error.message.includes('dedupe_key') ||
+        error.message.includes('payload_sha256') ||
+        error.message.includes('occurred_at') ||
+        error.message.includes('processing_status')
       ) {
         const retry = await sb
           .from('os_docusign_events')
