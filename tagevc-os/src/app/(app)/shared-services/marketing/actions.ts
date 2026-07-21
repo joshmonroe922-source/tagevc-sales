@@ -386,3 +386,17 @@ export async function runApprovalSlaDigestAction(): Promise<MarketingActionResul
     message: `SLA digest: ${res.overdue} overdue · notified ${res.notified} · emailed ${res.emailed}`,
   };
 }
+
+export async function syncPaidCampaignAction(
+  campaignId: string,
+): Promise<MarketingActionResult> {
+  const gate = await guardPermission('write:marketing');
+  if (!gate.ok) return gate;
+  const { syncPaidCampaignStatus } = await import(
+    '@/lib/shared-services/marketing-ads'
+  );
+  const res = await syncPaidCampaignStatus(campaignId);
+  if (!res.ok && !res.skipped) return { ok: false, error: res.detail };
+  revalidateMarketing();
+  return { ok: true, message: res.detail };
+}

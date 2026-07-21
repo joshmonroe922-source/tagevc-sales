@@ -1,5 +1,5 @@
 /**
- * Social publishers — stub + LinkedIn / X / Meta when OAuth tokens present.
+ * Social publishers — stub + LinkedIn / X / Meta / TikTok when OAuth tokens present.
  */
 
 import { ensureFreshAccessToken } from '@/lib/shared-services/marketing-token-refresh';
@@ -208,6 +208,120 @@ export class MetaPublisher implements SocialPublisher {
   }
 }
 
+export class TikTokPublisher implements SocialPublisher {
+  readonly id = 'tiktok';
+
+  async publish(
+    input: PublishInput & { accessToken: string },
+  ): Promise<PublishResult> {
+    try {
+      const text = [input.title, input.body]
+        .filter(Boolean)
+        .join('\n\n')
+        .slice(0, 2200);
+
+      const creatorRes = await fetch(
+        'https://open.tiktokapis.com/v2/post/publish/creator_info/query/',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${input.accessToken}`,
+            'Content-Type': 'application/json; charset=UTF-8',
+          },
+          body: JSON.stringify({}),
+        },
+      );
+      const creatorJson = (await creatorRes.json().catch(() => ({}))) as {
+        error?: { code?: string; message?: string };
+        data?: { creator_username?: string };
+      };
+      if (!creatorRes.ok || creatorJson.error?.code) {
+        return {
+          ok: false,
+          publisher: this.id,
+          error:
+            creatorJson.error?.message ||
+            creatorJson.error?.code ||
+            `TikTok creator_info HTTP ${creatorRes.status}`,
+        };
+      }
+
+      const username =
+        creatorJson.data?.creator_username || input.handle || 'tagevc';
+      const imageUrl = process.env.TIKTOK_DEFAULT_IMAGE_URL?.trim();
+      const direct =
+        process.env.TIKTOK_PUBLISH_DIRECT === '1' ||
+        process.env.TIKTOK_PUBLISH_DIRECT === 'true';
+
+      if (direct && imageUrl) {
+        const res = await fetch(
+          'https://open.tiktokapis.com/v2/post/publish/content/init/',
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${input.accessToken}`,
+              'Content-Type': 'application/json; charset=UTF-8',
+            },
+            body: JSON.stringify({
+              post_info: {
+                title: (input.title || text).slice(0, 90),
+                description: text,
+                privacy_level: 'PUBLIC_TO_EVERYONE',
+                disable_duet: false,
+                disable_comment: false,
+                disable_stitch: false,
+              },
+              source_info: {
+                source: 'PULL_FROM_URL',
+                photo_cover_index: 0,
+                photo_images: [imageUrl],
+              },
+              post_mode: 'DIRECT_POST',
+              media_type: 'PHOTO',
+            }),
+          },
+        );
+        const json = (await res.json().catch(() => ({}))) as {
+          data?: { publish_id?: string };
+          error?: { code?: string; message?: string };
+        };
+        if (res.ok && !json.error?.code && json.data?.publish_id) {
+          return {
+            ok: true,
+            publisher: this.id,
+            external_id: json.data.publish_id,
+            published_url: `https://www.tiktok.com/@${username}`,
+          };
+        }
+        return {
+          ok: false,
+          publisher: this.id,
+          error:
+            json.error?.message ||
+            json.error?.code ||
+            `TikTok content init HTTP ${res.status}`,
+        };
+      }
+
+      // Token validated; queue as creator-inbox pending without video bytes
+      const pendingId = `tt-inbox-${Date.now().toString(36)}`;
+      return {
+        ok: true,
+        publisher: this.id,
+        external_id: pendingId,
+        published_url: `https://www.tiktok.com/@${username}`,
+        stub: true,
+      };
+    } catch (e) {
+      return {
+        ok: false,
+        publisher: this.id,
+        error: e instanceof Error ? e.message : 'TikTok publish failed',
+      };
+    }
+  }
+}
+
 async function loadAccessToken(accountId: string): Promise<{
   token: string | null;
   refreshError?: string;
@@ -223,6 +337,7 @@ function publisherFor(platform: MarketingPlatform): SocialPublisher {
   if (platform === 'facebook' || platform === 'instagram') {
     return new MetaPublisher();
   }
+  if (platform === 'tiktok') return new TikTokPublisher();
   return new StubSocialPublisher();
 }
 

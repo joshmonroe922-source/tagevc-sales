@@ -15,6 +15,7 @@ import {
   scheduleContentAction,
   stubConnectAccountAction,
   submitForReviewAction,
+  syncPaidCampaignAction,
   upsertBrandVoiceAction,
   type MarketingActionResult,
 } from '@/app/(app)/shared-services/marketing/actions';
@@ -90,6 +91,8 @@ export function MarketingClient({
     tiktok_analytics?: boolean;
     approval_sla_hours?: number;
     sla_assignee?: string | null;
+    paid_ads_live?: boolean;
+    tiktok_publish?: boolean;
     phase: number;
   };
 }) {
@@ -153,6 +156,8 @@ export function MarketingClient({
         · YT:{foundation.youtube_oauth ? 'oauth' : 'stub'}
         {foundation.youtube_analytics ? '+an' : ''} · TT:
         {foundation.tiktok_oauth ? 'oauth' : foundation.tiktok_analytics ? 'an' : 'off'}
+        {foundation.tiktok_publish ? '+pub' : ''}
+        {foundation.paid_ads_live ? ' · paid:live' : ' · paid:stub'}
         {foundation.approval_sla_hours
           ? ` · SLA ${foundation.approval_sla_hours}h`
           : ''}
@@ -586,6 +591,20 @@ export function MarketingClient({
                     {' '}
                     · {analytics.by_campaign[c.campaign_id]} events
                   </span>
+                ) : null}
+                {canWrite && c.channel === 'paid' ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="ml-2"
+                    disabled={pending}
+                    onClick={() =>
+                      run(() => syncPaidCampaignAction(c.campaign_id))
+                    }
+                  >
+                    Sync paid
+                  </Button>
                 ) : null}
               </li>
             ))}

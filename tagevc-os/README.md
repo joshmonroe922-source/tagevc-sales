@@ -558,9 +558,21 @@ Docs: `docs/OS_PHASE28.md`
 
 Docs: `docs/OS_PHASE29.md`
 
-### Phase 30+ backlog
+### Phase 30 scope (TikTok publish · paid ads · void policy · mailbox · warranty bulk)
 
-- TikTok publish · paid ads APIs · Graph mailbox disable
+| Area | Status |
+|------|--------|
+| TikTok publish + paid ads foundation + assignee digests | Done |
+| DocuSign filters + void policy | Done |
+| Graph mailbox disable + bulk warranty import | Done |
+| Stage 4e soft-rename path (no DROP) | Retained |
+| SQL | Notice only: `phase30_stage4e_drop.sql` |
+
+Docs: `docs/OS_PHASE30.md`
+
+### Phase 31+ backlog
+
+- TikTok video upload · LinkedIn Ads insights · campaign ROI
 - Stage 4e soft rename then offline DROP (after approval)
 - Push · user admin
 

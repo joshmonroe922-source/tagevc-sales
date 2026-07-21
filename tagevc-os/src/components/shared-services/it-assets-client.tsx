@@ -19,6 +19,7 @@ import {
   startOnboardingFromTicketAction,
   scanActiveOnboardingAction,
   scanLicenseRenewalsAction,
+  bulkUpdateWarrantyAction,
   type ItAssetActionResult,
 } from '@/app/(app)/shared-services/it/assets/actions';
 import { Button } from '@/components/ui/button';
@@ -76,6 +77,10 @@ export function ItAssetsClient({
 }) {
   const [hwState, hwAction, hwPending] = useActionState(
     createHardwareAction,
+    null as ItAssetActionResult | null,
+  );
+  const [warrantyState, warrantyAction, warrantyPending] = useActionState(
+    bulkUpdateWarrantyAction,
     null as ItAssetActionResult | null,
   );
   const [licState, licAction, licPending] = useActionState(
@@ -202,6 +207,26 @@ export function ItAssetsClient({
             <ActionMessage state={licState} />
           </form>
         </div>
+      )}
+
+      {canWrite && (
+        <form action={warrantyAction} className="space-y-3 rounded-lg border p-4">
+          <h2 className="text-sm font-semibold">Bulk warranty import</h2>
+          <p className="text-xs text-muted-foreground">
+            One line per asset: <code>asset_id,YYYY-MM-DD</code> or{' '}
+            <code>serial,YYYY-MM-DD</code>
+          </p>
+          <textarea
+            name="lines"
+            rows={4}
+            className="w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-xs"
+            placeholder={'HW-ABC123,2027-06-30\nC02XL0ABCDEF,2026-12-01'}
+          />
+          <Button type="submit" size="sm" disabled={warrantyPending}>
+            Import warranties
+          </Button>
+          <ActionMessage state={warrantyState} />
+        </form>
       )}
 
       <section className="space-y-3">

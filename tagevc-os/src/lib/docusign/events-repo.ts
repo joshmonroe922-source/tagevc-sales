@@ -94,6 +94,8 @@ export async function insertDocuSignEvent(
 export async function listDocuSignEvents(opts?: {
   limit?: number;
   envelopeId?: string;
+  status?: string;
+  eventType?: string;
 }): Promise<DocuSignEventRow[]> {
   try {
     const sb = await createPersistClient();
@@ -107,6 +109,12 @@ export async function listDocuSignEvents(opts?: {
 
     if (opts?.envelopeId) {
       q = q.eq('envelope_id', opts.envelopeId);
+    }
+    if (opts?.status?.trim()) {
+      q = q.eq('status', opts.status.trim().toLowerCase());
+    }
+    if (opts?.eventType?.trim()) {
+      q = q.eq('event_type', opts.eventType.trim());
     }
 
     const { data, error } = await q;

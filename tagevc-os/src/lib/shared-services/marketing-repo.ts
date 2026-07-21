@@ -619,6 +619,10 @@ export function getMarketingFoundationStatus() {
     approval_sla_hours:
       Number(process.env.MARKETING_APPROVAL_SLA_HOURS?.trim() || 48) || 48,
     sla_assignee: process.env.MARKETING_SLA_ASSIGNEE?.trim() || null,
-    phase: 29,
+    paid_ads_live:
+      process.env.MARKETING_PAID_ADS_LIVE === '1' ||
+      process.env.MARKETING_PAID_ADS_LIVE === 'true',
+    tiktok_publish: true,
+    phase: 30,
   };
 }

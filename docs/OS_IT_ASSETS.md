@@ -46,17 +46,19 @@ os_it_assignment_events (append-only)
 1. Grant increments `seats_used` (respects `seat_count`)  
 2. Revoke decrements · events `license_grant` / `license_revoke`
 
-### Offboarding / onboarding (Phases 23–29)
-1. Offboarding: inactive scan + Graph **remove** groups/SKUs (opt-in)  
+### Offboarding / onboarding (Phases 23–30)
+1. Offboarding: inactive scan + Graph **remove** groups/SKUs + **disable account** (opt-in)  
 2. Onboarding: active scan + Graph **assign** groups/SKUs (opt-in)  
 3. Hardware **warranty_ends_at** drives renewal alerts (else 3y refresh)  
+4. **Bulk warranty import** (asset_id or serial + date)  
 
 SQL: through `phase29_paid_media_warranty.sql`.
 
-## Phase 30+
+## Phase 31+
 
-1. Graph mailbox disable  
-2. Bulk warranty import  
+1. Mailbox soft-delete / litigation hold options  
+2. Warranty CSV file upload  
+3. Intune retire device on offboard  
 
 ## Out of scope
 

@@ -1,6 +1,7 @@
 /**
- * Marketing approval SLA escalation (Phase 28).
+ * Marketing approval SLA escalation (Phases 28–30).
  * Finds content in review past approval_due_at and notifies + optional email.
+ * Phase 30: per-assignee email digests when MARKETING_SLA_EMAIL_ASSIGNEES=1.
  */
 
 import { createPersistClient } from '@/lib/supabase/persist-client';
@@ -18,6 +19,39 @@ export type SlaEscalationItem = {
   entity_id: string | null;
   hours_overdue: number;
 };
+
+function looksLikeEmail(s: string | null | undefined): s is string {
+  return Boolean(s && s.includes('@') && s.includes('.'));
+}
+
+async function sendResend(input: {
+  to: string[];
+  subject: string;
+  text: string;
+}): Promise<boolean> {
+  const resendKey = process.env.RESEND_API_KEY?.trim();
+  if (!resendKey || input.to.length === 0) return false;
+  const from = process.env.DIGEST_FROM_EMAIL || 'noreply@tagevc.com';
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${resendKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from,
+        to: input.to,
+        subject: input.subject,
+        text: input.text,
+      }),
+    });
+    return res.ok;
+  } catch (e) {
+    console.error('marketing SLA digest email failed', e);
+    return false;
+  }
+}
 
 export async function runApprovalSlaEscalation(opts?: {
   limit?: number;
@@ -54,6 +88,7 @@ export async function runApprovalSlaEscalation(opts?: {
     };
   }
 
+  const defaultAssignee = process.env.MARKETING_SLA_ASSIGNEE?.trim() || null;
   const items: SlaEscalationItem[] = (data ?? []).map((row) => {
     const due = new Date(String(row.approval_due_at));
     const hours = Math.max(
@@ -65,7 +100,8 @@ export async function runApprovalSlaEscalation(opts?: {
       title: String(row.title ?? row.content_id),
       approval_due_at: String(row.approval_due_at),
       approval_ticket_id: (row.approval_ticket_id as string) ?? null,
-      approval_assignee: (row.approval_assignee as string) ?? null,
+      approval_assignee:
+        ((row.approval_assignee as string) || defaultAssignee) ?? null,
       entity_id: (row.entity_id as string) ?? null,
       hours_overdue: hours,
     };
@@ -86,9 +122,7 @@ export async function runApprovalSlaEscalation(opts?: {
     .join('\n');
 
   const assigneeHint =
-    process.env.MARKETING_SLA_ASSIGNEE?.trim() ||
-    items.find((i) => i.approval_assignee)?.approval_assignee ||
-    null;
+    items.find((i) => i.approval_assignee)?.approval_assignee || null;
 
   await createBroadcastNotification({
     kind: 'marketing_sla',
@@ -109,34 +143,68 @@ export async function runApprovalSlaEscalation(opts?: {
 
   let emailed = 0;
   const wantEmail = opts?.email !== false;
-  const resendKey = process.env.RESEND_API_KEY?.trim();
-  const to =
-    process.env.MARKETING_SLA_DIGEST_TO?.trim() ||
-    process.env.DIGEST_TO_EMAIL?.trim();
-  const from = process.env.DIGEST_FROM_EMAIL || 'noreply@tagevc.com';
+  const emailAssignees =
+    process.env.MARKETING_SLA_EMAIL_ASSIGNEES === '1' ||
+    process.env.MARKETING_SLA_EMAIL_ASSIGNEES === 'true';
 
-  if (wantEmail && resendKey && to) {
-    try {
-      const res = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${resendKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from,
+  if (wantEmail) {
+    if (emailAssignees) {
+      const byAssignee = new Map<string, SlaEscalationItem[]>();
+      for (const item of items) {
+        const key = item.approval_assignee || '__ops__';
+        const list = byAssignee.get(key) ?? [];
+        list.push(item);
+        byAssignee.set(key, list);
+      }
+      for (const [assignee, group] of byAssignee) {
+        const groupLines = group
+          .map(
+            (i) =>
+              `· ${i.content_id}: ${i.title.slice(0, 60)} (${i.hours_overdue}h overdue)`,
+          )
+          .join('\n');
+        const recipients: string[] = [];
+        if (looksLikeEmail(assignee)) recipients.push(assignee);
+        const ops =
+          process.env.MARKETING_SLA_DIGEST_TO?.trim() ||
+          process.env.DIGEST_TO_EMAIL?.trim();
+        if (assignee === '__ops__' && ops) {
+          recipients.push(
+            ...ops.split(',').map((s) => s.trim()).filter(Boolean),
+          );
+        } else if (ops && !looksLikeEmail(assignee)) {
+          // Named assignee without email — include ops copy
+          recipients.push(
+            ...ops.split(',').map((s) => s.trim()).filter(Boolean),
+          );
+        }
+        if (recipients.length === 0) continue;
+        const ok = await sendResend({
+          to: [...new Set(recipients)],
+          subject: `[Tage VC] Marketing SLA · ${group.length} overdue${
+            assignee !== '__ops__' ? ` · ${assignee}` : ''
+          }`,
+          text: `Approval SLA overdue items${
+            assignee !== '__ops__' ? ` for ${assignee}` : ''
+          }:\n\n${groupLines}\n\nhttps://app.tagevc.com/shared-services/marketing`,
+        });
+        if (ok) emailed += 1;
+      }
+    } else {
+      const to =
+        process.env.MARKETING_SLA_DIGEST_TO?.trim() ||
+        process.env.DIGEST_TO_EMAIL?.trim();
+      if (to) {
+        const ok = await sendResend({
           to: to.split(',').map((s) => s.trim()).filter(Boolean),
           subject: `[Tage VC] Marketing approval SLA: ${items.length} overdue`,
           text: `The following marketing content is past approval SLA:\n\n${lines}\n\nhttps://app.tagevc.com/shared-services/marketing`,
-        }),
-      });
-      if (res.ok) emailed = 1;
-    } catch (e) {
-      console.error('marketing SLA digest email failed', e);
+        });
+        if (ok) emailed = 1;
+      }
     }
   }
 
-  // Mark escalation timestamp on content (best-effort; column from phase28 SQL)
   const ids = items.map((i) => i.content_id);
   await sb
     .from('os_marketing_content')

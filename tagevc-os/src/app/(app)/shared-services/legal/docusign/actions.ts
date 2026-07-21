@@ -32,6 +32,37 @@ export async function voidEnvelopeAction(
     return { ok: false, error: 'Void reason is required for audit' };
   }
 
+  // Phase 30 void policy
+  const policy = (
+    process.env.DOCUSIGN_VOID_POLICY || 'allow'
+  ).trim().toLowerCase();
+  try {
+    const { listDocuments } = await import('@/lib/data/document-store');
+    const { isCapitalDocument } = await import('@/lib/documents/capital-gate');
+    const doc = listDocuments().find((d) => d.envelope_id === id);
+    if (doc && isCapitalDocument(doc.doc_type)) {
+      if (policy === 'block_capital') {
+        return {
+          ok: false,
+          error:
+            'Void blocked: capital document (DOCUSIGN_VOID_POLICY=block_capital)',
+        };
+      }
+      if (policy === 'warn_capital') {
+        // Allow but tag audit payload
+      }
+      const capitalGate = await guardPermission('action:docusign_capital');
+      if (!capitalGate.ok && policy !== 'allow') {
+        return {
+          ok: false,
+          error: capitalGate.error || 'Capital void requires action:docusign_capital',
+        };
+      }
+    }
+  } catch {
+    /* document store optional */
+  }
+
   const api = await voidEnvelope(id, voidReason);
   if (!api.ok) return api;
 
@@ -39,6 +70,16 @@ export async function voidEnvelopeAction(
     applyDocuSignWebhook({ envelope_id: id, status: 'voided' });
   } catch {
     // Envelope may be Connect-only / unknown locally
+  }
+
+  let capital = false;
+  try {
+    const { listDocuments } = await import('@/lib/data/document-store');
+    const { isCapitalDocument } = await import('@/lib/documents/capital-gate');
+    const doc = listDocuments().find((d) => d.envelope_id === id);
+    capital = Boolean(doc && isCapitalDocument(doc.doc_type));
+  } catch {
+    /* optional */
   }
 
   await insertDocuSignEvent({
@@ -51,6 +92,8 @@ export async function voidEnvelopeAction(
       actor_id: gate.profile.id,
       actor_email: gate.profile.email ?? null,
       voided_at: new Date().toISOString(),
+      void_policy: policy,
+      capital,
     },
   });
 
@@ -63,7 +106,10 @@ export async function voidEnvelopeAction(
   });
 
   revalidateDocuSign();
-  return { ok: true, message: `Voided ${id} · audited` };
+  return {
+    ok: true,
+    message: `Voided ${id} · audited${capital ? ' · capital' : ''}`,
+  };
 }
 
 export async function remindEnvelopeAction(

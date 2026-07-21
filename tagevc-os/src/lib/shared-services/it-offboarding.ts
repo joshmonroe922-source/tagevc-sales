@@ -16,6 +16,7 @@ import {
   logActivity,
 } from '@/lib/data/activity';
 import {
+  disableGraphMailbox,
   invokeMdmLifecycleHook,
   removeGraphGroupMembership,
   removeGraphLicenseSku,
@@ -162,6 +163,14 @@ export async function startOffboarding(input: {
       detail: 'Phase 29: opt-in SKU remove',
     });
     checklist.push({
+      id: 'access-graph-mailbox',
+      kind: 'access_note',
+      ref_id: 'graph_mailbox',
+      label: 'Disable Entra account / mailbox (MS_GRAPH_DISABLE_ACCOUNT)',
+      status: 'pending',
+      detail: 'Phase 30: opt-in accountEnabled=false',
+    });
+    checklist.push({
       id: 'access-sso',
       kind: 'access_note',
       ref_id: 'sso',
@@ -302,6 +311,21 @@ export async function executeOffboarding(
         const s = await removeGraphLicenseSku({ user_id: userId, email });
         item.status = s.ok ? 'done' : s.skipped ? 'pending' : 'failed';
         item.detail = s.detail;
+      } else if (item.kind === 'access_note' && item.ref_id === 'graph_mailbox') {
+        let email: string | null = null;
+        try {
+          const { data: profile } = await sb
+            .from('profiles')
+            .select('email')
+            .eq('id', userId)
+            .maybeSingle();
+          email = (profile?.email as string) ?? null;
+        } catch {
+          /* optional */
+        }
+        const m = await disableGraphMailbox({ user_id: userId, email });
+        item.status = m.ok ? 'done' : m.skipped ? 'pending' : 'failed';
+        item.detail = m.detail;
       } else {
         item.status = 'pending';
       }

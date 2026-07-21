@@ -50,6 +50,7 @@ sequenceDiagram
 | `DOCUSIGN_BASE_PATH` | Default `https://demo.docusign.net` |
 | `DOCUSIGN_WEBHOOK_SECRET` | Custom header `x-tagevc-webhook-secret` |
 | `DOCUSIGN_CONNECT_HMAC_SECRET` | Optional `X-DocuSign-Signature-1` HMAC |
+| `DOCUSIGN_VOID_POLICY` | `allow` / `warn_capital` / `block_capital` |
 
 ## Webhook payloads
 
@@ -66,14 +67,16 @@ Unknown envelopes are acknowledged and still logged to `os_docusign_events`.
 | Send capital | `action:docusign_capital` |
 | View hub / events | `read:documents` |
 
-## Phase 24–29 storage & workflows
+## Phase 24–30 storage & workflows
 
-- Hub: role-map send, **live refresh roles**, void (reason required + audit), CoC email, reminders.  
+- Hub: role-map send, **live refresh roles**, void (reason + policy + audit), CoC email, reminders.  
+- Envelope/event filters: `?status=` / `?event_type=` on the DocuSign hub.  
+- Void policy: `DOCUSIGN_VOID_POLICY=allow|warn_capital|block_capital`.  
 - Apply through `phase29_paid_media_warranty.sql`.  
 
 ## Still deferred
 
-- Live paid ads APIs  
-- Envelope list filters / void undo policy  
+- Full LinkedIn Ads connectors  
+- Envelope undo / restore after void  
 - Retire simulate button in production  
 

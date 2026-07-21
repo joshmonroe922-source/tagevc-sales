@@ -76,14 +76,14 @@ export default async function MarketingModulePage({
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">Marketing</Badge>
-          <Badge variant="secondary">Phase 29</Badge>
+          <Badge variant="secondary">Phase 30</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Multichannel Marketing
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          TikTok OAuth, paid campaign stubs, SLA assignee routing, and live
-          engagement across LinkedIn, Meta, X, YouTube, and TikTok.
+          TikTok publish, paid ads tracking stubs, assignee SLA digests, and
+          live engagement across LinkedIn, Meta, X, YouTube, and TikTok.
         </p>
         {oauthFlash && (
           <p className="text-sm text-emerald-700">{oauthFlash}</p>

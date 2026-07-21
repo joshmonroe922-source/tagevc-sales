@@ -1,4 +1,4 @@
-# Multichannel Marketing System — Architecture (Phases 22–29)
+# Multichannel Marketing System — Architecture (Phases 22–30)
 
 **Status:** Functional · hub under Shared Services · Marketing.  
 **Live at:** `/shared-services/marketing`
@@ -11,18 +11,18 @@
 | X | Yes | Yes | Yes |
 | Meta | Yes | Basic | Yes |
 | YouTube | Yes | Stub | Yes (opt-in Analytics) |
-| TikTok | Yes (Login Kit) | Stub | Opt-in API |
+| TikTok | Yes (Login Kit) | Inbox / direct photo opt-in | Opt-in API |
 
-## Phase 29
+## Phase 30
 
-1. TikTok OAuth connect via `TIKTOK_CLIENT_KEY/SECRET`  
-2. Paid campaign stubs: `channel`, `budget_k`, `ad_platform`, `external_campaign_id`  
-3. SLA assignee: `MARKETING_SLA_ASSIGNEE` → ticket + `approval_assignee`  
+1. TikTok publisher (`TIKTOK_PUBLISH_DIRECT` + optional `TIKTOK_DEFAULT_IMAGE_URL`)  
+2. Paid ads sync foundation (`MARKETING_PAID_ADS_LIVE` for Meta insights)  
+3. Assignee SLA email digests (`MARKETING_SLA_EMAIL_ASSIGNEES`)  
 
-SQL through `phase29_paid_media_warranty.sql`.
+SQL through `phase29_paid_media_warranty.sql` (no Phase 30 schema).
 
-## Phase 30+
+## Phase 31+
 
-1. TikTok publish publisher  
-2. Paid ads API connectors  
-3. Assignee email digests  
+1. TikTok video upload pipeline  
+2. LinkedIn Ads insights  
+3. Campaign ROI rollups  

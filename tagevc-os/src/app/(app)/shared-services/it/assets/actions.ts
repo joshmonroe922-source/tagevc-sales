@@ -384,3 +384,31 @@ export async function scanLicenseRenewalsAction(): Promise<ItAssetActionResult> 
     message: `Renewals: ${res.due} due within 30d (${res.scanned} scanned)`,
   };
 }
+
+export async function bulkUpdateWarrantyAction(
+  _prev: ItAssetActionResult | null,
+  formData: FormData,
+): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('write:it_assets');
+  if (!gate.ok) return gate;
+
+  const lines = String(formData.get('lines') ?? '');
+  if (!lines.trim()) {
+    return { ok: false, error: 'Paste lines: asset_id,YYYY-MM-DD (or serial,date)' };
+  }
+
+  const { bulkUpdateWarranties } = await import(
+    '@/lib/shared-services/it-assets-repo'
+  );
+  const res = await bulkUpdateWarranties({
+    lines,
+    actor_id: gate.profile.id,
+  });
+  revalidateAssets();
+  const errHint =
+    res.errors.length > 0 ? ` · errors: ${res.errors.slice(0, 3).join('; ')}` : '';
+  return {
+    ok: true,
+    message: `Warranty import: ${res.updated} updated, ${res.failed} failed${errHint}`,
+  };
+}

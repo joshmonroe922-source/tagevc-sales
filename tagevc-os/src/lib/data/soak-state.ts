@@ -55,7 +55,7 @@ export function buildStage4eChecklist(input: {
     env_set: Boolean(softRenamedAt),
     confirmed: Boolean(softRenamedAt),
     detail: softRenamedAt
-      ? `Soft rename confirmed at ${softRenamedAt} — use phase29_stage4e_drop.sql for eventual DROP`
+      ? `Soft rename confirmed at ${softRenamedAt} — use phase30_stage4e_drop.sql for eventual DROP`
       : 'Set SNAPSHOT_SOFT_RENAMED_AT after offline rename to os_store_snapshots_retired_YYYYMMDD',
   };
   const retentionOk =
@@ -135,7 +135,7 @@ export function buildStage4eChecklist(input: {
       detail:
         snapCount == null
           ? 'Row count unavailable'
-          : `rows=${snapCount} — Phase 29 does not drop this table from the app. Prefer soft rename via phase29_stage4e_drop.sql`,
+          : `rows=${snapCount} — Phase 30 does not drop this table from the app. Prefer soft rename via phase30_stage4e_drop.sql`,
     },
     {
       id: 'soft_rename_path',

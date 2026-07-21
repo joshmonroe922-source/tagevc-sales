@@ -564,3 +564,59 @@ export async function removeGraphLicenseSku(input: {
     detail: `Graph SKUs removed (${skuIds.length})`,
   };
 }
+
+/**
+ * Disable sign-in / mailbox access for a user (Phase 30).
+ * PATCH accountEnabled=false when MS_GRAPH_DISABLE_ACCOUNT=1.
+ */
+export async function disableGraphMailbox(input: {
+  user_id: string;
+  email?: string | null;
+}): Promise<MdmResult> {
+  const enabled =
+    process.env.MS_GRAPH_DISABLE_ACCOUNT === '1' ||
+    process.env.MS_GRAPH_DISABLE_ACCOUNT === 'true';
+  if (!enabled) {
+    return {
+      ok: false,
+      skipped: true,
+      detail: 'MS_GRAPH_DISABLE_ACCOUNT not enabled',
+    };
+  }
+  if (!graphConfigured()) {
+    return { ok: false, skipped: true, detail: 'MS_GRAPH_* not set' };
+  }
+
+  const tok = await getMsGraphToken();
+  if (!tok.ok) return { ok: false, detail: tok.detail };
+  const graphUserId = await resolveGraphUserId(tok.token, input);
+  if (!graphUserId) {
+    return {
+      ok: false,
+      detail: `Graph user not found for ${input.email || input.user_id}`,
+    };
+  }
+
+  const res = await fetch(
+    `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(graphUserId)}`,
+    {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${tok.token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ accountEnabled: false }),
+    },
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    return {
+      ok: false,
+      detail: `Graph disable account HTTP ${res.status}: ${text.slice(0, 120)}`,
+    };
+  }
+  return {
+    ok: true,
+    detail: `Graph account disabled (mailbox/sign-in) for ${input.email || input.user_id}`,
+  };
+}

@@ -424,3 +424,97 @@ export async function revokeLicenseSeat(input: {
     return { ok: false, error: e instanceof Error ? e.message : 'revoke failed' };
   }
 }
+
+/** Update warranty end date by asset_id or serial_number (Phase 30). */
+export async function updateHardwareWarranty(input: {
+  asset_id?: string | null;
+  serial_number?: string | null;
+  warranty_ends_at: string;
+  actor_id?: string | null;
+}): Promise<{ ok: true; asset_id: string } | { ok: false; error: string }> {
+  try {
+    const sb = await createPersistClient();
+    let assetId = input.asset_id?.trim() || null;
+    if (!assetId && input.serial_number?.trim()) {
+      const { data, error } = await sb
+        .from('os_it_hardware_assets')
+        .select('asset_id')
+        .eq('serial_number', input.serial_number.trim())
+        .maybeSingle();
+      if (error) return { ok: false, error: error.message };
+      if (!data) return { ok: false, error: `No asset for serial ${input.serial_number}` };
+      assetId = data.asset_id as string;
+    }
+    if (!assetId) return { ok: false, error: 'asset_id or serial_number required' };
+
+    const now = new Date().toISOString();
+    const { error } = await sb
+      .from('os_it_hardware_assets')
+      .update({
+        warranty_ends_at: input.warranty_ends_at,
+        updated_at: now,
+      })
+      .eq('asset_id', assetId);
+    if (error) return { ok: false, error: error.message };
+
+    return { ok: true, asset_id: assetId };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'warranty update failed',
+    };
+  }
+}
+
+/**
+ * Bulk warranty import — lines: `ASSET-ID,YYYY-MM-DD` or `serial,YYYY-MM-DD`.
+ */
+export async function bulkUpdateWarranties(input: {
+  lines: string;
+  actor_id?: string | null;
+}): Promise<{
+  ok: true;
+  updated: number;
+  failed: number;
+  errors: string[];
+}> {
+  const errors: string[] = [];
+  let updated = 0;
+  let failed = 0;
+  for (const raw of input.lines.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) continue;
+    const parts = line.split(/[,\t]/).map((p) => p.trim());
+    if (parts.length < 2) {
+      failed += 1;
+      errors.push(`Bad line: ${line}`);
+      continue;
+    }
+    const [key, date] = parts;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      failed += 1;
+      errors.push(`Bad date on ${key}: ${date}`);
+      continue;
+    }
+    let res = await updateHardwareWarranty({
+      asset_id: key,
+      serial_number: null,
+      warranty_ends_at: date,
+      actor_id: input.actor_id,
+    });
+    if (!res.ok) {
+      res = await updateHardwareWarranty({
+        asset_id: null,
+        serial_number: key,
+        warranty_ends_at: date,
+        actor_id: input.actor_id,
+      });
+    }
+    if (res.ok) updated += 1;
+    else {
+      failed += 1;
+      errors.push(`${key}: ${res.error}`);
+    }
+  }
+  return { ok: true, updated, failed, errors: errors.slice(0, 20) };
+}

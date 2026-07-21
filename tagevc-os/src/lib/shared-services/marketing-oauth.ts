@@ -150,7 +150,7 @@ export function buildAuthorizeUrl(
     u.searchParams.set('client_key', cfg.clientId);
     u.searchParams.set('redirect_uri', cfg.redirectUri);
     u.searchParams.set('response_type', 'code');
-    u.searchParams.set('scope', 'user.info.basic,video.list');
+    u.searchParams.set('scope', 'user.info.basic,video.list,video.upload,video.publish');
     u.searchParams.set('state', state);
     return u.toString();
   }

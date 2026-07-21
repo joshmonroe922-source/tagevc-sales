@@ -28,8 +28,20 @@ function formatBytes(n: number | null | undefined): string {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export default async function DocuSignModulePage() {
+export default async function DocuSignModulePage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   await requirePermission('read:documents');
+
+  const sp = (await searchParams) ?? {};
+  const statusFilter =
+    typeof sp.status === 'string' ? sp.status.trim() : undefined;
+  const eventTypeFilter =
+    typeof sp.event_type === 'string' ? sp.event_type.trim() : undefined;
+  const envelopeFilter =
+    typeof sp.envelope_id === 'string' ? sp.envelope_id.trim() : undefined;
 
   const mode = getDocuSignMode();
   const configured = isDocuSignConfigured();
@@ -38,12 +50,19 @@ export default async function DocuSignModulePage() {
     ? roleHasPermission(ctx.profile.role, 'write:documents')
     : false;
   const [events, count, signed, templates, reminders] = await Promise.all([
-    listDocuSignEvents({ limit: 25 }),
+    listDocuSignEvents({
+      limit: 40,
+      status: statusFilter,
+      eventType: eventTypeFilter,
+      envelopeId: envelopeFilter,
+    }),
     countDocuSignEvents(),
     listSignedFiles({ limit: 20, withDownloadUrls: true }),
     listCachedTemplates(40),
     listReminderJobs(20),
   ]);
+
+  const voidPolicy = process.env.DOCUSIGN_VOID_POLICY?.trim() || 'allow';
 
   const missingEnv = DOCUSIGN_ENV_KEYS.filter((k) => {
     if (k === 'DOCUSIGN_OAUTH_HOST' || k === 'DOCUSIGN_BASE_PATH') return false;
@@ -76,12 +95,12 @@ export default async function DocuSignModulePage() {
           <Badge variant={mode === 'live' ? 'default' : 'secondary'}>
             {mode === 'live' ? 'Live JWT' : 'Mock envelopes'}
           </Badge>
-          <Badge variant="secondary">Phase 29</Badge>
+          <Badge variant="secondary">Phase 30</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">DocuSign</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Live template role refresh, void audit logging, CoC email, and
-          scheduled reminders. Capital sends still require{' '}
+          Envelope filters, void policy ({voidPolicy}), live template roles,
+          CoC email, and reminders. Capital sends still require{' '}
           <code className="text-xs">action:docusign_capital</code>.
         </p>
         <DocuSignHubActions canWrite={canWrite} />
@@ -274,9 +293,49 @@ export default async function DocuSignModulePage() {
           <CardTitle className="text-base">Recent events</CardTitle>
           <CardDescription>
             From <code className="text-xs">os_docusign_events</code> (newest first)
+            {(statusFilter || eventTypeFilter || envelopeFilter) &&
+              ' · filtered'}
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap gap-2 text-xs">
+            <Link
+              href="/shared-services/legal/docusign"
+              className="underline-offset-4 hover:underline"
+            >
+              All
+            </Link>
+            <Link
+              href="/shared-services/legal/docusign?status=voided"
+              className="underline-offset-4 hover:underline"
+            >
+              Voided
+            </Link>
+            <Link
+              href="/shared-services/legal/docusign?status=completed"
+              className="underline-offset-4 hover:underline"
+            >
+              Completed
+            </Link>
+            <Link
+              href="/shared-services/legal/docusign?status=sent"
+              className="underline-offset-4 hover:underline"
+            >
+              Sent
+            </Link>
+            <Link
+              href="/shared-services/legal/docusign?event_type=envelope-voided"
+              className="underline-offset-4 hover:underline"
+            >
+              Void events
+            </Link>
+            <Link
+              href="/shared-services/legal/docusign?event_type=envelope-sent-from-template"
+              className="underline-offset-4 hover:underline"
+            >
+              Template sends
+            </Link>
+          </div>
           {events.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No events yet — send a document or wait for Connect.
@@ -289,6 +348,7 @@ export default async function DocuSignModulePage() {
                     <th className="py-2 pr-3 font-medium">When</th>
                     <th className="py-2 pr-3 font-medium">Envelope</th>
                     <th className="py-2 pr-3 font-medium">Status</th>
+                    <th className="py-2 pr-3 font-medium">Event</th>
                     <th className="py-2 pr-3 font-medium">Doc</th>
                     <th className="py-2 pr-3 font-medium">Entity</th>
                     <th className="py-2 font-medium">Deal / Ticket</th>
@@ -310,6 +370,9 @@ export default async function DocuSignModulePage() {
                         }`}
                       >
                         {e.status}
+                      </td>
+                      <td className="py-2 pr-3 text-xs text-muted-foreground">
+                        {e.event_type ?? '—'}
                       </td>
                       <td className="py-2 pr-3">
                         {e.doc_id ? (
