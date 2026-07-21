@@ -776,6 +776,13 @@ export type ItIntuneAction = {
   cancelled_at: string | null;
   cancel_reason: string | null;
   failure_code: string | null;
+  last_error_code: string | null;
+  last_error_class: string | null;
+  approval_expired_at: string | null;
+  dispatch_authorized_at: string | null;
+  lease_expires_at: string | null;
+  worker_id: string | null;
+  retry_child_action_id: string | null;
   row_version: number;
 };
 
@@ -787,7 +794,7 @@ export async function listIntuneActions(
     const { data, error } = await sb
       .from('os_it_intune_actions')
       .select(
-        'action_id, run_id, managed_device_id, user_id, entity_id, status, requested_at, approved_at, submitted_at, verified_at, graph_request_id, attempt_count, poll_count, provider_state, verification_code, last_error, request_metadata, verification_evidence, local_asset_id, matched_by, matched_at, match_sha256, approval_expires_at, retry_of_action_id, retry_generation, cancelled_at, cancel_reason, failure_code, row_version',
+        'action_id, run_id, managed_device_id, user_id, entity_id, status, requested_at, approved_at, approval_expires_at, approval_expired_at, submitted_at, dispatch_authorized_at, verified_at, graph_request_id, attempt_count, poll_count, provider_state, verification_code, last_error, last_error_code, last_error_class, request_metadata, verification_evidence, local_asset_id, matched_by, matched_at, match_sha256, retry_of_action_id, retry_child_action_id, retry_generation, cancelled_at, cancel_reason, failure_code, lease_expires_at, worker_id, row_version',
       )
       .order('requested_at', { ascending: false })
       .limit(limit);
@@ -799,6 +806,30 @@ export async function listIntuneActions(
       error: error instanceof Error ? error.message : 'Intune list failed',
     };
   }
+}
+
+export async function listIntuneActionEvents(limit = 80) {
+  const sb = await createPersistClient();
+  const { data } = await sb
+    .from('os_it_intune_action_events')
+    .select(
+      'event_id, action_id, from_status, to_status, source, evidence, occurred_at, worker_id, row_version',
+    )
+    .order('occurred_at', { ascending: false })
+    .limit(limit);
+  return data ?? [];
+}
+
+export async function listIntuneWorkerRuns(limit = 12) {
+  const sb = await createPersistClient();
+  const { data } = await sb
+    .from('os_it_intune_worker_runs')
+    .select(
+      'worker_run_id, status, claimed, succeeded, failed, lease_conflicts, platform_error, started_at, completed_at',
+    )
+    .order('started_at', { ascending: false })
+    .limit(limit);
+  return data ?? [];
 }
 
 export async function approveIntuneAction(input: {

@@ -19,6 +19,8 @@ import {
   isFirmWideAccess,
 } from '@/lib/rbac/entity-scope';
 import { z } from 'zod';
+import { randomUUID } from 'crypto';
+import type { AppRole } from '@/lib/types/roles';
 
 export type DocuSignActionResult =
   | { ok: true; message?: string }
@@ -27,6 +29,25 @@ export type DocuSignActionResult =
 function revalidateDocuSign() {
   revalidatePath('/shared-services/legal/docusign');
   revalidatePath('/documents');
+}
+
+async function envelopeScopeError(
+  role: AppRole,
+  profileEntityId: string | null | undefined,
+  envelopeId: string,
+): Promise<string | null> {
+  if (isFirmWideAccess(role, profileEntityId)) return null;
+  const sb = await createPersistClient();
+  const { data } = await sb
+    .from('os_docusign_envelopes')
+    .select('entity_id')
+    .eq('envelope_id', envelopeId)
+    .maybeSingle();
+  const entityId = (data?.entity_id as string | null) ?? null;
+  return entityId &&
+    canAccessEntityId(role, profileEntityId, entityId)
+    ? null
+    : entityScopeDeniedMessage(entityId || 'unmapped');
 }
 
 export async function reconcileDocuSignAction(): Promise<DocuSignActionResult> {
@@ -59,6 +80,12 @@ export async function voidEnvelopeAction(
   const id = envelopeId.trim();
   const voidReason = reason.trim();
   if (!id) return { ok: false, error: 'envelope_id required' };
+  const scopeError = await envelopeScopeError(
+    gate.profile.role,
+    gate.profile.entity_id,
+    id,
+  );
+  if (scopeError) return { ok: false, error: scopeError };
   if (!voidReason) {
     return { ok: false, error: 'Void reason is required for audit' };
   }
@@ -264,22 +291,6 @@ export async function createReplacementEnvelopeAction(input: {
   if (new Set(roleNames).size !== roleNames.length) {
     return { ok: false, error: 'Replacement role names must be unique' };
   }
-  if (!sourceEnvelopeId.startsWith('ENV-')) {
-    try {
-      const source = await getEnvelopeStatus(sourceEnvelopeId);
-      if (source.status !== 'voided') {
-        return {
-          ok: false,
-          error: `Replacement is only available for voided envelopes; current status is ${source.status}.`,
-        };
-      }
-    } catch (e) {
-      return {
-        ok: false,
-        error: e instanceof Error ? e.message : 'Replacement preflight failed',
-      };
-    }
-  }
   let sourceContext: {
     doc_id: string | null;
     entity_id: string | null;
@@ -314,13 +325,53 @@ export async function createReplacementEnvelopeAction(input: {
   } catch {
     // Connect-only envelopes may not have a local document.
   }
-  const requestId =
-    input.requestId?.trim() ||
-    `DSR-${Date.now().toString(36).toUpperCase()}-${sourceEnvelopeId.slice(0, 8)}`;
   const sb = await createPersistClient();
+  if (!sourceContext.entity_id) {
+    const { data: projection } = await sb
+      .from('os_docusign_envelopes')
+      .select('doc_id, entity_id')
+      .eq('envelope_id', sourceEnvelopeId)
+      .maybeSingle();
+    if (projection) {
+      sourceContext.doc_id = (projection.doc_id as string) ?? null;
+      sourceContext.entity_id = (projection.entity_id as string) ?? null;
+    }
+  }
+  if (
+    (!sourceContext.entity_id &&
+      !isFirmWideAccess(gate.profile.role, gate.profile.entity_id)) ||
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      sourceContext.entity_id,
+    )
+  ) {
+    return {
+      ok: false,
+      error: entityScopeDeniedMessage(sourceContext.entity_id || 'unmapped'),
+    };
+  }
+  if (!sourceEnvelopeId.startsWith('ENV-')) {
+    try {
+      const source = await getEnvelopeStatus(sourceEnvelopeId);
+      if (source.status !== 'voided') {
+        return {
+          ok: false,
+          error: `Replacement is only available for voided envelopes; current status is ${source.status}.`,
+        };
+      }
+    } catch (e) {
+      return {
+        ok: false,
+        error: e instanceof Error ? e.message : 'Replacement preflight failed',
+      };
+    }
+  }
+  const requestId =
+    input.requestId?.trim() || randomUUID();
   const { error: lineageIntentError } = await sb
     .from('os_docusign_envelope_lineage')
-    .insert({
+    .upsert({
       request_id: requestId,
       source_envelope_id: sourceEnvelopeId,
       source_doc_id: sourceContext.doc_id,
@@ -333,14 +384,14 @@ export async function createReplacementEnvelopeAction(input: {
       status: 'requested',
       actor_id: gate.profile.id,
       actor_email: gate.profile.email ?? null,
-    });
+    }, { onConflict: 'request_id', ignoreDuplicates: true });
   if (lineageIntentError) {
     return {
       ok: false,
       error: `Replacement intent rejected: ${lineageIntentError.message}`,
     };
   }
-  const intent = await insertDocuSignEvent({
+  const requestedAudit = await insertDocuSignEvent({
     envelope_id: sourceEnvelopeId,
     status: 'replacement-requested',
     event_type: 'envelope-replacement-requested',
@@ -355,84 +406,79 @@ export async function createReplacementEnvelopeAction(input: {
       reason: input.reason?.trim() || null,
     },
   });
-  if (!intent.ok) {
+  if (!requestedAudit.ok) {
     await sb
       .from('os_docusign_envelope_lineage')
-      .update({ status: 'failed', error: intent.error, updated_at: new Date().toISOString() })
+      .update({ status: 'failed', error: requestedAudit.error, updated_at: new Date().toISOString() })
       .eq('request_id', requestId);
     return {
       ok: false,
-      error: `Replacement aborted because lineage intent could not be persisted: ${intent.error}`,
+      error: `Replacement aborted because lineage intent could not be persisted: ${requestedAudit.error}`,
     };
   }
   try {
     const { createEnvelopeFromTemplate } = await import(
       '@/lib/docusign/envelopes'
     );
-    const created = await createEnvelopeFromTemplate({
-      templateId,
-      emailSubject: input.emailSubject.trim() || 'Replacement signature request',
-      signers: parsedRoles.data.map((role) => ({
+    const {
+      prepareDocuSignSendIntent,
+      dispatchPreparedDocuSignSend,
+    } = await import('@/lib/docusign/send-intents-repo');
+    const normalizedRoles = parsedRoles.data.map((role) => ({
         email: role.email,
         name: role.name || role.email,
         roleName: role.roleName,
-      })),
+      }));
+    const sendIntent = await prepareDocuSignSendIntent({
+      requestId,
+      operationKind: 'replacement',
+      docId: sourceContext.doc_id,
+      entityId: sourceContext.entity_id,
+      templateId,
+      sourceEnvelopeId,
+      emailSubject:
+        input.emailSubject.trim() || 'Replacement signature request',
+      roles: normalizedRoles,
+      explicitHumanApproval: true,
+      actorId: gate.profile.id,
     });
-    const { error: lineageUpdateError } = await sb
+    if (sendIntent.state === 'finalized' && sendIntent.provider_envelope_id) {
+      return {
+        ok: true,
+        message: `Replacement ${sendIntent.provider_envelope_id} already finalized for ${sourceEnvelopeId}`,
+      };
+    }
+    const { data: boundLineage, error: lineageBindError } = await sb
       .from('os_docusign_envelope_lineage')
       .update({
-        replacement_envelope_id: created.envelopeId,
-        status: 'created',
-        created_at: new Date().toISOString(),
+        send_intent_id: sendIntent.intent_id,
         updated_at: new Date().toISOString(),
       })
       .eq('request_id', requestId)
-      .eq('status', 'requested');
-    if (lineageUpdateError) {
-      return {
-        ok: false,
-        error: `Replacement ${created.envelopeId} was sent, but durable lineage finalization failed: ${lineageUpdateError.message}`,
-      };
+      .eq('status', 'requested')
+      .select('lineage_id')
+      .single();
+    if (lineageBindError || !boundLineage) {
+      throw new Error(
+        `Replacement intent prepared but lineage binding failed: ${
+          lineageBindError?.message || 'lineage not found'
+        }`,
+      );
     }
-    const audit = await insertDocuSignEvent({
-      envelope_id: created.envelopeId,
-      status: created.status,
-      event_type: 'envelope-replacement-created',
-      raw_payload: {
-        source: 'hub',
-        replacement_for_envelope_id: sourceEnvelopeId,
-        templateId,
-        actor_id: gate.profile.id,
-        actor_email: gate.profile.email ?? null,
-        request_id: requestId,
-        roles: parsedRoles.data,
-      },
+    const created = await dispatchPreparedDocuSignSend({
+      intent: sendIntent,
+      dispatch: (leased) =>
+        createEnvelopeFromTemplate({
+          templateId,
+          emailSubject:
+            input.emailSubject.trim() || 'Replacement signature request',
+          signers: normalizedRoles,
+          transactionId: leased.provider_transaction_id,
+          intentId: leased.intent_id,
+          entityId: sourceContext.entity_id,
+          operationKind: 'replacement',
+        }),
     });
-    if (!audit.ok) {
-      return {
-        ok: false,
-        error: `Replacement ${created.envelopeId} was sent, but lineage audit failed: ${audit.error}`,
-      };
-    }
-    const reciprocal = await insertDocuSignEvent({
-      envelope_id: sourceEnvelopeId,
-      status: 'replaced',
-      event_type: 'envelope-replaced',
-      raw_payload: {
-        source: 'hub',
-        replaced_by_envelope_id: created.envelopeId,
-        templateId,
-        actor_id: gate.profile.id,
-        actor_email: gate.profile.email ?? null,
-        request_id: requestId,
-      },
-    });
-    if (!reciprocal.ok) {
-      return {
-        ok: false,
-        error: `Replacement ${created.envelopeId} was sent, but reciprocal lineage failed: ${reciprocal.error}`,
-      };
-    }
     revalidateDocuSign();
     return {
       ok: true,
@@ -445,30 +491,17 @@ export async function createReplacementEnvelopeAction(input: {
       .from('os_docusign_envelope_lineage')
       .update({
         status: 'failed',
-        error: message,
+        error: `Pre-dispatch setup failed: ${message}`.slice(0, 500),
         updated_at: new Date().toISOString(),
       })
       .eq('request_id', requestId)
-      .eq('status', 'requested');
-    await insertDocuSignEvent({
-      envelope_id: sourceEnvelopeId,
-      status: 'replacement-failed',
-      event_type: 'envelope-replacement-failed',
-      doc_id: sourceContext.doc_id,
-      entity_id: sourceContext.entity_id,
-      deal_id: sourceContext.deal_id,
-      ticket_id: sourceContext.ticket_id,
-      raw_payload: {
-        request_id: requestId,
-        templateId,
-        error: message,
-        actor_id: gate.profile.id,
-        actor_email: gate.profile.email ?? null,
-      },
-    });
+      .eq('status', 'requested')
+      .is('send_intent_id', null);
     return {
       ok: false,
-      error: message,
+      error: message.includes('outcome unknown')
+        ? `${message} · do not resend; transactional recovery is pending`
+        : message,
     };
   }
 }
@@ -481,6 +514,12 @@ export async function remindEnvelopeAction(
 
   const id = envelopeId.trim();
   if (!id) return { ok: false, error: 'envelope_id required' };
+  const scopeError = await envelopeScopeError(
+    gate.profile.role,
+    gate.profile.entity_id,
+    id,
+  );
+  if (scopeError) return { ok: false, error: scopeError };
 
   const api = await remindEnvelope(id);
   if (!api.ok) return api;
@@ -681,6 +720,12 @@ export async function emailCocAction(
   if (!gate.ok) return gate;
   const id = envelopeId.trim();
   if (!id) return { ok: false, error: 'envelope_id required' };
+  const scopeError = await envelopeScopeError(
+    gate.profile.role,
+    gate.profile.entity_id,
+    id,
+  );
+  if (scopeError) return { ok: false, error: scopeError };
   const { emailCertificateOfCompletion } = await import(
     '@/lib/docusign/coc-email'
   );
@@ -700,6 +745,12 @@ export async function scheduleRemindersAction(
   if (!gate.ok) return gate;
   const id = envelopeId.trim();
   if (!id) return { ok: false, error: 'envelope_id required' };
+  const scopeError = await envelopeScopeError(
+    gate.profile.role,
+    gate.profile.entity_id,
+    id,
+  );
+  if (scopeError) return { ok: false, error: scopeError };
   const { enqueueEnvelopeReminders } = await import(
     '@/lib/docusign/reminder-jobs'
   );

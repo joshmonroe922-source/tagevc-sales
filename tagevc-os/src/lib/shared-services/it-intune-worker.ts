@@ -19,15 +19,67 @@ type ClaimedAction = {
   match_snapshot: { normalized_serial?: string } | null;
   approval_match_sha256: string | null;
   match_sha256: string | null;
+  row_version: number;
 };
 
-export async function processIntuneActions(limit = 10): Promise<{
+export async function processIntuneActions(): Promise<{
   ok: boolean;
   claimed: number;
   processed: Array<{ action_id: string; status: string; detail: string }>;
   error?: string;
 }> {
+  const sb = await createPersistClient();
+  const workerId = `intune-${randomUUID()}`;
+  const { error: expiryError } = await sb.rpc(
+    'expire_it_intune_actions_v2',
+    { p_limit: 100 },
+  );
+  if (expiryError) {
+    return {
+      ok: false,
+      claimed: 0,
+      processed: [],
+      error: `Approval expiry sweep failed: ${expiryError.message}`,
+    };
+  }
+  await sb
+    .from('os_it_intune_worker_runs')
+    .update({
+      status: 'failed',
+      platform_error: 'Worker run did not finalize before stale timeout',
+      completed_at: new Date().toISOString(),
+    })
+    .eq('status', 'running')
+    .lt(
+      'started_at',
+      new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+    );
+  const { data: workerRun, error: workerRunError } = await sb
+    .from('os_it_intune_worker_runs')
+    .insert({
+      worker_id: workerId,
+      trigger_source: 'worker',
+      status: 'running',
+    })
+    .select('worker_run_id')
+    .single();
+  if (workerRunError || !workerRun) {
+    return {
+      ok: false,
+      claimed: 0,
+      processed: [],
+      error:
+        workerRunError?.message || 'Could not persist Intune worker run',
+    };
+  }
   if (!graphConfigured()) {
+    if (workerRun) {
+      await sb.from('os_it_intune_worker_runs').update({
+        status: 'failed',
+        platform_error: 'MS_GRAPH_* is not configured',
+        completed_at: new Date().toISOString(),
+      }).eq('worker_run_id', workerRun.worker_run_id);
+    }
     return {
       ok: false,
       claimed: 0,
@@ -37,19 +89,33 @@ export async function processIntuneActions(limit = 10): Promise<{
   }
   const token = await getMsGraphToken();
   if (!token.ok) {
+    if (workerRun) {
+      await sb.from('os_it_intune_worker_runs').update({
+        status: 'failed',
+        platform_error: token.detail,
+        completed_at: new Date().toISOString(),
+      }).eq('worker_run_id', workerRun.worker_run_id);
+    }
     return { ok: false, claimed: 0, processed: [], error: token.detail };
   }
-  const sb = await createPersistClient();
-  const workerId = `intune-${randomUUID()}`;
-  const { data, error } = await sb.rpc('claim_it_intune_actions', {
+  const { data, error } = await sb.rpc('claim_it_intune_action_v2', {
     p_worker_id: workerId,
-    p_limit: Math.min(Math.max(limit, 1), 20),
-    p_lease_seconds: 90,
+    p_lease_seconds: 120,
   });
   if (error) {
+    if (workerRun) {
+      await sb
+        .from('os_it_intune_worker_runs')
+        .update({
+          status: 'failed',
+          platform_error: error.message,
+          completed_at: new Date().toISOString(),
+        })
+        .eq('worker_run_id', workerRun.worker_run_id);
+    }
     return { ok: false, claimed: 0, processed: [], error: error.message };
   }
-  const actions = (data ?? []) as ClaimedAction[];
+  const actions = data ? [data as ClaimedAction] : [];
   const processed: Array<{
     action_id: string;
     status: string;
@@ -66,11 +132,16 @@ export async function processIntuneActions(limit = 10): Promise<{
     let verificationCode: string | null = null;
     let graphRequestId: string | null = null;
     let errorMessage: string | null = null;
+    let errorCode: string | null = null;
+    let errorClass: 'transient' | 'ambiguous' | 'permanent' | 'platform' | null =
+      null;
+    let retryAfterSeconds: number | null = null;
+    let providerPostStarted = false;
     try {
       if (action.status === 'dispatching') {
         const preflight = await fetch(
           `https://graph.microsoft.com/v1.0/deviceManagement/managedDevices/${encodeURIComponent(action.managed_device_id)}?$select=id,serialNumber,managementState,deviceName,model`,
-          { headers },
+          { headers, signal: AbortSignal.timeout(20_000) },
         );
         const device = (await preflight.json().catch(() => ({}))) as {
           id?: string;
@@ -92,21 +163,54 @@ export async function processIntuneActions(limit = 10): Promise<{
           liveSerial !== approvedSerial ||
           action.approval_match_sha256 !== action.match_sha256
         ) {
-          nextStatus = 'failed';
+          nextStatus =
+            preflight.status === 401 ||
+            preflight.status === 403 ||
+            preflight.status === 429 ||
+            preflight.status >= 500
+              ? 'approved'
+              : 'failed';
           verificationCode =
             preflight.status === 404
               ? 'provider_missing_before_dispatch'
-              : 'asset_provider_mismatch';
+              : preflight.status === 401 || preflight.status === 403
+                ? 'permission_denied'
+                : preflight.status === 429
+                  ? 'provider_throttled'
+                  : preflight.status >= 500
+                    ? 'provider_5xx_ambiguous'
+                    : 'asset_provider_mismatch';
+          errorCode = verificationCode;
+          errorClass =
+            preflight.status === 401 || preflight.status === 403
+              ? 'platform'
+              : preflight.status === 429
+                ? 'transient'
+                : preflight.status >= 500
+                  ? 'ambiguous'
+                  : 'permanent';
           errorMessage =
             preflight.status === 404
               ? 'Managed device disappeared before dispatch'
-              : 'Live provider identity no longer matches approved asset';
+              : preflight.status === 401 || preflight.status === 403
+                ? 'Graph authorization failed before dispatch'
+                : preflight.status === 429
+                  ? 'Graph throttled identity preflight'
+                  : preflight.status >= 500
+                    ? `Graph identity preflight HTTP ${preflight.status}`
+                    : 'Live provider identity no longer matches approved asset';
+          if (preflight.status === 429) {
+            retryAfterSeconds = Number(
+              preflight.headers.get('retry-after') ?? 300,
+            );
+          }
           evidence = {
             http_status: preflight.status,
             provider_state: device.managementState ?? null,
             failure_code: verificationCode,
             live_serial_suffix: liveSerial.slice(-4),
             approved_serial_suffix: approvedSerial.slice(-4),
+            provider_post_started: false,
           };
           detail = errorMessage;
         } else if (
@@ -121,6 +225,7 @@ export async function processIntuneActions(limit = 10): Promise<{
           };
           detail = 'Provider already reports matching device retired';
         } else {
+        providerPostStarted = true;
         const res = await fetch(
           `https://graph.microsoft.com/v1.0/deviceManagement/managedDevices/${encodeURIComponent(action.managed_device_id)}/retire`,
           {
@@ -129,6 +234,7 @@ export async function processIntuneActions(limit = 10): Promise<{
               ...headers,
               'client-request-id': `${action.action_id}:${action.attempt_count + 1}`,
             },
+            signal: AbortSignal.timeout(20_000),
           },
         );
         graphRequestId =
@@ -138,6 +244,7 @@ export async function processIntuneActions(limit = 10): Promise<{
           http_status: res.status,
           graph_request_id: graphRequestId,
           submitted_at: new Date().toISOString(),
+          provider_post_started: true,
         };
         if (res.ok) {
           nextStatus = 'submitted';
@@ -145,22 +252,30 @@ export async function processIntuneActions(limit = 10): Promise<{
         } else if (res.status === 429) {
           nextStatus = 'approved';
           errorMessage = 'Graph throttled retirement request';
+          errorCode = 'provider_throttled';
+          errorClass = 'transient';
+          retryAfterSeconds = Number(res.headers.get('retry-after') ?? 300);
           detail = errorMessage;
         } else if (res.status >= 500) {
           nextStatus = 'verifying';
           errorMessage = `Ambiguous Graph HTTP ${res.status}; polling before retry`;
+          errorCode = 'provider_5xx_ambiguous';
+          errorClass = 'ambiguous';
           detail = errorMessage;
         } else {
           nextStatus = 'failed';
           errorMessage = `Graph rejected retirement (${res.status})`;
           verificationCode = 'provider_rejected';
+          errorCode = 'provider_rejected';
+          errorClass =
+            res.status === 401 || res.status === 403 ? 'platform' : 'permanent';
           detail = errorMessage;
         }
         }
       } else {
         const res = await fetch(
           `https://graph.microsoft.com/v1.0/deviceManagement/managedDevices/${encodeURIComponent(action.managed_device_id)}?$select=id,managementState,lastSyncDateTime`,
-          { headers },
+          { headers, signal: AbortSignal.timeout(20_000) },
         );
         const json = (await res.json().catch(() => ({}))) as {
           managementState?: string;
@@ -192,6 +307,19 @@ export async function processIntuneActions(limit = 10): Promise<{
             verificationCode = 'poll_timeout';
             errorMessage = 'Retirement was not verified within policy';
             detail = errorMessage;
+          } else if (res.status === 401 || res.status === 403) {
+            nextStatus = 'verifying';
+            errorCode = 'permission_denied';
+            errorClass = 'platform';
+            errorMessage = `Graph authorization failed (${res.status})`;
+            detail = errorMessage;
+          } else if (res.status === 429 || res.status >= 500) {
+            nextStatus = 'verifying';
+            errorCode =
+              res.status === 429 ? 'provider_throttled' : 'provider_5xx';
+            errorClass = res.status === 429 ? 'transient' : 'ambiguous';
+            errorMessage = `Graph verification HTTP ${res.status}`;
+            detail = errorMessage;
           } else {
             nextStatus = 'verifying';
             detail = `Provider state ${providerState ?? `HTTP ${res.status}`}; poll scheduled`;
@@ -205,17 +333,30 @@ export async function processIntuneActions(limit = 10): Promise<{
       evidence = {
         provider_state: 'transport_ambiguous',
         checked_at: new Date().toISOString(),
+        provider_post_started: providerPostStarted,
       };
-      detail = `${errorMessage}; polling before retry`;
+      errorCode = providerPostStarted
+        ? 'transport_ambiguous'
+        : 'preflight_transport';
+      errorClass = providerPostStarted ? 'ambiguous' : 'transient';
+      nextStatus = providerPostStarted ? 'verifying' : 'approved';
+      detail = providerPostStarted
+        ? `${errorMessage}; polling before retry`
+        : `${errorMessage}; dispatch was not attempted`;
     }
-    const { error: finishError } = await sb.rpc('finish_it_intune_action', {
+    const { error: finishError } = await sb.rpc('finish_it_intune_action_v2', {
       p_action_id: action.action_id,
       p_lease_token: action.lease_token,
+      p_worker_id: workerId,
+      p_expected_row_version: action.row_version,
       p_status: nextStatus,
       p_evidence: evidence,
       p_error: errorMessage,
       p_verification_code: verificationCode,
       p_graph_request_id: graphRequestId,
+      p_error_code: errorCode,
+      p_error_class: errorClass,
+      p_retry_after_seconds: retryAfterSeconds,
     });
     processed.push({
       action_id: action.action_id,
@@ -223,11 +364,34 @@ export async function processIntuneActions(limit = 10): Promise<{
       detail: finishError?.message || detail,
     });
   }
+  let workerRunFinishError: string | undefined;
+  if (workerRun) {
+    const failed = processed.filter((item) =>
+      ['failed', 'lease_error'].includes(item.status),
+    ).length;
+    const { error: runFinishError } = await sb
+      .from('os_it_intune_worker_runs')
+      .update({
+        status: failed > 0 ? 'partial' : 'completed',
+        claimed: actions.length,
+        succeeded: processed.length - failed,
+        failed,
+        lease_conflicts: processed.filter(
+          (item) => item.status === 'lease_error',
+        ).length,
+        completed_at: new Date().toISOString(),
+      })
+      .eq('worker_run_id', workerRun.worker_run_id);
+    workerRunFinishError = runFinishError?.message;
+  }
   return {
-    ok: processed.every(
-      (item) => !['failed', 'lease_error'].includes(item.status),
-    ),
+    ok:
+      !workerRunFinishError &&
+      processed.every(
+        (item) => !['failed', 'lease_error'].includes(item.status),
+      ),
     claimed: actions.length,
     processed,
+    error: workerRunFinishError,
   };
 }

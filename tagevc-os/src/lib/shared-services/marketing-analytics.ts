@@ -72,6 +72,23 @@ export type MarketingAnalyticsSummary = {
   paid_typed: boolean;
   paid_coverage_days: number;
   paid_coverage_status: 'complete' | 'partial' | 'unavailable';
+  paid_account_coverage: Array<{
+    account_id: string;
+    entity_id: string | null;
+    display_name: string | null;
+    currency: string;
+    covered_days: number;
+    expected_days: number;
+    latest_covered_date: string | null;
+    coverage_status: 'complete' | 'partial' | 'unavailable';
+  }>;
+  paid_currency_totals: Array<{
+    currency: string;
+    impressions: number;
+    clicks: number;
+    spend: number;
+    conversions: number;
+  }>;
   paid_daily_trend: Array<{
     day: string;
     spend: number;
@@ -233,6 +250,8 @@ export async function getMarketingAnalyticsSummary(opts?: {
     paid_typed: false,
     paid_coverage_days: 0,
     paid_coverage_status: 'unavailable',
+    paid_account_coverage: [],
+    paid_currency_totals: [],
     paid_daily_trend: [],
     paid_campaigns: [],
   };
@@ -412,23 +431,27 @@ export async function getMarketingAnalyticsSummary(opts?: {
       .order('metric_date', { ascending: true });
     if (opts?.entityId) paidQuery = paidQuery.eq('entity_id', opts.entityId);
     const { data: typedPaidRows } = await paidQuery;
-    let coverageQuery = sb
-      .from('os_marketing_paid_sync_days')
-      .select('metric_date')
-      .gte('metric_date', paidStart.toISOString().slice(0, 10));
-    if (opts?.entityId) {
-      coverageQuery = coverageQuery.eq('entity_id', opts.entityId);
-    }
-    const { data: coverageRows } = await coverageQuery;
-    summary.paid_coverage_days = new Set(
-      (coverageRows ?? []).map((row) => String(row.metric_date)),
-    ).size;
+    const { data: paidReport } = await sb.rpc('get_marketing_paid_report', {
+      p_entity_id: opts?.entityId ?? null,
+      p_days: paidDays,
+    });
+    const report = (paidReport ?? {}) as {
+      overall_status?: 'complete' | 'partial' | 'unavailable';
+      accounts?: MarketingAnalyticsSummary['paid_account_coverage'];
+      currencies?: MarketingAnalyticsSummary['paid_currency_totals'];
+    };
+    summary.paid_account_coverage = report.accounts ?? [];
+    summary.paid_currency_totals = report.currencies ?? [];
     summary.paid_coverage_status =
-      summary.paid_coverage_days >= paidDays
-        ? 'complete'
-        : summary.paid_coverage_days > 0
-          ? 'partial'
-          : 'unavailable';
+      report.overall_status ?? 'unavailable';
+    summary.paid_coverage_days =
+      summary.paid_account_coverage.length > 0
+        ? Math.min(
+            ...summary.paid_account_coverage.map(
+              (account) => account.covered_days,
+            ),
+          )
+        : 0;
     if (typedPaidRows && typedPaidRows.length > 0) {
       summary.paid_typed = true;
       summary.paid_reporting_days = paidDays;

@@ -34,6 +34,7 @@ async function docusignFetch(
   const url = `${cfg.basePath}/restapi/v2.1/accounts/${cfg.accountId}${path}`;
   return fetch(url, {
     ...init,
+    signal: init?.signal ?? AbortSignal.timeout(45_000),
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
@@ -291,6 +292,34 @@ export async function listEnvelopeStatusesByTransactionIds(
       envelopeId: envelope.envelopeId,
       status: envelope.status ?? 'sent',
     }));
+}
+
+export async function getEnvelopeRecoveryEvidence(
+  envelopeId: string,
+): Promise<Record<string, string>> {
+  const cfg = getDocuSignConfig();
+  if (!cfg) throw new Error('DocuSign is not configured');
+  const res = await docusignFetch(
+    cfg,
+    `/envelopes/${encodeURIComponent(envelopeId)}/custom_fields`,
+    { signal: AbortSignal.timeout(20_000) },
+  );
+  const json = (await res.json().catch(() => ({}))) as {
+    textCustomFields?: Array<{ name?: string; value?: string }>;
+    message?: string;
+    errorCode?: string;
+  };
+  if (!res.ok) {
+    throw new Error(await docusignError('Recovery evidence', res, json));
+  }
+  return Object.fromEntries(
+    (json.textCustomFields ?? [])
+      .filter(
+        (field): field is { name: string; value: string } =>
+          Boolean(field.name && field.value),
+      )
+      .map((field) => [field.name, field.value]),
+  );
 }
 
 export async function getEnvelopeStatus(envelopeId: string): Promise<{

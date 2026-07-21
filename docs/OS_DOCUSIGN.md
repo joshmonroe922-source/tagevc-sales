@@ -125,10 +125,25 @@ SQL: `phase34_docusign_reconciliation.sql`.
 
 SQL: `phase35_docusign_transactional_send.sql`.
 
+## Phase 36
+
+- Finalized request replay returns the existing envelope without another send.
+- Replacement sends now use durable intents, stable transaction IDs, hidden
+  evidence fields, and the same recovery path as document/template sends.
+- Recovery checks hidden intent/entity/operation/document fields before
+  finalization; ambiguity enters manual review and is never resent.
+- Stale prepared and exhausted recovery states are materialized by a sweep.
+- Broad reconciliation gives intent evidence precedence and records truncation
+  and mapping conflicts.
+- The hub exposes recovery disposition, candidate envelope, and manual-review
+  reason.
+
+SQL: `phase36_docusign_send_hardening.sql`.
+
 ## Still deferred
 
 - Dedicated recipient detail drawer
-- Transactional replacement-envelope send cutover
+- Dual-approved manual-review resolution
 - Idempotent signed-archive metadata with content hashes
 - Retire simulate button in production  
 

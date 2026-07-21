@@ -617,11 +617,23 @@ export async function syncPaidCampaignAction(
       error: entityScopeDeniedMessage(campaign.entity_id || 'firm-wide'),
     };
   }
-  const { syncPaidCampaignStatus } = await import(
-    '@/lib/shared-services/marketing-ads'
+  if (!campaign.ad_account_id) {
+    return { ok: false, error: 'Campaign is not bound to a paid account' };
+  }
+  const { enqueueScheduledPaidWindows } = await import(
+    '@/lib/shared-services/marketing-paid-backfill'
   );
-  const res = await syncPaidCampaignStatus(campaignId);
-  if (!res.ok && !res.skipped) return { ok: false, error: res.detail };
+  const res = await enqueueScheduledPaidWindows({
+    source: 'manual',
+    requestedBy: gate.profile.id,
+    accountId: campaign.ad_account_id,
+  });
+  if (res.errors.length > 0) {
+    return { ok: false, error: res.errors.join('; ') };
+  }
   revalidateMarketing();
-  return { ok: true, message: res.detail };
+  return {
+    ok: true,
+    message: `Queued ${res.queued} governed paid-metrics window(s)`,
+  };
 }

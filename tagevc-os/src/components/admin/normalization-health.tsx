@@ -29,6 +29,9 @@ export function NormalizationHealthPanel({
 
   const gates = status.write_cutover.snapshot_write_gates;
   const ready = status.write_cutover.archive_ready_collections;
+  const pendingRollbackRehearsal = status.rollback_rehearsals.find(
+    (rehearsal) => rehearsal.status === 'awaiting_review',
+  );
 
   function archiveReady() {
     setMessage(null);
@@ -85,6 +88,7 @@ export function NormalizationHealthPanel({
       'Paste the offline rehearsal manifest JSON. It must include production_relation_mutated=false, restore_validation_result="passed", application_smoke_result="passed", and code_revision.',
       JSON.stringify({
         isolated_environment: 'required',
+        manifest_version: 'phase36-v1',
         production_access_disabled: true,
         production_relation_mutated: false,
         restore_validation_result: 'passed',
@@ -93,7 +97,7 @@ export function NormalizationHealthPanel({
         after_row_count: 0,
         before_schema_sha256: '',
         after_schema_sha256: '',
-        code_revision: '',
+        code_revision: 'required',
       }),
     );
     if (!retiredTable || !artifactUri || !artifactSha || !procedureSha || !manifestText) {
@@ -124,8 +128,13 @@ export function NormalizationHealthPanel({
   }
 
   function reviewRollbackRehearsal(decision: 'attest' | 'reject') {
-    const rehearsal = status.rollback_rehearsal;
+    const rehearsal = pendingRollbackRehearsal;
     if (!rehearsal) return;
+    if (!rehearsal.evidence_bundle_sha256) {
+      setError('This legacy rehearsal has no Phase 36 evidence bundle.');
+      return;
+    }
+    const evidenceBundleSha256 = rehearsal.evidence_bundle_sha256;
     const statement = window.prompt(
       decision === 'attest'
         ? 'Independent reviewer statement (minimum 20 characters):'
@@ -139,6 +148,7 @@ export function NormalizationHealthPanel({
       const result = await reviewRollbackRehearsalAction({
         drill_run_id: rehearsal.drill_run_id,
         manifest_sha256: rehearsal.manifest_sha256,
+        evidence_bundle_sha256: evidenceBundleSha256,
         decision,
         statement,
         expected_row_version: rehearsal.row_version,
@@ -291,7 +301,7 @@ export function NormalizationHealthPanel({
                 Verified soft rename and soak gates are complete. The app has no
                 destructive execution path. Offline rename/rollback guidance:{' '}
                 <code className="text-[10px]">
-                  phase35_stage4e_attestation_guide.sql
+                  phase36_operational_health_guide.sql
                 </code>
                 .
               </div>
@@ -360,8 +370,8 @@ export function NormalizationHealthPanel({
             <div className="mt-3 space-y-2 rounded-md border border-border/60 p-3 text-xs">
               <p className="font-medium">Offline rollback rehearsal evidence</p>
               <p className="text-muted-foreground">
-                Evidence capture only—this application cannot execute rollback
-                or mutate snapshot relations.
+                Evidence capture only—this workflow cannot execute rollback or
+                snapshot relation DDL.
               </p>
               {status.rollback_rehearsal ? (
                 <>
@@ -374,28 +384,55 @@ export function NormalizationHealthPanel({
                     manifest {status.rollback_rehearsal.manifest_sha256} ·
                     artifact {status.rollback_rehearsal.artifact_sha256}
                   </p>
-                  {status.rollback_rehearsal.status === 'awaiting_review' ? (
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        disabled={pending}
-                        onClick={() => reviewRollbackRehearsal('attest')}
-                      >
-                        Reviewer attest
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        disabled={pending}
-                        onClick={() => reviewRollbackRehearsal('reject')}
-                      >
-                        Reject evidence
-                      </Button>
-                    </div>
-                  ) : null}
                 </>
+              ) : null}
+              {pendingRollbackRehearsal ? (
+                <div className="space-y-2 rounded border p-2">
+                  <p>
+                    Pending independent review · expires{' '}
+                    {pendingRollbackRehearsal.expires_at}
+                  </p>
+                  <p className="break-all font-mono text-[10px]">
+                    bundle{' '}
+                    {pendingRollbackRehearsal.evidence_bundle_sha256 ??
+                      'schema pending'}{' '}
+                    · procedure {pendingRollbackRehearsal.procedure_sha256}
+                  </p>
+                  <a
+                    className="break-all underline"
+                    href={pendingRollbackRehearsal.artifact_uri}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    {pendingRollbackRehearsal.artifact_uri}
+                  </a>
+                  <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded bg-muted p-2 text-[10px]">
+                    {JSON.stringify(
+                      pendingRollbackRehearsal.manifest,
+                      null,
+                      2,
+                    )}
+                  </pre>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={pending}
+                      onClick={() => reviewRollbackRehearsal('attest')}
+                    >
+                      Reviewer attest exact bundle
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={pending}
+                      onClick={() => reviewRollbackRehearsal('reject')}
+                    >
+                      Reject evidence
+                    </Button>
+                  </div>
+                </div>
               ) : (
                 <Button
                   type="button"
@@ -407,6 +444,26 @@ export function NormalizationHealthPanel({
                   Record operator attestation
                 </Button>
               )}
+              {status.rollback_rehearsal_error ? (
+                <p className="text-destructive">
+                  Evidence query: {status.rollback_rehearsal_error}
+                </p>
+              ) : null}
+              {status.rollback_rehearsal_events.length > 0 ? (
+                <div className="space-y-1">
+                  <p className="font-medium">Attestation lifecycle</p>
+                  {status.rollback_rehearsal_events.slice(0, 8).map((event) => (
+                    <p
+                      key={String(event.event_id)}
+                      className="font-mono text-[10px] text-muted-foreground"
+                    >
+                      {String(event.occurred_at)} · {String(event.event_type)} ·{' '}
+                      {String(event.from_status ?? 'new')} →{' '}
+                      {String(event.to_status)}
+                    </p>
+                  ))}
+                </div>
+              ) : null}
             </div>
             {status.retirement_timeline.length > 0 ? (
               <div className="mt-3 space-y-1">

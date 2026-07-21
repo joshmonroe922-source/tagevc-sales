@@ -1,15 +1,10 @@
 import { NextResponse } from 'next/server';
 import { guardPermission } from '@/lib/rbac/session';
-import {
-  processPaidMetricRuns,
-} from '@/lib/shared-services/marketing-paid-backfill';
+import { enqueueScheduledPaidWindows } from '@/lib/shared-services/marketing-paid-backfill';
 
 async function authorize(request: Request) {
   const secret = process.env.CRON_SECRET || '';
-  if (
-    secret &&
-    request.headers.get('authorization') === `Bearer ${secret}`
-  ) {
+  if (secret && request.headers.get('authorization') === `Bearer ${secret}`) {
     return { ok: true as const, source: 'cron' as const, actor: null };
   }
   const gate = await guardPermission('write:marketing');
@@ -23,9 +18,14 @@ async function run(request: Request) {
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: 403 });
   }
-  const process = await processPaidMetricRuns(1);
-  const ok = process.failed === 0;
-  return NextResponse.json({ ok, process }, { status: ok ? 200 : 500 });
+  const result = await enqueueScheduledPaidWindows({
+    source: auth.source,
+    requestedBy: auth.actor,
+  });
+  return NextResponse.json(
+    { ok: result.errors.length === 0, ...result },
+    { status: result.errors.length === 0 ? 200 : 500 },
+  );
 }
 
 export async function GET(request: Request) {

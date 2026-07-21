@@ -22,6 +22,11 @@ import {
 } from '@/lib/data/snapshot-drills';
 import { getSnapshotRetentionStatus } from '@/lib/data/snapshot-retention';
 import {
+  listSnapshotRollbackEvidence,
+  listSnapshotRollbackRehearsals,
+  type SnapshotRollbackRehearsal,
+} from '@/lib/data/snapshot-rollback-attestations';
+import {
   buildStage4eChecklist,
   getLastSoakRun,
   type SoakRunRecord,
@@ -101,6 +106,10 @@ export type NormalizationStatus = {
     valid_until: string | null;
     row_version: number;
   } | null;
+  rollback_rehearsals: SnapshotRollbackRehearsal[];
+  rollback_attestations: Array<Record<string, unknown>>;
+  rollback_rehearsal_events: Array<Record<string, unknown>>;
+  rollback_rehearsal_error: string | null;
   latest_drill_evidence: {
     drill_run_id: string;
     status: string;
@@ -216,13 +225,26 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
     )
     .order('started_at', { ascending: false })
     .limit(1);
-  const { data: rollbackRehearsalRows } = await supabase
-    .from('os_snapshot_rollback_rehearsals')
-    .select(
-      'drill_run_id, epoch_id, status, manifest_sha256, artifact_uri, artifact_sha256, procedure_sha256, operator_id, reviewer_id, expires_at, valid_until, row_version',
-    )
-    .order('created_at', { ascending: false })
-    .limit(1);
+  const activeEpochId = soakEpochRows?.[0]?.epoch_id
+    ? String(soakEpochRows[0].epoch_id)
+    : null;
+  const rollbackResult = await listSnapshotRollbackRehearsals(
+    10,
+    activeEpochId,
+  );
+  const rollbackEvidence = await listSnapshotRollbackEvidence(
+    rollbackResult.rows.map((row) => row.drill_run_id),
+  );
+  const effectiveRollback =
+    rollbackResult.rows.find(
+      (row) =>
+        row.status === 'attested' &&
+        row.valid_until &&
+        Date.parse(row.valid_until) > Date.now(),
+    ) ??
+    rollbackResult.rows.find((row) => row.status === 'awaiting_review') ??
+    rollbackResult.rows[0] ??
+    null;
 
   const domains: StoreCollection[] = [
     'deal_flow',
@@ -383,9 +405,7 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
         | undefined) ?? null,
     soak_epoch: soakEpoch,
     rollback_rehearsal:
-      (rollbackRehearsalRows?.[0] as
-        | NormalizationStatus['rollback_rehearsal']
-        | undefined) ?? null,
+      (effectiveRollback as NormalizationStatus['rollback_rehearsal']) ?? null,
     retention_confirmed: retention.confirmed,
     retention_days_remaining: retention.days_remaining_before_drop_eligible,
   });
@@ -424,9 +444,11 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
         | NormalizationStatus['latest_drill_evidence']
         | undefined) ?? null,
     rollback_rehearsal:
-      (rollbackRehearsalRows?.[0] as
-        | NormalizationStatus['rollback_rehearsal']
-        | undefined) ?? null,
+      (effectiveRollback as NormalizationStatus['rollback_rehearsal']) ?? null,
+    rollback_rehearsals: rollbackResult.rows,
+    rollback_attestations: rollbackEvidence.attestations,
+    rollback_rehearsal_events: rollbackEvidence.events,
+    rollback_rehearsal_error: rollbackResult.error ?? null,
     retirement_timeline: (retirementEvents ?? []).map((event) => ({
       stage: String(event.stage),
       retired_table_name: (event.retired_table_name as string) ?? null,
@@ -450,7 +472,7 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
             : stage === 'read_cutover'
               ? 'Enable WRITE_CUTOVER_MATURE=1 when handoffs/audits tables are ready'
               : stage === 'sql_only_hydrate'
-                ? 'Stage 4b active — governed soft rename path; destructive retirement still deferred (Phase 35)'
+                ? 'Stage 4b active — governed soft rename path; destructive retirement still deferred (Phase 36)'
                 : stage === 'stage4_ready'
                   ? 'Drills passed — SQL-only hydrate follows write cutover automatically; see OS_SNAPSHOT_STAGE4.md'
                   : fkOrphanTotal > 0

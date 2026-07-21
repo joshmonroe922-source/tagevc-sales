@@ -504,7 +504,7 @@ export async function runIntuneWorkerAction(): Promise<ItAssetActionResult> {
   const { processIntuneActions } = await import(
     '@/lib/shared-services/it-intune-worker'
   );
-  const result = await processIntuneActions(10);
+  const result = await processIntuneActions();
   revalidateAssets();
   return result.ok
     ? {

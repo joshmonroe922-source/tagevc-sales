@@ -55,6 +55,9 @@ export async function reconcileDocuSignEnvelopes(input: {
   try {
     const envelopes = [];
     let startPosition = 0;
+    let pagesScanned = 0;
+    let truncated = false;
+    let nextStartPosition: number | null = null;
     for (let page = 0; page < 5; page += 1) {
       const result = await listRecentEnvelopes({
         count: 100,
@@ -62,13 +65,22 @@ export async function reconcileDocuSignEnvelopes(input: {
         startPosition,
       });
       if (!result.ok) throw new Error(result.error);
+      pagesScanned += 1;
       envelopes.push(...result.envelopes);
       if (result.pagination.nextStartPosition == null) break;
       startPosition = result.pagination.nextStartPosition;
+      nextStartPosition = startPosition;
+      if (page === 4) truncated = true;
     }
     seen = envelopes.length;
     const envelopeIds = envelopes.map((envelope) => envelope.envelopeId);
-    const [{ data: documents }, { data: lineage }, { data: events }] =
+    const [
+      { data: documents },
+      { data: lineage },
+      { data: events },
+      { data: intents },
+      { data: existingProjections },
+    ] =
       await Promise.all([
         envelopeIds.length
           ? sb
@@ -93,6 +105,21 @@ export async function reconcileDocuSignEnvelopes(input: {
               .in('envelope_id', envelopeIds)
               .order('received_at', { ascending: false })
           : Promise.resolve({ data: [] }),
+        envelopeIds.length
+          ? sb
+              .from('os_docusign_send_intents')
+              .select(
+                'intent_id, provider_envelope_id, provider_transaction_id, operation_kind, doc_id, entity_id, source_envelope_id, expected_provider_status',
+              )
+              .eq('state', 'finalized')
+              .in('provider_envelope_id', envelopeIds)
+          : Promise.resolve({ data: [] }),
+        envelopeIds.length
+          ? sb
+              .from('os_docusign_envelopes')
+              .select('envelope_id, send_intent_id, operation_kind, entity_id, doc_id, attempts')
+              .in('envelope_id', envelopeIds)
+          : Promise.resolve({ data: [] }),
       ]);
     const now = new Date().toISOString();
     const rows = envelopes.map((envelope) => {
@@ -107,13 +134,23 @@ export async function reconcileDocuSignEnvelopes(input: {
       const event = (events ?? []).find(
         (item) => item.envelope_id === envelope.envelopeId,
       );
+      const sendIntent = (intents ?? []).find(
+        (item) => item.provider_envelope_id === envelope.envelopeId,
+      );
+      const existingProjection = (existingProjections ?? []).find(
+        (item) => item.envelope_id === envelope.envelopeId,
+      );
       const document = docMatches.length === 1 ? docMatches[0] : null;
       const entityId =
+        (sendIntent?.entity_id as string | null) ??
+        (existingProjection?.entity_id as string | null) ??
         (document?.entity_id as string | null) ??
         (lineageMatch?.entity_id as string | null) ??
         (event?.entity_id as string | null) ??
         null;
       const docId =
+        (sendIntent?.doc_id as string | null) ??
+        (existingProjection?.doc_id as string | null) ??
         (document?.doc_id as string | null) ??
         (lineageMatch?.source_doc_id as string | null) ??
         (event?.doc_id as string | null) ??
@@ -122,18 +159,38 @@ export async function reconcileDocuSignEnvelopes(input: {
       const statusMismatch =
         Boolean(localStatus) &&
         localStatus?.toLowerCase() !== envelope.status.toLowerCase();
+      const intentEntityConflict = Boolean(
+        sendIntent?.entity_id &&
+          document?.entity_id &&
+          sendIntent.entity_id !== document.entity_id,
+      );
+      const intentProjectionConflict = Boolean(
+        sendIntent &&
+          existingProjection &&
+          ((existingProjection.send_intent_id &&
+            existingProjection.send_intent_id !== sendIntent.intent_id) ||
+            (existingProjection.entity_id &&
+              existingProjection.entity_id !== sendIntent.entity_id) ||
+            (existingProjection.doc_id &&
+              existingProjection.doc_id !== sendIntent.doc_id)),
+      );
       const issueCode =
-        docMatches.length > 1
+        intentEntityConflict || intentProjectionConflict
+          ? 'send_intent_conflict'
+          : docMatches.length > 1
           ? 'duplicate_document_mapping'
           : statusMismatch
             ? 'status_mismatch'
-            : !docId && !lineageMatch
+            : !docId && !lineageMatch && !sendIntent
               ? 'document_missing'
               : null;
       const state =
-        docMatches.length > 1 || statusMismatch
+        intentEntityConflict ||
+        intentProjectionConflict ||
+        docMatches.length > 1 ||
+        statusMismatch
           ? 'manual_review'
-          : docId || lineageMatch
+          : docId || lineageMatch || sendIntent
             ? 'in_sync'
             : 'unmapped_expected';
       if (state === 'manual_review') manualReview += 1;
@@ -141,7 +198,11 @@ export async function reconcileDocuSignEnvelopes(input: {
       else matched += 1;
       return {
         envelope_id: envelope.envelopeId,
-        operation_kind: lineageMatch
+        operation_kind: sendIntent
+          ? sendIntent.operation_kind
+          : existingProjection?.operation_kind
+            ? existingProjection.operation_kind
+            : lineageMatch
           ? 'replacement'
           : document
             ? 'document_send'
@@ -151,6 +212,9 @@ export async function reconcileDocuSignEnvelopes(input: {
         doc_id: docId,
         entity_id: entityId,
         lineage_id: lineageMatch?.lineage_id ?? null,
+        send_intent_id: sendIntent?.intent_id ?? existingProjection?.send_intent_id ?? null,
+        provider_transaction_id: sendIntent?.provider_transaction_id ?? null,
+        expected_provider_status: sendIntent?.expected_provider_status ?? null,
         provider_status: envelope.status,
         provider_status_at: envelope.statusChangedDateTime,
         provider_observed_at: now,
@@ -159,7 +223,7 @@ export async function reconcileDocuSignEnvelopes(input: {
         reconciliation_state: state,
         issue_code: issueCode,
         last_error: null,
-        attempts: 1,
+        attempts: Number(existingProjection?.attempts ?? 0) + 1,
         last_reconciled_at: now,
         next_reconcile_at: null,
         updated_at: now,
@@ -171,7 +235,7 @@ export async function reconcileDocuSignEnvelopes(input: {
         .upsert(rows, { onConflict: 'envelope_id' });
       if (error) throw new Error(error.message);
     }
-    await sb
+    const { error: finishRunError } = await sb
       .from('os_docusign_reconciliation_runs')
       .update({
         status: manualReview > 0 ? 'partial' : 'completed',
@@ -179,9 +243,17 @@ export async function reconcileDocuSignEnvelopes(input: {
         matched,
         unmapped,
         manual_review: manualReview,
+        pages_scanned: pagesScanned,
+        truncated,
+        next_start_position: truncated ? nextStartPosition : null,
+        intents_matched: (intents ?? []).length,
+        intent_conflicts: rows.filter(
+          (row) => row.issue_code === 'send_intent_conflict',
+        ).length,
         completed_at: now,
       })
       .eq('run_id', run.run_id);
+    if (finishRunError) throw new Error(finishRunError.message);
     return {
       ok: true,
       run_id: String(run.run_id),

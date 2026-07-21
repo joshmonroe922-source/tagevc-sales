@@ -82,6 +82,8 @@ export function ItAssetsClient({
   candidateTickets,
   onboardingTickets = [],
   intuneActions = [],
+  intuneEvents = [],
+  intuneWorkerRuns = [],
   canIntuneRetire = false,
   canWrite,
   tableError,
@@ -105,6 +107,8 @@ export function ItAssetsClient({
     status: string;
   }>;
   intuneActions?: ItIntuneAction[];
+  intuneEvents?: Array<Record<string, unknown>>;
+  intuneWorkerRuns?: Array<Record<string, unknown>>;
   canIntuneRetire?: boolean;
   canWrite: boolean;
   tableError?: string;
@@ -474,6 +478,17 @@ export function ItAssetsClient({
                     {action.provider_state ?? 'pending'} · verification{' '}
                     {action.verification_code ?? 'pending'}
                   </p>
+                  <p className="text-muted-foreground">
+                    approval expires {action.approval_expires_at ?? 'n/a'} ·
+                    dispatch authorized {action.dispatch_authorized_at ?? 'no'} ·
+                    lease {action.lease_expires_at ?? 'none'}
+                  </p>
+                  {action.last_error_code ? (
+                    <p className="text-destructive">
+                      {action.last_error_class ?? 'error'} ·{' '}
+                      {action.last_error_code}
+                    </p>
+                  ) : null}
                   {action.last_error ? (
                     <p className="text-destructive">{action.last_error}</p>
                   ) : null}
@@ -482,6 +497,30 @@ export function ItAssetsClient({
             })}
           </div>
         )}
+        {intuneWorkerRuns.length > 0 ? (
+          <div className="space-y-1 rounded border p-2 text-xs">
+            <p className="font-medium">Recent worker runs</p>
+            {intuneWorkerRuns.slice(0, 6).map((runRow) => (
+              <p key={String(runRow.worker_run_id)}>
+                {String(runRow.started_at)} · {String(runRow.status)} · claimed{' '}
+                {String(runRow.claimed)} · succeeded {String(runRow.succeeded)} ·
+                failed {String(runRow.failed)}
+              </p>
+            ))}
+          </div>
+        ) : null}
+        {intuneEvents.length > 0 ? (
+          <div className="space-y-1 rounded border p-2 text-xs">
+            <p className="font-medium">Recent action transitions</p>
+            {intuneEvents.slice(0, 10).map((eventRow) => (
+              <p key={String(eventRow.event_id)}>
+                {String(eventRow.occurred_at)} · {String(eventRow.action_id)} ·{' '}
+                {String(eventRow.from_status ?? 'new')} →{' '}
+                {String(eventRow.to_status)} · {String(eventRow.source)}
+              </p>
+            ))}
+          </div>
+        ) : null}
       </section>
 
       <section className="space-y-3">

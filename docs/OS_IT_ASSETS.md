@@ -109,9 +109,22 @@ SQL: `phase34_intune_drill_governance.sql`.
 
 SQL: `phase35_intune_rollback_attestations.sql`.
 
-## Phase 36+
+## Phase 36
 
-1. Dedicated action transition timeline and policy-based retry eligibility
+1. Approval expiry is materialized independently of Graph configuration and
+   appends transition evidence.
+2. Workers claim one action with token, owner, expiry, and row-version fencing.
+3. Graph calls have bounded timeouts and structured transient, ambiguous,
+   permanent, and platform error classes.
+4. Retry-After is honored, ambiguous responses verify before retry, and retry
+   children are idempotently linked to their terminal parent.
+5. Worker runs and recent action transitions are visible in the IT hub.
+
+SQL: `phase36_intune_worker_fencing.sql`.
+
+## Phase 37+
+
+1. Separate final dispatch-authorization RPC and outage circuit breaker
 2. Signed Exchange hold callback + deleted-user restore
 3. Downloadable warranty preview failure reports
 

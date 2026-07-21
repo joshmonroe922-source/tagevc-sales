@@ -61,6 +61,7 @@ export async function createRollbackRehearsalAction(input: {
 export async function reviewRollbackRehearsalAction(input: {
   drill_run_id: string;
   manifest_sha256: string;
+  evidence_bundle_sha256: string;
   decision: 'attest' | 'reject';
   statement: string;
   expected_row_version: number;
@@ -71,6 +72,7 @@ export async function reviewRollbackRehearsalAction(input: {
     .object({
       drill_run_id: z.string().uuid(),
       manifest_sha256: sha,
+      evidence_bundle_sha256: sha,
       decision: z.enum(['attest', 'reject']),
       statement: z.string().trim().min(20).max(1000),
       expected_row_version: z.number().int().nonnegative(),

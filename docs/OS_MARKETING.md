@@ -87,8 +87,23 @@ SQL: `phase34_marketing_analytics.sql`.
 
 SQL: `phase35_marketing_paid_backfill.sql`.
 
-## Phase 36+
+## Phase 36
 
-1. Provider fixture contract tests and complete-window alerting
-2. Currency-grouped reporting and period-aligned attributed revenue
+1. Historical scheduling uses missing per-account coverage across the exact
+   previous 90 complete dates.
+2. LinkedIn reporting follows bounded pages; scheduling and one-window worker
+   processing run independently.
+3. Provider-account reselection increments a connection revision and clears
+   stale reporting state atomically.
+4. Manual campaign sync queues governed windows instead of directly overwriting
+   daily metrics.
+5. Reporting requires every eligible account for overall completeness and shows
+   currency-grouped totals without cross-currency summation.
+
+SQL: `phase36_marketing_paid_reliability.sql`.
+
+## Phase 37+
+
+1. Provider fixtures and authoritative account-total reconciliation
+2. Period-aligned attributed revenue
 3. TikTok upload cancellation/reinitialization

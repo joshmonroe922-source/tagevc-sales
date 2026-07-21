@@ -246,7 +246,7 @@ export function buildStage4eChecklist(input: {
             : `Unverified live table query error: ${input.snapshots_table_error}`
           : snapCount == null
           ? 'Row count unavailable'
-          : `rows=${snapCount} — Phase 35 does not drop this table from the app. Use reviewed offline soft rename only`,
+          : `rows=${snapCount} — Phase 36 does not drop this table from the app. Use reviewed offline soft rename only`,
     },
     {
       id: 'soft_rename_path',

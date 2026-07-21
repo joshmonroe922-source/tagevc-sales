@@ -418,7 +418,9 @@ export function MarketingClient({
           <div>
             <p className="text-xs text-muted-foreground">Paid spend</p>
             <p className="font-semibold tabular-nums">
-              ${analytics.paid_spend_k.toFixed(1)}k
+              {analytics.paid_currency_mixed
+                ? 'grouped below'
+                : `$${analytics.paid_spend_k.toFixed(1)}k`}
             </p>
             <p className="text-xs text-muted-foreground">
               {analytics.paid_currencies.join(', ') || 'currency pending'}
@@ -427,7 +429,9 @@ export function MarketingClient({
           <div>
             <p className="text-xs text-muted-foreground">Attributed revenue</p>
             <p className="font-semibold tabular-nums">
-              ${analytics.paid_revenue_k.toFixed(1)}k
+              {analytics.paid_currency_mixed
+                ? 'grouped below'
+                : `$${analytics.paid_revenue_k.toFixed(1)}k`}
             </p>
           </div>
           <div>
@@ -476,7 +480,43 @@ export function MarketingClient({
             ))}
           </span>
         </div>
-        {analytics.paid_daily_trend.length > 0 ? (
+        {analytics.paid_account_coverage.length > 0 ? (
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {analytics.paid_account_coverage.map((account) => (
+              <div
+                key={account.account_id}
+                className="rounded-md border p-2 text-xs"
+              >
+                <p className="font-medium">
+                  {account.display_name || account.account_id}
+                </p>
+                <p className="text-muted-foreground">
+                  {account.entity_id ?? 'firm'} · {account.currency} ·{' '}
+                  {account.coverage_status} {account.covered_days}/
+                  {account.expected_days}
+                </p>
+                <p className="text-muted-foreground">
+                  through {account.latest_covered_date ?? 'pending'}
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {analytics.paid_currency_totals.length > 0 ? (
+          <p className="text-xs text-muted-foreground">
+            Currency-safe totals:{' '}
+            {analytics.paid_currency_totals
+              .map(
+                (total) =>
+                  `${total.currency} ${Number(total.spend).toLocaleString(undefined, {
+                    maximumFractionDigits: 2,
+                  })} · ${Number(total.impressions).toLocaleString()} impressions`,
+              )
+              .join(' | ')}
+          </p>
+        ) : null}
+        {!analytics.paid_currency_mixed &&
+        analytics.paid_daily_trend.length > 0 ? (
           <div className="overflow-x-auto">
             <p className="mb-1 text-xs font-medium text-muted-foreground">
               Daily performance

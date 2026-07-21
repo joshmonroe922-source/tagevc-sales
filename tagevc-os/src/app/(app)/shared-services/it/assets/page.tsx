@@ -6,6 +6,8 @@ import {
   listHardwareAssets,
   listLifecycleEvents,
   listIntuneActions,
+  listIntuneActionEvents,
+  listIntuneWorkerRuns,
   listSoftwareLicenses,
 } from '@/lib/shared-services/it-assets-repo';
 import {
@@ -18,11 +20,13 @@ import {
 } from '@/lib/shared-services/it-onboarding';
 import { roleHasPermission } from '@/lib/types/roles';
 import { getSessionContext, requirePermission } from '@/lib/rbac/session';
+import { isFirmWideAccess } from '@/lib/rbac/entity-scope';
 
 export default async function ItAssetsModulePage() {
   await requirePermission('read:it_assets');
 
-  const [hw, lic, ev, lifecycle, off, onb, intune] = await Promise.all([
+  const [hw, lic, ev, lifecycle, off, onb, intune, intuneEvents, workerRuns] =
+    await Promise.all([
     listHardwareAssets(),
     listSoftwareLicenses(),
     listAssignmentEvents(),
@@ -30,6 +34,8 @@ export default async function ItAssetsModulePage() {
     listOffboardingRuns(),
     listOnboardingRuns(),
     listIntuneActions(),
+    listIntuneActionEvents(),
+    listIntuneWorkerRuns(),
   ]);
   const candidateTickets = listOffboardingCandidateTickets();
   const onboardingTickets = listOnboardingCandidateTickets();
@@ -41,11 +47,20 @@ export default async function ItAssetsModulePage() {
   const canIntuneRetire = ctx
     ? roleHasPermission(ctx.profile.role, 'action:intune_retire')
     : false;
-  if (ctx?.profile.entity_id) {
+  const firmWide = ctx
+    ? isFirmWideAccess(ctx.profile.role, ctx.profile.entity_id)
+    : false;
+  if (!firmWide && ctx?.profile.entity_id) {
     intune.rows = intune.rows.filter(
       (action) => action.entity_id === ctx.profile.entity_id,
     );
   }
+  const visibleActionIds = new Set(
+    intune.rows.map((action) => action.action_id),
+  );
+  const visibleIntuneEvents = intuneEvents.filter((event) =>
+    visibleActionIds.has(String(event.action_id)),
+  );
 
   const tableError =
     hw.error || lic.error || ev.error || lifecycle.error || off.error || onb.error;
@@ -62,14 +77,14 @@ export default async function ItAssetsModulePage() {
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">IT</Badge>
-          <Badge variant="secondary">Phase 35</Badge>
+          <Badge variant="secondary">Phase 36</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Hardware &amp; licensing
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Atomic warranty preview/commit, structured per-device Intune
-          submission and verification evidence, renewals, and asset lifecycle.
+          Atomic warranty preview/commit, fenced one-at-a-time Intune workers,
+          approval expiry and transition evidence, renewals, and asset lifecycle.
         </p>
       </div>
 
@@ -83,6 +98,8 @@ export default async function ItAssetsModulePage() {
         candidateTickets={candidateTickets}
         onboardingTickets={onboardingTickets}
         intuneActions={intune.rows}
+        intuneEvents={visibleIntuneEvents}
+        intuneWorkerRuns={firmWide ? workerRuns : []}
         canWrite={canWrite}
         canIntuneRetire={canIntuneRetire}
         tableError={tableError || intune.error}

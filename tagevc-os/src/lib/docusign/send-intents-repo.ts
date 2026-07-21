@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'crypto';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 import {
+  getEnvelopeRecoveryEvidence,
   listEnvelopeStatusesByTransactionIds,
   type CreateEnvelopeResult,
 } from '@/lib/docusign/envelopes';
@@ -53,6 +54,7 @@ export async function prepareDocuSignSendIntent(input: {
       (input.roles ?? []).map((role) => ({
         role: role.roleName ?? 'Signer',
         email: role.email.trim().toLowerCase(),
+        name: role.name?.trim() || null,
       })),
     ),
     p_content_sha256: input.content ? sha(input.content) : null,
@@ -93,6 +95,13 @@ export async function dispatchPreparedDocuSignSend(input: {
     throw new Error(claimError?.message || 'Could not claim DocuSign send');
   }
   const leased = claimed as DocuSignSendIntent;
+  if (leased.state === 'finalized' && leased.provider_envelope_id) {
+    return {
+      envelopeId: leased.provider_envelope_id,
+      status: 'sent',
+      raw: { replay: true, intent_id: leased.intent_id },
+    };
+  }
   try {
     const created = await input.dispatch(leased);
     const { error: finalizeError } = await sb.rpc('finalize_docusign_send', {
@@ -114,7 +123,7 @@ export async function dispatchPreparedDocuSignSend(input: {
     const status = Number(message.match(/HTTP\s+(\d+)/i)?.[1] ?? 0);
     const unknown =
       !status || status === 408 || status === 429 || status >= 500;
-    await sb.rpc('finish_docusign_send_attempt', {
+    const { error: finishError } = await sb.rpc('finish_docusign_send_attempt', {
       p_intent_id: leased.intent_id,
       p_lease_token: leased.lease_token,
       p_outcome: unknown ? 'unknown' : 'definitive_failure',
@@ -124,6 +133,11 @@ export async function dispatchPreparedDocuSignSend(input: {
       p_http_status: status || null,
       p_trace_token: message.match(/trace\s+([^\s]+)/i)?.[1] || null,
     });
+    if (finishError) {
+      throw new Error(
+        `${message} · additionally failed to persist send outcome: ${finishError.message}`,
+      );
+    }
     throw new Error(
       unknown
         ? `${message} · outcome unknown; recovery will reconcile transaction ${leased.provider_transaction_id}`
@@ -134,72 +148,151 @@ export async function dispatchPreparedDocuSignSend(input: {
 
 export async function recoverDocuSignSendIntents(limit = 20) {
   const sb = await createPersistClient();
+  const { data: sweep, error: sweepError } = await sb.rpc(
+    'sweep_docusign_send_intents',
+  );
+  if (sweepError) {
+    return {
+      claimed: 0,
+      recovered: 0,
+      deferred: 0,
+      quarantined: 0,
+      error: sweepError.message,
+    };
+  }
   const workerId = `recover-${randomUUID()}`;
   const { data, error } = await sb.rpc('claim_docusign_send_recovery', {
     p_worker_id: workerId,
     p_limit: limit,
     p_lease_seconds: 90,
   });
-  if (error) return { claimed: 0, recovered: 0, deferred: 0, error: error.message };
+  if (error) {
+    return {
+      claimed: 0,
+      recovered: 0,
+      deferred: 0,
+      quarantined: 0,
+      sweep,
+      error: error.message,
+    };
+  }
   const intents = (data ?? []) as DocuSignSendIntent[];
   let recovered = 0;
   let deferred = 0;
-  for (let offset = 0; offset < intents.length; offset += 20) {
-    const batch = intents.slice(offset, offset + 20);
+  let quarantined = 0;
+  const issues: string[] = [];
+  for (const intent of intents) {
     try {
       const found = await listEnvelopeStatusesByTransactionIds(
-        batch.map((intent) => intent.provider_transaction_id),
+        [intent.provider_transaction_id],
       );
-      for (const intent of batch) {
-        const matches = found.filter(
-          (envelope) =>
-            envelope.transactionId === intent.provider_transaction_id,
+      const matches = found.filter(
+        (envelope) =>
+          envelope.transactionId === intent.provider_transaction_id,
+      );
+      if (matches.length === 1) {
+        const evidence = await getEnvelopeRecoveryEvidence(
+          matches[0].envelopeId,
         );
-        if (matches.length === 1) {
-          const { error: finalizeError } = await sb.rpc(
-            'finalize_docusign_send',
+        const evidenceMatches =
+          evidence.tagevc_send_intent_id === intent.intent_id &&
+          evidence.tagevc_operation_kind === intent.operation_kind &&
+          evidence.tagevc_entity_id === (intent.entity_id ?? 'firm') &&
+          (!intent.doc_id || evidence.tagevc_doc_id === intent.doc_id);
+        if (!evidenceMatches) {
+          quarantined += 1;
+          const { error: quarantineError } = await sb.rpc(
+            'quarantine_docusign_send_recovery',
             {
               p_intent_id: intent.intent_id,
               p_lease_token: intent.lease_token,
-              p_envelope_id: matches[0].envelopeId,
-              p_provider_status: matches[0].status,
-              p_recovered: true,
+              p_disposition: 'evidence_mismatch',
+              p_reason:
+                'Transaction matched but hidden intent/entity/operation evidence differed',
+              p_candidate_envelope_id: matches[0].envelopeId,
+              p_candidate_provider_status: matches[0].status,
             },
           );
-          if (!finalizeError) recovered += 1;
-          else {
-            deferred += 1;
-            await sb.rpc('defer_docusign_send_recovery', {
-              p_intent_id: intent.intent_id,
-              p_lease_token: intent.lease_token,
-              p_error_message: finalizeError.message,
-            });
-          }
-        } else {
-          deferred += 1;
-          await sb.rpc('defer_docusign_send_recovery', {
+          if (quarantineError) issues.push(quarantineError.message);
+          continue;
+        }
+        const { error: finalizeError } = await sb.rpc(
+          'finalize_docusign_send',
+          {
             p_intent_id: intent.intent_id,
             p_lease_token: intent.lease_token,
-            p_error_message:
-              matches.length > 1
-                ? 'Multiple envelopes matched provider transaction'
-                : 'Provider transaction not found yet',
-          });
+            p_envelope_id: matches[0].envelopeId,
+            p_provider_status: matches[0].status,
+            p_recovered: true,
+          },
+        );
+        if (!finalizeError) recovered += 1;
+        else {
+          quarantined += 1;
+          const { error: quarantineError } = await sb.rpc(
+            'quarantine_docusign_send_recovery',
+            {
+              p_intent_id: intent.intent_id,
+              p_lease_token: intent.lease_token,
+              p_disposition: 'finalization_conflict',
+              p_reason: finalizeError.message,
+              p_candidate_envelope_id: matches[0].envelopeId,
+              p_candidate_provider_status: matches[0].status,
+            },
+          );
+          if (quarantineError) issues.push(quarantineError.message);
         }
+      } else if (matches.length > 1) {
+        quarantined += 1;
+        const { error: quarantineError } = await sb.rpc(
+          'quarantine_docusign_send_recovery',
+          {
+            p_intent_id: intent.intent_id,
+            p_lease_token: intent.lease_token,
+            p_disposition: 'multiple_matches',
+            p_reason: 'Multiple envelopes matched the same provider transaction',
+            p_candidate_envelope_id: matches[0]?.envelopeId ?? null,
+            p_candidate_provider_status: matches[0]?.status ?? null,
+          },
+        );
+        if (quarantineError) issues.push(quarantineError.message);
+      } else {
+        deferred += 1;
+        const { error: deferError } = await sb.rpc(
+          'defer_docusign_send_recovery_v2',
+          {
+            p_intent_id: intent.intent_id,
+            p_lease_token: intent.lease_token,
+            p_disposition: 'not_found',
+            p_error_message: 'Provider transaction not found yet',
+          },
+        );
+        if (deferError) issues.push(deferError.message);
       }
     } catch (caught) {
-      for (const intent of batch) {
-        deferred += 1;
-        await sb.rpc('defer_docusign_send_recovery', {
+      deferred += 1;
+      const { error: deferError } = await sb.rpc(
+        'defer_docusign_send_recovery_v2',
+        {
           p_intent_id: intent.intent_id,
           p_lease_token: intent.lease_token,
+          p_disposition: 'lookup_error',
           p_error_message:
             caught instanceof Error ? caught.message : 'Recovery lookup failed',
-        });
-      }
+        },
+      );
+      if (deferError) issues.push(deferError.message);
     }
   }
-  return { claimed: intents.length, recovered, deferred };
+  return {
+    claimed: intents.length,
+    recovered,
+    deferred,
+    quarantined,
+    sweep,
+    error: issues[0],
+    issues,
+  };
 }
 
 export async function listDocuSignSendIntents(input?: {
@@ -210,7 +303,7 @@ export async function listDocuSignSendIntents(input?: {
   let query = sb
     .from('os_docusign_send_intents')
     .select(
-      'intent_id, request_id, operation_kind, state, doc_id, entity_id, template_id, source_envelope_id, provider_transaction_id, provider_envelope_id, dispatch_attempts, recovery_attempts, last_error_code, last_error_message, requested_at, finalized_at',
+      'intent_id, request_id, operation_kind, state, doc_id, entity_id, template_id, source_envelope_id, provider_transaction_id, provider_envelope_id, dispatch_attempts, recovery_attempts, last_error_code, last_error_message, candidate_envelope_id, last_lookup_at, last_lookup_disposition, manual_review_reason, next_recovery_at, requested_at, finalized_at',
     )
     .order('requested_at', { ascending: false })
     .limit(30);

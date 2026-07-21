@@ -113,6 +113,21 @@ Phase 34 adds no application relation-rename or destructive execution path.
 SQL: `phase35_intune_rollback_attestations.sql`. Read-only evidence inspection:
 `phase35_stage4e_attestation_guide.sql`.
 
+## Phase 36 attestation lifecycle
+
+- A versioned manifest and one evidence-bundle hash bind the epoch, retired
+  relation, configuration, manifest, external artifact, and procedure.
+- Pending and accepted evidence are explicitly expired when time, epoch status,
+  or configuration no longer qualifies.
+- Newly accepted evidence supersedes prior valid evidence atomically; rejected
+  pending evidence does not invalidate a prior valid attestation.
+- The reviewer sees the complete manifest, artifact link, hashes, actor
+  separation, validity, and lifecycle timeline before deciding.
+- The application does not drop `os_store_snapshots`; Stage 4e remains governed
+  evidence and offline operations only.
+
+SQL: `phase36_snapshot_attestation_lifecycle.sql`.
+
 ## Non-goals
 
 - Dropping the table in Phase 16–19  

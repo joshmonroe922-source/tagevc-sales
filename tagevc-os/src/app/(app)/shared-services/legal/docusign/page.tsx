@@ -125,7 +125,7 @@ export default async function DocuSignModulePage({
       search: templateSearch,
     }),
     listReminderJobs(20),
-    configured
+    configured && firmWide
       ? listRecentEnvelopes({
           status: liveStatusFilter,
           count: 100,
@@ -226,12 +226,12 @@ export default async function DocuSignModulePage({
           <Badge variant={mode === 'live' ? 'default' : 'secondary'}>
             {mode === 'live' ? 'Live JWT' : 'Mock envelopes'}
           </Badge>
-          <Badge variant="secondary">Phase 35</Badge>
+          <Badge variant="secondary">Phase 36</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">DocuSign</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Paginated envelopes and templates, preserved filters, and durable
-          idempotent multi-role replacement lineage.
+          Replay-safe transactional sends, evidence-verified timeout recovery,
+          intent-aware reconciliation, and entity-scoped audit visibility.
           Void policy: {voidPolicy}. Capital sends still require{' '}
           <code className="text-xs">action:docusign_capital</code>.
         </p>
@@ -326,6 +326,15 @@ export default async function DocuSignModulePage({
                     {String(intent.recovery_attempts)}
                     {intent.last_error_code
                       ? ` · ${String(intent.last_error_code)}`
+                      : ''}
+                    {intent.last_lookup_disposition
+                      ? ` · ${String(intent.last_lookup_disposition)}`
+                      : ''}
+                    {intent.candidate_envelope_id
+                      ? ` · candidate ${String(intent.candidate_envelope_id)}`
+                      : ''}
+                    {intent.manual_review_reason
+                      ? ` · ${String(intent.manual_review_reason)}`
                       : ''}
                   </span>
                 </div>

@@ -635,12 +635,29 @@ Docs: `docs/OS_PHASE34.md`
 
 Docs: `docs/OS_PHASE35.md`
 
-### Phase 36+ backlog
+### Phase 36 scope (coverage truth · recovery fencing · lifecycle evidence)
 
-- Provider contract fixtures, currency-safe analytics, and coverage alerts
-- Transactional DocuSign replacement sends and hash-idempotent archives
-- Rich Intune transition history and policy-based retry eligibility
-- Atomic drill/epoch evidence RPCs and rehearsal expiry automation
+- Per-account paid coverage, missing-date scheduling, connection revisions, and
+  currency-grouped totals
+- Replay-safe transactional DocuSign replacements, evidence-verified recovery,
+  and intent-aware reconciliation
+- One-at-a-time version-fenced Intune workers, durable expiry events, structured
+  error classes, and worker timelines
+- Versioned rollback evidence bundles with expiry, supersession, and full
+  reviewer visibility
+- SQL: apply `phase36_marketing_paid_reliability.sql`,
+  `phase36_docusign_send_hardening.sql`,
+  `phase36_intune_worker_fencing.sql`, and
+  `phase36_snapshot_attestation_lifecycle.sql`
+
+Docs: `docs/OS_PHASE36.md`
+
+### Phase 37+ backlog
+
+- Provider contract fixtures and authoritative paid account-total reconciliation
+- DocuSign manual-review resolution and hash-idempotent signed archives
+- Intune final dispatch-authorization RPC and Graph outage circuit breaker
+- Fully transactional snapshot drill/soak persistence and expiry notifications
 - Push · user admin
 
 ## Run locally

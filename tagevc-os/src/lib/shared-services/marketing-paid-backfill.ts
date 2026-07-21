@@ -75,7 +75,8 @@ export async function enqueueScheduledPaidWindows(input?: {
     .eq('status', 'connected')
     .eq('scope_status', 'healthy')
     .not('external_account_id', 'is', null)
-    .limit(20);
+    .order('account_id', { ascending: true })
+    .range(0, 999);
   if (input?.accountId) query = query.eq('account_id', input.accountId);
   const { data: accounts, error } = await query;
   if (error) return { queued: 0, errors: [error.message] };
@@ -92,26 +93,63 @@ export async function enqueueScheduledPaidWindows(input?: {
       end: string;
       purpose: 'bootstrap_90d' | 'rolling_28d' | 'manual';
     }> = [];
+    const rollingWindows: typeof windows = [];
     const purpose =
       input?.source === 'manual' ? 'manual' : 'rolling_28d';
     for (let offset = 0; offset < 28; offset += 7) {
-      windows.push({
+      rollingWindows.push({
         start: shiftDate(yesterday, -(offset + 6)),
         end: shiftDate(yesterday, -offset),
         purpose,
       });
     }
-    if (!account.paid_metrics_data_through) {
-      const bootstrapEnd = shiftDate(yesterday, -28);
-      let start = shiftDate(yesterday, -90);
-      while (start <= bootstrapEnd) {
-        const end =
-          shiftDate(start, 6) < bootstrapEnd
-            ? shiftDate(start, 6)
-            : bootstrapEnd;
-        windows.push({ start, end, purpose: 'bootstrap_90d' });
-        start = shiftDate(end, 1);
+    const historyStart = shiftDate(yesterday, -89);
+    const { data: coverage, error: coverageError } = await sb
+      .from('os_marketing_paid_sync_days')
+      .select('metric_date')
+      .eq('ad_account_id', account.account_id)
+      .gte('metric_date', historyStart)
+      .lte('metric_date', yesterday)
+      .range(0, 999);
+    if (coverageError) {
+      errors.push(`${account.account_id}: ${coverageError.message}`);
+      continue;
+    }
+    const covered = new Set(
+      (coverage ?? []).map((day) => String(day.metric_date)),
+    );
+    let rollingCursor = shiftDate(yesterday, -27);
+    let recentCoverageComplete = true;
+    while (rollingCursor <= yesterday) {
+      if (!covered.has(rollingCursor)) {
+        recentCoverageComplete = false;
+        break;
       }
+      rollingCursor = shiftDate(rollingCursor, 1);
+    }
+    if (recentCoverageComplete) windows.push(...rollingWindows);
+    let gapStart: string | null = null;
+    let cursor = historyStart;
+    while (cursor <= yesterday) {
+      if (!covered.has(cursor) && !gapStart) gapStart = cursor;
+      const next = shiftDate(cursor, 1);
+      if (gapStart && (covered.has(cursor) || next > yesterday)) {
+        let start = gapStart;
+        const gapEnd = covered.has(cursor) ? shiftDate(cursor, -1) : cursor;
+        while (start <= gapEnd) {
+          const end = shiftDate(start, 6) < gapEnd
+            ? shiftDate(start, 6)
+            : gapEnd;
+          windows.push({
+            start,
+            end,
+            purpose: input?.source === 'manual' ? 'manual' : 'bootstrap_90d',
+          });
+          start = shiftDate(end, 1);
+        }
+        gapStart = null;
+      }
+      cursor = next;
     }
     for (const window of windows) {
       const { error: enqueueError } = await sb.rpc(
@@ -139,6 +177,7 @@ async function fetchMetaWindow(input: {
   run: SyncRun;
   token: string;
   campaigns: BoundCampaign[];
+  heartbeat: () => Promise<void>;
 }): Promise<{ rows: MetricRow[]; pages: number; requestId: string | null }> {
   const version = process.env.META_API_VERSION?.trim() || 'v25.0';
   const byExternal = new Map(
@@ -154,6 +193,7 @@ async function fetchMetaWindow(input: {
     const batch = input.campaigns.slice(offset, offset + 50);
     let after: string | null = null;
     for (let page = 0; page < 10; page += 1) {
+      await input.heartbeat();
       const params = new URLSearchParams({
         level: 'campaign',
         time_increment: '1',
@@ -248,6 +288,7 @@ async function fetchLinkedInWindow(input: {
   run: SyncRun;
   token: string;
   campaigns: BoundCampaign[];
+  heartbeat: () => Promise<void>;
 }): Promise<{ rows: MetricRow[]; pages: number; requestId: string | null }> {
   const byExternal = new Map(
     input.campaigns.map((campaign) => [
@@ -257,6 +298,7 @@ async function fetchLinkedInWindow(input: {
   );
   const rows: MetricRow[] = [];
   let requestId: string | null = null;
+  let pages = 0;
   for (let offset = 0; offset < input.campaigns.length; offset += 25) {
     const batch = input.campaigns.slice(offset, offset + 25);
     const urns = batch.map((campaign) =>
@@ -264,81 +306,98 @@ async function fetchLinkedInWindow(input: {
         ? campaign.external_campaign_id
         : `urn:li:sponsoredCampaign:${campaign.external_campaign_id}`,
     );
-    const params = new URLSearchParams({
-      q: 'analytics',
-      pivot: 'CAMPAIGN',
-      timeGranularity: 'DAILY',
-      dateRange: `(start:${datePart(input.run.window_start)},end:${datePart(input.run.window_end)})`,
-      campaigns: `List(${urns.join(',')})`,
-      fields:
-        'pivotValues,dateRange,impressions,clicks,costInLocalCurrency,externalWebsiteConversions',
-    });
-    const res = await fetch(
-      `https://api.linkedin.com/rest/adAnalytics?${params.toString()}`,
-      {
-        headers: {
-          Authorization: `Bearer ${input.token}`,
-          'LinkedIn-Version':
-            process.env.LINKEDIN_API_VERSION?.trim() || '202607',
-          'X-Restli-Protocol-Version': '2.0.0',
+    let start = 0;
+    let page = 0;
+    do {
+      await input.heartbeat();
+      const params = new URLSearchParams({
+        q: 'analytics',
+        pivot: 'CAMPAIGN',
+        timeGranularity: 'DAILY',
+        dateRange: `(start:${datePart(input.run.window_start)},end:${datePart(input.run.window_end)})`,
+        campaigns: `List(${urns.join(',')})`,
+        fields:
+          'pivotValues,dateRange,impressions,clicks,costInLocalCurrency,externalWebsiteConversions',
+        start: String(start),
+        count: '500',
+      });
+      const res = await fetch(
+        `https://api.linkedin.com/rest/adAnalytics?${params.toString()}`,
+        {
+          headers: {
+            Authorization: `Bearer ${input.token}`,
+            'LinkedIn-Version':
+              process.env.LINKEDIN_API_VERSION?.trim() || '202607',
+            'X-Restli-Protocol-Version': '2.0.0',
+          },
+          signal: AbortSignal.timeout(20_000),
         },
-        signal: AbortSignal.timeout(20_000),
-      },
-    );
-    requestId ||= res.headers.get('x-li-uuid');
-    const json = (await res.json().catch(() => ({}))) as {
-      elements?: Array<{
-        pivotValues?: string[];
-        dateRange?: {
-          start?: { year?: number; month?: number; day?: number };
-        };
-        impressions?: number;
-        clicks?: number;
-        costInLocalCurrency?: string | number;
-        externalWebsiteConversions?: number;
-      }>;
-      message?: string;
-    };
-    if (!res.ok) {
-      const error = new Error(
-        json.message || `LinkedIn analytics HTTP ${res.status}`,
-      ) as Error & { retryable?: boolean; code?: string };
-      error.retryable = res.status === 429 || res.status >= 500;
-      error.code = String(res.status);
-      throw error;
-    }
-    for (const insight of json.elements ?? []) {
-      const externalId =
-        insight.pivotValues?.[0]?.match(/(\d+)$/)?.[1] ?? '';
-      const campaign = byExternal.get(externalId);
-      const date = insight.dateRange?.start;
-      if (!campaign || !date?.year || !date.month || !date.day) {
-        throw new Error('LinkedIn returned an unknown campaign or date');
-      }
-      const metricDate = `${date.year}-${String(date.month).padStart(2, '0')}-${String(date.day).padStart(2, '0')}`;
-      const base = {
-        campaign_id: campaign.campaign_id,
-        external_campaign_id: campaign.external_campaign_id,
-        metric_date: metricDate,
-        impressions: Number(insight.impressions ?? 0),
-        clicks: Number(insight.clicks ?? 0),
-        spend: Number(insight.costInLocalCurrency ?? 0),
-        conversions: Number(insight.externalWebsiteConversions ?? 0),
-        provider_metrics: {
-          conversion_definition: 'externalWebsiteConversions',
-        },
+      );
+      requestId ||= res.headers.get('x-li-uuid');
+      const json = (await res.json().catch(() => ({}))) as {
+        elements?: Array<{
+          pivotValues?: string[];
+          dateRange?: {
+            start?: { year?: number; month?: number; day?: number };
+          };
+          impressions?: number;
+          clicks?: number;
+          costInLocalCurrency?: string | number;
+          externalWebsiteConversions?: number;
+        }>;
+        paging?: { start?: number; count?: number; total?: number };
+        message?: string;
       };
-      rows.push({ ...base, row_fingerprint: fingerprint(base) });
-    }
+      if (!res.ok) {
+        const error = new Error(
+          json.message || `LinkedIn analytics HTTP ${res.status}`,
+        ) as Error & { retryable?: boolean; code?: string };
+        error.retryable = res.status === 429 || res.status >= 500;
+        error.code = String(res.status);
+        throw error;
+      }
+      for (const insight of json.elements ?? []) {
+        const externalId =
+          insight.pivotValues?.[0]?.match(/(\d+)$/)?.[1] ?? '';
+        const campaign = byExternal.get(externalId);
+        const date = insight.dateRange?.start;
+        if (!campaign || !date?.year || !date.month || !date.day) {
+          throw new Error('LinkedIn returned an unknown campaign or date');
+        }
+        const metricDate = `${date.year}-${String(date.month).padStart(2, '0')}-${String(date.day).padStart(2, '0')}`;
+        const base = {
+          campaign_id: campaign.campaign_id,
+          external_campaign_id: campaign.external_campaign_id,
+          metric_date: metricDate,
+          impressions: Number(insight.impressions ?? 0),
+          clicks: Number(insight.clicks ?? 0),
+          spend: Number(insight.costInLocalCurrency ?? 0),
+          conversions: Number(insight.externalWebsiteConversions ?? 0),
+          provider_metrics: {
+            conversion_definition: 'externalWebsiteConversions',
+          },
+        };
+        rows.push({ ...base, row_fingerprint: fingerprint(base) });
+      }
+      page += 1;
+      pages += 1;
+      const total = Number(json.paging?.total ?? 0);
+      const count = Number(json.paging?.count ?? json.elements?.length ?? 0);
+      start += count;
+      if (!count || start >= total) break;
+      if (page >= 10) {
+        throw new Error('LinkedIn analytics page limit exceeded');
+      }
+    } while (true);
   }
   return {
     rows,
-    pages: Math.ceil(input.campaigns.length / 25),
+    pages,
     requestId,
   };
 }
 
-export async function processPaidMetricRuns(limit = 2): Promise<{
+export async function processPaidMetricRuns(limit = 1): Promise<{
   claimed: number;
   completed: number;
   failed: number;
@@ -380,13 +439,30 @@ export async function processPaidMetricRuns(limit = 2): Promise<{
       if (bound.length === 0 || bound.length > 200) {
         throw new Error('Paid sync requires 1-200 bound campaigns');
       }
+      const heartbeat = async () => {
+        const { error: heartbeatError } = await sb.rpc(
+          'extend_marketing_paid_sync_lease',
+          {
+            p_run_id: run.run_id,
+            p_lease_token: run.lease_token,
+            p_lease_seconds: 300,
+          },
+        );
+        if (heartbeatError) throw new Error(heartbeatError.message);
+      };
       const result =
         run.provider === 'meta_ads'
-          ? await fetchMetaWindow({ run, token: token.token, campaigns: bound })
+          ? await fetchMetaWindow({
+              run,
+              token: token.token,
+              campaigns: bound,
+              heartbeat,
+            })
           : await fetchLinkedInWindow({
               run,
               token: token.token,
               campaigns: bound,
+              heartbeat,
             });
       const responseSha = createHash('sha256')
         .update(JSON.stringify(result.rows))

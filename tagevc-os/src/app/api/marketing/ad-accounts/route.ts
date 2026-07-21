@@ -171,26 +171,36 @@ export async function POST(request: Request) {
     );
   }
   const now = new Date().toISOString();
-  const { error } = await auth.sb
-    .from('os_marketing_social_accounts')
-    .update({
-      external_account_id: selected.externalAccountId,
-      display_name: selected.name,
-      currency: selected.currency,
-      timezone: selected.timezone,
-      status: 'connected',
-      scope_status: 'healthy',
-      scope_checked_at: now,
-      scope_error: null,
-      selected_at: now,
-      verified_at: now,
-      connection_meta: {
-        provider_role: selected.role,
-        discovered_at: now,
-      },
-      updated_at: now,
-    })
-    .eq('account_id', parsed.data.account_id);
+  const currency = selected.currency?.trim().toUpperCase();
+  const timezone =
+    auth.account.platform === 'linkedin'
+      ? 'UTC'
+      : selected.timezone?.trim() || 'UTC';
+  if (!currency) {
+    return NextResponse.json(
+      { error: 'Provider account did not return a reporting currency' },
+      { status: 409 },
+    );
+  }
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format();
+  } catch {
+    return NextResponse.json(
+      { error: `Provider returned invalid timezone ${timezone}` },
+      { status: 409 },
+    );
+  }
+  const { error } = await auth.sb.rpc('select_marketing_paid_account_v2', {
+    p_account_id: parsed.data.account_id,
+    p_external_account_id: selected.externalAccountId,
+    p_display_name: selected.name,
+    p_currency: currency,
+    p_timezone: timezone,
+    p_connection_meta: {
+      provider_role: selected.role,
+      discovered_at: now,
+    },
+  });
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

@@ -20,6 +20,7 @@ export function DocuSignReplacementForm({
   const [templateId, setTemplateId] = useState('');
   const [roles, setRoles] = useState<RoleDraft[]>([]);
   const [message, setMessage] = useState<string | null>(null);
+  const [requestId, setRequestId] = useState(() => crypto.randomUUID());
   const [pending, startTransition] = useTransition();
   const selected = useMemo(
     () => templates.find((template) => template.template_id === templateId),
@@ -36,7 +37,7 @@ export function DocuSignReplacementForm({
         setMessage(null);
         startTransition(async () => {
           const result = await createReplacementEnvelopeAction({
-            requestId: crypto.randomUUID(),
+            requestId,
             sourceEnvelopeId: String(form.get('source_envelope_id') ?? ''),
             templateId,
             emailSubject: String(form.get('email_subject') ?? ''),
@@ -44,6 +45,13 @@ export function DocuSignReplacementForm({
             roles,
           });
           setMessage(result.ok ? result.message ?? 'Replacement sent' : result.error);
+          if (
+            result.ok ||
+            (!result.error.includes('recovery is pending') &&
+              !result.error.includes('outcome unknown'))
+          ) {
+            setRequestId(crypto.randomUUID());
+          }
         });
       }}
     >

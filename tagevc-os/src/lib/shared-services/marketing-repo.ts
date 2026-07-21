@@ -678,6 +678,6 @@ export function getMarketingFoundationStatus() {
       process.env.MARKETING_PAID_ADS_LIVE === '1' ||
       process.env.MARKETING_PAID_ADS_LIVE === 'true',
     tiktok_publish: true,
-    phase: 35,
+    phase: 36,
   };
 }
