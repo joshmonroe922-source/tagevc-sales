@@ -96,6 +96,7 @@ export async function listDocuSignEvents(opts?: {
   envelopeId?: string;
   status?: string;
   eventType?: string;
+  search?: string;
 }): Promise<DocuSignEventRow[]> {
   try {
     const sb = await createPersistClient();
@@ -115,6 +116,23 @@ export async function listDocuSignEvents(opts?: {
     }
     if (opts?.eventType?.trim()) {
       q = q.eq('event_type', opts.eventType.trim());
+    }
+    if (opts?.search?.trim()) {
+      const term = opts.search
+        .trim()
+        .replace(/[,%()]/g, '')
+        .slice(0, 100);
+      if (term) {
+        q = q.or(
+          [
+            `envelope_id.ilike.%${term}%`,
+            `doc_id.ilike.%${term}%`,
+            `entity_id.ilike.%${term}%`,
+            `deal_id.ilike.%${term}%`,
+            `ticket_id.ilike.%${term}%`,
+          ].join(','),
+        );
+      }
     }
 
     const { data, error } = await q;

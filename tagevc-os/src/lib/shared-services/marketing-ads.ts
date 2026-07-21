@@ -146,6 +146,8 @@ async function syncMetaAdsStub(
     const impressions = Number(row0?.impressions ?? 0);
     const clicks = Number(row0?.clicks ?? 0);
     const spend = Number(row0?.spend ?? 0);
+    const budgetK = Number(row.budget_k ?? 0);
+    const currency = process.env.META_ADS_CURRENCY?.trim() || 'USD';
     const sb = await createPersistClient();
     const eventId = `PAD-META-${campaignId}-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}`;
     await sb.from('os_marketing_analytics_events').upsert({
@@ -161,7 +163,14 @@ async function syncMetaAdsStub(
         impressions,
         clicks,
         spend,
+        currency,
+        cpc: clicks > 0 ? spend / clicks : null,
+        cpm: impressions > 0 ? (spend / impressions) * 1000 : null,
+        budget_utilization:
+          budgetK > 0 ? spend / 1000 / budgetK : null,
         revenue_k: Number(row.attributed_revenue_k ?? 0),
+        reporting_start: 'account_default',
+        reporting_end: new Date().toISOString().slice(0, 10),
       },
       occurred_at: new Date().toISOString(),
     }, { onConflict: 'event_id' });
@@ -244,12 +253,27 @@ async function syncLinkedInAdsStub(
           `LinkedIn Ads HTTP ${res.status}`,
       };
     }
-    const insight = json.elements?.[0];
-    const impressions = Number(insight?.impressions ?? 0);
-    const clicks = Number(insight?.clicks ?? 0);
-    const spend = Number(insight?.costInLocalCurrency ?? 0);
-    const conversions = Number(insight?.externalWebsiteConversions ?? 0);
+    const totals = (json.elements ?? []).reduce<{
+      impressions: number;
+      clicks: number;
+      spend: number;
+      conversions: number;
+    }>(
+      (sum, insight) => ({
+        impressions: sum.impressions + Number(insight.impressions ?? 0),
+        clicks: sum.clicks + Number(insight.clicks ?? 0),
+        spend:
+          sum.spend + Number(insight.costInLocalCurrency ?? 0),
+        conversions:
+          sum.conversions +
+          Number(insight.externalWebsiteConversions ?? 0),
+      }),
+      { impressions: 0, clicks: 0, spend: 0, conversions: 0 },
+    );
+    const { impressions, clicks, spend, conversions } = totals;
     const revenueK = Number(row.attributed_revenue_k ?? 0);
+    const budgetK = Number(row.budget_k ?? 0);
+    const currency = process.env.LINKEDIN_ADS_CURRENCY?.trim() || 'USD';
     const now = new Date();
     const eventId = `PAD-LI-${campaignId}-${now.toISOString().slice(0, 10).replaceAll('-', '')}`;
     const sb = await createPersistClient();
@@ -268,8 +292,19 @@ async function syncLinkedInAdsStub(
           clicks,
           conversions,
           spend,
+          currency,
+          cpc: clicks > 0 ? spend / clicks : null,
+          cpm: impressions > 0 ? (spend / impressions) * 1000 : null,
+          conversion_rate:
+            clicks > 0 ? conversions / clicks : null,
+          cpa: conversions > 0 ? spend / conversions : null,
+          budget_utilization:
+            budgetK > 0 ? spend / 1000 / budgetK : null,
           revenue_k: revenueK,
           period_days: 30,
+          reporting_start: start.toISOString().slice(0, 10),
+          reporting_end: end.toISOString().slice(0, 10),
+          revenue_period: 'campaign_attributed',
         },
         occurred_at: now.toISOString(),
       },

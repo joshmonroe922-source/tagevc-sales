@@ -582,6 +582,18 @@ Docs: `docs/OS_PHASE30.md`
 
 Docs: `docs/OS_PHASE31.md`
 
+### Phase 32 scope (verified publishing · durable intent · safer automation)
+
+- TikTok publish-status polling and current-snapshot engagement analytics
+- Currency-aware paid reporting with deeper LinkedIn Ads efficiency metrics
+- Recipient-aware DocuSign search plus pre-void and reciprocal replacement audit
+- Verified litigation-hold gating, retry-safe offboarding, richer Intune inventory,
+  and auditable warranty imports
+- Fail-closed snapshot drills and durable Stage 4e soak evidence; no DROP
+- SQL: apply `phase32_operational_evidence.sql`
+
+Docs: `docs/OS_PHASE32.md`
+
 ### Phase 32+ backlog
 
 - Resumable TikTok uploads · account-bound Ads OAuth

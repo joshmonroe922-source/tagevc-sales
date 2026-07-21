@@ -116,26 +116,46 @@ async function invokeGraphIntuneLifecycle(input: {
       Authorization: `Bearer ${tok.token}`,
       'Content-Type': 'application/json',
     };
-    const devicesRes = await fetch(
-      `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(graphUserId)}/managedDevices?$select=id,deviceName,operatingSystem,managementState`,
-      { headers },
-    );
-    if (!devicesRes.ok) {
-      const text = await devicesRes.text().catch(() => '');
-      return {
-        ok: false,
-        detail: `Intune devices HTTP ${devicesRes.status}: ${text.slice(0, 120)}`,
-      };
-    }
-    const devicesJson = (await devicesRes.json()) as {
+    type GraphDevice = {
+      id?: string;
+      deviceName?: string;
+      operatingSystem?: string;
+      managementState?: string;
+      serialNumber?: string;
+      manufacturer?: string;
+      model?: string;
+      complianceState?: string;
+      managedDeviceOwnerType?: string;
+      isEncrypted?: boolean;
+      lastSyncDateTime?: string;
+    };
+    const devices: GraphDevice[] = [];
+    let nextUrl: string | null =
+      `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(graphUserId)}/managedDevices?` +
+      '$select=id,deviceName,operatingSystem,managementState,serialNumber,manufacturer,model,complianceState,managedDeviceOwnerType,isEncrypted,lastSyncDateTime';
+    let pages = 0;
+    while (nextUrl && pages < 5) {
+      const devicesRes = await fetch(nextUrl, { headers });
+      if (!devicesRes.ok) {
+        const text = await devicesRes.text().catch(() => '');
+        return {
+          ok: false,
+          detail: `Intune devices HTTP ${devicesRes.status}: ${text.slice(0, 120)}`,
+        };
+      }
+      const devicesJson = (await devicesRes.json()) as {
       value?: Array<{
         id?: string;
-        deviceName?: string;
-        operatingSystem?: string;
-        managementState?: string;
       }>;
-    };
-    const devices = devicesJson.value ?? [];
+        '@odata.nextLink'?: string;
+      };
+      devices.push(...((devicesJson.value ?? []) as GraphDevice[]));
+      const candidate = devicesJson['@odata.nextLink'] ?? null;
+      nextUrl =
+        candidate?.startsWith('https://graph.microsoft.com/') ? candidate : null;
+      pages += 1;
+    }
+    const truncated = Boolean(nextUrl);
     const summary =
       devices.length === 0
         ? '0 managed devices'
@@ -143,7 +163,11 @@ async function invokeGraphIntuneLifecycle(input: {
             .slice(0, 5)
             .map(
               (d) =>
-                `${d.deviceName || d.id}${d.operatingSystem ? ` (${d.operatingSystem})` : ''}`,
+                `${d.deviceName || d.id}${
+                  d.operatingSystem ? ` (${d.operatingSystem})` : ''
+                }${d.complianceState ? ` · ${d.complianceState}` : ''}${
+                  d.isEncrypted === false ? ' · NOT ENCRYPTED' : ''
+                }${d.lastSyncDateTime ? ` · sync ${d.lastSyncDateTime.slice(0, 10)}` : ''}`,
             )
             .join(', ');
 
@@ -167,13 +191,17 @@ async function invokeGraphIntuneLifecycle(input: {
       }
       return {
         ok: retireResults.every((r) => r.startsWith('retired')),
-        detail: `Intune offboard · ${retireResults.join('; ')}`,
+        detail: `Intune offboard · ${devices.length} inventoried across ${pages} page(s)${
+          truncated ? ' (truncated)' : ''
+        } · ${retireResults.join('; ')}`,
       };
     }
 
     return {
       ok: true,
-      detail: `Intune ${input.action} · ${summary}${
+      detail: `Intune ${input.action} · ${devices.length} device(s), ${pages} page(s)${
+        truncated ? ' (truncated)' : ''
+      } · ${summary}${
         input.action === 'offboard' && !autoRetire
           ? ' · set INTUNE_AUTO_RETIRE=1 to retire'
           : ''
@@ -325,6 +353,14 @@ export async function assignGraphGroupMembership(input: {
   };
   const results: string[] = [];
   for (const gid of groupIds.slice(0, 10)) {
+    const existing = await fetch(
+      `https://graph.microsoft.com/v1.0/groups/${encodeURIComponent(gid)}/members/${encodeURIComponent(graphUserId)}/$ref`,
+      { headers },
+    );
+    if (existing.ok) {
+      results.push(`exists ${gid.slice(0, 8)}…`);
+      continue;
+    }
     const res = await fetch(
       `https://graph.microsoft.com/v1.0/groups/${encodeURIComponent(gid)}/members/$ref`,
       {
@@ -335,9 +371,8 @@ export async function assignGraphGroupMembership(input: {
         }),
       },
     );
-    if (res.ok || res.status === 400) {
-      // 400 often means already a member
-      results.push(res.ok ? `added ${gid.slice(0, 8)}…` : `exists ${gid.slice(0, 8)}…`);
+    if (res.ok) {
+      results.push(`added ${gid.slice(0, 8)}…`);
     } else {
       const text = await res.text().catch(() => '');
       results.push(`fail ${gid.slice(0, 8)}…:${res.status} ${text.slice(0, 40)}`);
@@ -672,9 +707,30 @@ export async function applyExchangeMailboxRetention(input: {
         detail: `Exchange hold HTTP ${res.status}: ${text.slice(0, 160)}`,
       };
     }
+    const json = (await res.json().catch(() => ({}))) as {
+      verified?: boolean;
+      job_id?: string;
+      detail?: string;
+      hold_enabled_at?: string;
+    };
+    if (json.verified !== true) {
+      return {
+        ok: false,
+        skipped: true,
+        detail: `Exchange hold submitted${
+          json.job_id ? ` · job ${json.job_id}` : ''
+        } · awaiting provider verification${
+          json.detail ? ` · ${json.detail}` : ''
+        }`,
+      };
+    }
     return {
       ok: true,
-      detail: `Exchange litigation hold accepted for ${input.email || input.user_id}`,
+      detail: `Exchange litigation hold verified for ${
+        input.email || input.user_id
+      }${json.hold_enabled_at ? ` · enabled ${json.hold_enabled_at}` : ''}${
+        json.job_id ? ` · job ${json.job_id}` : ''
+      }`,
     };
   } catch (e) {
     return {

@@ -415,6 +415,12 @@ export async function bulkUpdateWarrantyAction(
         'Upload CSV or paste lines: asset_id,warranty_ends_at (or serial,date)',
     };
   }
+  if (Buffer.byteLength(lines, 'utf8') > 512_000) {
+    return { ok: false, error: 'CSV input must be 500 KB or smaller' };
+  }
+  if (lines.split(/\r?\n/).length > 5_001) {
+    return { ok: false, error: 'CSV is limited to 5,000 data rows' };
+  }
 
   const { bulkUpdateWarranties } = await import(
     '@/lib/shared-services/it-assets-repo'
@@ -426,6 +432,12 @@ export async function bulkUpdateWarrantyAction(
   revalidateAssets();
   const errHint =
     res.errors.length > 0 ? ` · errors: ${res.errors.slice(0, 3).join('; ')}` : '';
+  if (res.updated === 0 && res.failed > 0) {
+    return {
+      ok: false,
+      error: `Warranty import rejected: ${res.failed} failed${errHint}`,
+    };
+  }
   return {
     ok: true,
     message: `Warranty import: ${res.updated} updated, ${res.failed} failed${errHint}`,

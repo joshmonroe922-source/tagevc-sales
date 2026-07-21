@@ -1,4 +1,4 @@
-# Multichannel Marketing System — Architecture (Phases 22–31)
+# Multichannel Marketing System — Architecture (Phases 22–32)
 
 **Status:** Functional · hub under Shared Services · Marketing.  
 **Live at:** `/shared-services/marketing`
@@ -30,8 +30,20 @@ SQL through `phase29_paid_media_warranty.sql` (no Phase 30 schema).
 
 SQL: `phase31_marketing_it_governance.sql`.
 
-## Phase 32+
+## Phase 32
 
-1. Resumable binary media upload + publish-status polling
+1. TikTok publish-status polling with duplicate-initiation prevention
+2. Current-snapshot organic engagement instead of cumulative double counting
+3. LinkedIn Ads reporting dates, currencies, CPC/CPM/CPA, conversion rate, and
+   budget utilization
+4. Mixed-currency ROI guard and entity-aware paid campaign labels
+5. Explicit account selection with entity/platform validation when scheduling
+
+SQL: `phase32_operational_evidence.sql` is shared operational evidence only;
+Marketing needs no Phase 32 schema change.
+
+## Phase 33+
+
+1. Resumable binary media upload + creator capability preflight
 2. Per-account Ads OAuth bindings
 3. Server-side long-range analytics aggregation

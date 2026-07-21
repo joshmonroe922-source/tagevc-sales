@@ -37,12 +37,23 @@ export default async function DocuSignModulePage({
   await requirePermission('read:documents');
 
   const sp = (await searchParams) ?? {};
-  const statusFilter =
-    typeof sp.status === 'string' ? sp.status.trim() : undefined;
+  const liveStatusFilter =
+    typeof sp.live_status === 'string' ? sp.live_status.trim() : undefined;
+  const eventStatusFilter =
+    typeof sp.event_status === 'string' ? sp.event_status.trim() : undefined;
   const eventTypeFilter =
     typeof sp.event_type === 'string' ? sp.event_type.trim() : undefined;
   const envelopeFilter =
     typeof sp.envelope_id === 'string' ? sp.envelope_id.trim() : undefined;
+  const liveSearch = typeof sp.q === 'string' ? sp.q.trim().toLowerCase() : '';
+  const eventSearch =
+    typeof sp.event_q === 'string' ? sp.event_q.trim() : undefined;
+  const templateSearch =
+    typeof sp.template_q === 'string'
+      ? sp.template_q.trim().toLowerCase()
+      : '';
+  const daysRaw = typeof sp.days === 'string' ? Number(sp.days) : 30;
+  const liveDays = [7, 30, 60, 90].includes(daysRaw) ? daysRaw : 30;
 
   const mode = getDocuSignMode();
   const configured = isDocuSignConfigured();
@@ -50,20 +61,26 @@ export default async function DocuSignModulePage({
   const canWrite = ctx
     ? roleHasPermission(ctx.profile.role, 'write:documents')
     : false;
-  const [events, count, signed, templates, reminders, liveEnvelopes] =
+  const [events, auditEvents, count, signed, templates, reminders, liveEnvelopes] =
     await Promise.all([
     listDocuSignEvents({
       limit: 40,
-      status: statusFilter,
+      status: eventStatusFilter,
       eventType: eventTypeFilter,
       envelopeId: envelopeFilter,
+      search: eventSearch,
     }),
+    listDocuSignEvents({ limit: 120 }),
     countDocuSignEvents(),
     listSignedFiles({ limit: 20, withDownloadUrls: true }),
-    listCachedTemplates(40),
+    listCachedTemplates(100),
     listReminderJobs(20),
     configured
-      ? listRecentEnvelopes({ status: statusFilter, count: 40 })
+      ? listRecentEnvelopes({
+          status: liveStatusFilter,
+          count: 100,
+          days: liveDays,
+        })
       : Promise.resolve({
           ok: true as const,
           envelopes: [],
@@ -82,10 +99,33 @@ export default async function DocuSignModulePage({
   const storageOk = signed.rows.filter((r) => r.storage_path).length;
   const storageErr = signed.rows.filter((r) => r.storage_error).length;
   const cocCount = signed.rows.filter((r) => r.file_kind === 'certificate').length;
-  const voidEvents = events.filter(
+  const voidEvents = auditEvents.filter(
     (e) =>
       e.event_type === 'envelope-voided' ||
       String(e.status).toLowerCase() === 'voided',
+  );
+  const templateRows = templates.rows.filter((template) => {
+    if (!templateSearch) return true;
+    return `${template.name} ${template.description ?? ''} ${template.template_id}`
+      .toLowerCase()
+      .includes(templateSearch);
+  });
+  const liveRows = liveEnvelopes.ok
+    ? liveEnvelopes.envelopes.filter((envelope) => {
+        if (!liveSearch) return true;
+        return `${envelope.emailSubject ?? ''} ${envelope.envelopeId} ${envelope.recipients
+          .map((recipient) => `${recipient.name ?? ''} ${recipient.email ?? ''}`)
+          .join(' ')}`
+          .toLowerCase()
+          .includes(liveSearch);
+      })
+    : [];
+  const replacementLineage = auditEvents.filter((event) =>
+    [
+      'envelope-replacement-created',
+      'envelope-replacement-requested',
+      'envelope-replaced',
+    ].includes(event.event_type ?? ''),
   );
 
   return (
@@ -103,13 +143,13 @@ export default async function DocuSignModulePage({
           <Badge variant={mode === 'live' ? 'default' : 'secondary'}>
             {mode === 'live' ? 'Live JWT' : 'Mock envelopes'}
           </Badge>
-          <Badge variant="secondary">Phase 31</Badge>
+          <Badge variant="secondary">Phase 32</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">DocuSign</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Live envelope management, irreversible void replacement policy (
-          {voidPolicy}), action diagnostics, template roles, CoC email, and
-          reminders. Capital sends still require{' '}
+          Recipient-aware envelope search, durable void intent, reciprocal
+          replacement lineage, template freshness, CoC email, and reminders.
+          Void policy: {voidPolicy}. Capital sends still require{' '}
           <code className="text-xs">action:docusign_capital</code>.
         </p>
         <DocuSignHubActions canWrite={canWrite} />
@@ -182,14 +222,25 @@ export default async function DocuSignModulePage({
             {templates.error ? ` · ${templates.error}` : ''}
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          {templates.rows.length === 0 ? (
+        <CardContent className="space-y-3">
+          <form className="flex flex-wrap gap-2">
+            <input
+              name="template_q"
+              defaultValue={templateSearch}
+              placeholder="Search name, description, or ID"
+              className="min-w-64 rounded-md border bg-background px-3 py-1.5 text-sm"
+            />
+            <button className="rounded-md border px-3 py-1.5 text-sm" type="submit">
+              Search templates
+            </button>
+          </form>
+          {templateRows.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No templates cached yet — configure JWT and click Refresh templates.
             </p>
           ) : (
             <ul className="space-y-1 text-sm max-h-48 overflow-y-auto">
-              {templates.rows.map((t) => (
+              {templateRows.map((t) => (
                 <li
                   key={t.template_id}
                   className="border-b border-border/40 py-1.5"
@@ -209,6 +260,13 @@ export default async function DocuSignModulePage({
                       Roles: {t.roles.join(', ')}
                     </span>
                   ) : null}
+                  <span className="block text-xs text-muted-foreground">
+                    Synced {t.synced_at.slice(0, 16).replace('T', ' ')}
+                    {Date.now() - Date.parse(t.synced_at) > 86_400_000
+                      ? ' · stale'
+                      : ' · fresh'}
+                    {t.description ? ` · ${t.description}` : ''}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -218,13 +276,90 @@ export default async function DocuSignModulePage({
 
       <Card>
         <CardHeader>
+          <CardTitle className="text-base">Replacement lineage</CardTitle>
+          <CardDescription>
+            Intent and reciprocal links between voided and replacement envelopes
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {replacementLineage.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No replacement lineage logged yet.
+            </p>
+          ) : (
+            <ul className="max-h-48 space-y-1 overflow-y-auto text-sm">
+              {replacementLineage.slice(0, 20).map((event) => {
+                const raw = (event.raw_payload ?? {}) as {
+                  replacement_for_envelope_id?: string;
+                  replaced_by_envelope_id?: string;
+                  templateId?: string;
+                  actor_email?: string;
+                };
+                const related =
+                  raw.replacement_for_envelope_id ??
+                  raw.replaced_by_envelope_id;
+                return (
+                  <li
+                    key={event.event_id}
+                    className="border-b border-border/40 py-1.5"
+                  >
+                    <span className="font-mono text-xs">{event.envelope_id}</span>
+                    {' · '}
+                    {event.event_type}
+                    {related ? (
+                      <span className="block font-mono text-xs text-muted-foreground">
+                        Related: {related}
+                        {raw.templateId ? ` · template ${raw.templateId}` : ''}
+                        {raw.actor_email ? ` · ${raw.actor_email}` : ''}
+                      </span>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle className="text-base">Live envelopes</CardTitle>
           <CardDescription>
-            Authoritative DocuSign status changes from the last 30 days
+            Authoritative DocuSign status changes from the selected window
             {!liveEnvelopes.ok ? ` · ${liveEnvelopes.error}` : ''}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
+          <form className="flex flex-wrap gap-2 text-xs">
+            <input
+              name="q"
+              defaultValue={liveSearch}
+              placeholder="Subject, ID, recipient"
+              className="min-w-56 rounded-md border bg-background px-2 py-1"
+            />
+            <select
+              name="live_status"
+              defaultValue={liveStatusFilter || ''}
+              className="rounded-md border bg-background px-2 py-1"
+            >
+              <option value="">All statuses</option>
+              {['sent', 'delivered', 'completed', 'voided'].map((status) => (
+                <option value={status} key={status}>{status}</option>
+              ))}
+            </select>
+            <select
+              name="days"
+              defaultValue={String(liveDays)}
+              className="rounded-md border bg-background px-2 py-1"
+            >
+              {[7, 30, 60, 90].map((days) => (
+                <option value={days} key={days}>{days} days</option>
+              ))}
+            </select>
+            <button className="rounded-md border px-2 py-1" type="submit">
+              Apply
+            </button>
+          </form>
           <div className="flex flex-wrap gap-2 text-xs">
             {['all', 'sent', 'delivered', 'completed', 'voided'].map((s) => (
               <Link
@@ -232,7 +367,7 @@ export default async function DocuSignModulePage({
                 href={
                   s === 'all'
                     ? '/shared-services/legal/docusign'
-                    : `/shared-services/legal/docusign?status=${s}`
+                    : `/shared-services/legal/docusign?live_status=${s}&days=${liveDays}`
                 }
                 className="rounded-full border px-2 py-1 underline-offset-4 hover:underline"
               >
@@ -240,7 +375,7 @@ export default async function DocuSignModulePage({
               </Link>
             ))}
           </div>
-          {liveEnvelopes.ok && liveEnvelopes.envelopes.length > 0 ? (
+          {liveEnvelopes.ok && liveRows.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="text-xs text-muted-foreground">
@@ -252,7 +387,7 @@ export default async function DocuSignModulePage({
                   </tr>
                 </thead>
                 <tbody>
-                  {liveEnvelopes.envelopes.map((e) => (
+                  {liveRows.map((e) => (
                     <tr
                       key={e.envelopeId}
                       className="border-b border-border/40"
@@ -262,6 +397,16 @@ export default async function DocuSignModulePage({
                         {e.voidedReason ? (
                           <span className="block text-xs text-amber-700">
                             Void: {e.voidedReason}
+                          </span>
+                        ) : null}
+                        {e.recipients.length > 0 ? (
+                          <span className="block text-xs text-muted-foreground">
+                            {e.recipients
+                              .map(
+                                (recipient) =>
+                                  `${recipient.name ?? recipient.email ?? recipient.role}: ${recipient.status}`,
+                              )
+                              .join(' · ')}
                           </span>
                         ) : null}
                       </td>
@@ -298,7 +443,7 @@ export default async function DocuSignModulePage({
           ) : (
             <p className="text-sm text-muted-foreground">
               {configured
-                ? 'No matching live envelopes in the last 30 days.'
+                ? `No matching live envelopes in the last ${liveDays} days.`
                 : 'Configure DocuSign JWT to load live envelopes.'}
             </p>
           )}
@@ -395,12 +540,26 @@ export default async function DocuSignModulePage({
           <CardTitle className="text-base">Recent events</CardTitle>
           <CardDescription>
             From <code className="text-xs">os_docusign_events</code> (newest first)
-            {(statusFilter || eventTypeFilter || envelopeFilter) &&
+            {(eventStatusFilter ||
+              eventTypeFilter ||
+              envelopeFilter ||
+              eventSearch) &&
               ' · filtered'}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex flex-wrap gap-2 text-xs">
+            <form className="flex flex-wrap gap-2">
+              <input
+                name="event_q"
+                defaultValue={eventSearch}
+                placeholder="Envelope, document, entity, deal, ticket"
+                className="min-w-64 rounded-md border bg-background px-2 py-1"
+              />
+              <button type="submit" className="rounded-md border px-2 py-1">
+                Search events
+              </button>
+            </form>
             <Link
               href="/shared-services/legal/docusign"
               className="underline-offset-4 hover:underline"
@@ -408,19 +567,19 @@ export default async function DocuSignModulePage({
               All
             </Link>
             <Link
-              href="/shared-services/legal/docusign?status=voided"
+              href="/shared-services/legal/docusign?event_status=voided"
               className="underline-offset-4 hover:underline"
             >
               Voided
             </Link>
             <Link
-              href="/shared-services/legal/docusign?status=completed"
+              href="/shared-services/legal/docusign?event_status=completed"
               className="underline-offset-4 hover:underline"
             >
               Completed
             </Link>
             <Link
-              href="/shared-services/legal/docusign?status=sent"
+              href="/shared-services/legal/docusign?event_status=sent"
               className="underline-offset-4 hover:underline"
             >
               Sent

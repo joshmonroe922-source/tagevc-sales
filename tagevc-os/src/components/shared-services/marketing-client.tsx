@@ -232,6 +232,9 @@ export function MarketingClient({
             <p className="font-semibold tabular-nums">
               ${analytics.paid_spend_k.toFixed(1)}k
             </p>
+            <p className="text-xs text-muted-foreground">
+              {analytics.paid_currencies.join(', ') || 'currency pending'}
+            </p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Attributed revenue</p>
@@ -243,7 +246,9 @@ export function MarketingClient({
             <p className="text-xs text-muted-foreground">ROI / ROAS</p>
             <p className="font-semibold tabular-nums">
               {analytics.paid_roi == null
-                ? '—'
+                ? analytics.paid_currency_mixed
+                  ? 'mixed currencies'
+                  : '—'
                 : `${(analytics.paid_roi * 100).toFixed(1)}%`}
               {' / '}
               {analytics.paid_roas == null
@@ -268,11 +273,12 @@ export function MarketingClient({
             <table className="w-full text-left text-xs">
               <thead className="text-muted-foreground">
                 <tr className="border-b">
-                  <th className="py-1 pr-2">Campaign</th>
+                  <th className="py-1 pr-2">Campaign / entity</th>
                   <th className="py-1 pr-2">Platform</th>
                   <th className="py-1 pr-2">Impr. / clicks</th>
                   <th className="py-1 pr-2">Spend</th>
-                  <th className="py-1">ROI</th>
+                  <th className="py-1 pr-2">Efficiency</th>
+                  <th className="py-1">ROI / budget</th>
                 </tr>
               </thead>
               <tbody>
@@ -281,16 +287,31 @@ export function MarketingClient({
                     key={`${p.campaign_id}:${p.platform}`}
                     className="border-b border-border/40"
                   >
-                    <td className="py-1 pr-2 font-mono">{p.campaign_id}</td>
+                    <td className="py-1 pr-2">
+                      <span className="font-medium">
+                        {p.campaign_name ?? p.campaign_id}
+                      </span>
+                      <span className="block font-mono text-[10px] text-muted-foreground">
+                        {p.campaign_id} · {p.entity_id ?? 'firm'}
+                      </span>
+                    </td>
                     <td className="py-1 pr-2">{p.platform}</td>
                     <td className="py-1 pr-2 tabular-nums">
                       {p.impressions} / {p.clicks}
                     </td>
                     <td className="py-1 pr-2 tabular-nums">
-                      ${p.spend_k.toFixed(1)}k
+                      ${p.spend_k.toFixed(1)}k {p.currency}
+                    </td>
+                    <td className="py-1 pr-2 tabular-nums">
+                      CPC {p.cpc == null ? '—' : p.cpc.toFixed(2)} · CPM{' '}
+                      {p.cpm == null ? '—' : p.cpm.toFixed(2)}
                     </td>
                     <td className="py-1 tabular-nums">
                       {p.roi == null ? '—' : `${(p.roi * 100).toFixed(1)}%`}
+                      {' · '}
+                      {p.budget_utilization == null
+                        ? '—'
+                        : `${(p.budget_utilization * 100).toFixed(0)}%`}
                     </td>
                   </tr>
                 ))}
@@ -806,10 +827,31 @@ export function MarketingClient({
                                   new Date(Date.now() + 60_000).toISOString(),
                                 );
                                 if (!when) return;
+                                const matchingAccounts = accounts.filter(
+                                  (account) =>
+                                    account.status === 'connected' &&
+                                    account.platform === c.platform &&
+                                    account.entity_id === c.entity_id,
+                                );
+                                const suggested =
+                                  matchingAccounts[0]?.account_id ?? '';
+                                const accountId = window.prompt(
+                                  matchingAccounts.length > 0
+                                    ? `Account ID (${matchingAccounts
+                                        .map(
+                                          (account) =>
+                                            `${account.account_id}:${account.handle}`,
+                                        )
+                                        .join(', ')}):`
+                                    : 'Account ID (blank uses stub/fallback):',
+                                  suggested,
+                                );
+                                if (accountId == null) return;
                                 startTransition(async () => {
                                   const res = await scheduleContentAction(
                                     c.content_id,
                                     when,
+                                    accountId.trim() || undefined,
                                   );
                                   if (res.ok) setFlash(res.message ?? 'Queued');
                                   else setErr(res.error);

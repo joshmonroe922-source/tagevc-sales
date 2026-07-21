@@ -150,6 +150,13 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
     .select('stage, retired_table_name, approved_by, occurred_at, detail')
     .order('occurred_at', { ascending: false })
     .limit(1);
+  const { data: durableSoakRows } = await supabase
+    .from('os_snapshot_soak_observations')
+    .select(
+      'observed_at, healthy, issues, stage, sync_failure_count, fk_orphan_total, stage4_ready, drill_summary, source',
+    )
+    .order('observed_at', { ascending: false })
+    .limit(1);
 
   const domains: StoreCollection[] = [
     'deal_flow',
@@ -255,7 +262,32 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
       note: (a.note as string | null) ?? null,
     })) ?? null;
 
-  const lastSoak = getLastSoakRun();
+  const durableSoak = durableSoakRows?.[0] as
+    | {
+        observed_at?: string;
+        healthy?: boolean;
+        issues?: string[];
+        stage?: string;
+        sync_failure_count?: number;
+        fk_orphan_total?: number;
+        stage4_ready?: boolean;
+        drill_summary?: string;
+        source?: SoakRunRecord['source'];
+      }
+    | undefined;
+  const lastSoak: SoakRunRecord | null = durableSoak?.observed_at
+    ? {
+        fetched_at: durableSoak.observed_at,
+        healthy: Boolean(durableSoak.healthy),
+        issues: durableSoak.issues ?? [],
+        stage: durableSoak.stage ?? 'unknown',
+        sync_failure_count: Number(durableSoak.sync_failure_count ?? 0),
+        fk_orphan_total: Number(durableSoak.fk_orphan_total ?? 0),
+        stage4_ready: Boolean(durableSoak.stage4_ready),
+        drill_summary: durableSoak.drill_summary ?? '',
+        source: durableSoak.source ?? 'manual',
+      }
+    : getLastSoakRun();
   const retention = getSnapshotRetentionStatus();
   const stage4e_checklist = buildStage4eChecklist({
     stage4_ready: drills.stage4_ready,
@@ -328,7 +360,7 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
             : stage === 'read_cutover'
               ? 'Enable WRITE_CUTOVER_MATURE=1 when handoffs/audits tables are ready'
               : stage === 'sql_only_hydrate'
-                ? 'Stage 4b active — governed soft rename path; DROP still deferred (Phase 31)'
+                ? 'Stage 4b active — governed soft rename path; DROP still deferred (Phase 32)'
                 : stage === 'stage4_ready'
                   ? 'Drills passed — SQL-only hydrate follows write cutover automatically; see OS_SNAPSHOT_STAGE4.md'
                   : fkOrphanTotal > 0

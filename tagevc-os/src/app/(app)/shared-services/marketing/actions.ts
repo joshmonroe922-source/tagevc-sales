@@ -8,6 +8,8 @@ import {
   createContent,
   enqueueScheduleJob,
   listCampaigns,
+  listContent,
+  listSocialAccounts,
   registerSocialAccount,
   runContentGeneration,
 } from '@/lib/shared-services/marketing-repo';
@@ -84,6 +86,22 @@ export async function createCampaignAction(
     revenueRaw && !Number.isNaN(Number(revenueRaw))
       ? Number(revenueRaw)
       : null;
+  if (budget_k != null && budget_k < 0) {
+    return { ok: false, error: 'Budget cannot be negative' };
+  }
+  if (attributed_revenue_k != null && attributed_revenue_k < 0) {
+    return { ok: false, error: 'Attributed revenue cannot be negative' };
+  }
+  if (
+    parsed.data.channel === 'paid' &&
+    (!parsed.data.ad_platform?.trim() ||
+      !parsed.data.external_campaign_id?.trim())
+  ) {
+    return {
+      ok: false,
+      error: 'Paid campaigns require ad platform and external campaign ID',
+    };
+  }
 
   const res = await createCampaign({
     name: parsed.data.name,
@@ -197,6 +215,18 @@ export async function registerAccountAction(
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid' };
   }
+  if (
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      parsed.data.entity_id,
+    )
+  ) {
+    return {
+      ok: false,
+      error: entityScopeDeniedMessage(parsed.data.entity_id || 'firm-wide'),
+    };
+  }
 
   const res = await registerSocialAccount({
     platform: parsed.data.platform,
@@ -220,11 +250,46 @@ export async function scheduleContentAction(
 ): Promise<MarketingActionResult> {
   const gate = await guardPermission('write:marketing');
   if (!gate.ok) return gate;
+  const [contentRows, accountRows] = await Promise.all([
+    listContent(200),
+    listSocialAccounts(200),
+  ]);
+  const content = contentRows.rows.find((row) => row.content_id === contentId);
+  if (!content) return { ok: false, error: 'Content not found' };
+  if (
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      content.entity_id,
+    )
+  ) {
+    return {
+      ok: false,
+      error: entityScopeDeniedMessage(content.entity_id || 'firm-wide'),
+    };
+  }
+  const account = accountId
+    ? accountRows.rows.find((row) => row.account_id === accountId)
+    : null;
+  if (accountId && !account) {
+    return { ok: false, error: 'Social account not found' };
+  }
+  if (
+    account &&
+    (account.entity_id !== content.entity_id ||
+      (content.platform && account.platform !== content.platform))
+  ) {
+    return {
+      ok: false,
+      error: 'Account platform and entity must match the content',
+    };
+  }
 
   const res = await enqueueScheduleJob({
     content_id: contentId,
     scheduled_for: scheduledFor,
     account_id: accountId || null,
+    entity_id: content.entity_id,
   });
   if (!res.ok) return res;
   revalidateMarketing();

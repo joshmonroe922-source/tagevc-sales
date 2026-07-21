@@ -548,6 +548,7 @@ export async function pullLiveEngagement(opts?: {
       .maybeSingle();
 
     await recordMarketingAnalyticsEvent({
+      event_id: `ENG-${job.job_id}`,
       kind: 'engagement',
       content_id: job.content_id,
       job_id: job.job_id,

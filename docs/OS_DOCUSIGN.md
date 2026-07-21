@@ -67,19 +67,23 @@ Unknown envelopes are acknowledged and still logged to `os_docusign_events`.
 | Send capital | `action:docusign_capital` |
 | View hub / events | `read:documents` |
 
-## Phase 24–31 storage & workflows
+## Phase 24–32 storage & workflows
 
 - Hub: role-map send, **live refresh roles**, void (reason + policy + audit), CoC email, reminders.  
-- Envelope/event filters: `?status=` / `?event_type=` on the DocuSign hub.  
+- Independent live/event filters plus subject, recipient, and identifier search.
 - Void policy: `DOCUSIGN_VOID_POLICY=allow|warn_capital|block_capital`.  
 - Live 30-day envelope status table with management filters.
 - Void preflight + irreversible confirmation; replacement envelopes record source lineage.
 - Advanced errors expose safe HTTP/code/trace diagnostics.
+- Recipient routing status appears in the live envelope list.
+- Void intent is written before the irreversible API call; replacement lineage
+  is recorded in both directions with actor metadata.
+- Template search shows description and cache freshness.
 - Apply through `phase29_paid_media_warranty.sql`.  
 
 ## Still deferred
 
-- Recipient detail drawer and API pagination
+- API continuation pagination and a dedicated recipient detail drawer
 - Multi-role replacement blueprints
 - Retire simulate button in production  
 

@@ -183,7 +183,8 @@ export function NormalizationHealthPanel({
           <CardHeader>
             <CardTitle className="text-base">Stage 4e DROP checklist</CardTitle>
             <CardDescription>
-              Informational only — never auto-drops{' '}
+              Soft-rename verification plus legacy destructive gates. The app
+              never drops{' '}
               <code className="text-xs">os_store_snapshots</code>. Retention
               target ≥90 days after ARCHIVE_EXPORT_CONFIRMED_AT.
             </CardDescription>
@@ -194,16 +195,17 @@ export function NormalizationHealthPanel({
             </div>
             {status.stage4e_checklist.ready ? (
               <div className="mb-2 rounded-md border border-emerald-600/40 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
-                Rename soak and written gates are complete — app never executes
-                DROP. Any eventual destructive action remains offline-only via{' '}
+                Verified soft rename and soak gates are complete. The app has no
+                destructive execution path. Offline rename/rollback guidance:{' '}
                 <code className="text-[10px]">
-                  phase31_stage4e_soft_rename.sql
+                  phase32_stage4e_soft_rename.sql
                 </code>
                 .
               </div>
             ) : (
               <div className="mb-2 rounded-md border border-border/60 px-3 py-2 text-xs text-muted-foreground">
-                Not DROP-eligible yet. Approval:{' '}
+                Soft-rename evidence or soak is incomplete. Legacy destructive
+                approval remains separate:{' '}
                 {status.stage4e_checklist.drop_gate?.detail ??
                   'set SNAPSHOT_DROP_APPROVED_AT + BY'}
               </div>

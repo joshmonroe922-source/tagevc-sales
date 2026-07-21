@@ -79,8 +79,16 @@ export async function runEmptySnapshotDrills(opts?: {
     opts?.collections ?? ([...ALL_PIPELINE_SNAPSHOT_DOMAINS] as PipelineCollection[]);
 
   const supabase = await createPersistClient();
-  const { data: snapshots } = await supabase
-    .from('os_store_snapshots')
+  const retiredTable = process.env.SNAPSHOT_RETIRED_TABLE_NAME?.trim();
+  const useRetiredTable = Boolean(
+    process.env.SNAPSHOT_SOFT_RENAMED_AT?.trim() &&
+      retiredTable &&
+      /^os_store_snapshots_retired_\d{8}$/.test(retiredTable),
+  );
+  const snapshotTable =
+    useRetiredTable && retiredTable ? retiredTable : 'os_store_snapshots';
+  const { data: snapshots, error: snapshotsError } = await supabase
+    .from(snapshotTable)
     .select('collection, payload, updated_at');
 
   const byCollection = new Map(
@@ -96,6 +104,13 @@ export async function runEmptySnapshotDrills(opts?: {
 
   for (const collection of collections) {
     const checks: DrillCheck[] = [];
+    checks.push({
+      name: 'snapshot_table_access',
+      ok: !snapshotsError,
+      detail: snapshotsError
+        ? `${snapshotTable} query failed: ${snapshotsError.message}`
+        : `${snapshotTable} query succeeded`,
+    });
     const gate = shouldWriteSnapshot(collection);
     checks.push({
       name: 'write_cutover',
@@ -118,12 +133,14 @@ export async function runEmptySnapshotDrills(opts?: {
     const empty = snap ? isPayloadEmpty(snap.payload) : true;
     checks.push({
       name: 'live_payload_empty',
-      ok: empty,
-      detail: snap
+      ok: !snapshotsError && empty,
+      detail: snapshotsError
+        ? 'Cannot prove payload is empty because the snapshot query failed'
+        : snap
         ? empty
           ? `Empty since ${snap.updated_at}`
           : 'Live payload still has keys — soft-archive first'
-        : 'No live snapshot row (treated as empty)',
+        : `No snapshot row in ${snapshotTable} (verified query; treated as empty)`,
     });
 
     const table = DOMAIN_PRIMARY_TABLE[collection];

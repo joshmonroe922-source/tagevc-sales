@@ -4,7 +4,11 @@
 
 import { createPersistClient } from '@/lib/supabase/persist-client';
 import { recordMarketingAnalyticsEvent } from '@/lib/shared-services/marketing-analytics';
-import { publishForAccount } from '@/lib/shared-services/marketing-social';
+import {
+  getTikTokPublishStatus,
+  publishForAccount,
+  type PublishResult,
+} from '@/lib/shared-services/marketing-social';
 import type { MarketingJobStatus } from './marketing-types';
 
 export type ScheduleEnqueueInput = {
@@ -158,31 +162,110 @@ export async function processDueScheduleJobs(opts?: {
       resolvedAccountId = 'MSA-STUB';
     }
 
-    const pub = await publishForAccount({
-      account_id: resolvedAccountId,
-      platform: platform as
-        | 'linkedin'
-        | 'x'
-        | 'instagram'
-        | 'facebook'
-        | 'youtube'
-        | 'tiktok'
-        | 'web'
-        | 'other',
-      handle,
-      title: String(content.title ?? ''),
-      body: String(content.body ?? ''),
-      media_url:
-        typeof (content.generation_meta as Record<string, unknown> | null)
-          ?.media_url === 'string'
-          ? String(
-              (content.generation_meta as Record<string, unknown>).media_url,
-            )
-          : null,
-      media_type: 'video',
-    });
+    const priorResult = (job.result as Record<string, unknown> | null) ?? {};
+    let pub: PublishResult;
+    if (
+      platform === 'tiktok' &&
+      priorResult.processing === true &&
+      typeof priorResult.publish_id === 'string'
+    ) {
+      const status = await getTikTokPublishStatus(
+        resolvedAccountId,
+        priorResult.publish_id,
+      );
+      if (status.ok && status.processing) {
+        await sb
+          .from('os_marketing_schedule_jobs')
+          .update({
+            status: 'queued',
+            last_error: `TikTok ${status.status.toLowerCase()}`,
+            result: {
+              ...priorResult,
+              provider_status: status.status,
+              last_polled_at: nowIso,
+            },
+            updated_at: nowIso,
+          })
+          .eq('job_id', jobId);
+        results.push({ job_id: jobId, ok: true, status: 'queued' });
+        continue;
+      }
+      if (!status.ok) {
+        pub = {
+          ok: false,
+          publisher: 'tiktok',
+          error: status.error,
+        };
+      } else {
+        pub = {
+          ok: true,
+          publisher: 'tiktok',
+          external_id: status.external_id ?? priorResult.publish_id,
+          published_url: `https://www.tiktok.com/@${handle}`,
+        };
+      }
+    } else {
+      pub = await publishForAccount({
+        account_id: resolvedAccountId,
+        platform: platform as
+          | 'linkedin'
+          | 'x'
+          | 'instagram'
+          | 'facebook'
+          | 'youtube'
+          | 'tiktok'
+          | 'web'
+          | 'other',
+        handle,
+        title: String(content.title ?? ''),
+        body: String(content.body ?? ''),
+        media_url:
+          typeof (content.generation_meta as Record<string, unknown> | null)
+            ?.media_url === 'string'
+            ? String(
+                (content.generation_meta as Record<string, unknown>).media_url,
+              )
+            : null,
+        media_type: 'video',
+      });
+    }
 
     if (pub.ok) {
+      if (pub.processing) {
+        await sb
+          .from('os_marketing_schedule_jobs')
+          .update({
+            status: 'queued',
+            last_error: 'TikTok publication processing',
+            published_url: pub.published_url ?? null,
+            publisher: pub.publisher,
+            result: {
+              publish_id: pub.external_id,
+              processing: true,
+              provider_status: 'PROCESSING',
+              submitted_at: nowIso,
+            },
+            updated_at: nowIso,
+          })
+          .eq('job_id', jobId);
+        void recordMarketingAnalyticsEvent({
+          kind: 'post_processing',
+          content_id: contentId,
+          job_id: jobId,
+          account_id: resolvedAccountId,
+          entity_id: (content.entity_id as string) ?? null,
+          campaign_id: (content.campaign_id as string) ?? null,
+          platform,
+          metrics: { publish_id: pub.external_id, publisher: pub.publisher },
+        });
+        results.push({
+          job_id: jobId,
+          ok: true,
+          status: 'queued',
+          published_url: pub.published_url,
+        });
+        continue;
+      }
       await sb
         .from('os_marketing_schedule_jobs')
         .update({
@@ -193,6 +276,7 @@ export async function processDueScheduleJobs(opts?: {
           result: {
             external_id: pub.external_id,
             stub: pub.stub ?? false,
+            processing: false,
           },
           updated_at: nowIso,
         })

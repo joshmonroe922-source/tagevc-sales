@@ -22,6 +22,8 @@ export type PublishResult = {
   published_url?: string;
   error?: string;
   stub?: boolean;
+  /** Provider accepted the job but has not confirmed publication yet. */
+  processing?: boolean;
 };
 
 export interface SocialPublisher {
@@ -292,6 +294,7 @@ export class TikTokPublisher implements SocialPublisher {
             publisher: this.id,
             external_id: json.data.publish_id,
             published_url: `https://www.tiktok.com/@${username}`,
+            processing: true,
           };
         }
         return {
@@ -342,6 +345,7 @@ export class TikTokPublisher implements SocialPublisher {
             publisher: this.id,
             external_id: json.data.publish_id,
             published_url: `https://www.tiktok.com/@${username}`,
+            processing: true,
           };
         }
         return {
@@ -370,6 +374,93 @@ export class TikTokPublisher implements SocialPublisher {
         error: e instanceof Error ? e.message : 'TikTok publish failed',
       };
     }
+  }
+}
+
+export async function getTikTokPublishStatus(
+  accountId: string,
+  publishId: string,
+): Promise<
+  | {
+      ok: true;
+      processing: boolean;
+      external_id?: string;
+      status: string;
+    }
+  | { ok: false; error: string; status?: string }
+> {
+  const { token, refreshError } = await loadAccessToken(accountId);
+  if (!token) {
+    return {
+      ok: false,
+      error: refreshError || 'TikTok access token unavailable',
+    };
+  }
+  try {
+    const res = await fetch(
+      'https://open.tiktokapis.com/v2/post/publish/status/fetch/',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json; charset=UTF-8',
+        },
+        body: JSON.stringify({ publish_id: publishId }),
+      },
+    );
+    const raw = await res.text();
+    const json = (() => {
+      try {
+        return JSON.parse(raw) as {
+          data?: {
+            status?: string;
+            fail_reason?: string;
+            public_post_id?: string;
+            publicly_available_post_id?: string;
+            publicaly_available_post_id?: Array<string | number>;
+          };
+          error?: { code?: string; message?: string };
+        };
+      } catch {
+        return {};
+      }
+    })();
+    const exactPublicId = raw.match(
+      /"publicaly_available_post_id"\s*:\s*\[\s*"?(\d+)"?/,
+    )?.[1];
+    const status = json.data?.status || 'UNKNOWN';
+    if (!res.ok || json.error?.code || status === 'FAILED') {
+      return {
+        ok: false,
+        status,
+        error:
+          json.data?.fail_reason ||
+          json.error?.message ||
+          json.error?.code ||
+          `TikTok status HTTP ${res.status}`,
+      };
+    }
+    const externalId =
+      json.data?.public_post_id ||
+      json.data?.publicly_available_post_id ||
+      exactPublicId ||
+      (json.data?.publicaly_available_post_id?.[0] != null
+        ? String(json.data.publicaly_available_post_id[0])
+        : undefined);
+    return {
+      ok: true,
+      processing: status !== 'PUBLISH_COMPLETE' || !externalId,
+      status:
+        status === 'PUBLISH_COMPLETE' && !externalId
+          ? 'PUBLISH_COMPLETE_AWAITING_PUBLIC_ID'
+          : status,
+      external_id: externalId,
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'TikTok status failed',
+    };
   }
 }
 

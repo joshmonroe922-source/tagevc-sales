@@ -491,6 +491,13 @@ export async function updateHardwareWarranty(input: {
       assetId = data.asset_id as string;
     }
     if (!assetId) return { ok: false, error: 'asset_id or serial_number required' };
+    const { data: before, error: beforeError } = await sb
+      .from('os_it_hardware_assets')
+      .select('asset_id, warranty_ends_at, entity_id')
+      .eq('asset_id', assetId)
+      .maybeSingle();
+    if (beforeError) return { ok: false, error: beforeError.message };
+    if (!before) return { ok: false, error: `No asset ${assetId}` };
 
     const now = new Date().toISOString();
     const { data, error } = await sb
@@ -504,6 +511,29 @@ export async function updateHardwareWarranty(input: {
       .maybeSingle();
     if (error) return { ok: false, error: error.message };
     if (!data) return { ok: false, error: `No asset ${assetId}` };
+    const { error: auditError } = await sb.from('os_it_lifecycle_events').insert({
+      event_id: `ITL-${randomUUID()}`,
+      run_id: null,
+      item_id: 'warranty-update',
+      target_id: assetId,
+      entity_id: (before.entity_id as string) ?? null,
+      actor_id: input.actor_id ?? null,
+      status: 'done',
+      detail: `Warranty ${
+        (before.warranty_ends_at as string | null) ?? 'unset'
+      } → ${input.warranty_ends_at}`,
+      metadata: {
+        kind: 'warranty_update',
+        before: (before.warranty_ends_at as string | null) ?? null,
+        after: input.warranty_ends_at,
+      },
+    });
+    if (auditError && !auditError.message.includes('os_it_lifecycle_events')) {
+      return {
+        ok: false,
+        error: `Warranty updated but lifecycle audit failed: ${auditError.message}`,
+      };
+    }
 
     return { ok: true, asset_id: assetId };
   } catch (e) {
@@ -553,7 +583,10 @@ export async function bulkUpdateWarranties(input: {
     return fields;
   }
 
-  const rows = input.lines.split(/\r?\n/).filter((line) => line.trim());
+  const rows = input.lines
+    .replace(/^\uFEFF/, '')
+    .split(/\r?\n/)
+    .filter((line) => line.trim());
   const header = rows.length > 0 ? parseCsvLine(rows[0]).map((h) => h.toLowerCase()) : [];
   const hasHeader =
     header.includes('warranty_ends_at') &&
@@ -561,6 +594,23 @@ export async function bulkUpdateWarranties(input: {
   const assetIndex = hasHeader ? header.indexOf('asset_id') : 0;
   const serialIndex = hasHeader ? header.indexOf('serial_number') : -1;
   const dateIndex = hasHeader ? header.indexOf('warranty_ends_at') : 1;
+  if (
+    rows.length > 0 &&
+    !hasHeader &&
+    header.some((value) =>
+      ['asset_id', 'serial_number', 'warranty_ends_at'].includes(value),
+    )
+  ) {
+    return {
+      ok: true,
+      updated: 0,
+      failed: Math.max(rows.length - 1, 1),
+      errors: [
+        'Invalid header: include warranty_ends_at and asset_id or serial_number',
+      ],
+    };
+  }
+  const seen = new Map<string, string>();
 
   for (const raw of rows.slice(hasHeader ? 1 : 0)) {
     const line = raw.trim();
@@ -587,6 +637,18 @@ export async function bulkUpdateWarranties(input: {
       errors.push(`Bad date on ${key}: ${date}`);
       continue;
     }
+    const normalizedKey = key.toLowerCase();
+    const priorDate = seen.get(normalizedKey);
+    if (priorDate) {
+      failed += 1;
+      errors.push(
+        priorDate === date
+          ? `Duplicate row for ${key}`
+          : `Conflicting dates for ${key}: ${priorDate} and ${date}`,
+      );
+      continue;
+    }
+    seen.set(normalizedKey, date);
     let res = await updateHardwareWarranty({
       asset_id: assetId || (!hasHeader ? key : null),
       serial_number: serial || null,
@@ -607,5 +669,5 @@ export async function bulkUpdateWarranties(input: {
       errors.push(`${key}: ${res.error}`);
     }
   }
-  return { ok: true, updated, failed, errors: errors.slice(0, 20) };
+  return { ok: true, updated, failed, errors: errors.slice(0, 100) };
 }

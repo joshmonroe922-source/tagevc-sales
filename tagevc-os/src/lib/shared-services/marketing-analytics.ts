@@ -65,9 +65,14 @@ export type MarketingAnalyticsSummary = {
   paid_roi: number | null;
   paid_roas: number | null;
   paid_ctr: number | null;
+  paid_currencies: string[];
+  paid_currency_mixed: boolean;
   paid_campaigns: Array<{
     campaign_id: string;
+    campaign_name: string | null;
+    entity_id: string | null;
     platform: string;
+    currency: string;
     impressions: number;
     clicks: number;
     conversions: number;
@@ -75,6 +80,12 @@ export type MarketingAnalyticsSummary = {
     revenue_k: number;
     roi: number | null;
     roas: number | null;
+    cpc: number | null;
+    cpm: number | null;
+    cpa: number | null;
+    budget_utilization: number | null;
+    reporting_start: string | null;
+    reporting_end: string | null;
   }>;
 };
 
@@ -110,6 +121,7 @@ function emptyTrend7d(): MarketingAnalyticsSummary['trend_7d'] {
 }
 
 export async function recordMarketingAnalyticsEvent(input: {
+  event_id?: string;
   kind: string;
   campaign_id?: string | null;
   content_id?: string | null;
@@ -122,8 +134,8 @@ export async function recordMarketingAnalyticsEvent(input: {
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const sb = await createPersistClient();
-    const { error } = await sb.from('os_marketing_analytics_events').insert({
-      event_id: `MAE-${randomUUID().slice(0, 8)}`,
+    const row = {
+      event_id: input.event_id ?? `MAE-${randomUUID().slice(0, 8)}`,
       kind: input.kind,
       campaign_id: input.campaign_id ?? null,
       content_id: input.content_id ?? null,
@@ -133,7 +145,12 @@ export async function recordMarketingAnalyticsEvent(input: {
       platform: input.platform ?? null,
       metrics: input.metrics ?? {},
       occurred_at: input.occurred_at ?? new Date().toISOString(),
-    });
+    };
+    const { error } = input.event_id
+      ? await sb
+          .from('os_marketing_analytics_events')
+          .upsert(row, { onConflict: 'event_id' })
+      : await sb.from('os_marketing_analytics_events').insert(row);
     if (error) return { ok: false, error: error.message };
     return { ok: true };
   } catch (e) {
@@ -195,6 +212,8 @@ export async function getMarketingAnalyticsSummary(opts?: {
     paid_roi: null,
     paid_roas: null,
     paid_ctr: null,
+    paid_currencies: [],
+    paid_currency_mixed: false,
     paid_campaigns: [],
   };
 
@@ -223,6 +242,7 @@ export async function getMarketingAnalyticsSummary(opts?: {
     const seenPaidSnapshots = new Set<string>();
     let paidImpressions = 0;
     let paidClicks = 0;
+    const paidCurrencies = new Set<string>();
 
     for (const e of events) {
       const day = e.occurred_at.slice(0, 10);
@@ -251,13 +271,18 @@ export async function getMarketingAnalyticsSummary(opts?: {
           const spendK = Number(e.metrics.spend ?? 0) / 1000;
           const revenueK = Number(e.metrics.revenue_k ?? 0);
           const conversions = Number(e.metrics.conversions ?? 0);
+          const currency = String(e.metrics.currency ?? 'USD');
+          paidCurrencies.add(currency);
           summary.paid_spend_k += spendK;
           summary.paid_revenue_k += revenueK;
           paidImpressions += impressions;
           paidClicks += clicks;
           summary.paid_campaigns.push({
             campaign_id: e.campaign_id,
+            campaign_name: null,
+            entity_id: e.entity_id,
             platform: e.platform ?? 'paid',
+            currency,
             impressions,
             clicks,
             conversions,
@@ -265,6 +290,24 @@ export async function getMarketingAnalyticsSummary(opts?: {
             revenue_k: revenueK,
             roi: spendK > 0 ? (revenueK - spendK) / spendK : null,
             roas: spendK > 0 ? revenueK / spendK : null,
+            cpc:
+              e.metrics.cpc == null ? null : Number(e.metrics.cpc),
+            cpm:
+              e.metrics.cpm == null ? null : Number(e.metrics.cpm),
+            cpa:
+              e.metrics.cpa == null ? null : Number(e.metrics.cpa),
+            budget_utilization:
+              e.metrics.budget_utilization == null
+                ? null
+                : Number(e.metrics.budget_utilization),
+            reporting_start:
+              typeof e.metrics.reporting_start === 'string'
+                ? e.metrics.reporting_start
+                : null,
+            reporting_end:
+              typeof e.metrics.reporting_end === 'string'
+                ? e.metrics.reporting_end
+                : null,
           });
         }
         summary.engagement_impressions += impressions;
@@ -326,6 +369,36 @@ export async function getMarketingAnalyticsSummary(opts?: {
         : null;
     summary.paid_ctr =
       paidImpressions > 0 ? paidClicks / paidImpressions : null;
+    summary.paid_currencies = [...paidCurrencies].sort();
+    summary.paid_currency_mixed = paidCurrencies.size > 1;
+    if (summary.paid_currency_mixed) {
+      summary.paid_roi = null;
+      summary.paid_roas = null;
+    }
+
+    if (summary.paid_campaigns.length > 0) {
+      const campaignIds = summary.paid_campaigns.map((p) => p.campaign_id);
+      const { data: paidCampaignRows } = await sb
+        .from('os_marketing_campaigns')
+        .select('campaign_id, name, entity_id')
+        .in('campaign_id', campaignIds);
+      const campaignMeta = new Map(
+        (paidCampaignRows ?? []).map((row) => [
+          String(row.campaign_id),
+          {
+            name: String(row.name),
+            entity_id: (row.entity_id as string) ?? null,
+          },
+        ]),
+      );
+      for (const paidCampaign of summary.paid_campaigns) {
+        const meta = campaignMeta.get(paidCampaign.campaign_id);
+        if (meta) {
+          paidCampaign.campaign_name = meta.name;
+          paidCampaign.entity_id = meta.entity_id;
+        }
+      }
+    }
 
     for (const [plat, bucket] of Object.entries(summary.engagement_by_platform)) {
       bucket.posts = postsByPlatform[plat] ?? 0;

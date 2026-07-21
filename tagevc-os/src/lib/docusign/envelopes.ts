@@ -224,12 +224,20 @@ export type DocuSignEnvelopeSummary = {
   voidedDateTime: string | null;
   voidedReason: string | null;
   statusChangedDateTime: string | null;
+  recipients: Array<{
+    name: string | null;
+    email: string | null;
+    role: string;
+    status: string;
+    routingOrder: string | null;
+  }>;
 };
 
 /** Authoritative recent account envelopes for the management hub (Phase 31). */
 export async function listRecentEnvelopes(opts?: {
   status?: string;
   count?: number;
+  days?: number;
 }): Promise<
   | { ok: true; envelopes: DocuSignEnvelopeSummary[] }
   | { ok: false; error: string }
@@ -238,7 +246,9 @@ export async function listRecentEnvelopes(opts?: {
   if (!cfg) return { ok: false, error: 'DocuSign is not configured' };
   try {
     const from = new Date();
-    from.setUTCDate(from.getUTCDate() - 30);
+    from.setUTCDate(
+      from.getUTCDate() - Math.min(Math.max(opts?.days ?? 30, 1), 90),
+    );
     const params = new URLSearchParams({
       from_date: from.toISOString(),
       count: String(Math.min(opts?.count ?? 40, 100)),
@@ -261,16 +271,34 @@ export async function listRecentEnvelopes(opts?: {
     }
     return {
       ok: true,
-      envelopes: (json.envelopes ?? []).map((e) => ({
-        envelopeId: String(e.envelopeId ?? ''),
-        status: String(e.status ?? 'unknown').toLowerCase(),
-        emailSubject: (e.emailSubject as string) ?? null,
-        sentDateTime: (e.sentDateTime as string) ?? null,
-        completedDateTime: (e.completedDateTime as string) ?? null,
-        voidedDateTime: (e.voidedDateTime as string) ?? null,
-        voidedReason: (e.voidedReason as string) ?? null,
-        statusChangedDateTime: (e.statusChangedDateTime as string) ?? null,
-      })),
+      envelopes: (json.envelopes ?? []).map((e) => {
+        const recipientRoot =
+          (e.recipients as Record<string, unknown[]> | undefined) ?? {};
+        const recipients = Object.entries(recipientRoot).flatMap(
+          ([role, rows]) =>
+            (Array.isArray(rows) ? rows : []).map((value) => {
+              const recipient = value as Record<string, unknown>;
+              return {
+                name: (recipient.name as string) ?? null,
+                email: (recipient.email as string) ?? null,
+                role,
+                status: String(recipient.status ?? 'unknown').toLowerCase(),
+                routingOrder: (recipient.routingOrder as string) ?? null,
+              };
+            }),
+        );
+        return {
+          envelopeId: String(e.envelopeId ?? ''),
+          status: String(e.status ?? 'unknown').toLowerCase(),
+          emailSubject: (e.emailSubject as string) ?? null,
+          sentDateTime: (e.sentDateTime as string) ?? null,
+          completedDateTime: (e.completedDateTime as string) ?? null,
+          voidedDateTime: (e.voidedDateTime as string) ?? null,
+          voidedReason: (e.voidedReason as string) ?? null,
+          statusChangedDateTime: (e.statusChangedDateTime as string) ?? null,
+          recipients,
+        };
+      }),
     };
   } catch (e) {
     return {

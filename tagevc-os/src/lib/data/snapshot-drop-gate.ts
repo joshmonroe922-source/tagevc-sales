@@ -33,7 +33,7 @@ export function getSnapshotDropGate(): SnapshotDropGate {
         approved_by: approvedBy,
         detail: `Approved by ${approvedBy} at ${approvedAt}${
           allow
-            ? ' · ALLOW_SNAPSHOT_DROP set — use offline phase31_stage4e_soft_rename.sql only after rename soak'
+            ? ' · ALLOW_SNAPSHOT_DROP set — Phase 32 still provides no destructive execution path'
             : ' · set ALLOW_SNAPSHOT_DROP=1 only when running the offline DROP script'
         }`,
         allow_manual_drop_script: allow,

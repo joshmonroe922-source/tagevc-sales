@@ -16,9 +16,7 @@ export type ArchiveExportConfirmation = {
 };
 
 declare global {
-  // eslint-disable-next-line no-var
   var __tageLastArchiveExport: ArchiveExportRecord | undefined;
-  // eslint-disable-next-line no-var
   var __tageArchiveExportConfirmed: ArchiveExportConfirmation | undefined;
 }
 

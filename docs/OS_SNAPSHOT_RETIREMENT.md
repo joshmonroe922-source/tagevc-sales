@@ -1,6 +1,9 @@
 # Snapshot Retirement Plan — `os_store_snapshots`
 
-**Status:** Phase 31 — Stage 4e requires durable retirement evidence, a valid rename timestamp/table name, written approval, verified retired table, and a configurable rename soak. The app does not rename or drop `os_store_snapshots`. Offline guide: `phase31_stage4e_soft_rename.sql`.
+**Status:** Phase 32 — Stage 4e fails closed on query errors and requires
+approval before rename, a non-empty verified retired table, correlated database
+evidence, and durable soak observations. The app does not rename or drop
+`os_store_snapshots`. Offline guide: `phase32_stage4e_soft_rename.sql`.
 
 ## Dual-write / dual-read map
 
@@ -40,20 +43,22 @@ WRITE_CUTOVER_ALL=1      # + ma, re
 ### Soak health
 - Cron: every 6h → `/api/admin/soak-health`  
 - Alerts Sentry on sync failures / FK orphans / failed drills  
+- Phase 32 persists observations in `os_snapshot_soak_observations`.
 
 ### Rollback write cutover
 Unset cutover env vars and redeploy. Snapshot upserts resume. Restore from archive with SQL (see Stage 4 doc).
 
 ### Governed soft rename
 
-1. Apply `phase31_marketing_it_governance.sql`.
+1. Apply `phase31_marketing_it_governance.sql` and
+   `phase32_operational_evidence.sql`.
 2. Complete production drills, retention, export, and written approval gates.
-3. Review the commented transaction in `phase31_stage4e_soft_rename.sql`.
+3. Review the commented transaction in `phase32_stage4e_soft_rename.sql`.
 4. Perform the rename offline and record `os_snapshot_retirement_events`.
 5. Set the four `SNAPSHOT_SOFT_RENAME*` / retired-table environment values.
 6. Observe the rename soak; rollback by renaming the table back if needed.
 
-No Phase 31 SQL contains a DROP statement.
+The Phase 32 soft-rename guide contains no destructive statement.
 
 ## Exit criteria before drop
 

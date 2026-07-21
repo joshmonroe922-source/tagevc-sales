@@ -164,20 +164,21 @@ export async function startOffboarding(input: {
       detail: 'Phase 31: opt-in Exchange automation before license removal',
     });
     checklist.push({
-      id: 'access-graph-mailbox',
-      kind: 'access_note',
-      ref_id: 'graph_mailbox',
-      label: 'Apply mailbox mode (disable, retain, or soft-delete user)',
-      status: 'pending',
-      detail: 'Phase 31: IT_OFFBOARD_MAILBOX_MODE',
-    });
-    checklist.push({
       id: 'access-graph-skus',
       kind: 'access_note',
       ref_id: 'graph_skus',
       label: 'Remove M365 license SKUs (MS_GRAPH_REMOVE_SKUS)',
       status: 'pending',
       detail: 'Runs after required mailbox retention policy',
+    });
+    checklist.push({
+      id: 'access-graph-mailbox',
+      kind: 'access_note',
+      ref_id: 'graph_mailbox',
+      label: 'Apply mailbox mode (disable, retain, or soft-delete user)',
+      status: 'pending',
+      detail:
+        'Phase 32: runs after direct SKU removal; IT_OFFBOARD_MAILBOX_MODE',
     });
     checklist.push({
       id: 'access-sso',
@@ -243,26 +244,6 @@ export async function executeOffboarding(
     if (!existing) return { ok: false, error: 'Run not found' };
 
     const run = mapRun(existing as Record<string, unknown>);
-    const failed = run.checklist.filter((c) => c.status === 'failed');
-    if (failed.length > 0) {
-      return {
-        ok: false,
-        error: `Resolve failed steps before completion: ${failed
-          .map((c) => c.label)
-          .join(', ')}`,
-      };
-    }
-    const holdRequired =
-      process.env.IT_OFFBOARD_LITIGATION_HOLD === '1' ||
-      process.env.IT_OFFBOARD_LITIGATION_HOLD === 'true';
-    const hold = run.checklist.find((c) => c.ref_id === 'mailbox_retention');
-    if (holdRequired && hold?.status !== 'done') {
-      return {
-        ok: false,
-        error:
-          'Litigation hold is required and must succeed before offboarding completion',
-      };
-    }
     const checklist = [...run.checklist];
     const priorStatuses = new Map(
       checklist.map((item) => [item.id, item.status] as const),
@@ -466,10 +447,51 @@ export async function completeOffboarding(
     if (!existing) return { ok: false, error: 'Run not found' };
 
     const run = mapRun(existing as Record<string, unknown>);
-    const checklist = run.checklist.map((c) =>
-      c.kind === 'access_note' && c.status === 'pending'
-        ? { ...c, status: 'done' as const, detail: 'Marked complete by operator' }
-        : c,
+    const failed = run.checklist.filter((item) => item.status === 'failed');
+    if (failed.length > 0) {
+      return {
+        ok: false,
+        error: `Retry failed steps before completion: ${failed
+          .map((item) => item.label)
+          .join(', ')}`,
+      };
+    }
+    const holdRequired =
+      process.env.IT_OFFBOARD_LITIGATION_HOLD === '1' ||
+      process.env.IT_OFFBOARD_LITIGATION_HOLD === 'true';
+    const hold = run.checklist.find(
+      (item) => item.ref_id === 'mailbox_retention',
+    );
+    if (holdRequired && hold?.status !== 'done') {
+      return {
+        ok: false,
+        error:
+          'Verified litigation hold is required before offboarding completion',
+      };
+    }
+    const unresolvedAutomation = run.checklist.filter(
+      (item) =>
+        item.status === 'pending' &&
+        !(item.kind === 'access_note' && item.ref_id === 'sso'),
+    );
+    if (unresolvedAutomation.length > 0) {
+      return {
+        ok: false,
+        error: `Complete or explicitly configure these steps first: ${unresolvedAutomation
+          .map((item) => item.label)
+          .join(', ')}`,
+      };
+    }
+    const checklist = run.checklist.map((item) =>
+      item.kind === 'access_note' &&
+      item.ref_id === 'sso' &&
+      item.status === 'pending'
+        ? {
+            ...item,
+            status: 'done' as const,
+            detail: 'Manual SSO/access confirmation recorded by operator',
+          }
+        : item,
     );
     const now = new Date().toISOString();
     const { data, error } = await sb

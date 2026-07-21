@@ -1,5 +1,4 @@
 import type {
-  AllowAction,
   AutonomyBand,
   AutonomyVersion,
   CapitalDocType,

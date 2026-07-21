@@ -94,8 +94,44 @@ export async function voidEnvelopeAction(
     }
   }
 
+  const requestedAt = new Date().toISOString();
+  const intent = await insertDocuSignEvent({
+    envelope_id: id,
+    status: 'void-requested',
+    event_type: 'envelope-void-requested',
+    raw_payload: {
+      reason: voidReason,
+      source: 'hub',
+      actor_id: gate.profile.id,
+      actor_email: gate.profile.email ?? null,
+      requested_at: requestedAt,
+      void_policy: policy,
+    },
+  });
+  if (!intent.ok) {
+    return {
+      ok: false,
+      error: `Void aborted because intent audit could not be persisted: ${intent.error}`,
+    };
+  }
+
   const api = await voidEnvelope(id, voidReason);
-  if (!api.ok) return api;
+  if (!api.ok) {
+    await insertDocuSignEvent({
+      envelope_id: id,
+      status: 'void-failed',
+      event_type: 'envelope-void-failed',
+      raw_payload: {
+        reason: voidReason,
+        source: 'hub',
+        actor_id: gate.profile.id,
+        actor_email: gate.profile.email ?? null,
+        error: api.error,
+        requested_at: requestedAt,
+      },
+    });
+    return api;
+  }
 
   try {
     applyDocuSignWebhook({ envelope_id: id, status: 'voided' });
@@ -184,6 +220,24 @@ export async function createReplacementEnvelopeAction(input: {
       };
     }
   }
+  const intent = await insertDocuSignEvent({
+    envelope_id: sourceEnvelopeId,
+    status: 'replacement-requested',
+    event_type: 'envelope-replacement-requested',
+    raw_payload: {
+      source: 'hub',
+      templateId,
+      actor_id: gate.profile.id,
+      actor_email: gate.profile.email ?? null,
+      requested_at: new Date().toISOString(),
+    },
+  });
+  if (!intent.ok) {
+    return {
+      ok: false,
+      error: `Replacement aborted because lineage intent could not be persisted: ${intent.error}`,
+    };
+  }
   try {
     const { createEnvelopeFromTemplate } = await import(
       '@/lib/docusign/envelopes'
@@ -208,12 +262,31 @@ export async function createReplacementEnvelopeAction(input: {
         replacement_for_envelope_id: sourceEnvelopeId,
         templateId,
         actor_id: gate.profile.id,
+        actor_email: gate.profile.email ?? null,
       },
     });
     if (!audit.ok) {
       return {
         ok: false,
         error: `Replacement ${created.envelopeId} was sent, but lineage audit failed: ${audit.error}`,
+      };
+    }
+    const reciprocal = await insertDocuSignEvent({
+      envelope_id: sourceEnvelopeId,
+      status: 'replaced',
+      event_type: 'envelope-replaced',
+      raw_payload: {
+        source: 'hub',
+        replaced_by_envelope_id: created.envelopeId,
+        templateId,
+        actor_id: gate.profile.id,
+        actor_email: gate.profile.email ?? null,
+      },
+    });
+    if (!reciprocal.ok) {
+      return {
+        ok: false,
+        error: `Replacement ${created.envelopeId} was sent, but reciprocal lineage failed: ${reciprocal.error}`,
       };
     }
     revalidateDocuSign();

@@ -46,7 +46,7 @@ os_it_assignment_events (append-only)
 1. Grant increments `seats_used` (respects `seat_count`)  
 2. Revoke decrements · events `license_grant` / `license_revoke`
 
-### Offboarding / onboarding (Phases 23–31)
+### Offboarding / onboarding (Phases 23–32)
 1. Offboarding: inactive scan + Graph **remove** groups/SKUs + **disable account** (opt-in)  
 2. Onboarding: active scan + Graph **assign** groups/SKUs (opt-in)  
 3. Hardware **warranty_ends_at** drives renewal alerts (else 3y refresh)  
@@ -54,12 +54,20 @@ os_it_assignment_events (append-only)
 5. Exchange automation can enable litigation hold before SKU removal.
 6. Mailbox mode can disable sign-in, retain mailbox, or opt-in soft-delete user.
 7. Intune device retirement attempts are persisted in lifecycle history.
+8. Hold submission remains pending until Exchange returns provider-verified
+   evidence; accepted HTTP status alone is insufficient.
+9. Failed automation steps can be retried. Pending automation cannot be marked
+   verified by the completion action.
+10. Intune inventory follows Graph pagination and reports compliance,
+    encryption, ownership, and last-sync context.
+11. Warranty imports reject duplicate/conflicting rows and write before/after
+    lifecycle evidence.
 
-SQL: through `phase31_marketing_it_governance.sql`.
+SQL: through `phase32_operational_evidence.sql`.
 
-## Phase 32+
+## Phase 33+
 
-1. Exchange hold verification callback + deleted-user restore
+1. Signed Exchange hold callback + deleted-user restore
 2. Warranty import preview / downloadable failures
 3. Local asset serial ↔ Intune device correlation
 

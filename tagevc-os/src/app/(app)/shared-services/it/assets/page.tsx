@@ -52,14 +52,15 @@ export default async function ItAssetsModulePage() {
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">IT</Badge>
-          <Badge variant="secondary">Phase 31</Badge>
+          <Badge variant="secondary">Phase 32</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Hardware &amp; licensing
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Warranty CSV import, litigation-hold and soft-delete mailbox modes,
-          tracked Intune retirement, renewals, and full asset lifecycle.
+          Audited warranty CSV, verified litigation-hold gates, retry-safe
+          mailbox offboarding, paginated Intune inventory, renewals, and asset
+          lifecycle.
         </p>
       </div>
 

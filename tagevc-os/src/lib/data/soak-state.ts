@@ -14,7 +14,6 @@ export type SoakRunRecord = {
 };
 
 declare global {
-  // eslint-disable-next-line no-var
   var __tageLastSoakRun: SoakRunRecord | undefined;
 }
 
@@ -26,7 +25,7 @@ export function getLastSoakRun(): SoakRunRecord | null {
   return globalThis.__tageLastSoakRun ?? null;
 }
 
-/** Stage 4e DROP readiness — never auto-drops; ready = checklist + ops approval. */
+/** Stage 4e soft-rename readiness. Destructive DROP controls remain separate. */
 export type Stage4eChecklist = {
   ready: boolean;
   items: Array<{ id: string; label: string; ok: boolean; detail?: string }>;
@@ -66,6 +65,9 @@ export function buildStage4eChecklist(input: {
   const softRenameApprovalBy =
     process.env.SNAPSHOT_SOFT_RENAME_APPROVED_BY?.trim() || null;
   const softRenameDate = softRenamedAt ? new Date(softRenamedAt) : null;
+  const approvalDate = softRenameApprovalAt
+    ? new Date(softRenameApprovalAt)
+    : null;
   const softRenameDateValid = Boolean(
     softRenameDate && !Number.isNaN(softRenameDate.getTime()),
   );
@@ -75,8 +77,22 @@ export function buildStage4eChecklist(input: {
   );
   const writtenApprovalValid = Boolean(
     softRenameApprovalBy &&
-      softRenameApprovalAt &&
-      !Number.isNaN(new Date(softRenameApprovalAt).getTime()),
+      approvalDate &&
+      !Number.isNaN(approvalDate.getTime()) &&
+      softRenameDate &&
+      approvalDate.getTime() <= softRenameDate.getTime(),
+  );
+  const retirementAuditValid = Boolean(
+    input.latest_retirement_event?.occurred_at &&
+      ['renamed', 'rename_verified'].includes(
+        input.latest_retirement_event.stage ?? '',
+      ) &&
+      input.latest_retirement_event.retired_table_name ===
+        input.retired_table_name &&
+      input.latest_retirement_event.approved_by === softRenameApprovalBy &&
+      approvalDate &&
+      new Date(input.latest_retirement_event.occurred_at).getTime() >=
+        approvalDate.getTime(),
   );
   const renameSoakDays = softRenameDateValid
     ? Math.floor(
@@ -85,6 +101,7 @@ export function buildStage4eChecklist(input: {
     : 0;
   const renameSoakOk =
     softRenameDateValid &&
+    retirementAuditValid &&
     renameSoakDays >=
       Math.max(
         1,
@@ -95,8 +112,9 @@ export function buildStage4eChecklist(input: {
     confirmed:
       softRenameDateValid &&
       retiredNameValid &&
-      input.retired_table_row_count != null &&
-      writtenApprovalValid,
+      (input.retired_table_row_count ?? 0) > 0 &&
+      writtenApprovalValid &&
+      retirementAuditValid,
     detail: softRenamedAt
       ? `Rename ${softRenameDateValid ? 'dated' : 'has invalid date'} ${softRenamedAt} · retired table ${
           retiredNameValid
@@ -105,8 +123,8 @@ export function buildStage4eChecklist(input: {
         } · written approval ${
           writtenApprovalValid
             ? `${softRenameApprovalBy} at ${softRenameApprovalAt}`
-            : 'missing'
-        }`
+            : 'missing, invalid, or later than rename'
+        } · audit ${retirementAuditValid ? 'correlated' : 'missing/mismatched'}`
       : 'Set SNAPSHOT_SOFT_RENAMED_AT + SNAPSHOT_RETIRED_TABLE_NAME only after approved offline rename',
   };
   const retentionOk =
@@ -181,14 +199,18 @@ export function buildStage4eChecklist(input: {
     },
     {
       id: 'table_retained',
-      label: 'os_store_snapshots still retained (no DROP)',
-      ok: snapCount == null || snapCount >= 0,
+      label: 'Snapshot relation state verified (no DROP)',
+      ok: input.snapshots_table_error
+        ? softRename.confirmed
+        : snapCount != null && snapCount >= 0,
       detail:
         input.snapshots_table_error
-          ? `Live table query error: ${input.snapshots_table_error}`
+          ? softRename.confirmed
+            ? `Live name absent after correlated rename; retired table ${input.retired_table_name} has ${input.retired_table_row_count} rows`
+            : `Unverified live table query error: ${input.snapshots_table_error}`
           : snapCount == null
           ? 'Row count unavailable'
-          : `rows=${snapCount} — Phase 31 does not drop this table from the app. Prefer soft rename via phase31_stage4e_soft_rename.sql`,
+          : `rows=${snapCount} — Phase 32 does not drop this table from the app. Prefer soft rename via phase32_stage4e_soft_rename.sql`,
     },
     {
       id: 'soft_rename_path',
@@ -212,18 +234,21 @@ export function buildStage4eChecklist(input: {
     {
       id: 'retirement_audit',
       label: 'Durable retirement audit evidence',
-      ok: Boolean(input.latest_retirement_event?.occurred_at),
+      ok: retirementAuditValid,
       detail: input.latest_retirement_event?.occurred_at
         ? `${input.latest_retirement_event.stage ?? 'event'} · ${
             input.latest_retirement_event.retired_table_name ?? 'no table'
           } · ${input.latest_retirement_event.approved_by ?? 'unknown approver'}`
-        : 'Apply Phase 31 SQL and record the approved offline rename',
+        : 'Record a correlated renamed/rename_verified event for the exact table and approver',
     },
   ];
 
-  // Eligibility only — app never executes DROP even when ready=true
+  // Soft-rename readiness only. Legacy retention/DROP gates do not block rename.
   const ready = items
-    .filter((i) => i.id !== 'table_retained')
+    .filter(
+      (item) =>
+        item.id !== 'retention_window' && item.id !== 'ops_approval',
+    )
     .every((i) => i.ok);
 
   return { ready, items, drop_gate: dropGate };
