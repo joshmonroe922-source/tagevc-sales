@@ -112,7 +112,14 @@ export function buildAuthorizeUrl(
     u.searchParams.set('client_id', cfg.clientId);
     u.searchParams.set('redirect_uri', cfg.redirectUri);
     u.searchParams.set('state', state);
-    u.searchParams.set('scope', 'openid profile w_member_social');
+    const scopes = ['openid', 'profile', 'w_member_social'];
+    if (
+      process.env.LINKEDIN_ADS_API === '1' ||
+      process.env.LINKEDIN_ADS_API === 'true'
+    ) {
+      scopes.push('r_ads_reporting', 'r_ads');
+    }
+    u.searchParams.set('scope', scopes.join(' '));
     return u.toString();
   }
 

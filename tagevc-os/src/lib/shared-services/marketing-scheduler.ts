@@ -136,11 +136,15 @@ export async function processDueScheduleJobs(opts?: {
         handle = String((acct as { handle: string }).handle);
       }
     } else {
-      const { data: acct } = await sb
+      let accountQuery = sb
         .from('os_marketing_social_accounts')
         .select('*')
         .eq('status', 'connected')
-        .eq('platform', platform)
+        .eq('platform', platform);
+      accountQuery = content.entity_id
+        ? accountQuery.eq('entity_id', content.entity_id)
+        : accountQuery.is('entity_id', null);
+      const { data: acct } = await accountQuery
         .limit(1)
         .maybeSingle();
       if (acct) {
@@ -156,10 +160,26 @@ export async function processDueScheduleJobs(opts?: {
 
     const pub = await publishForAccount({
       account_id: resolvedAccountId,
-      platform: platform as 'linkedin' | 'x' | 'instagram' | 'facebook' | 'youtube' | 'web' | 'other',
+      platform: platform as
+        | 'linkedin'
+        | 'x'
+        | 'instagram'
+        | 'facebook'
+        | 'youtube'
+        | 'tiktok'
+        | 'web'
+        | 'other',
       handle,
       title: String(content.title ?? ''),
       body: String(content.body ?? ''),
+      media_url:
+        typeof (content.generation_meta as Record<string, unknown> | null)
+          ?.media_url === 'string'
+          ? String(
+              (content.generation_meta as Record<string, unknown>).media_url,
+            )
+          : null,
+      media_type: 'video',
     });
 
     if (pub.ok) {

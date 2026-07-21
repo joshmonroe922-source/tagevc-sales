@@ -60,6 +60,22 @@ export type MarketingAnalyticsSummary = {
     impressions: number;
     engagement_rate: number | null;
   }>;
+  paid_spend_k: number;
+  paid_revenue_k: number;
+  paid_roi: number | null;
+  paid_roas: number | null;
+  paid_ctr: number | null;
+  paid_campaigns: Array<{
+    campaign_id: string;
+    platform: string;
+    impressions: number;
+    clicks: number;
+    conversions: number;
+    spend_k: number;
+    revenue_k: number;
+    roi: number | null;
+    roas: number | null;
+  }>;
 };
 
 function mapEvent(row: Record<string, unknown>): MarketingAnalyticsEvent {
@@ -174,6 +190,12 @@ export async function getMarketingAnalyticsSummary(opts?: {
     engagement_manual: 0,
     trend_7d: emptyTrend7d(),
     platform_rank: [],
+    paid_spend_k: 0,
+    paid_revenue_k: 0,
+    paid_roi: null,
+    paid_roas: null,
+    paid_ctr: null,
+    paid_campaigns: [],
   };
 
   try {
@@ -198,6 +220,9 @@ export async function getMarketingAnalyticsSummary(opts?: {
       summary.trend_7d.map((t, i) => [t.day, i] as const),
     );
     const postsByPlatform: Record<string, number> = {};
+    const seenPaidSnapshots = new Set<string>();
+    let paidImpressions = 0;
+    let paidClicks = 0;
 
     for (const e of events) {
       const day = e.occurred_at.slice(0, 10);
@@ -213,11 +238,35 @@ export async function getMarketingAnalyticsSummary(opts?: {
       } else if (e.kind === 'post_failed') {
         summary.posts_failed += 1;
       } else if (e.kind === 'engagement') {
+        const paid = e.metrics.source === 'paid_api';
+        const paidKey = `${e.campaign_id ?? '-'}:${e.platform ?? '-'}`;
+        if (paid && seenPaidSnapshots.has(paidKey)) continue;
+        if (paid) seenPaidSnapshots.add(paidKey);
         const impressions = Number(e.metrics.impressions ?? 0);
         const clicks = Number(e.metrics.clicks ?? 0);
         const likes = Number(e.metrics.likes ?? 0);
         const comments = Number(e.metrics.comments ?? 0);
         const shares = Number(e.metrics.shares ?? 0);
+        if (paid && e.campaign_id) {
+          const spendK = Number(e.metrics.spend ?? 0) / 1000;
+          const revenueK = Number(e.metrics.revenue_k ?? 0);
+          const conversions = Number(e.metrics.conversions ?? 0);
+          summary.paid_spend_k += spendK;
+          summary.paid_revenue_k += revenueK;
+          paidImpressions += impressions;
+          paidClicks += clicks;
+          summary.paid_campaigns.push({
+            campaign_id: e.campaign_id,
+            platform: e.platform ?? 'paid',
+            impressions,
+            clicks,
+            conversions,
+            spend_k: spendK,
+            revenue_k: revenueK,
+            roi: spendK > 0 ? (revenueK - spendK) / spendK : null,
+            roas: spendK > 0 ? revenueK / spendK : null,
+          });
+        }
         summary.engagement_impressions += impressions;
         summary.engagement_clicks += clicks;
         summary.engagement_likes += likes;
@@ -266,6 +315,17 @@ export async function getMarketingAnalyticsSummary(opts?: {
       summary.engagement_impressions > 0
         ? engTotal / summary.engagement_impressions
         : null;
+    summary.paid_roi =
+      summary.paid_spend_k > 0
+        ? (summary.paid_revenue_k - summary.paid_spend_k) /
+          summary.paid_spend_k
+        : null;
+    summary.paid_roas =
+      summary.paid_spend_k > 0
+        ? summary.paid_revenue_k / summary.paid_spend_k
+        : null;
+    summary.paid_ctr =
+      paidImpressions > 0 ? paidClicks / paidImpressions : null;
 
     for (const [plat, bucket] of Object.entries(summary.engagement_by_platform)) {
       bucket.posts = postsByPlatform[plat] ?? 0;

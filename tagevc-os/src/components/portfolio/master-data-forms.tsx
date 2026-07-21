@@ -13,8 +13,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { EmptyState } from '@/components/ui/empty-state';
-import { EDITABLE_CORE_KPI_KEYS } from '@/lib/data/master-data';
-import { CORE_KPI_CATALOG, flexKeysForModule } from '@/lib/portfolio/core-kpis';
+import {
+  CORE_KPI_CATALOG,
+  EDITABLE_CORE_KPI_KEYS,
+  flexKeysForModule,
+} from '@/lib/portfolio/core-kpis';
 import { ENTITY_STATUSES, PORTFOLIO_HEALTH } from '@/lib/types';
 import type {
   Entity,

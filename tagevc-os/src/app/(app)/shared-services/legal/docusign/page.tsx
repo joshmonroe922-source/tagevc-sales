@@ -10,6 +10,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { getDocuSignMode, isDocuSignConfigured } from '@/lib/docusign/config';
+import { listRecentEnvelopes } from '@/lib/docusign/envelopes';
 import {
   countDocuSignEvents,
   listDocuSignEvents,
@@ -49,7 +50,8 @@ export default async function DocuSignModulePage({
   const canWrite = ctx
     ? roleHasPermission(ctx.profile.role, 'write:documents')
     : false;
-  const [events, count, signed, templates, reminders] = await Promise.all([
+  const [events, count, signed, templates, reminders, liveEnvelopes] =
+    await Promise.all([
     listDocuSignEvents({
       limit: 40,
       status: statusFilter,
@@ -60,6 +62,12 @@ export default async function DocuSignModulePage({
     listSignedFiles({ limit: 20, withDownloadUrls: true }),
     listCachedTemplates(40),
     listReminderJobs(20),
+    configured
+      ? listRecentEnvelopes({ status: statusFilter, count: 40 })
+      : Promise.resolve({
+          ok: true as const,
+          envelopes: [],
+        }),
   ]);
 
   const voidPolicy = process.env.DOCUSIGN_VOID_POLICY?.trim() || 'allow';
@@ -95,12 +103,13 @@ export default async function DocuSignModulePage({
           <Badge variant={mode === 'live' ? 'default' : 'secondary'}>
             {mode === 'live' ? 'Live JWT' : 'Mock envelopes'}
           </Badge>
-          <Badge variant="secondary">Phase 30</Badge>
+          <Badge variant="secondary">Phase 31</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">DocuSign</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Envelope filters, void policy ({voidPolicy}), live template roles,
-          CoC email, and reminders. Capital sends still require{' '}
+          Live envelope management, irreversible void replacement policy (
+          {voidPolicy}), action diagnostics, template roles, CoC email, and
+          reminders. Capital sends still require{' '}
           <code className="text-xs">action:docusign_capital</code>.
         </p>
         <DocuSignHubActions canWrite={canWrite} />
@@ -204,6 +213,99 @@ export default async function DocuSignModulePage({
               ))}
             </ul>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Live envelopes</CardTitle>
+          <CardDescription>
+            Authoritative DocuSign status changes from the last 30 days
+            {!liveEnvelopes.ok ? ` · ${liveEnvelopes.error}` : ''}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap gap-2 text-xs">
+            {['all', 'sent', 'delivered', 'completed', 'voided'].map((s) => (
+              <Link
+                key={s}
+                href={
+                  s === 'all'
+                    ? '/shared-services/legal/docusign'
+                    : `/shared-services/legal/docusign?status=${s}`
+                }
+                className="rounded-full border px-2 py-1 underline-offset-4 hover:underline"
+              >
+                {s}
+              </Link>
+            ))}
+          </div>
+          {liveEnvelopes.ok && liveEnvelopes.envelopes.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="text-xs text-muted-foreground">
+                  <tr className="border-b">
+                    <th className="py-2 pr-3">Subject</th>
+                    <th className="py-2 pr-3">Envelope</th>
+                    <th className="py-2 pr-3">Status</th>
+                    <th className="py-2">Changed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {liveEnvelopes.envelopes.map((e) => (
+                    <tr
+                      key={e.envelopeId}
+                      className="border-b border-border/40"
+                    >
+                      <td className="py-2 pr-3">
+                        {e.emailSubject ?? 'Untitled'}
+                        {e.voidedReason ? (
+                          <span className="block text-xs text-amber-700">
+                            Void: {e.voidedReason}
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="py-2 pr-3 font-mono text-xs">
+                        <Link
+                          href={`/shared-services/legal/docusign?envelope_id=${encodeURIComponent(e.envelopeId)}`}
+                          className="underline-offset-4 hover:underline"
+                        >
+                          {e.envelopeId.slice(0, 18)}
+                          {e.envelopeId.length > 18 ? '…' : ''}
+                        </Link>
+                      </td>
+                      <td
+                        className={`py-2 pr-3 ${
+                          e.status === 'voided'
+                            ? 'text-amber-700'
+                            : e.status === 'completed'
+                              ? 'text-emerald-700'
+                              : ''
+                        }`}
+                      >
+                        {e.status}
+                      </td>
+                      <td className="py-2 text-xs text-muted-foreground">
+                        {e.statusChangedDateTime
+                          ?.slice(0, 16)
+                          .replace('T', ' ') ?? '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              {configured
+                ? 'No matching live envelopes in the last 30 days.'
+                : 'Configure DocuSign JWT to load live envelopes.'}
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Voids cannot be undone in DocuSign. Use “Replace voided envelope”
+            to create a new envelope with audit lineage.
+          </p>
         </CardContent>
       </Card>
 

@@ -1,5 +1,15 @@
 import type { IndustryModule, KpiRollupMethod } from '@/lib/types';
 
+/** CORE KPI keys editable in-app; money CORE stays on financials form. */
+export const EDITABLE_CORE_KPI_KEYS = [
+  'gross_margin',
+  'health',
+  'top_risk',
+  'customer_concentration',
+  'headcount_fte',
+  'pipeline_coverage',
+] as const;
+
 /**
  * Authoritative CORE KPI catalog — Core Subsidiary Structure §3.
  * Portal table: entity_month_kpi. Do not invent alternate names.

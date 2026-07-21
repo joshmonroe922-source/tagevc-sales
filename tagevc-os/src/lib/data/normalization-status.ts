@@ -128,9 +128,28 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
     }
   }
 
-  const { data: snapshots } = await supabase
+  const { data: snapshots, error: snapshotsError } = await supabase
     .from('os_store_snapshots')
     .select('collection, updated_at, version, payload');
+
+  const retiredTableName =
+    process.env.SNAPSHOT_RETIRED_TABLE_NAME?.trim() || null;
+  let retiredTableRowCount: number | null = null;
+  if (
+    retiredTableName &&
+    /^os_store_snapshots_retired_\d{8}$/.test(retiredTableName)
+  ) {
+    const retired = await supabase
+      .from(retiredTableName)
+      .select('*', { count: 'exact', head: true });
+    retiredTableRowCount = retired.error ? null : (retired.count ?? 0);
+  }
+
+  const { data: retirementEvents } = await supabase
+    .from('os_snapshot_retirement_events')
+    .select('stage, retired_table_name, approved_by, occurred_at, detail')
+    .order('occurred_at', { ascending: false })
+    .limit(1);
 
   const domains: StoreCollection[] = [
     'deal_flow',
@@ -248,6 +267,19 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
     last_soak: lastSoak,
     snapshots_table_row_count:
       counts.os_store_snapshots ?? snapshotRows.length,
+    snapshots_table_error: snapshotsError?.message ?? null,
+    retired_table_name: retiredTableName,
+    retired_table_row_count: retiredTableRowCount,
+    latest_retirement_event:
+      (retirementEvents?.[0] as
+        | {
+            stage?: string;
+            retired_table_name?: string;
+            approved_by?: string;
+            occurred_at?: string;
+            detail?: string;
+          }
+        | undefined) ?? null,
     retention_confirmed: retention.confirmed,
     retention_days_remaining: retention.days_remaining_before_drop_eligible,
   });
@@ -296,7 +328,7 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
             : stage === 'read_cutover'
               ? 'Enable WRITE_CUTOVER_MATURE=1 when handoffs/audits tables are ready'
               : stage === 'sql_only_hydrate'
-                ? 'Stage 4b active — soft rename via SNAPSHOT_SOFT_RENAMED_AT; DROP still deferred (Phase 30)'
+                ? 'Stage 4b active — governed soft rename path; DROP still deferred (Phase 31)'
                 : stage === 'stage4_ready'
                   ? 'Drills passed — SQL-only hydrate follows write cutover automatically; see OS_SNAPSHOT_STAGE4.md'
                   : fkOrphanTotal > 0

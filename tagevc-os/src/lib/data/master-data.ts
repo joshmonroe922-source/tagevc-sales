@@ -21,6 +21,7 @@ import {
   syncPortfolioMaster,
   updatePortfolioCompanyFields,
 } from '@/lib/data/normalized/portfolio-repo';
+import { EDITABLE_CORE_KPI_KEYS } from '@/lib/portfolio/core-kpis';
 import {
   queueNormalizedSync,
   recordNormalizedSyncResult,
@@ -387,18 +388,6 @@ export async function patchEntity(
   recordNormalizedSyncResult('entity_patch', true);
   return updated;
 }
-
-/** CORE KPI keys editable in-app (money CORE stays on Portfolio CORE financials form). */
-export const EDITABLE_CORE_KPI_KEYS = [
-  'gross_margin',
-  'health',
-  'top_risk',
-  'customer_concentration',
-  'headcount_fte',
-  'pipeline_coverage',
-] as const;
-
-export type EditableCoreKpiKey = (typeof EDITABLE_CORE_KPI_KEYS)[number];
 
 export async function patchEntityMonthKpi(
   entityId: string,

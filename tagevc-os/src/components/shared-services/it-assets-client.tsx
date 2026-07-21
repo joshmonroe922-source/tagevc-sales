@@ -27,12 +27,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { OffboardingRun } from '@/lib/shared-services/it-offboarding';
 import type { OnboardingRun } from '@/lib/shared-services/it-onboarding';
-import { upcomingLicenseRenewals } from '@/lib/shared-services/it-license-renewals';
 import type {
   ItAssignmentEvent,
   ItHardwareAsset,
   ItSoftwareLicense,
 } from '@/lib/shared-services/it-assets-types';
+import type { ItLifecycleEvent } from '@/lib/shared-services/it-assets-repo';
 
 function ActionMessage({ state }: { state: ItAssetActionResult | null }) {
   if (!state) return null;
@@ -44,10 +44,30 @@ function ActionMessage({ state }: { state: ItAssetActionResult | null }) {
   return <p className="text-sm text-destructive">{state.error}</p>;
 }
 
+function upcomingLicenseRenewals(
+  licenses: ItSoftwareLicense[],
+  withinDays = 30,
+): ItSoftwareLicense[] {
+  const horizon = Date.now() + withinDays * 86_400_000;
+  return licenses
+    .filter((license) => {
+      if (!license.renewal_date) return false;
+      if (license.status !== 'active' && license.status !== 'pending') {
+        return false;
+      }
+      const due = Date.parse(license.renewal_date);
+      return !Number.isNaN(due) && due <= horizon;
+    })
+    .sort((a, b) =>
+      String(a.renewal_date).localeCompare(String(b.renewal_date)),
+    );
+}
+
 export function ItAssetsClient({
   hardware,
   licenses,
   events,
+  lifecycleEvents = [],
   offboarding,
   onboarding = [],
   candidateTickets,
@@ -58,6 +78,7 @@ export function ItAssetsClient({
   hardware: ItHardwareAsset[];
   licenses: ItSoftwareLicense[];
   events: ItAssignmentEvent[];
+  lifecycleEvents?: ItLifecycleEvent[];
   offboarding: OffboardingRun[];
   onboarding?: OnboardingRun[];
   candidateTickets: Array<{
@@ -211,16 +232,27 @@ export function ItAssetsClient({
 
       {canWrite && (
         <form action={warrantyAction} className="space-y-3 rounded-lg border p-4">
-          <h2 className="text-sm font-semibold">Bulk warranty import</h2>
+          <h2 className="text-sm font-semibold">Bulk warranty CSV import</h2>
           <p className="text-xs text-muted-foreground">
-            One line per asset: <code>asset_id,YYYY-MM-DD</code> or{' '}
-            <code>serial,YYYY-MM-DD</code>
+            Header: <code>asset_id,warranty_ends_at</code> or{' '}
+            <code>serial_number,warranty_ends_at</code>. Quoted CSV supported,
+            max 500 KB.
+          </p>
+          <Input
+            name="csv_file"
+            type="file"
+            accept=".csv,text/csv,text/plain"
+          />
+          <p className="text-xs text-muted-foreground">
+            Or paste CSV:
           </p>
           <textarea
             name="lines"
             rows={4}
             className="w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-xs"
-            placeholder={'HW-ABC123,2027-06-30\nC02XL0ABCDEF,2026-12-01'}
+            placeholder={
+              'asset_id,warranty_ends_at\nHW-ABC123,2027-06-30'
+            }
           />
           <Button type="submit" size="sm" disabled={warrantyPending}>
             Import warranties
@@ -656,6 +688,44 @@ export function ItAssetsClient({
                     </li>
                   ))}
                 </ul>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-base font-semibold">Offboarding lifecycle events</h2>
+        {lifecycleEvents.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No tracked lifecycle attempts yet.
+          </p>
+        ) : (
+          <ul className="space-y-1 text-sm">
+            {lifecycleEvents.map((e) => (
+              <li
+                key={e.event_id}
+                className="border-b border-border/40 py-1.5 text-muted-foreground"
+              >
+                <span
+                  className={
+                    e.status === 'done'
+                      ? 'text-emerald-700'
+                      : e.status === 'failed'
+                        ? 'text-destructive'
+                        : 'text-foreground'
+                  }
+                >
+                  {e.status}
+                </span>
+                {' · '}
+                <span className="font-mono text-xs">
+                  {e.run_id ?? 'manual'} / {e.item_id}
+                </span>
+                {e.detail ? ` · ${e.detail}` : ''}
+                <span className="block text-xs">
+                  {e.occurred_at.slice(0, 19).replace('T', ' ')}
+                </span>
               </li>
             ))}
           </ul>

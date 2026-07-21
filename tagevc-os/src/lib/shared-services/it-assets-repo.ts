@@ -140,6 +140,51 @@ export async function listAssignmentEvents(limit = 40): Promise<{
   }
 }
 
+export type ItLifecycleEvent = {
+  event_id: string;
+  run_id: string | null;
+  item_id: string;
+  target_id: string | null;
+  entity_id: string | null;
+  status: string;
+  detail: string | null;
+  occurred_at: string;
+};
+
+export async function listLifecycleEvents(limit = 40): Promise<{
+  rows: ItLifecycleEvent[];
+  error?: string;
+}> {
+  try {
+    const sb = await createPersistClient();
+    const { data, error } = await sb
+      .from('os_it_lifecycle_events')
+      .select(
+        'event_id, run_id, item_id, target_id, entity_id, status, detail, occurred_at',
+      )
+      .order('occurred_at', { ascending: false })
+      .limit(limit);
+    if (error) return { rows: [], error: error.message };
+    return {
+      rows: (data ?? []).map((row) => ({
+        event_id: String(row.event_id),
+        run_id: (row.run_id as string) ?? null,
+        item_id: String(row.item_id),
+        target_id: (row.target_id as string) ?? null,
+        entity_id: (row.entity_id as string) ?? null,
+        status: String(row.status),
+        detail: (row.detail as string) ?? null,
+        occurred_at: String(row.occurred_at),
+      })),
+    };
+  } catch (e) {
+    return {
+      rows: [],
+      error: e instanceof Error ? e.message : 'lifecycle events failed',
+    };
+  }
+}
+
 async function recordEvent(input: {
   kind: ItAssignmentEvent['kind'];
   asset_id?: string | null;
@@ -448,14 +493,17 @@ export async function updateHardwareWarranty(input: {
     if (!assetId) return { ok: false, error: 'asset_id or serial_number required' };
 
     const now = new Date().toISOString();
-    const { error } = await sb
+    const { data, error } = await sb
       .from('os_it_hardware_assets')
       .update({
         warranty_ends_at: input.warranty_ends_at,
         updated_at: now,
       })
-      .eq('asset_id', assetId);
+      .eq('asset_id', assetId)
+      .select('asset_id')
+      .maybeSingle();
     if (error) return { ok: false, error: error.message };
+    if (!data) return { ok: false, error: `No asset ${assetId}` };
 
     return { ok: true, asset_id: assetId };
   } catch (e) {
@@ -481,28 +529,71 @@ export async function bulkUpdateWarranties(input: {
   const errors: string[] = [];
   let updated = 0;
   let failed = 0;
-  for (const raw of input.lines.split(/\r?\n/)) {
+  function parseCsvLine(line: string): string[] {
+    const fields: string[] = [];
+    let field = '';
+    let quoted = false;
+    for (let i = 0; i < line.length; i += 1) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (quoted && line[i + 1] === '"') {
+          field += '"';
+          i += 1;
+        } else {
+          quoted = !quoted;
+        }
+      } else if (ch === ',' && !quoted) {
+        fields.push(field.trim());
+        field = '';
+      } else {
+        field += ch;
+      }
+    }
+    fields.push(field.trim());
+    return fields;
+  }
+
+  const rows = input.lines.split(/\r?\n/).filter((line) => line.trim());
+  const header = rows.length > 0 ? parseCsvLine(rows[0]).map((h) => h.toLowerCase()) : [];
+  const hasHeader =
+    header.includes('warranty_ends_at') &&
+    (header.includes('asset_id') || header.includes('serial_number'));
+  const assetIndex = hasHeader ? header.indexOf('asset_id') : 0;
+  const serialIndex = hasHeader ? header.indexOf('serial_number') : -1;
+  const dateIndex = hasHeader ? header.indexOf('warranty_ends_at') : 1;
+
+  for (const raw of rows.slice(hasHeader ? 1 : 0)) {
     const line = raw.trim();
     if (!line || line.startsWith('#')) continue;
-    const parts = line.split(/[,\t]/).map((p) => p.trim());
+    const parts = line.includes(',') ? parseCsvLine(line) : line.split('\t').map((p) => p.trim());
     if (parts.length < 2) {
       failed += 1;
       errors.push(`Bad line: ${line}`);
       continue;
     }
-    const [key, date] = parts;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    const assetId = assetIndex >= 0 ? parts[assetIndex]?.trim() : '';
+    const serial = serialIndex >= 0 ? parts[serialIndex]?.trim() : '';
+    const key = assetId || serial || parts[0]?.trim();
+    const date = parts[dateIndex]?.trim();
+    const parsedDate = date ? new Date(`${date}T00:00:00Z`) : null;
+    if (
+      !date ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+      !parsedDate ||
+      Number.isNaN(parsedDate.getTime()) ||
+      parsedDate.toISOString().slice(0, 10) !== date
+    ) {
       failed += 1;
       errors.push(`Bad date on ${key}: ${date}`);
       continue;
     }
     let res = await updateHardwareWarranty({
-      asset_id: key,
-      serial_number: null,
+      asset_id: assetId || (!hasHeader ? key : null),
+      serial_number: serial || null,
       warranty_ends_at: date,
       actor_id: input.actor_id,
     });
-    if (!res.ok) {
+    if (!res.ok && !serial) {
       res = await updateHardwareWarranty({
         asset_id: null,
         serial_number: key,

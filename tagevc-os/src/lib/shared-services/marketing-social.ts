@@ -11,6 +11,8 @@ export type PublishInput = {
   handle: string;
   title: string;
   body: string;
+  media_url?: string | null;
+  media_type?: 'video' | 'photo' | null;
 };
 
 export type PublishResult = {
@@ -249,9 +251,58 @@ export class TikTokPublisher implements SocialPublisher {
       const username =
         creatorJson.data?.creator_username || input.handle || 'tagevc';
       const imageUrl = process.env.TIKTOK_DEFAULT_IMAGE_URL?.trim();
+      const videoUrl =
+        input.media_url?.trim() ||
+        process.env.TIKTOK_DEFAULT_VIDEO_URL?.trim();
       const direct =
         process.env.TIKTOK_PUBLISH_DIRECT === '1' ||
         process.env.TIKTOK_PUBLISH_DIRECT === 'true';
+
+      if (direct && videoUrl) {
+        const res = await fetch(
+          'https://open.tiktokapis.com/v2/post/publish/video/init/',
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${input.accessToken}`,
+              'Content-Type': 'application/json; charset=UTF-8',
+            },
+            body: JSON.stringify({
+              post_info: {
+                title: text.slice(0, 2200),
+                privacy_level: 'PUBLIC_TO_EVERYONE',
+                disable_duet: false,
+                disable_comment: false,
+                disable_stitch: false,
+              },
+              source_info: {
+                source: 'PULL_FROM_URL',
+                video_url: videoUrl,
+              },
+            }),
+          },
+        );
+        const json = (await res.json().catch(() => ({}))) as {
+          data?: { publish_id?: string };
+          error?: { code?: string; message?: string };
+        };
+        if (res.ok && !json.error?.code && json.data?.publish_id) {
+          return {
+            ok: true,
+            publisher: this.id,
+            external_id: json.data.publish_id,
+            published_url: `https://www.tiktok.com/@${username}`,
+          };
+        }
+        return {
+          ok: false,
+          publisher: this.id,
+          error:
+            json.error?.message ||
+            json.error?.code ||
+            `TikTok video init HTTP ${res.status}`,
+        };
+      }
 
       if (direct && imageUrl) {
         const res = await fetch(

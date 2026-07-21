@@ -85,6 +85,8 @@ export type MarketingCampaign = {
   /** organic (default) or paid media stub */
   channel: MarketingCampaignChannel;
   budget_k: number | null;
+  /** Revenue attributed to this campaign, in thousands, for ROI reporting. */
+  attributed_revenue_k: number | null;
   ad_platform: string | null;
   external_campaign_id: string | null;
   starts_at: string | null;
@@ -166,6 +168,9 @@ export const MARKETING_ENV_KEYS = [
   'MARKETING_SLA_DIGEST_TO',
   'LINKEDIN_CLIENT_ID',
   'LINKEDIN_MARKETING_API',
+  'LINKEDIN_ADS_API',
+  'LINKEDIN_ADS_ACCESS_TOKEN',
+  'LINKEDIN_API_VERSION',
   'LINKEDIN_ORG_URN',
   'X_CLIENT_ID',
   'META_APP_ID',
@@ -177,6 +182,7 @@ export const MARKETING_ENV_KEYS = [
   'TIKTOK_CLIENT_SECRET',
   'TIKTOK_PUBLISH_DIRECT',
   'TIKTOK_DEFAULT_IMAGE_URL',
+  'TIKTOK_DEFAULT_VIDEO_URL',
   'MARKETING_SLA_ASSIGNEE',
   'MARKETING_SLA_EMAIL_ASSIGNEES',
   'MARKETING_PAID_ADS_LIVE',

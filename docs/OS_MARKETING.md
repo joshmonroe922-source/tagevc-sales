@@ -1,4 +1,4 @@
-# Multichannel Marketing System — Architecture (Phases 22–30)
+# Multichannel Marketing System — Architecture (Phases 22–31)
 
 **Status:** Functional · hub under Shared Services · Marketing.  
 **Live at:** `/shared-services/marketing`
@@ -11,7 +11,7 @@
 | X | Yes | Yes | Yes |
 | Meta | Yes | Basic | Yes |
 | YouTube | Yes | Stub | Yes (opt-in Analytics) |
-| TikTok | Yes (Login Kit) | Inbox / direct photo opt-in | Opt-in API |
+| TikTok | Yes (Login Kit) | Direct video/photo opt-in | Opt-in API |
 
 ## Phase 30
 
@@ -21,8 +21,17 @@
 
 SQL through `phase29_paid_media_warranty.sql` (no Phase 30 schema).
 
-## Phase 31+
+## Phase 31
 
-1. TikTok video upload pipeline  
-2. LinkedIn Ads insights  
-3. Campaign ROI rollups  
+1. TikTok HTTPS video publishing (`media_url` or `TIKTOK_DEFAULT_VIDEO_URL`)
+2. LinkedIn Ads 30-day insights (`LINKEDIN_ADS_API` + reporting token)
+3. Paid spend, revenue, CTR, ROI, and ROAS rollups using latest snapshots
+4. Campaign-level external ID and attributed revenue tracking
+
+SQL: `phase31_marketing_it_governance.sql`.
+
+## Phase 32+
+
+1. Resumable binary media upload + publish-status polling
+2. Per-account Ads OAuth bindings
+3. Server-side long-range analytics aggregation

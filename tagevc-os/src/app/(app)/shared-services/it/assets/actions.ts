@@ -392,9 +392,28 @@ export async function bulkUpdateWarrantyAction(
   const gate = await guardPermission('write:it_assets');
   if (!gate.ok) return gate;
 
-  const lines = String(formData.get('lines') ?? '');
+  const upload = formData.get('csv_file');
+  let lines = String(formData.get('lines') ?? '');
+  if (upload instanceof File && upload.size > 0) {
+    if (upload.size > 512_000) {
+      return { ok: false, error: 'CSV must be 500 KB or smaller' };
+    }
+    if (
+      upload.type &&
+      !['text/csv', 'text/plain', 'application/vnd.ms-excel'].includes(
+        upload.type,
+      )
+    ) {
+      return { ok: false, error: 'Upload a CSV or text file' };
+    }
+    lines = await upload.text();
+  }
   if (!lines.trim()) {
-    return { ok: false, error: 'Paste lines: asset_id,YYYY-MM-DD (or serial,date)' };
+    return {
+      ok: false,
+      error:
+        'Upload CSV or paste lines: asset_id,warranty_ends_at (or serial,date)',
+    };
   }
 
   const { bulkUpdateWarranties } = await import(

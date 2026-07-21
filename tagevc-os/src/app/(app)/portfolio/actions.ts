@@ -9,8 +9,8 @@ import {
   patchEntityMonthKpiFlex,
   patchPortfolioCompany,
   patchPortfolioCoreFinancials,
-  EDITABLE_CORE_KPI_KEYS,
 } from '@/lib/data/master-data';
+import { EDITABLE_CORE_KPI_KEYS } from '@/lib/portfolio/core-kpis';
 import {
   buildParentIndex,
   canAccessEntityId,

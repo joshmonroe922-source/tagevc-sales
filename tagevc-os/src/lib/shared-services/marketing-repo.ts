@@ -51,6 +51,10 @@ function mapCampaign(row: Record<string, unknown>): MarketingCampaign {
       row.budget_k != null && row.budget_k !== ''
         ? Number(row.budget_k)
         : null,
+    attributed_revenue_k:
+      row.attributed_revenue_k != null && row.attributed_revenue_k !== ''
+        ? Number(row.attributed_revenue_k)
+        : null,
     ad_platform: (row.ad_platform as string) ?? null,
     external_campaign_id: (row.external_campaign_id as string) ?? null,
     starts_at: (row.starts_at as string) ?? null,
@@ -241,6 +245,7 @@ export async function createCampaign(input: {
   notes?: string | null;
   channel?: 'organic' | 'paid';
   budget_k?: number | null;
+  attributed_revenue_k?: number | null;
   ad_platform?: string | null;
   external_campaign_id?: string | null;
 }): Promise<{ ok: true; campaign: MarketingCampaign } | { ok: false; error: string }> {
@@ -259,6 +264,7 @@ export async function createCampaign(input: {
         target_platforms: input.target_platforms ?? [],
         channel: input.channel === 'paid' ? 'paid' : 'organic',
         budget_k: input.budget_k ?? null,
+        attributed_revenue_k: input.attributed_revenue_k ?? null,
         ad_platform: input.ad_platform || null,
         external_campaign_id: input.external_campaign_id || null,
         notes: input.notes || null,
@@ -280,6 +286,7 @@ export async function createContent(input: {
   campaign_id?: string | null;
   entity_id?: string | null;
   platform?: MarketingPlatform | null;
+  media_url?: string | null;
 }): Promise<{ ok: true; content: MarketingContent } | { ok: false; error: string }> {
   try {
     const sb = await createPersistClient();
@@ -295,6 +302,9 @@ export async function createContent(input: {
         campaign_id: input.campaign_id || null,
         entity_id: input.entity_id || null,
         platform: input.platform || null,
+        generation_meta: input.media_url
+          ? { media_url: input.media_url, media_type: 'video' }
+          : {},
         status: 'draft',
         ai_generated: false,
         updated_at: now,
@@ -623,6 +633,6 @@ export function getMarketingFoundationStatus() {
       process.env.MARKETING_PAID_ADS_LIVE === '1' ||
       process.env.MARKETING_PAID_ADS_LIVE === 'true',
     tiktok_publish: true,
-    phase: 30,
+    phase: 31,
   };
 }

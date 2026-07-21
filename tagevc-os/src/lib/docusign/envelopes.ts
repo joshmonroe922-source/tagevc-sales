@@ -38,6 +38,21 @@ async function docusignFetch(
   });
 }
 
+async function docusignError(
+  operation: string,
+  res: Response,
+  json: { message?: string; errorCode?: string },
+): Promise<string> {
+  const trace =
+    res.headers.get('x-docusign-tracetoken') ||
+    res.headers.get('x-docusign-trace-token');
+  const code = json.errorCode ? ` · ${json.errorCode}` : '';
+  const tracePart = trace ? ` · trace ${trace}` : '';
+  return `${operation} failed · HTTP ${res.status}${code} · ${
+    json.message || res.statusText || 'Unknown DocuSign error'
+  }${tracePart}`;
+}
+
 function textToBase64Document(text: string): string {
   return Buffer.from(text, 'utf8').toString('base64');
 }
@@ -100,9 +115,7 @@ export async function createEnvelope(
   };
 
   if (!res.ok || !json.envelopeId) {
-    const detail =
-      json.message || json.errorCode || `HTTP ${res.status}`;
-    throw new Error(`DocuSign create envelope failed: ${detail}`);
+    throw new Error(await docusignError('Create envelope', res, json));
   }
 
   return {
@@ -162,9 +175,7 @@ export async function createEnvelopeFromTemplate(
   };
 
   if (!res.ok || !json.envelopeId) {
-    const detail =
-      json.message || json.errorCode || `HTTP ${res.status}`;
-    throw new Error(`DocuSign template send failed: ${detail}`);
+    throw new Error(await docusignError('Template send', res, json));
   }
 
   return {
@@ -190,12 +201,11 @@ export async function getEnvelopeStatus(envelopeId: string): Promise<{
     envelopeId?: string;
     status?: string;
     message?: string;
+    errorCode?: string;
   };
 
   if (!res.ok) {
-    throw new Error(
-      `DocuSign get envelope failed: ${json.message || `HTTP ${res.status}`}`,
-    );
+    throw new Error(await docusignError('Get envelope', res, json));
   }
 
   return {
@@ -203,6 +213,71 @@ export async function getEnvelopeStatus(envelopeId: string): Promise<{
     status: (json.status ?? 'unknown').toLowerCase(),
     raw: json,
   };
+}
+
+export type DocuSignEnvelopeSummary = {
+  envelopeId: string;
+  status: string;
+  emailSubject: string | null;
+  sentDateTime: string | null;
+  completedDateTime: string | null;
+  voidedDateTime: string | null;
+  voidedReason: string | null;
+  statusChangedDateTime: string | null;
+};
+
+/** Authoritative recent account envelopes for the management hub (Phase 31). */
+export async function listRecentEnvelopes(opts?: {
+  status?: string;
+  count?: number;
+}): Promise<
+  | { ok: true; envelopes: DocuSignEnvelopeSummary[] }
+  | { ok: false; error: string }
+> {
+  const cfg = getDocuSignConfig();
+  if (!cfg) return { ok: false, error: 'DocuSign is not configured' };
+  try {
+    const from = new Date();
+    from.setUTCDate(from.getUTCDate() - 30);
+    const params = new URLSearchParams({
+      from_date: from.toISOString(),
+      count: String(Math.min(opts?.count ?? 40, 100)),
+      include: 'recipients',
+    });
+    if (opts?.status?.trim()) {
+      params.set('status', opts.status.trim().toLowerCase());
+    }
+    const res = await docusignFetch(
+      cfg,
+      `/envelopes?${params.toString()}`,
+    );
+    const json = (await res.json().catch(() => ({}))) as {
+      envelopes?: Array<Record<string, unknown>>;
+      message?: string;
+      errorCode?: string;
+    };
+    if (!res.ok) {
+      return { ok: false, error: await docusignError('Envelope list', res, json) };
+    }
+    return {
+      ok: true,
+      envelopes: (json.envelopes ?? []).map((e) => ({
+        envelopeId: String(e.envelopeId ?? ''),
+        status: String(e.status ?? 'unknown').toLowerCase(),
+        emailSubject: (e.emailSubject as string) ?? null,
+        sentDateTime: (e.sentDateTime as string) ?? null,
+        completedDateTime: (e.completedDateTime as string) ?? null,
+        voidedDateTime: (e.voidedDateTime as string) ?? null,
+        voidedReason: (e.voidedReason as string) ?? null,
+        statusChangedDateTime: (e.statusChangedDateTime as string) ?? null,
+      })),
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'Envelope list failed',
+    };
+  }
 }
 
 /** Void a live envelope (Phase 25). Mock ENV- ids are local-only. */
@@ -235,7 +310,7 @@ export async function voidEnvelope(
     if (!res.ok) {
       return {
         ok: false,
-        error: json.message || json.errorCode || `HTTP ${res.status}`,
+        error: await docusignError('Void envelope', res, json),
       };
     }
     return { ok: true, status: 'voided' };
@@ -273,7 +348,7 @@ export async function remindEnvelope(
     if (!res.ok) {
       return {
         ok: false,
-        error: json.message || json.errorCode || `HTTP ${res.status}`,
+        error: await docusignError('Remind envelope', res, json),
       };
     }
     return { ok: true, status: 'reminded' };

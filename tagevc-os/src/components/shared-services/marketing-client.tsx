@@ -226,6 +226,78 @@ export function MarketingClient({
             </p>
           </div>
         </div>
+        <div className="grid gap-3 rounded-md border bg-muted/20 p-3 sm:grid-cols-4">
+          <div>
+            <p className="text-xs text-muted-foreground">Paid spend</p>
+            <p className="font-semibold tabular-nums">
+              ${analytics.paid_spend_k.toFixed(1)}k
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Attributed revenue</p>
+            <p className="font-semibold tabular-nums">
+              ${analytics.paid_revenue_k.toFixed(1)}k
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">ROI / ROAS</p>
+            <p className="font-semibold tabular-nums">
+              {analytics.paid_roi == null
+                ? '—'
+                : `${(analytics.paid_roi * 100).toFixed(1)}%`}
+              {' / '}
+              {analytics.paid_roas == null
+                ? '—'
+                : `${analytics.paid_roas.toFixed(2)}x`}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Paid CTR</p>
+            <p className="font-semibold tabular-nums">
+              {analytics.paid_ctr == null
+                ? '—'
+                : `${(analytics.paid_ctr * 100).toFixed(2)}%`}
+            </p>
+          </div>
+        </div>
+        {analytics.paid_campaigns.length > 0 ? (
+          <div className="overflow-x-auto">
+            <p className="mb-1 text-xs font-medium text-muted-foreground">
+              Latest paid campaign rollups
+            </p>
+            <table className="w-full text-left text-xs">
+              <thead className="text-muted-foreground">
+                <tr className="border-b">
+                  <th className="py-1 pr-2">Campaign</th>
+                  <th className="py-1 pr-2">Platform</th>
+                  <th className="py-1 pr-2">Impr. / clicks</th>
+                  <th className="py-1 pr-2">Spend</th>
+                  <th className="py-1">ROI</th>
+                </tr>
+              </thead>
+              <tbody>
+                {analytics.paid_campaigns.map((p) => (
+                  <tr
+                    key={`${p.campaign_id}:${p.platform}`}
+                    className="border-b border-border/40"
+                  >
+                    <td className="py-1 pr-2 font-mono">{p.campaign_id}</td>
+                    <td className="py-1 pr-2">{p.platform}</td>
+                    <td className="py-1 pr-2 tabular-nums">
+                      {p.impressions} / {p.clicks}
+                    </td>
+                    <td className="py-1 pr-2 tabular-nums">
+                      ${p.spend_k.toFixed(1)}k
+                    </td>
+                    <td className="py-1 tabular-nums">
+                      {p.roi == null ? '—' : `${(p.roi * 100).toFixed(1)}%`}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
         {analytics.trend_7d && analytics.trend_7d.length > 0 ? (
           <div className="overflow-x-auto">
             <p className="mb-1 text-xs font-medium text-muted-foreground">
@@ -332,7 +404,7 @@ export function MarketingClient({
                   defaultValue="organic"
                 >
                   <option value="organic">Organic</option>
-                  <option value="paid">Paid (stub)</option>
+                  <option value="paid">Paid</option>
                 </select>
               </div>
               <div className="space-y-1">
@@ -341,12 +413,28 @@ export function MarketingClient({
               </div>
             </div>
             <div className="space-y-1">
-              <Label htmlFor="camp_ad">Ad platform (paid stub)</Label>
+              <Label htmlFor="camp_ad">Ad platform</Label>
               <Input
                 id="camp_ad"
                 name="ad_platform"
                 placeholder="meta_ads · linkedin_ads · tiktok_ads"
               />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label htmlFor="camp_external">External campaign id</Label>
+                <Input id="camp_external" name="external_campaign_id" />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="camp_revenue">Attributed revenue ($k)</Label>
+                <Input
+                  id="camp_revenue"
+                  name="attributed_revenue_k"
+                  type="number"
+                  min={0}
+                  step="0.1"
+                />
+              </div>
             </div>
             <Button type="submit" size="sm" disabled={campPending}>
               Create campaign
@@ -397,6 +485,15 @@ export function MarketingClient({
             <div className="space-y-1">
               <Label htmlFor="ct_camp">Campaign id (optional)</Label>
               <Input id="ct_camp" name="campaign_id" placeholder="CMP-…" />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="ct_media">Video URL (TikTok optional)</Label>
+              <Input
+                id="ct_media"
+                name="media_url"
+                type="url"
+                placeholder="https://cdn.example.com/video.mp4"
+              />
             </div>
             <Button type="submit" size="sm" disabled={contentPending}>
               Create content

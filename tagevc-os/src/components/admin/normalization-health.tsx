@@ -194,11 +194,12 @@ export function NormalizationHealthPanel({
             </div>
             {status.stage4e_checklist.ready ? (
               <div className="mb-2 rounded-md border border-emerald-600/40 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
-                Checklist eligible for DROP — app never executes DROP. Use offline{' '}
-                <code className="text-[10px]">phase30_stage4e_drop.sql</code> only
-                with ALLOW_SNAPSHOT_DROP=1 (soft rename first). Set{' '}
-                <code className="text-[10px]">SNAPSHOT_SOFT_RENAMED_AT</code> after
-                rename.
+                Rename soak and written gates are complete — app never executes
+                DROP. Any eventual destructive action remains offline-only via{' '}
+                <code className="text-[10px]">
+                  phase31_stage4e_soft_rename.sql
+                </code>
+                .
               </div>
             ) : (
               <div className="mb-2 rounded-md border border-border/60 px-3 py-2 text-xs text-muted-foreground">

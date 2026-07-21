@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import {
   backfillSignedStorageAction,
+  createReplacementEnvelopeAction,
   emailCocAction,
   remindEnvelopeAction,
   refreshTemplateRecipientsAction,
@@ -133,10 +134,51 @@ export function DocuSignHubActions({ canWrite }: { canWrite: boolean }) {
               setErr('Void reason is required');
               return;
             }
+            const confirmed = window.confirm(
+              'DocuSign void is irreversible. The envelope cannot be restored. Continue?',
+            );
+            if (!confirmed) return;
             run(() => voidEnvelopeAction(envelopeId.trim(), reason.trim()));
           }}
         >
           Void envelope
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={pending}
+          onClick={() => {
+            const sourceEnvelopeId = window.prompt(
+              'Voided envelope ID to replace:',
+            );
+            if (!sourceEnvelopeId?.trim()) return;
+            const templateId = window.prompt('Template ID for replacement:');
+            if (!templateId?.trim()) return;
+            const signerEmail = window.prompt('Replacement signer email:');
+            if (!signerEmail?.trim()) return;
+            const signerName =
+              window.prompt('Signer name:', signerEmail) || signerEmail;
+            const roleName =
+              window.prompt('Template role name:', 'Signer') || 'Signer';
+            const emailSubject =
+              window.prompt(
+                'Email subject:',
+                'Replacement signature request',
+              ) || 'Replacement signature request';
+            run(() =>
+              createReplacementEnvelopeAction({
+                sourceEnvelopeId: sourceEnvelopeId.trim(),
+                templateId: templateId.trim(),
+                signerEmail: signerEmail.trim(),
+                signerName: signerName.trim(),
+                roleName: roleName.trim(),
+                emailSubject,
+              }),
+            );
+          }}
+        >
+          Replace voided envelope
         </Button>
         <Button
           type="button"

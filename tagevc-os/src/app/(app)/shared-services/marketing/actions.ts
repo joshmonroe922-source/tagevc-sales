@@ -7,6 +7,7 @@ import {
   createCampaign,
   createContent,
   enqueueScheduleJob,
+  listCampaigns,
   registerSocialAccount,
   runContentGeneration,
 } from '@/lib/shared-services/marketing-repo';
@@ -14,6 +15,10 @@ import { upsertBrandVoice } from '@/lib/shared-services/marketing-brand';
 import { processDueScheduleJobs } from '@/lib/shared-services/marketing-scheduler';
 import { MARKETING_CONTENT_KINDS, MARKETING_PLATFORMS } from '@/lib/shared-services/marketing-types';
 import { guardPermission } from '@/lib/rbac/session';
+import {
+  canAccessEntityId,
+  entityScopeDeniedMessage,
+} from '@/lib/rbac/entity-scope';
 
 export type MarketingActionResult =
   | { ok: true; message?: string }
@@ -39,6 +44,7 @@ export async function createCampaignAction(
       notes: z.string().optional(),
       channel: z.enum(['organic', 'paid']).optional(),
       budget_k: z.string().optional(),
+      attributed_revenue_k: z.string().optional(),
       ad_platform: z.string().optional(),
       external_campaign_id: z.string().optional(),
     })
@@ -49,16 +55,35 @@ export async function createCampaignAction(
       notes: formData.get('notes') || undefined,
       channel: formData.get('channel') || undefined,
       budget_k: formData.get('budget_k') || undefined,
+      attributed_revenue_k:
+        formData.get('attributed_revenue_k') || undefined,
       ad_platform: formData.get('ad_platform') || undefined,
       external_campaign_id: formData.get('external_campaign_id') || undefined,
     });
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid' };
   }
+  if (
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      parsed.data.entity_id,
+    )
+  ) {
+    return {
+      ok: false,
+      error: entityScopeDeniedMessage(parsed.data.entity_id || 'firm-wide'),
+    };
+  }
 
   const budgetRaw = parsed.data.budget_k?.trim();
   const budget_k =
     budgetRaw && !Number.isNaN(Number(budgetRaw)) ? Number(budgetRaw) : null;
+  const revenueRaw = parsed.data.attributed_revenue_k?.trim();
+  const attributed_revenue_k =
+    revenueRaw && !Number.isNaN(Number(revenueRaw))
+      ? Number(revenueRaw)
+      : null;
 
   const res = await createCampaign({
     name: parsed.data.name,
@@ -67,6 +92,7 @@ export async function createCampaignAction(
     notes: parsed.data.notes || null,
     channel: parsed.data.channel === 'paid' ? 'paid' : 'organic',
     budget_k,
+    attributed_revenue_k,
     ad_platform: parsed.data.ad_platform || null,
     external_campaign_id: parsed.data.external_campaign_id || null,
   });
@@ -90,6 +116,7 @@ export async function createContentAction(
       campaign_id: z.string().optional(),
       entity_id: z.string().optional(),
       platform: z.enum(MARKETING_PLATFORMS).optional(),
+      media_url: z.string().url().optional(),
     })
     .safeParse({
       title: formData.get('title'),
@@ -98,9 +125,37 @@ export async function createContentAction(
       campaign_id: formData.get('campaign_id') || undefined,
       entity_id: formData.get('entity_id') || undefined,
       platform: formData.get('platform') || undefined,
+      media_url: formData.get('media_url') || undefined,
     });
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid' };
+  }
+  let contentEntity = parsed.data.entity_id || null;
+  if (parsed.data.campaign_id) {
+    const campaigns = await listCampaigns(200);
+    const campaign = campaigns.rows.find(
+      (c) => c.campaign_id === parsed.data.campaign_id,
+    );
+    if (!campaign) return { ok: false, error: 'Campaign not found' };
+    if (contentEntity && contentEntity !== campaign.entity_id) {
+      return {
+        ok: false,
+        error: 'Content entity must match the campaign entity',
+      };
+    }
+    contentEntity = campaign.entity_id;
+  }
+  if (
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      contentEntity,
+    )
+  ) {
+    return {
+      ok: false,
+      error: entityScopeDeniedMessage(contentEntity || 'firm-wide'),
+    };
   }
 
   const res = await createContent({
@@ -108,8 +163,9 @@ export async function createContentAction(
     kind: parsed.data.kind,
     body: parsed.data.body || null,
     campaign_id: parsed.data.campaign_id || null,
-    entity_id: parsed.data.entity_id || null,
+    entity_id: contentEntity,
     platform: parsed.data.platform || null,
+    media_url: parsed.data.media_url || null,
   });
   if (!res.ok) return res;
   revalidateMarketing();
@@ -392,6 +448,21 @@ export async function syncPaidCampaignAction(
 ): Promise<MarketingActionResult> {
   const gate = await guardPermission('write:marketing');
   if (!gate.ok) return gate;
+  const campaigns = await listCampaigns(200);
+  const campaign = campaigns.rows.find((c) => c.campaign_id === campaignId);
+  if (!campaign) return { ok: false, error: 'Campaign not found' };
+  if (
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      campaign.entity_id,
+    )
+  ) {
+    return {
+      ok: false,
+      error: entityScopeDeniedMessage(campaign.entity_id || 'firm-wide'),
+    };
+  }
   const { syncPaidCampaignStatus } = await import(
     '@/lib/shared-services/marketing-ads'
   );

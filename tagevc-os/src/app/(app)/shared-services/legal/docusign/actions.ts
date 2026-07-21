@@ -3,7 +3,11 @@
 import { revalidatePath } from 'next/cache';
 import { applyDocuSignWebhook } from '@/lib/data/document-store';
 import { insertDocuSignEvent } from '@/lib/docusign/events-repo';
-import { remindEnvelope, voidEnvelope } from '@/lib/docusign/envelopes';
+import {
+  getEnvelopeStatus,
+  remindEnvelope,
+  voidEnvelope,
+} from '@/lib/docusign/envelopes';
 import { backfillSignedFilesToStorage } from '@/lib/docusign/signed-docs';
 import { syncDocuSignTemplates } from '@/lib/docusign/templates';
 import { logActivity } from '@/lib/data/activity';
@@ -63,6 +67,33 @@ export async function voidEnvelopeAction(
     /* document store optional */
   }
 
+  if (!id.startsWith('ENV-')) {
+    try {
+      const current = await getEnvelopeStatus(id);
+      if (current.status === 'voided') {
+        return {
+          ok: false,
+          error:
+            'Envelope is already voided. DocuSign void is irreversible; create a replacement envelope.',
+        };
+      }
+      if (!['sent', 'delivered'].includes(current.status)) {
+        return {
+          ok: false,
+          error: `Envelope status ${current.status} is not eligible for void. Only sent/delivered envelopes can be voided.`,
+        };
+      }
+    } catch (e) {
+      return {
+        ok: false,
+        error:
+          e instanceof Error
+            ? `Void preflight failed: ${e.message}`
+            : 'Void preflight failed',
+      };
+    }
+  }
+
   const api = await voidEnvelope(id, voidReason);
   if (!api.ok) return api;
 
@@ -82,7 +113,7 @@ export async function voidEnvelopeAction(
     /* optional */
   }
 
-  await insertDocuSignEvent({
+  const audit = await insertDocuSignEvent({
     envelope_id: id,
     status: 'voided',
     event_type: 'envelope-voided',
@@ -96,6 +127,12 @@ export async function voidEnvelopeAction(
       capital,
     },
   });
+  if (!audit.ok) {
+    return {
+      ok: false,
+      error: `Envelope was voided, but audit persistence failed: ${audit.error}. Escalate for reconciliation.`,
+    };
+  }
 
   void logActivity({
     module: 'documents',
@@ -110,6 +147,86 @@ export async function voidEnvelopeAction(
     ok: true,
     message: `Voided ${id} · audited${capital ? ' · capital' : ''}`,
   };
+}
+
+/** Void cannot be undone in DocuSign; create a replacement with lineage. */
+export async function createReplacementEnvelopeAction(input: {
+  sourceEnvelopeId: string;
+  templateId: string;
+  emailSubject: string;
+  signerEmail: string;
+  signerName: string;
+  roleName?: string;
+}): Promise<DocuSignActionResult> {
+  const gate = await guardPermission('write:documents');
+  if (!gate.ok) return gate;
+  const sourceEnvelopeId = input.sourceEnvelopeId.trim();
+  const templateId = input.templateId.trim();
+  if (!sourceEnvelopeId || !templateId || !input.signerEmail.trim()) {
+    return {
+      ok: false,
+      error: 'Source envelope, template, and signer email are required',
+    };
+  }
+  if (!sourceEnvelopeId.startsWith('ENV-')) {
+    try {
+      const source = await getEnvelopeStatus(sourceEnvelopeId);
+      if (source.status !== 'voided') {
+        return {
+          ok: false,
+          error: `Replacement is only available for voided envelopes; current status is ${source.status}.`,
+        };
+      }
+    } catch (e) {
+      return {
+        ok: false,
+        error: e instanceof Error ? e.message : 'Replacement preflight failed',
+      };
+    }
+  }
+  try {
+    const { createEnvelopeFromTemplate } = await import(
+      '@/lib/docusign/envelopes'
+    );
+    const created = await createEnvelopeFromTemplate({
+      templateId,
+      emailSubject: input.emailSubject.trim() || 'Replacement signature request',
+      signers: [
+        {
+          email: input.signerEmail.trim(),
+          name: input.signerName.trim() || input.signerEmail.trim(),
+          roleName: input.roleName?.trim() || 'Signer',
+        },
+      ],
+    });
+    const audit = await insertDocuSignEvent({
+      envelope_id: created.envelopeId,
+      status: created.status,
+      event_type: 'envelope-replacement-created',
+      raw_payload: {
+        source: 'hub',
+        replacement_for_envelope_id: sourceEnvelopeId,
+        templateId,
+        actor_id: gate.profile.id,
+      },
+    });
+    if (!audit.ok) {
+      return {
+        ok: false,
+        error: `Replacement ${created.envelopeId} was sent, but lineage audit failed: ${audit.error}`,
+      };
+    }
+    revalidateDocuSign();
+    return {
+      ok: true,
+      message: `Replacement ${created.envelopeId} sent for voided ${sourceEnvelopeId}`,
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'Replacement send failed',
+    };
+  }
 }
 
 export async function remindEnvelopeAction(

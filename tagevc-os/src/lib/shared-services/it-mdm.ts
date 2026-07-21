@@ -161,7 +161,7 @@ async function invokeGraphIntuneLifecycle(input: {
         );
         retireResults.push(
           retire.ok
-            ? `retired ${d.deviceName || d.id}`
+            ? `retired ${d.deviceName || 'device'} [${d.id}]`
             : `retire fail ${d.id}:${retire.status}`,
         );
       }
@@ -257,9 +257,11 @@ export async function invokeMdmLifecycleHook(input: {
   const parts = [graph, webhook]
     .filter((r) => !r.skipped)
     .map((r) => r.detail);
-  const anyOk = (!graph.skipped && graph.ok) || (!webhook.skipped && webhook.ok);
+  const configuredResults = [graph, webhook].filter((r) => !r.skipped);
   return {
-    ok: anyOk,
+    ok:
+      configuredResults.length > 0 &&
+      configuredResults.every((result) => result.ok),
     detail: parts.join(' · ') || 'MDM no-op',
   };
 }
@@ -617,6 +619,125 @@ export async function disableGraphMailbox(input: {
   }
   return {
     ok: true,
-    detail: `Graph account disabled (mailbox/sign-in) for ${input.email || input.user_id}`,
+    detail: `Graph sign-in disabled for ${input.email || input.user_id}`,
+  };
+}
+
+/** Litigation hold requires Exchange Online; invoke a controlled automation endpoint. */
+export async function applyExchangeMailboxRetention(input: {
+  user_id: string;
+  email?: string | null;
+  run_id: string;
+  entity_id?: string | null;
+}): Promise<MdmResult> {
+  const enabled =
+    process.env.IT_OFFBOARD_LITIGATION_HOLD === '1' ||
+    process.env.IT_OFFBOARD_LITIGATION_HOLD === 'true';
+  if (!enabled) {
+    return {
+      ok: false,
+      skipped: true,
+      detail: 'IT_OFFBOARD_LITIGATION_HOLD not enabled',
+    };
+  }
+  const url = process.env.EXCHANGE_AUTOMATION_URL?.trim();
+  if (!url) {
+    return {
+      ok: false,
+      detail:
+        'EXCHANGE_AUTOMATION_URL required; Microsoft Graph cannot enable litigation hold',
+    };
+  }
+  try {
+    const secret = process.env.EXCHANGE_AUTOMATION_SECRET?.trim();
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(secret ? { Authorization: `Bearer ${secret}` } : {}),
+      },
+      body: JSON.stringify({
+        action: 'enable_litigation_hold',
+        user_id: input.user_id,
+        email: input.email ?? null,
+        run_id: input.run_id,
+        entity_id: input.entity_id ?? null,
+        source: 'tagevc-os',
+      }),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      return {
+        ok: false,
+        detail: `Exchange hold HTTP ${res.status}: ${text.slice(0, 160)}`,
+      };
+    }
+    return {
+      ok: true,
+      detail: `Exchange litigation hold accepted for ${input.email || input.user_id}`,
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      detail: e instanceof Error ? e.message : 'Exchange hold failed',
+    };
+  }
+}
+
+/** Apply the configured post-retention mailbox/user mode. */
+export async function applyGraphMailboxOffboarding(input: {
+  user_id: string;
+  email?: string | null;
+}): Promise<MdmResult> {
+  const mode = (
+    process.env.IT_OFFBOARD_MAILBOX_MODE || 'disable_only'
+  ).trim().toLowerCase();
+  if (mode !== 'soft_delete_user') {
+    const disabled = await disableGraphMailbox(input);
+    return {
+      ...disabled,
+      detail: `${disabled.detail} · mode=${mode}`,
+    };
+  }
+  const enabled =
+    process.env.MS_GRAPH_SOFT_DELETE_USER === '1' ||
+    process.env.MS_GRAPH_SOFT_DELETE_USER === 'true';
+  if (!enabled) {
+    return {
+      ok: false,
+      skipped: true,
+      detail:
+        'soft_delete_user selected but MS_GRAPH_SOFT_DELETE_USER not enabled',
+    };
+  }
+  if (!graphConfigured()) {
+    return { ok: false, skipped: true, detail: 'MS_GRAPH_* not set' };
+  }
+  const tok = await getMsGraphToken();
+  if (!tok.ok) return { ok: false, detail: tok.detail };
+  const graphUserId = await resolveGraphUserId(tok.token, input);
+  if (!graphUserId) {
+    return {
+      ok: false,
+      detail: `Graph user not found for ${input.email || input.user_id}`,
+    };
+  }
+  const res = await fetch(
+    `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(graphUserId)}`,
+    {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${tok.token}` },
+    },
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    return {
+      ok: false,
+      detail: `Graph soft-delete user HTTP ${res.status}: ${text.slice(0, 120)}`,
+    };
+  }
+  return {
+    ok: true,
+    detail: `Entra user soft-deleted for ${input.email || input.user_id} · restorable within tenant retention window`,
   };
 }

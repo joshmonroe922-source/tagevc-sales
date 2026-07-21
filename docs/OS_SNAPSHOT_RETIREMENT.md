@@ -1,6 +1,6 @@
 # Snapshot Retirement Plan — `os_store_snapshots`
 
-**Status:** Phase 30 — Stage 4e checklist + `SNAPSHOT_SOFT_RENAMED_AT` + soft-rename path + ≥90-day retention + explicit DROP approval env. Table retained until offline soft rename / DROP. Offline notice: `phase30_stage4e_drop.sql`.
+**Status:** Phase 31 — Stage 4e requires durable retirement evidence, a valid rename timestamp/table name, written approval, verified retired table, and a configurable rename soak. The app does not rename or drop `os_store_snapshots`. Offline guide: `phase31_stage4e_soft_rename.sql`.
 
 ## Dual-write / dual-read map
 
@@ -44,6 +44,17 @@ WRITE_CUTOVER_ALL=1      # + ma, re
 ### Rollback write cutover
 Unset cutover env vars and redeploy. Snapshot upserts resume. Restore from archive with SQL (see Stage 4 doc).
 
+### Governed soft rename
+
+1. Apply `phase31_marketing_it_governance.sql`.
+2. Complete production drills, retention, export, and written approval gates.
+3. Review the commented transaction in `phase31_stage4e_soft_rename.sql`.
+4. Perform the rename offline and record `os_snapshot_retirement_events`.
+5. Set the four `SNAPSHOT_SOFT_RENAME*` / retired-table environment values.
+6. Observe the rename soak; rollback by renaming the table back if needed.
+
+No Phase 31 SQL contains a DROP statement.
+
 ## Exit criteria before drop
 
 - [x] Soft-archive completed for cut-over collections (Phase 16)  
@@ -53,6 +64,8 @@ Unset cutover env vars and redeploy. Snapshot upserts resume. Restore from archi
 - [ ] Empty-snapshot drills passing in production (ops confirm)  
 - [ ] Archive backup retained (use `/api/admin/archive-export`)  
 - [ ] App hydrate paths no longer require snapshot payloads for pipeline domains  
+- [ ] Written soft-rename approval and durable audit evidence recorded
+- [ ] Retired table verified and rename soak completed
 
 ## Blockers for fully retiring `os_store_snapshots`
 

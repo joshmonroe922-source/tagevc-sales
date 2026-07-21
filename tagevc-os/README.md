@@ -570,10 +570,23 @@ Docs: `docs/OS_PHASE29.md`
 
 Docs: `docs/OS_PHASE30.md`
 
-### Phase 31+ backlog
+### Phase 31 scope (video · Ads ROI · envelope management · retention automation)
 
-- TikTok video upload · LinkedIn Ads insights · campaign ROI
-- Stage 4e soft rename then offline DROP (after approval)
+| Area | Status |
+|------|--------|
+| TikTok video URL publish + LinkedIn Ads insights / ROI | Done |
+| Live envelope management + safe void replacement | Done |
+| Litigation hold / mailbox modes + warranty CSV + Intune audit | Done |
+| Durable Stage 4e soft-rename governance (no DROP) | Done |
+| SQL | Apply `phase31_marketing_it_governance.sql` |
+
+Docs: `docs/OS_PHASE31.md`
+
+### Phase 32+ backlog
+
+- Resumable TikTok uploads · account-bound Ads OAuth
+- Exchange verification / restore · asset-to-Intune correlation
+- Stage 4e rename soak; no app DROP
 - Push · user admin
 
 

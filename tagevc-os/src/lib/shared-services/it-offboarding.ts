@@ -16,7 +16,8 @@ import {
   logActivity,
 } from '@/lib/data/activity';
 import {
-  disableGraphMailbox,
+  applyExchangeMailboxRetention,
+  applyGraphMailboxOffboarding,
   invokeMdmLifecycleHook,
   removeGraphGroupMembership,
   removeGraphLicenseSku,
@@ -155,20 +156,28 @@ export async function startOffboarding(input: {
       detail: 'Phase 29: opt-in group remove',
     });
     checklist.push({
-      id: 'access-graph-skus',
+      id: 'access-mailbox-retention',
       kind: 'access_note',
-      ref_id: 'graph_skus',
-      label: 'Remove M365 license SKUs (MS_GRAPH_REMOVE_SKUS)',
+      ref_id: 'mailbox_retention',
+      label: 'Apply Exchange litigation hold / retention policy',
       status: 'pending',
-      detail: 'Phase 29: opt-in SKU remove',
+      detail: 'Phase 31: opt-in Exchange automation before license removal',
     });
     checklist.push({
       id: 'access-graph-mailbox',
       kind: 'access_note',
       ref_id: 'graph_mailbox',
-      label: 'Disable Entra account / mailbox (MS_GRAPH_DISABLE_ACCOUNT)',
+      label: 'Apply mailbox mode (disable, retain, or soft-delete user)',
       status: 'pending',
-      detail: 'Phase 30: opt-in accountEnabled=false',
+      detail: 'Phase 31: IT_OFFBOARD_MAILBOX_MODE',
+    });
+    checklist.push({
+      id: 'access-graph-skus',
+      kind: 'access_note',
+      ref_id: 'graph_skus',
+      label: 'Remove M365 license SKUs (MS_GRAPH_REMOVE_SKUS)',
+      status: 'pending',
+      detail: 'Runs after required mailbox retention policy',
     });
     checklist.push({
       id: 'access-sso',
@@ -234,7 +243,30 @@ export async function executeOffboarding(
     if (!existing) return { ok: false, error: 'Run not found' };
 
     const run = mapRun(existing as Record<string, unknown>);
+    const failed = run.checklist.filter((c) => c.status === 'failed');
+    if (failed.length > 0) {
+      return {
+        ok: false,
+        error: `Resolve failed steps before completion: ${failed
+          .map((c) => c.label)
+          .join(', ')}`,
+      };
+    }
+    const holdRequired =
+      process.env.IT_OFFBOARD_LITIGATION_HOLD === '1' ||
+      process.env.IT_OFFBOARD_LITIGATION_HOLD === 'true';
+    const hold = run.checklist.find((c) => c.ref_id === 'mailbox_retention');
+    if (holdRequired && hold?.status !== 'done') {
+      return {
+        ok: false,
+        error:
+          'Litigation hold is required and must succeed before offboarding completion',
+      };
+    }
     const checklist = [...run.checklist];
+    const priorStatuses = new Map(
+      checklist.map((item) => [item.id, item.status] as const),
+    );
     const userId = run.user_id;
 
     for (const item of checklist) {
@@ -296,7 +328,37 @@ export async function executeOffboarding(
         });
         item.status = g.ok ? 'done' : g.skipped ? 'pending' : 'failed';
         item.detail = g.detail;
+      } else if (item.kind === 'access_note' && item.ref_id === 'mailbox_retention') {
+        let email: string | null = null;
+        try {
+          const { data: profile } = await sb
+            .from('profiles')
+            .select('email')
+            .eq('id', userId)
+            .maybeSingle();
+          email = (profile?.email as string) ?? null;
+        } catch {
+          /* optional */
+        }
+        const hold = await applyExchangeMailboxRetention({
+          user_id: userId,
+          email,
+          run_id: runId,
+          entity_id: run.entity_id,
+        });
+        item.status = hold.ok ? 'done' : hold.skipped ? 'pending' : 'failed';
+        item.detail = hold.detail;
       } else if (item.kind === 'access_note' && item.ref_id === 'graph_skus') {
+        const holdRequired =
+          process.env.IT_OFFBOARD_LITIGATION_HOLD === '1' ||
+          process.env.IT_OFFBOARD_LITIGATION_HOLD === 'true';
+        const hold = checklist.find((c) => c.ref_id === 'mailbox_retention');
+        if (holdRequired && hold?.status !== 'done') {
+          item.status = 'pending';
+          item.detail =
+            'License removal blocked until litigation hold succeeds';
+          continue;
+        }
         let email: string | null = null;
         try {
           const { data: profile } = await sb
@@ -323,11 +385,41 @@ export async function executeOffboarding(
         } catch {
           /* optional */
         }
-        const m = await disableGraphMailbox({ user_id: userId, email });
+        const m = await applyGraphMailboxOffboarding({
+          user_id: userId,
+          email,
+        });
         item.status = m.ok ? 'done' : m.skipped ? 'pending' : 'failed';
         item.detail = m.detail;
       } else {
         item.status = 'pending';
+      }
+    }
+
+    // Immutable per-attempt lifecycle history when Phase 31 SQL is applied.
+    const attempted = checklist.filter(
+      (item) => priorStatuses.get(item.id) !== item.status || item.detail,
+    );
+    if (attempted.length > 0) {
+      try {
+        await sb.from('os_it_lifecycle_events').insert(
+          attempted.map((item) => ({
+            event_id: `ITL-${randomUUID()}`,
+            run_id: runId,
+            item_id: item.id,
+            target_id: item.ref_id,
+            entity_id: run.entity_id,
+            actor_id: opts?.actor_id ?? null,
+            status: item.status,
+            detail: item.detail ?? null,
+            metadata: {
+              kind: item.kind,
+              user_id: userId,
+            },
+          })),
+        );
+      } catch {
+        /* Phase 31 lifecycle table is optional until migration is applied */
       }
     }
 
