@@ -51,9 +51,43 @@ export async function finishOperationalWorker(input: {
   });
 }
 
+export async function acknowledgeSloAlert(input: {
+  alertId: string;
+  actorId: string;
+  note?: string;
+  expectedRowVersion: number;
+}) {
+  const sb = await createPersistClient();
+  const { error } = await sb.rpc('acknowledge_slo_alert', {
+    p_alert_id: input.alertId,
+    p_actor_id: input.actorId,
+    p_note: input.note ?? '',
+    p_expected_row_version: input.expectedRowVersion,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function reassignSloAlert(input: {
+  alertId: string;
+  actorId: string;
+  ownerId: string;
+  note?: string;
+  expectedRowVersion: number;
+}) {
+  const sb = await createPersistClient();
+  const { error } = await sb.rpc('reassign_slo_alert', {
+    p_alert_id: input.alertId,
+    p_actor_id: input.actorId,
+    p_owner_id: input.ownerId,
+    p_note: input.note ?? '',
+    p_expected_row_version: input.expectedRowVersion,
+  });
+  if (error) throw new Error(error.message);
+}
+
 export async function evaluateSharedServiceSlos() {
   const sb = await createPersistClient();
-  const { data, error } = await sb.rpc('evaluate_shared_service_slos', {
+  const { data, error } = await sb.rpc('evaluate_shared_service_slos_phase38', {
     p_evaluated_at: new Date().toISOString(),
   });
   if (error) throw new Error(error.message);
@@ -63,7 +97,12 @@ export async function evaluateSharedServiceSlos() {
     evaluations: number;
     transitions: Array<{
       alert_id: string;
-      transition: 'opened' | 'escalated' | 'resolved';
+      transition:
+        | 'opened'
+        | 'escalated'
+        | 'deescalated'
+        | 'same_bucket_reconciled'
+        | 'resolved';
       service: string;
       metric_key: string;
       severity: string;
@@ -87,7 +126,7 @@ export async function listOperationalHealth(input: {
   let alertQuery = sb
     .from('os_slo_alerts')
     .select(
-      'alert_id, service, metric_key, entity_id, status, severity, first_breached_at, last_breached_at, consecutive_breaches, occurrence_count, detail, updated_at',
+      'alert_id, service, metric_key, entity_id, status, severity, first_breached_at, last_breached_at, consecutive_breaches, occurrence_count, detail, owner_id, acknowledged_at, row_version, policy_version, current_policy_version, updated_at',
     )
     .eq('status', 'open')
     .order('updated_at', { ascending: false })
@@ -99,17 +138,41 @@ export async function listOperationalHealth(input: {
     )
     .order('started_at', { ascending: false })
     .limit(50);
+  let ownerQuery = sb
+    .from('os_slo_owners')
+    .select('ownership_id, service, metric_key, entity_id, owner_id, escalation_owner_id')
+    .eq('active', true);
   if (!input.firmWide) {
-    if (!input.entityId) return { evaluations: [], alerts: [], workerRuns: [] };
+    if (!input.entityId) {
+      return {
+        evaluations: [],
+        alerts: [],
+        workerRuns: [],
+        owners: [],
+        workerDefinitions: [],
+        deliveryJobs: [],
+      };
+    }
     evaluationQuery = evaluationQuery.eq('entity_id', input.entityId);
     alertQuery = alertQuery.eq('entity_id', input.entityId);
     workerQuery = workerQuery.eq('entity_id', input.entityId);
+    ownerQuery = ownerQuery.or(`entity_id.eq.${input.entityId},entity_id.is.null`);
   }
   const [
     { data: evaluations, error: evaluationError },
     { data: alerts, error: alertError },
     { data: workerRuns, error: workerError },
-  ] = await Promise.all([evaluationQuery, alertQuery, workerQuery]);
+    { data: owners, error: ownerError },
+    { data: workerDefinitions, error: definitionError },
+    { data: deliveryJobs, error: deliveryError },
+  ] = await Promise.all([
+    evaluationQuery,
+    alertQuery,
+    workerQuery,
+    ownerQuery,
+    sb.from('os_operational_worker_health').select('*'),
+    firmWideDeliveryQuery(sb, input.firmWide),
+  ]);
   const latestByMetric = new Map<string, NonNullable<typeof evaluations>[number]>();
   for (const evaluation of evaluations ?? []) {
     const key = `${evaluation.service}:${evaluation.metric_key}:${evaluation.entity_id ?? 'firm'}`;
@@ -119,7 +182,30 @@ export async function listOperationalHealth(input: {
     evaluations: [...latestByMetric.values()],
     alerts: alerts ?? [],
     workerRuns: workerRuns ?? [],
+    owners: owners ?? [],
+    workerDefinitions: workerDefinitions ?? [],
+    deliveryJobs: deliveryJobs ?? [],
     error:
-      evaluationError?.message || alertError?.message || workerError?.message,
+      evaluationError?.message ||
+      alertError?.message ||
+      workerError?.message ||
+      ownerError?.message ||
+      definitionError?.message ||
+      deliveryError?.message,
   };
+}
+
+function firmWideDeliveryQuery(
+  sb: Awaited<ReturnType<typeof createPersistClient>>,
+  firmWide: boolean,
+) {
+  if (!firmWide) {
+    return Promise.resolve({ data: [], error: null });
+  }
+  return sb
+    .from('os_slo_delivery_jobs')
+    .select('job_id, adapter, destination_key, status, attempt_count, next_attempt_at, last_error, updated_at')
+    .in('status', ['queued', 'leased', 'retry_wait', 'failed'])
+    .order('updated_at', { ascending: false })
+    .limit(25);
 }

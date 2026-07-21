@@ -92,6 +92,9 @@ export function MarketingClient({
       status: string;
       attempts: number;
       rows_written: number;
+      provider_complete_days?: number;
+      mapping_gap_days?: number;
+      reconciliation_status?: string | null;
       error_code: string | null;
       error_detail: string | null;
       error_class?: string | null;
@@ -102,8 +105,19 @@ export function MarketingClient({
       validation_status?: string | null;
       validation_evidence_sha256?: string | null;
       provider_request_id?: string | null;
+      provider_request_ids?: Array<{
+        scope: string;
+        provider_object_ids: string[];
+        request_id: string;
+      }>;
     }>;
-    coverage: Array<{ ad_account_id: string; metric_date: string }>;
+    coverage: Array<{
+      ad_account_id: string;
+      metric_date: string;
+      provider_complete?: boolean;
+      mapping_status?: string;
+      source_run_id?: string;
+    }>;
   };
   analyticsError?: string;
   canWrite: boolean;
@@ -427,7 +441,8 @@ export function MarketingClient({
           <div>
             <p className="text-xs text-muted-foreground">Paid spend</p>
             <p className="font-semibold tabular-nums">
-              {analytics.paid_currency_mixed
+              {analytics.paid_currency_mixed ||
+              analytics.paid_spend_k == null
                 ? 'grouped below'
                 : `$${analytics.paid_spend_k.toFixed(1)}k`}
             </p>
@@ -508,6 +523,26 @@ export function MarketingClient({
                 </p>
                 <p className="text-muted-foreground">
                   through {account.latest_covered_date ?? 'pending'}
+                  {account.mapping_gap_days > 0
+                    ? ` · ${account.mapping_gap_days} mapping-gap day${
+                        account.mapping_gap_days === 1 ? '' : 's'
+                      }`
+                    : ' · fully mapped'}
+                </p>
+                <p className="text-muted-foreground">
+                  mapped {account.mapping_complete_days}/{account.covered_days}{' '}
+                  days · authoritative ${Number(
+                    account.authoritative_spend,
+                  ).toLocaleString(undefined, {
+                    maximumFractionDigits: 2,
+                  })}{' '}
+                  / allocation ${Number(account.mapped_spend).toLocaleString(
+                    undefined,
+                    { maximumFractionDigits: 2 },
+                  )} · delta ${Number(account.delta_spend).toLocaleString(
+                    undefined,
+                    { maximumFractionDigits: 2 },
+                  )}
                 </p>
               </div>
             ))}
@@ -553,7 +588,9 @@ export function MarketingClient({
               const covered = new Set(
                 paidOperations.coverage
                   .filter(
-                    (day) => day.ad_account_id === syncRun.ad_account_id,
+                    (day) =>
+                      day.ad_account_id === syncRun.ad_account_id &&
+                      day.provider_complete !== false,
                   )
                   .map((day) => day.metric_date),
               ).size;
@@ -569,6 +606,12 @@ export function MarketingClient({
                   <span>
                     {syncRun.status} · attempt {syncRun.attempts} ·{' '}
                     {syncRun.rows_written} rows · {covered}/90 covered
+                    {syncRun.reconciliation_status
+                      ? ` · reconciliation ${syncRun.reconciliation_status}`
+                      : ''}
+                    {syncRun.mapping_gap_days
+                      ? ` · ${syncRun.mapping_gap_days} gap days`
+                      : ''}
                     {syncRun.error_code ? ` · ${syncRun.error_code}` : ''}
                     {syncRun.error_class ? ` · ${syncRun.error_class}` : ''}
                     {syncRun.validation_status
@@ -610,7 +653,7 @@ export function MarketingClient({
         {analytics.paid_campaigns.length > 0 ? (
           <div className="overflow-x-auto">
             <p className="mb-1 text-xs font-medium text-muted-foreground">
-              Latest paid campaign rollups
+              Campaign allocation detail (not authoritative account totals)
             </p>
             <table className="w-full text-left text-xs">
               <thead className="text-muted-foreground">

@@ -1,7 +1,7 @@
 import { createHash } from 'crypto';
 import { z } from 'zod';
 
-export const PAID_CONTRACT_VERSION = 'phase37-v1';
+export const PAID_CONTRACT_VERSION = 'phase38-v2';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const decimalText = z
@@ -18,6 +18,18 @@ const integerText = z
   })
   .transform((value) => Number(value))
   .refine(Number.isSafeInteger, { message: 'Integer exceeds safe range' });
+const safeIntegerDecimalText = z
+  .union([z.string(), z.number()])
+  .transform((value) => String(value))
+  .refine(
+    (value) => /^\d+$/.test(value) && Number.isSafeInteger(Number(value)),
+    { message: 'Expected a non-negative safe integer' },
+  );
+const linkedInDate = z.object({
+  year: z.number().int().min(2000).max(2200),
+  month: z.number().int().min(1).max(12),
+  day: z.number().int().min(1).max(31),
+});
 
 export const metaCampaignPageSchema = z.object({
   data: z.array(
@@ -47,28 +59,77 @@ export const metaCampaignPageSchema = z.object({
     .optional(),
 });
 
+export const metaAccountPageSchema = z.object({
+  data: z.array(
+    z.object({
+      account_id: z.string().min(1),
+      date_start: isoDate,
+      date_stop: isoDate,
+      impressions: integerText,
+      clicks: integerText,
+      spend: decimalText,
+    }),
+  ),
+  paging: z
+    .object({
+      cursors: z.object({ after: z.string().min(1).optional() }).optional(),
+      next: z.string().url().optional(),
+    })
+    .optional(),
+});
+
+const linkedInPagingSchema = z
+  .object({
+    start: z.number().int().nonnegative().optional(),
+    count: z.number().int().nonnegative().optional(),
+    links: z
+      .array(
+        z.object({
+          rel: z.string().optional(),
+          href: z.string().optional(),
+          type: z.string().optional(),
+        }),
+      )
+      .optional(),
+  })
+  .passthrough();
+
 export const linkedInCampaignPageSchema = z.object({
   elements: z.array(
     z.object({
       pivotValues: z.array(z.string()).min(1),
       dateRange: z.object({
-        start: z.object({
-          year: z.number().int().min(2000).max(2200),
-          month: z.number().int().min(1).max(12),
-          day: z.number().int().min(1).max(31),
-        }),
+        start: linkedInDate,
+        end: linkedInDate,
       }),
       impressions: integerText,
       clicks: integerText,
       costInLocalCurrency: decimalText,
-      externalWebsiteConversions: decimalText.optional().default('0'),
+      externalWebsiteConversions: safeIntegerDecimalText
+        .optional()
+        .default('0'),
     }),
   ),
-  paging: z.object({
-    start: z.number().int().nonnegative(),
-    count: z.number().int().nonnegative(),
-    total: z.number().int().nonnegative(),
-  }),
+  paging: linkedInPagingSchema.optional(),
+});
+
+export const linkedInAccountPageSchema = z.object({
+  elements: z.array(
+    z.object({
+      pivotValues: z.array(z.string()).min(1),
+      dateRange: z.object({
+        start: linkedInDate,
+        end: linkedInDate,
+      }),
+      impressions: integerText,
+      clicks: integerText,
+      costInLocalCurrency: decimalText,
+      externalWebsiteConversions: safeIntegerDecimalText
+        .optional()
+        .default('0'),
+    }),
+  ),
+  paging: linkedInPagingSchema.optional(),
 });
 
 export type ContractMetricRow = {
@@ -80,10 +141,17 @@ export type ContractMetricRow = {
   conversions: string | null;
 };
 
+export type AccountMetricRow = Omit<
+  ContractMetricRow,
+  'external_campaign_id'
+> & {
+  mapping_status?: 'complete' | 'gap';
+};
+
 export class PaidContractError extends Error {
   readonly code: string;
-  readonly retryable = false;
-  readonly errorClass = 'contract';
+  readonly retryable: boolean = false;
+  readonly errorClass: string = 'contract';
 
   constructor(code: string, message: string) {
     super(message);
@@ -92,8 +160,70 @@ export class PaidContractError extends Error {
   }
 }
 
+export class PaidProviderInconsistentError extends PaidContractError {
+  readonly retryable = true;
+  readonly errorClass = 'provider_transient';
+}
+
+export class PaidAuthorizationAmbiguousError extends PaidContractError {
+  readonly errorClass = 'authorization';
+}
+
 function inWindow(date: string, start: string, end: string) {
   return date >= start && date <= end;
+}
+
+function metricDate(
+  value: { year: number; month: number; day: number },
+): string {
+  return `${value.year}-${String(value.month).padStart(2, '0')}-${String(
+    value.day,
+  ).padStart(2, '0')}`;
+}
+
+function normalizeMetaAccountId(value: string): string {
+  return value.trim().replace(/^act_/, '');
+}
+
+function sponsoredAccountUrn(value: string): string {
+  return `urn:li:sponsoredAccount:${value.match(/(\d+)$/)?.[1] ?? ''}`;
+}
+
+function sponsoredCampaignUrn(value: string): string {
+  return `urn:li:sponsoredCampaign:${value.match(/(\d+)$/)?.[1] ?? ''}`;
+}
+
+function assertLinkedInDailyRange(
+  range: {
+    start: { year: number; month: number; day: number };
+    end: { year: number; month: number; day: number };
+  },
+  code: string,
+) {
+  const start = metricDate(range.start);
+  const end = metricDate(range.end);
+  if (start !== end) {
+    throw new PaidContractError(
+      code,
+      `LinkedIn DAILY row must have identical start and end dates (${start}–${end})`,
+    );
+  }
+  return start;
+}
+
+function assertNoLinkedInNextPage(
+  paging: z.infer<typeof linkedInPagingSchema> | undefined,
+) {
+  if (
+    paging?.links?.some(
+      (link) => link.rel?.toLowerCase() === 'next' && Boolean(link.href),
+    )
+  ) {
+    throw new PaidProviderInconsistentError(
+      'linkedin_unexpected_pagination',
+      'LinkedIn analytics returned a next-page link for a non-paginated request',
+    );
+  }
 }
 
 export function parseMetaCampaignPage(input: {
@@ -167,7 +297,6 @@ export function parseLinkedInCampaignPage(input: {
   knownCampaignIds: Set<string>;
   windowStart: string;
   windowEnd: string;
-  requestedStart: number;
 }) {
   const parsed = linkedInCampaignPageSchema.safeParse(input.raw);
   if (!parsed.success) {
@@ -176,30 +305,36 @@ export function parseLinkedInCampaignPage(input: {
       parsed.error.issues[0]?.message || 'LinkedIn response contract failed',
     );
   }
-  if (parsed.data.paging.start !== input.requestedStart) {
-    throw new PaidContractError(
-      'linkedin_paging_start_mismatch',
-      'LinkedIn paging start did not match the requested offset',
-    );
-  }
+  assertNoLinkedInNextPage(parsed.data.paging);
   const seen = new Set<string>();
   const rows: ContractMetricRow[] = parsed.data.elements.map((row) => {
-    const externalId = row.pivotValues[0]?.match(/(\d+)$/)?.[1] ?? '';
-    if (!input.knownCampaignIds.has(externalId)) {
+    const expectedUrns = new Map(
+      [...input.knownCampaignIds].map((id) => [
+        sponsoredCampaignUrn(id),
+        id.match(/(\d+)$/)?.[1] ?? '',
+      ]),
+    );
+    const exactUrn = row.pivotValues.find((value) =>
+      expectedUrns.has(value),
+    );
+    const externalId = exactUrn ? expectedUrns.get(exactUrn) ?? '' : '';
+    if (!exactUrn || !externalId) {
       throw new PaidContractError(
-        'linkedin_unknown_campaign',
-        `LinkedIn returned unknown campaign ${externalId || 'missing'}`,
+        'linkedin_campaign_identity_mismatch',
+        'LinkedIn campaign pivot did not contain an exact expected sponsoredCampaign URN',
       );
     }
-    const { year, month, day } = row.dateRange.start;
-    const metricDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    if (!inWindow(metricDate, input.windowStart, input.windowEnd)) {
+    const date = assertLinkedInDailyRange(
+      row.dateRange,
+      'linkedin_campaign_daily_range_invalid',
+    );
+    if (!inWindow(date, input.windowStart, input.windowEnd)) {
       throw new PaidContractError(
         'linkedin_date_outside_window',
-        `LinkedIn returned date ${metricDate} outside the leased window`,
+        `LinkedIn returned date ${date} outside the leased window`,
       );
     }
-    const key = `${externalId}:${metricDate}`;
+    const key = `${externalId}:${date}`;
     if (seen.has(key)) {
       throw new PaidContractError(
         'linkedin_duplicate_metric',
@@ -209,29 +344,250 @@ export function parseLinkedInCampaignPage(input: {
     seen.add(key);
     return {
       external_campaign_id: externalId,
-      metric_date: metricDate,
+      metric_date: date,
       impressions: row.impressions,
       clicks: row.clicks,
       spend: row.costInLocalCurrency,
       conversions: row.externalWebsiteConversions,
     };
   });
-  const nextStart = parsed.data.paging.start + parsed.data.paging.count;
-  if (
-    parsed.data.paging.total > nextStart &&
-    parsed.data.paging.count === 0
-  ) {
+  return { rows };
+}
+
+export function parseMetaAccountPage(input: {
+  raw: unknown;
+  expectedExternalAccountId: string;
+  windowStart: string;
+  windowEnd: string;
+}) {
+  const parsed = metaAccountPageSchema.safeParse(input.raw);
+  if (!parsed.success) {
     throw new PaidContractError(
-      'linkedin_pagination_stalled',
-      'LinkedIn paging made no progress',
+      'meta_account_contract_invalid',
+      parsed.error.issues[0]?.message || 'Meta account response contract failed',
     );
   }
+  const seen = new Set<string>();
+  const rows: AccountMetricRow[] = parsed.data.data.map((row) => {
+    if (
+      normalizeMetaAccountId(row.account_id) !==
+      normalizeMetaAccountId(input.expectedExternalAccountId)
+    ) {
+      throw new PaidContractError(
+        'meta_account_identity_mismatch',
+        `Meta account identity ${row.account_id} did not match the bound account`,
+      );
+    }
+    if (
+      row.date_start !== row.date_stop ||
+      !inWindow(row.date_start, input.windowStart, input.windowEnd) ||
+      seen.has(row.date_start)
+    ) {
+      throw new PaidContractError(
+        'meta_account_date_invalid',
+        `Meta returned an invalid or duplicate account date ${row.date_start}`,
+      );
+    }
+    seen.add(row.date_start);
+    return {
+      metric_date: row.date_start,
+      impressions: row.impressions,
+      clicks: row.clicks,
+      spend: row.spend,
+      conversions: null,
+    };
+  });
+  const nextCursor = parsed.data.paging?.next
+    ? parsed.data.paging.cursors?.after
+    : undefined;
+  if (parsed.data.paging?.next && !nextCursor) {
+    throw new PaidProviderInconsistentError(
+      'meta_account_pagination_stalled',
+      'Meta account totals returned a next page without an after cursor',
+    );
+  }
+  return { rows, nextCursor: nextCursor ?? null };
+}
+
+export function parseLinkedInAccountPage(input: {
+  raw: unknown;
+  expectedExternalAccountId: string;
+  windowStart: string;
+  windowEnd: string;
+}) {
+  const parsed = linkedInAccountPageSchema.safeParse(input.raw);
+  if (!parsed.success) {
+    throw new PaidContractError(
+      'linkedin_account_contract_invalid',
+      parsed.error.issues[0]?.message ||
+        'LinkedIn account response contract failed',
+    );
+  }
+  assertNoLinkedInNextPage(parsed.data.paging);
+  const seen = new Set<string>();
   return {
-    rows,
-    nextStart:
-      nextStart < parsed.data.paging.total ? nextStart : null,
-    total: parsed.data.paging.total,
+    rows: parsed.data.elements.map((row): AccountMetricRow => {
+      const expectedUrn = sponsoredAccountUrn(input.expectedExternalAccountId);
+      if (!row.pivotValues.includes(expectedUrn)) {
+        throw new PaidContractError(
+          'linkedin_account_identity_mismatch',
+          'LinkedIn account pivot did not contain the exact bound sponsoredAccount URN',
+        );
+      }
+      const date = assertLinkedInDailyRange(
+        row.dateRange,
+        'linkedin_account_daily_range_invalid',
+      );
+      if (
+        !inWindow(date, input.windowStart, input.windowEnd) ||
+        seen.has(date)
+      ) {
+        throw new PaidContractError(
+          'linkedin_account_date_invalid',
+          `LinkedIn returned an invalid or duplicate account date ${date}`,
+        );
+      }
+      seen.add(date);
+      return {
+        metric_date: date,
+        impressions: row.impressions,
+        clicks: row.clicks,
+        spend: row.costInLocalCurrency,
+        conversions: String(row.externalWebsiteConversions),
+      };
+    }),
   };
+}
+
+export function linkedinAccountAccessConfirmed(
+  raw: unknown,
+  expectedExternalAccountId: string,
+): boolean {
+  const parsed = z
+    .object({
+      elements: z.array(
+        z.object({ id: z.union([z.string(), z.number()]) }),
+      ),
+    })
+    .safeParse(raw);
+  if (!parsed.success) return false;
+  const expectedId =
+    expectedExternalAccountId.match(/(\d+)$/)?.[1] ?? '';
+  return parsed.data.elements.some(
+    (account) => String(account.id) === expectedId,
+  );
+}
+
+const DECIMAL_SCALE = BigInt(1_000_000);
+const BIGINT_ZERO = BigInt(0);
+
+function decimalUnits(value: string): bigint {
+  const [whole, fraction = ''] = value.split('.');
+  return BigInt(whole) * DECIMAL_SCALE + BigInt(fraction.padEnd(6, '0'));
+}
+
+function unitsDecimal(value: bigint): string {
+  const whole = value / DECIMAL_SCALE;
+  const fraction = (value % DECIMAL_SCALE).toString().padStart(6, '0');
+  return `${whole}.${fraction}`;
+}
+
+function datesBetween(start: string, end: string): string[] {
+  const dates: string[] = [];
+  const cursor = new Date(`${start}T12:00:00Z`);
+  const last = new Date(`${end}T12:00:00Z`);
+  while (cursor <= last) {
+    dates.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return dates;
+}
+
+export function reconcileAccountDailyTotals(input: {
+  campaignRows: ContractMetricRow[];
+  providerRows: AccountMetricRow[];
+  windowStart: string;
+  windowEnd: string;
+  reconcileConversions?: boolean;
+}): AccountMetricRow[] {
+  const providerDates = new Set<string>();
+  for (const row of input.providerRows) {
+    if (providerDates.has(row.metric_date)) {
+      throw new PaidProviderInconsistentError(
+        'provider_duplicate_account_date',
+        `Provider returned duplicate account totals for ${row.metric_date}`,
+      );
+    }
+    providerDates.add(row.metric_date);
+  }
+  const providerByDate = new Map(
+    input.providerRows.map((row) => [row.metric_date, row]),
+  );
+  return datesBetween(input.windowStart, input.windowEnd).map((date) => {
+    const provider = providerByDate.get(date) ?? {
+      metric_date: date,
+      impressions: 0,
+      clicks: 0,
+      spend: '0',
+      conversions:
+        (input.reconcileConversions ??
+        input.providerRows.some((row) => row.conversions !== null))
+          ? '0'
+          : null,
+    };
+    const mapped = input.campaignRows.filter(
+      (row) => row.metric_date === date,
+    );
+    const mappedImpressions = mapped.reduce(
+      (sum, row) => sum + BigInt(row.impressions),
+      BIGINT_ZERO,
+    );
+    const mappedClicks = mapped.reduce(
+      (sum, row) => sum + BigInt(row.clicks),
+      BIGINT_ZERO,
+    );
+    const mappedSpend = mapped.reduce(
+      (sum, row) => sum + decimalUnits(row.spend),
+      BIGINT_ZERO,
+    );
+    const mappedConversions = mapped.reduce(
+      (sum, row) =>
+        sum +
+        (row.conversions === null
+          ? BIGINT_ZERO
+          : decimalUnits(row.conversions)),
+      BIGINT_ZERO,
+    );
+    const providerConversions =
+      provider.conversions === null
+        ? null
+        : decimalUnits(provider.conversions);
+    if (
+      mappedImpressions > BigInt(provider.impressions) ||
+      mappedClicks > BigInt(provider.clicks) ||
+      mappedSpend > decimalUnits(provider.spend) ||
+      (providerConversions !== null &&
+        mappedConversions > providerConversions)
+    ) {
+      throw new PaidProviderInconsistentError(
+        'provider_account_total_below_mapped',
+        `Provider account totals are below mapped campaign totals on ${date}`,
+      );
+    }
+    const mappingComplete =
+      mappedImpressions === BigInt(provider.impressions) &&
+      mappedClicks === BigInt(provider.clicks) &&
+      mappedSpend === decimalUnits(provider.spend) &&
+      (providerConversions === null ||
+        mappedConversions === providerConversions);
+    return {
+      ...provider,
+      spend: unitsDecimal(decimalUnits(provider.spend)),
+      conversions:
+        providerConversions === null ? null : unitsDecimal(providerConversions),
+      mapping_status: mappingComplete ? 'complete' : 'gap',
+    };
+  });
 }
 
 export function canonicalEvidenceHash(value: unknown): string {

@@ -672,12 +672,32 @@ Docs: `docs/OS_PHASE36.md`
 
 Docs: `docs/OS_PHASE37.md`
 
-### Phase 38+ backlog
+### Phase 38 scope (reconciliation · governance · delivery)
 
-- Paid provider account-total reconciliation and unmapped-campaign deltas
-- Transactional, leased DocuSign reconciliation page commits
-- Two-actor Intune manual-review outcomes and Graph outage circuit breaking
-- Configurable SLO ownership, acknowledgement, and external delivery adapters
+- Authoritative Meta/LinkedIn account totals, exact campaign-allocation
+  reconciliation, binding supersession, and mixed-currency-safe reporting
+- Leased, frozen-window DocuSign reconciliation with immutable page evidence,
+  strict pagination, sticky ambiguity, and checkpoint recovery
+- Two-actor Intune ambiguity outcomes with independent Graph evidence and
+  redispatch limited to a newly matched and approved child
+- Versioned SLO policies, incident ownership, acknowledgement, durable delivery,
+  and worker cadence visibility
+- Canonical snapshot evidence cycles with durable replay conflicts and
+  transactional epoch/rehearsal invalidation
+- SQL: apply `phase38_marketing_paid_reconciliation.sql`,
+  `phase38_docusign_reconciliation_batches.sql`,
+  `phase38_intune_ambiguity_governance.sql`,
+  `phase38_slo_ownership_delivery.sql`, and
+  `phase38_snapshot_cycle_lifecycle.sql`
+
+Docs: `docs/OS_PHASE38.md`
+
+### Phase 39+ backlog
+
+- Paid attributed-revenue reconciliation and settlement-lag monitoring
+- DocuSign mapping-review resolution and signed-archive content hashes
+- Intune provider-outage circuit breaker and canary reset
+- Named SLO policy/route management and delivery contract tests
 - Continue Stage 4e evidence and attestation soak; do not drop snapshots
 - Push · user admin
 
@@ -713,4 +733,8 @@ Set `DEV_BYPASS_AUTH=1` in `.env.local` to preview the shell as Visionary (local
 
 ## Next phases (from Cursor Brief)
 
-Phase 29 advances TikTok OAuth, paid campaign stubs, SLA assignee routing, DocuSign live role refresh and void audit, Graph offboard remove, and hardware warranty. Remaining: Stage 4e soft rename / offline DROP (after approval), push, user admin.
+Phase 38 adds provider-total paid reconciliation, leased DocuSign batches,
+two-actor Intune ambiguity governance, configurable SLO ownership/delivery, and
+canonical snapshot evidence lifecycle. Remaining: continued Stage 4e soak and
+separately approved offline retirement, paid attribution reconciliation,
+provider outage controls, push, and user admin.

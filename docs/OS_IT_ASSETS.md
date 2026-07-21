@@ -135,9 +135,27 @@ SQL: `phase36_intune_worker_fencing.sql`.
 
 SQL: `phase37_intune_dispatch_boundary.sql`.
 
-## Phase 38+
+## Phase 38
 
-1. Two-actor Intune manual-review outcome resolution and outage circuit breaker
+1. `manual_review` is a worker-ineligible quarantine with no lease or polling
+   schedule.
+2. An authorized proposer and a different authorized reviewer independently
+   collect fresh, read-only Graph and Intune audit evidence.
+3. Evidence is bound to the action version, dispatch attempt, approval, asset,
+   provider preflight, managed-device ID, and normalized serial.
+4. Confirmed retirement, unresolved closure, and retry-child creation commit
+   atomically with append-only events.
+5. Retry children require a 24-hour quarantine, exact non-retired provider
+   identity, and fresh matching and approval. A dispatched root tombstone cannot
+   be bypassed.
+6. The IT hub exposes proposal expiry, reviewer separation, evidence hashes,
+   parent/child lineage, and manual-review SLO age.
+
+SQL: `phase38_intune_ambiguity_governance.sql`.
+
+## Phase 39+
+
+1. Provider-outage dispatch circuit breaker and read-only canary reset
 2. Signed Exchange hold callback + deleted-user restore
 3. Downloadable warranty preview failure reports
 

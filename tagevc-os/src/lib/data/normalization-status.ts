@@ -110,6 +110,22 @@ export type NormalizationStatus = {
   rollback_attestations: Array<Record<string, unknown>>;
   rollback_rehearsal_events: Array<Record<string, unknown>>;
   rollback_rehearsal_error: string | null;
+  latest_evidence_cycle: {
+    cycle_id: string;
+    source: string;
+    operation: string;
+    observed_at: string;
+    requested_actor: Record<string, unknown>;
+    contract_version: string;
+    canonical_sha256: string;
+    status: string;
+    evidence_valid: boolean;
+    invalidated_at: string | null;
+    invalidation_reason: string | null;
+    conflict_count: number;
+    epoch_id: string | null;
+  } | null;
+  evidence_cycle_events: Array<Record<string, unknown>>;
   latest_drill_evidence: {
     drill_run_id: string;
     status: string;
@@ -225,6 +241,25 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
     )
     .order('started_at', { ascending: false })
     .limit(1);
+  const { data: evidenceCycleRows } = await supabase
+    .from('os_snapshot_evidence_cycles')
+    .select(
+      'cycle_id, source, operation, observed_at, requested_actor, contract_version, canonical_sha256, status, evidence_valid, invalidated_at, invalidation_reason, conflict_count, epoch_id',
+    )
+    .order('observed_at', { ascending: false })
+    .order('cycle_id', { ascending: false })
+    .limit(1);
+  const latestCycleId = evidenceCycleRows?.[0]?.cycle_id
+    ? String(evidenceCycleRows[0].cycle_id)
+    : null;
+  const { data: evidenceCycleEvents } = latestCycleId
+    ? await supabase
+        .from('os_snapshot_evidence_cycle_events')
+        .select('event_id, event_type, actor, canonical_sha256, detail, occurred_at')
+        .eq('cycle_id', latestCycleId)
+        .order('occurred_at', { ascending: false })
+        .limit(12)
+    : { data: [] };
   const activeEpochId = soakEpochRows?.[0]?.epoch_id
     ? String(soakEpochRows[0].epoch_id)
     : null;
@@ -449,6 +484,11 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
     rollback_attestations: rollbackEvidence.attestations,
     rollback_rehearsal_events: rollbackEvidence.events,
     rollback_rehearsal_error: rollbackResult.error ?? null,
+    latest_evidence_cycle:
+      (evidenceCycleRows?.[0] as
+        | NormalizationStatus['latest_evidence_cycle']
+        | undefined) ?? null,
+    evidence_cycle_events: evidenceCycleEvents ?? [],
     retirement_timeline: (retirementEvents ?? []).map((event) => ({
       stage: String(event.stage),
       retired_table_name: (event.retired_table_name as string) ?? null,
@@ -472,7 +512,7 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
             : stage === 'read_cutover'
               ? 'Enable WRITE_CUTOVER_MATURE=1 when handoffs/audits tables are ready'
               : stage === 'sql_only_hydrate'
-                ? 'Stage 4b active — governed soft rename path; destructive retirement still deferred (Phase 37)'
+                ? 'Stage 4b active — Phase 38 canonical evidence lifecycle is enforced; destructive retirement remains separate'
                 : stage === 'stage4_ready'
                   ? 'Drills passed — SQL-only hydrate follows write cutover automatically; see OS_SNAPSHOT_STAGE4.md'
                   : fkOrphanTotal > 0

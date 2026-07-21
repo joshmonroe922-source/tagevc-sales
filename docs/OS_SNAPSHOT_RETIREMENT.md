@@ -147,6 +147,24 @@ SQL: `phase36_snapshot_attestation_lifecycle.sql`.
 SQL: `phase37_snapshot_evidence_transaction.sql` and
 `phase37_shared_service_slos.sql`.
 
+## Phase 38 canonical lifecycle evidence
+
+- Canonical evidence binds the exact observation time, requested actor,
+  normalized configuration, contract version, code revision, complete drill
+  report, and soak observation.
+- Exact replays return the committed cycle. Conflicting same-key input is
+  retained as an immutable conflict event and fails closed.
+- Broken or rolled-back epochs transactionally invalidate linked observations,
+  drill runs, evidence cycles, and pending or attested rollback rehearsals.
+- Natural rehearsal expiry remains distinct from governance invalidation.
+- Snapshot integrity SLOs evaluate the latest cycle, including failed or
+  conflicted cycles, rather than selecting an older qualifying observation.
+- No Phase 38 migration drops, renames, alters, or writes
+  `os_store_snapshots`.
+
+SQL: `phase38_snapshot_cycle_lifecycle.sql` and
+`phase38_slo_ownership_delivery.sql`.
+
 ## Non-goals
 
 - Dropping the table in Phase 16–19  

@@ -59,6 +59,10 @@
     {
       "path": "/api/ops/slo-evaluate",
       "schedule": "10 * * * *"
+    },
+    {
+      "path": "/api/ops/slo-deliver",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

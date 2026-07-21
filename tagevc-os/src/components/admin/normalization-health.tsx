@@ -199,6 +199,7 @@ export function NormalizationHealthPanel({
         >
           Stage 4 drills · {status.stage4_ready ? 'pass' : 'pending'}
         </Badge>
+        <Badge variant="outline">Evidence contract · Phase 38</Badge>
         <Badge variant={status.sentry_configured ? 'secondary' : 'outline'}>
           Sentry · {status.sentry_configured ? 'on' : 'off'}
         </Badge>
@@ -365,6 +366,48 @@ export function NormalizationHealthPanel({
                   evidence{' '}
                   {status.latest_drill_evidence.evidence_sha256 ?? 'pending'}
                 </p>
+              </div>
+            ) : null}
+            {status.latest_evidence_cycle ? (
+              <div className="mt-3 rounded-md border border-border/60 p-3 text-xs">
+                <p className="font-medium">
+                  Canonical evidence cycle: {status.latest_evidence_cycle.status}{' '}
+                  ·{' '}
+                  {status.latest_evidence_cycle.evidence_valid
+                    ? 'valid'
+                    : 'invalidated'}
+                </p>
+                <p className="text-muted-foreground">
+                  {status.latest_evidence_cycle.operation} ·{' '}
+                  {status.latest_evidence_cycle.source} · observed exactly{' '}
+                  {status.latest_evidence_cycle.observed_at} · contract{' '}
+                  {status.latest_evidence_cycle.contract_version}
+                </p>
+                <p className="break-all font-mono text-[10px] text-muted-foreground">
+                  canonical {status.latest_evidence_cycle.canonical_sha256} ·
+                  conflicts {status.latest_evidence_cycle.conflict_count}
+                </p>
+                <p className="text-muted-foreground">
+                  Requested actor:{' '}
+                  {JSON.stringify(status.latest_evidence_cycle.requested_actor)}
+                </p>
+                {status.latest_evidence_cycle.invalidation_reason ? (
+                  <p className="text-destructive">
+                    Invalidated: {status.latest_evidence_cycle.invalidation_reason}
+                  </p>
+                ) : null}
+                {status.evidence_cycle_events.length ? (
+                  <div className="mt-2 space-y-1">
+                    {status.evidence_cycle_events.slice(0, 6).map((event) => (
+                      <p
+                        key={String(event.event_id)}
+                        className="font-mono text-[10px] text-muted-foreground"
+                      >
+                        {String(event.occurred_at)} · {String(event.event_type)}
+                      </p>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             ) : null}
             <div className="mt-3 space-y-2 rounded-md border border-border/60 p-3 text-xs">

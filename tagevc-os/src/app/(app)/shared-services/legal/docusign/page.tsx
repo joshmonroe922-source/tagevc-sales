@@ -98,6 +98,9 @@ export default async function DocuSignModulePage({
   const canWrite = ctx
     ? roleHasPermission(ctx.profile.role, 'write:documents')
     : false;
+  const canReconcile = ctx
+    ? roleHasPermission(ctx.profile.role, 'action:docusign_reconcile')
+    : false;
   const firmWide = ctx
     ? isFirmWideAccess(ctx.profile.role, ctx.profile.entity_id)
     : false;
@@ -235,17 +238,20 @@ export default async function DocuSignModulePage({
           <Badge variant={mode === 'live' ? 'default' : 'secondary'}>
             {mode === 'live' ? 'Live JWT' : 'Mock envelopes'}
           </Badge>
-          <Badge variant="secondary">Phase 37</Badge>
+          <Badge variant="secondary">Phase 38</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">DocuSign</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Replay-safe transactional sends, evidence-verified timeout recovery,
-          two-actor manual-review resolution, intent-aware reconciliation, and
-          entity-scoped audit visibility.
+          Replay-safe transactional sends, leased page-by-page reconciliation,
+          evidence-verified timeout recovery, two-actor manual-review
+          resolution, and entity-scoped audit visibility.
           Void policy: {voidPolicy}. Capital sends still require{' '}
           <code className="text-xs">action:docusign_capital</code>.
         </p>
-        <DocuSignHubActions canWrite={canWrite} />
+        <DocuSignHubActions
+          canWrite={canWrite}
+          canReconcile={canReconcile}
+        />
         <DocuSignTemplateSendForm
           templates={templates.rows}
           canWrite={canWrite}
@@ -276,9 +282,9 @@ export default async function DocuSignModulePage({
           <CardHeader>
             <CardTitle className="text-base">Envelope reconciliation</CardTitle>
             <CardDescription>
-              Observe-only matching across provider envelopes, local documents,
-              events, and replacement lineage. Ambiguities are never
-              auto-assigned.
+              Leased, resumable provider pages are committed atomically with
+              immutable evidence. Identity ambiguities remain quarantined and
+              are never auto-assigned.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-xs">
@@ -319,7 +325,12 @@ export default async function DocuSignModulePage({
                 Latest run: {String(reconciliationRuns[0].status)} ·{' '}
                 {String(reconciliationRuns[0].seen)} seen ·{' '}
                 {String(reconciliationRuns[0].matched)} matched ·{' '}
-                {String(reconciliationRuns[0].manual_review)} review
+                {String(reconciliationRuns[0].manual_review)} review ·{' '}
+                {String(reconciliationRuns[0].committed_pages ?? 0)} pages ·
+                cursor {String(reconciliationRuns[0].cursor_start_position ?? 0)}
+                {reconciliationRuns[0].last_failure_code
+                  ? ` · ${String(reconciliationRuns[0].last_failure_code)}`
+                  : ''}
               </p>
             ) : null}
           </CardContent>
@@ -697,7 +708,7 @@ export default async function DocuSignModulePage({
                 {liveEnvelopes.pagination.totalSetSize === 0
                   ? '0 results'
                   : `${liveEnvelopes.pagination.startPosition + 1}–${
-                      liveEnvelopes.pagination.endPosition
+                      liveEnvelopes.pagination.endPosition + 1
                     } of ${liveEnvelopes.pagination.totalSetSize}`}
               </span>
               <span className="flex gap-2">

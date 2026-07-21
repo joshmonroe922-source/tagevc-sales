@@ -153,10 +153,29 @@ SQL: `phase36_docusign_send_hardening.sql`.
 
 SQL: `phase37_docusign_manual_review.sql`.
 
+## Phase 38
+
+- Broad reconciliation uses a frozen provider window and leased, resumable
+  batches of at most three 100-envelope pages per invocation.
+- Each PII-free page, item, identity-claim set, and lifecycle transition is
+  immutable. PostgreSQL commits page evidence and projection changes
+  transactionally.
+- DocuSign's inclusive `endPosition` is validated with cursor, result-count,
+  total-size, run-wide duplicate, and changed-replay checks.
+- Runs fail closed above 100 pages or 10,000 envelopes. Transient failures retain
+  the last committed checkpoint.
+- Conflicting non-null identities remain sticky manual review. Compatible local
+  statuses do not create false conflicts, and older provider observations cannot
+  regress a projection.
+- A dedicated break-glass reconciliation permission and worker history make
+  manual and cron execution visible.
+
+SQL: `phase38_docusign_reconciliation_batches.sql`.
+
 ## Still deferred
 
 - Dedicated recipient detail drawer
-- Transactional leased reconciliation page commits
+- Mapping-review resolution distinct from ambiguous-send resolution
 - Idempotent signed-archive metadata with content hashes
 - Retire simulate button in production  
 

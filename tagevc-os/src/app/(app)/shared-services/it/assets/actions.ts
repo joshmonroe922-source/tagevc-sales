@@ -11,6 +11,11 @@ import {
   revokeLicenseSeat,
 } from '@/lib/shared-services/it-assets-repo';
 import { guardPermission } from '@/lib/rbac/session';
+import {
+  canAccessEntityId,
+  entityScopeDeniedMessage,
+} from '@/lib/rbac/entity-scope';
+import { createPersistClient } from '@/lib/supabase/persist-client';
 
 export type ItAssetActionResult =
   | { ok: true; message?: string }
@@ -580,4 +585,168 @@ export async function retryIntuneActionAction(
   if (!result.ok) return result;
   revalidateAssets();
   return { ok: true, message: `Created governed retry for ${actionId}` };
+}
+
+export async function proposeIntuneAmbiguityResolutionAction(input: {
+  actionId: string;
+  decision: 'confirm_retired' | 'close_unresolved' | 'create_retry_child';
+  reason: string;
+  expectedActionVersion: number;
+}): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('action:intune_manual_review');
+  if (!gate.ok) return gate;
+  const parsed = z
+    .object({
+      actionId: z.string().uuid(),
+      decision: z.enum([
+        'confirm_retired',
+        'close_unresolved',
+        'create_retry_child',
+      ]),
+      reason: z.string().trim().min(20).max(1000),
+      expectedActionVersion: z.number().int().nonnegative(),
+    })
+    .safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid proposal' };
+  }
+  const service = await createPersistClient();
+  const { data: action, error } = await service
+    .from('os_it_intune_actions')
+    .select('managed_device_id, entity_id, status')
+    .eq('action_id', parsed.data.actionId)
+    .single();
+  if (error || !action || action.status !== 'manual_review') {
+    return { ok: false, error: error?.message ?? 'Action is not quarantined' };
+  }
+  if (
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      action.entity_id,
+    )
+  ) {
+    return {
+      ok: false,
+      error: entityScopeDeniedMessage(action.entity_id ?? 'firm-wide'),
+    };
+  }
+  try {
+    const { getIntuneAmbiguityEvidence } = await import(
+      '@/lib/shared-services/it-mdm'
+    );
+    const evidence = await getIntuneAmbiguityEvidence(action.managed_device_id);
+    const { proposeIntuneAmbiguityResolution } = await import(
+      '@/lib/shared-services/it-assets-repo'
+    );
+    const result = await proposeIntuneAmbiguityResolution({
+      action_id: parsed.data.actionId,
+      actor_id: gate.profile.id,
+      decision: parsed.data.decision,
+      provider_evidence: evidence,
+      reason: parsed.data.reason,
+      expected_action_version: parsed.data.expectedActionVersion,
+    });
+    if (!result.ok) return result;
+    revalidateAssets();
+    return {
+      ok: true,
+      message:
+        'Proposal quarantined for a different reviewer; expires in 30 minutes',
+    };
+  } catch (caught) {
+    return {
+      ok: false,
+      error:
+        caught instanceof Error ? caught.message : 'Graph evidence collection failed',
+    };
+  }
+}
+
+export async function reviewIntuneAmbiguityResolutionAction(input: {
+  resolutionId: string;
+  reviewDecision: 'approve' | 'reject';
+  statement: string;
+  expectedResolutionVersion: number;
+  expectedActionVersion: number;
+}): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('action:intune_manual_review');
+  if (!gate.ok) return gate;
+  const parsed = z
+    .object({
+      resolutionId: z.string().uuid(),
+      reviewDecision: z.enum(['approve', 'reject']),
+      statement: z.string().trim().min(20).max(1000),
+      expectedResolutionVersion: z.number().int().nonnegative(),
+      expectedActionVersion: z.number().int().nonnegative(),
+    })
+    .safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid review' };
+  }
+  const service = await createPersistClient();
+  const { data: resolution, error } = await service
+    .from('os_it_intune_ambiguity_resolutions')
+    .select('action_id, entity_id, proposed_by')
+    .eq('resolution_id', parsed.data.resolutionId)
+    .single();
+  if (error || !resolution) {
+    return { ok: false, error: error?.message ?? 'Proposal not found' };
+  }
+  if (resolution.proposed_by === gate.profile.id) {
+    return { ok: false, error: 'The proposer cannot review this proposal' };
+  }
+  if (
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      resolution.entity_id,
+    )
+  ) {
+    return {
+      ok: false,
+      error: entityScopeDeniedMessage(resolution.entity_id ?? 'firm-wide'),
+    };
+  }
+  const { data: action, error: actionError } = await service
+    .from('os_it_intune_actions')
+    .select('managed_device_id')
+    .eq('action_id', resolution.action_id)
+    .single();
+  if (actionError || !action) {
+    return { ok: false, error: actionError?.message ?? 'Action not found' };
+  }
+  try {
+    const { getIntuneAmbiguityEvidence } = await import(
+      '@/lib/shared-services/it-mdm'
+    );
+    const evidence = await getIntuneAmbiguityEvidence(action.managed_device_id);
+    const { reviewIntuneAmbiguityResolution } = await import(
+      '@/lib/shared-services/it-assets-repo'
+    );
+    const result = await reviewIntuneAmbiguityResolution({
+      resolution_id: parsed.data.resolutionId,
+      actor_id: gate.profile.id,
+      review_decision: parsed.data.reviewDecision,
+      provider_evidence: evidence,
+      statement: parsed.data.statement,
+      expected_resolution_version: parsed.data.expectedResolutionVersion,
+      expected_action_version: parsed.data.expectedActionVersion,
+    });
+    if (!result.ok) return result;
+    revalidateAssets();
+    return {
+      ok: true,
+      message:
+        parsed.data.reviewDecision === 'approve'
+          ? 'Independent review committed atomically'
+          : 'Proposal rejected; action remains quarantined',
+    };
+  } catch (caught) {
+    return {
+      ok: false,
+      error:
+        caught instanceof Error ? caught.message : 'Graph evidence collection failed',
+    };
+  }
 }

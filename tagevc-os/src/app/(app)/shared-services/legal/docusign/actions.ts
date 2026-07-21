@@ -226,7 +226,7 @@ async function envelopeScopeError(
 }
 
 export async function reconcileDocuSignAction(): Promise<DocuSignActionResult> {
-  const gate = await guardPermission('write:documents');
+  const gate = await guardPermission('action:docusign_reconcile');
   if (!gate.ok) return gate;
   const { reconcileDocuSignEnvelopes } = await import(
     '@/lib/docusign/reconciliation-repo'
@@ -235,12 +235,13 @@ export async function reconcileDocuSignAction(): Promise<DocuSignActionResult> {
     trigger: 'manual',
     requestedBy: gate.profile.id,
     days: 30,
+    maxPages: 3,
   });
   revalidateDocuSign();
   return result.ok
     ? {
         ok: true,
-        message: `Reconciled ${result.seen} envelopes · ${result.matched} matched · ${result.manual_review} review`,
+        message: `Reconciliation ${result.completed ? 'completed' : 'checkpointed'} · ${result.pages} page(s) this invocation · ${result.seen} total seen · ${result.manual_review} review`,
       }
     : { ok: false, error: result.error || 'Reconciliation failed' };
 }

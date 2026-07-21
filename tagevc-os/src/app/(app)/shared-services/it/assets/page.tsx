@@ -7,7 +7,9 @@ import {
   listLifecycleEvents,
   listIntuneActions,
   listIntuneActionEvents,
+  listIntuneAmbiguityResolutions,
   listIntuneDispatchAttempts,
+  listIntuneManualReviewSlo,
   listIntuneWorkerRuns,
   listSoftwareLicenses,
 } from '@/lib/shared-services/it-assets-repo';
@@ -26,8 +28,20 @@ import { isFirmWideAccess } from '@/lib/rbac/entity-scope';
 export default async function ItAssetsModulePage() {
   await requirePermission('read:it_assets');
 
-  const [hw, lic, ev, lifecycle, off, onb, intune, intuneEvents, dispatchAttempts, workerRuns] =
-    await Promise.all([
+  const [
+    hw,
+    lic,
+    ev,
+    lifecycle,
+    off,
+    onb,
+    intune,
+    intuneEvents,
+    dispatchAttempts,
+    workerRuns,
+    ambiguity,
+    manualReviewSlo,
+  ] = await Promise.all([
     listHardwareAssets(),
     listSoftwareLicenses(),
     listAssignmentEvents(),
@@ -38,6 +52,8 @@ export default async function ItAssetsModulePage() {
     listIntuneActionEvents(),
     listIntuneDispatchAttempts(),
     listIntuneWorkerRuns(),
+    listIntuneAmbiguityResolutions(),
+    listIntuneManualReviewSlo(),
   ]);
   const candidateTickets = listOffboardingCandidateTickets();
   const onboardingTickets = listOnboardingCandidateTickets();
@@ -48,6 +64,9 @@ export default async function ItAssetsModulePage() {
     : false;
   const canIntuneRetire = ctx
     ? roleHasPermission(ctx.profile.role, 'action:intune_retire')
+    : false;
+  const canIntuneManualReview = ctx
+    ? roleHasPermission(ctx.profile.role, 'action:intune_manual_review')
     : false;
   const firmWide = ctx
     ? isFirmWideAccess(ctx.profile.role, ctx.profile.entity_id)
@@ -79,14 +98,14 @@ export default async function ItAssetsModulePage() {
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">IT</Badge>
-          <Badge variant="secondary">Phase 37</Badge>
+          <Badge variant="secondary">Phase 38</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Hardware &amp; licensing
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
           Atomic warranty preview/commit, final pre-dispatch authorization,
-          verification-only recovery, worker timelines, and asset lifecycle.
+          quarantined ambiguity review, worker timelines, and asset lifecycle.
         </p>
       </div>
 
@@ -105,9 +124,17 @@ export default async function ItAssetsModulePage() {
           visibleActionIds.has(String(attempt.action_id)),
         )}
         intuneWorkerRuns={firmWide ? workerRuns : []}
+        intuneAmbiguityResolutions={ambiguity.rows.filter((resolution) =>
+          visibleActionIds.has(String(resolution.action_id)),
+        )}
+        intuneManualReviewSlo={manualReviewSlo.filter((row) =>
+          visibleActionIds.has(String(row.action_id)),
+        )}
         canWrite={canWrite}
         canIntuneRetire={canIntuneRetire}
-        tableError={tableError || intune.error}
+        canIntuneManualReview={canIntuneManualReview}
+        currentActorId={ctx?.profile.id ?? null}
+        tableError={tableError || intune.error || ambiguity.error}
       />
     </div>
   );

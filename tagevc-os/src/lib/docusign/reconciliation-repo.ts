@@ -1,5 +1,12 @@
 import { createPersistClient } from '@/lib/supabase/persist-client';
 import { listRecentEnvelopes } from '@/lib/docusign/envelopes';
+import {
+  DOCUSIGN_RECONCILIATION_MAX_PAGES,
+  DOCUSIGN_RECONCILIATION_PAGE_SIZE,
+  toReconciliationEvidence,
+  validateReconciliationPagination,
+} from '@/lib/docusign/reconciliation-contracts';
+import { randomUUID } from 'crypto';
 
 export type DocuSignReconciliationRow = {
   envelope_id: string;
@@ -17,6 +24,8 @@ export async function reconcileDocuSignEnvelopes(input: {
   trigger: 'cron' | 'manual' | 'webhook_recovery';
   requestedBy?: string | null;
   days?: number;
+  maxPages?: number;
+  workerId?: string;
 }): Promise<{
   ok: boolean;
   run_id?: string;
@@ -24,268 +33,273 @@ export async function reconcileDocuSignEnvelopes(input: {
   matched: number;
   unmapped: number;
   manual_review: number;
+  pages: number;
+  checkpoint?: number | null;
+  completed?: boolean;
   error?: string;
 }> {
   const sb = await createPersistClient();
   const days = Math.min(Math.max(input.days ?? 30, 1), 90);
-  const { data: run, error: runError } = await sb
-    .from('os_docusign_reconciliation_runs')
-    .insert({
-      trigger_source: input.trigger,
-      status: 'running',
-      window_days: days,
-      requested_by: input.requestedBy ?? null,
-    })
-    .select('run_id')
-    .single();
-  if (runError || !run) {
+  const maxPages = Math.min(
+    Math.max(input.maxPages ?? DOCUSIGN_RECONCILIATION_MAX_PAGES, 1),
+    DOCUSIGN_RECONCILIATION_MAX_PAGES,
+  );
+  const workerId =
+    input.workerId?.trim().slice(0, 100) || `reconcile-${randomUUID()}`;
+  const { data: runData, error: runError } = await sb.rpc(
+    'claim_docusign_reconciliation_batch',
+    {
+      p_trigger_source: input.trigger,
+      p_requested_by: input.requestedBy ?? null,
+      p_worker_id: workerId,
+      p_window_days: days,
+      p_lease_seconds: 240,
+    },
+  );
+  const claim = runData as
+    | {
+        disposition: 'claimed' | 'busy' | 'retry_not_due' | 'exhausted';
+        run_id?: string;
+        retry_at?: string;
+        retry_attempts?: number;
+        run?: {
+          run_id: string;
+          lease_token: string;
+          cursor_start_position: number;
+          next_page_no: number;
+          seen: number;
+          matched: number;
+          unmapped: number;
+          manual_review: number;
+          window_from: string;
+          window_to: string;
+        };
+      }
+    | null;
+  const run = claim?.disposition === 'claimed' ? claim.run : null;
+  if (runError || !run?.lease_token) {
     return {
       ok: false,
+      run_id: claim?.run_id,
       seen: 0,
       matched: 0,
       unmapped: 0,
       manual_review: 0,
-      error: runError?.message || 'Could not start reconciliation run',
+      pages: 0,
+      error:
+        runError?.message ||
+        (claim?.disposition === 'busy'
+          ? `Reconciliation busy until ${claim.retry_at ?? 'lease expiry'}`
+          : claim?.disposition === 'retry_not_due'
+            ? `Reconciliation retry not due until ${claim.retry_at ?? 'scheduled time'}`
+            : claim?.disposition === 'exhausted'
+              ? `Reconciliation retry cap exhausted after ${claim.retry_attempts ?? 0} attempts`
+              : 'Could not start reconciliation run'),
     };
   }
-  let seen = 0;
-  let matched = 0;
-  let unmapped = 0;
-  let manualReview = 0;
+  let seen = Number(run.seen ?? 0);
+  let matched = Number(run.matched ?? 0);
+  let unmapped = Number(run.unmapped ?? 0);
+  let manualReview = Number(run.manual_review ?? 0);
+  let cursor = Number(run.cursor_start_position ?? 0);
+  let pageNo = Number(run.next_page_no ?? 0);
+  let pages = 0;
   try {
-    const envelopes = [];
-    let startPosition = 0;
-    let pagesScanned = 0;
-    let truncated = false;
-    let nextStartPosition: number | null = null;
-    for (let page = 0; page < 5; page += 1) {
+    for (let page = 0; page < maxPages; page += 1) {
       const result = await listRecentEnvelopes({
-        count: 100,
-        days,
-        startPosition,
+        count: DOCUSIGN_RECONCILIATION_PAGE_SIZE,
+        startPosition: cursor,
+        fromDate: run.window_from,
+        toDate: run.window_to,
       });
       if (!result.ok) throw new Error(result.error);
-      pagesScanned += 1;
-      envelopes.push(...result.envelopes);
-      if (result.pagination.nextStartPosition == null) break;
-      startPosition = result.pagination.nextStartPosition;
-      nextStartPosition = startPosition;
-      if (page === 4) truncated = true;
-    }
-    seen = envelopes.length;
-    const envelopeIds = envelopes.map((envelope) => envelope.envelopeId);
-    const [
-      { data: documents },
-      { data: lineage },
-      { data: events },
-      { data: intents },
-      { data: existingProjections },
-    ] =
-      await Promise.all([
-        envelopeIds.length
-          ? sb
-              .from('os_documents')
-              .select('doc_id, envelope_id, entity_id, status')
-              .in('envelope_id', envelopeIds)
-          : Promise.resolve({ data: [] }),
-        envelopeIds.length
-          ? sb
-              .from('os_docusign_envelope_lineage')
-              .select(
-                'lineage_id, source_envelope_id, replacement_envelope_id, source_doc_id, entity_id',
-              )
-              .or(
-                `source_envelope_id.in.(${envelopeIds.join(',')}),replacement_envelope_id.in.(${envelopeIds.join(',')})`,
-              )
-          : Promise.resolve({ data: [] }),
-        envelopeIds.length
-          ? sb
-              .from('os_docusign_events')
-              .select('event_id, envelope_id, doc_id, entity_id, status')
-              .in('envelope_id', envelopeIds)
-              .order('received_at', { ascending: false })
-          : Promise.resolve({ data: [] }),
-        envelopeIds.length
-          ? sb
-              .from('os_docusign_send_intents')
-              .select(
-                'intent_id, provider_envelope_id, provider_transaction_id, operation_kind, doc_id, entity_id, source_envelope_id, expected_provider_status',
-              )
-              .eq('state', 'finalized')
-              .in('provider_envelope_id', envelopeIds)
-          : Promise.resolve({ data: [] }),
-        envelopeIds.length
-          ? sb
-              .from('os_docusign_envelopes')
-              .select('envelope_id, send_intent_id, operation_kind, entity_id, doc_id, attempts')
-              .in('envelope_id', envelopeIds)
-          : Promise.resolve({ data: [] }),
-      ]);
-    const now = new Date().toISOString();
-    const rows = envelopes.map((envelope) => {
-      const docMatches = (documents ?? []).filter(
-        (doc) => doc.envelope_id === envelope.envelopeId,
+      const paginationCheck = validateReconciliationPagination({
+        pagination: result.pagination,
+        itemCount: result.envelopes.length,
+        expectedStartPosition: cursor,
+      });
+      if (!paginationCheck.ok) {
+        const { data: driftData, error: driftError } = await sb.rpc(
+          'commit_docusign_reconciliation_page',
+          {
+            p_run_id: run.run_id,
+            p_lease_token: run.lease_token,
+            p_page_no: pageNo,
+            p_start_position: result.pagination.startPosition,
+            p_next_start_position: result.pagination.nextStartPosition,
+            p_provider_total: result.pagination.totalSetSize,
+            p_result_count: result.pagination.resultSetSize,
+            p_end_position: result.pagination.endPosition,
+            p_items: result.envelopes.map(toReconciliationEvidence),
+          },
+        );
+        if (driftError) throw new Error(driftError.message);
+        const drift = driftData as { error_code?: string };
+        return {
+          ok: false,
+          run_id: run.run_id,
+          seen,
+          matched,
+          unmapped,
+          manual_review: manualReview,
+          pages,
+          checkpoint: cursor,
+          completed: false,
+          error: drift.error_code || paginationCheck.error,
+        };
+      }
+      const { data: commitData, error: commitError } = await sb.rpc(
+        'commit_docusign_reconciliation_page',
+        {
+          p_run_id: run.run_id,
+          p_lease_token: run.lease_token,
+          p_page_no: pageNo,
+          p_start_position: result.pagination.startPosition,
+          p_next_start_position: result.pagination.nextStartPosition,
+          p_provider_total: result.pagination.totalSetSize,
+          p_result_count: result.pagination.resultSetSize,
+          p_end_position: result.pagination.endPosition,
+          p_items: result.envelopes.map(toReconciliationEvidence),
+        },
       );
-      const lineageMatch = (lineage ?? []).find(
-        (item) =>
-          item.source_envelope_id === envelope.envelopeId ||
-          item.replacement_envelope_id === envelope.envelopeId,
-      );
-      const event = (events ?? []).find(
-        (item) => item.envelope_id === envelope.envelopeId,
-      );
-      const sendIntent = (intents ?? []).find(
-        (item) => item.provider_envelope_id === envelope.envelopeId,
-      );
-      const existingProjection = (existingProjections ?? []).find(
-        (item) => item.envelope_id === envelope.envelopeId,
-      );
-      const document = docMatches.length === 1 ? docMatches[0] : null;
-      const entityId =
-        (sendIntent?.entity_id as string | null) ??
-        (existingProjection?.entity_id as string | null) ??
-        (document?.entity_id as string | null) ??
-        (lineageMatch?.entity_id as string | null) ??
-        (event?.entity_id as string | null) ??
-        null;
-      const docId =
-        (sendIntent?.doc_id as string | null) ??
-        (existingProjection?.doc_id as string | null) ??
-        (document?.doc_id as string | null) ??
-        (lineageMatch?.source_doc_id as string | null) ??
-        (event?.doc_id as string | null) ??
-        null;
-      const localStatus = (document?.status as string | null) ?? null;
-      const statusMismatch =
-        Boolean(localStatus) &&
-        localStatus?.toLowerCase() !== envelope.status.toLowerCase();
-      const intentEntityConflict = Boolean(
-        sendIntent?.entity_id &&
-          document?.entity_id &&
-          sendIntent.entity_id !== document.entity_id,
-      );
-      const intentProjectionConflict = Boolean(
-        sendIntent &&
-          existingProjection &&
-          ((existingProjection.send_intent_id &&
-            existingProjection.send_intent_id !== sendIntent.intent_id) ||
-            (existingProjection.entity_id &&
-              existingProjection.entity_id !== sendIntent.entity_id) ||
-            (existingProjection.doc_id &&
-              existingProjection.doc_id !== sendIntent.doc_id)),
-      );
-      const issueCode =
-        intentEntityConflict || intentProjectionConflict
-          ? 'send_intent_conflict'
-          : docMatches.length > 1
-          ? 'duplicate_document_mapping'
-          : statusMismatch
-            ? 'status_mismatch'
-            : !docId && !lineageMatch && !sendIntent
-              ? 'document_missing'
-              : null;
-      const state =
-        intentEntityConflict ||
-        intentProjectionConflict ||
-        docMatches.length > 1 ||
-        statusMismatch
-          ? 'manual_review'
-          : docId || lineageMatch || sendIntent
-            ? 'in_sync'
-            : 'unmapped_expected';
-      if (state === 'manual_review') manualReview += 1;
-      else if (state === 'unmapped_expected') unmapped += 1;
-      else matched += 1;
-      return {
-        envelope_id: envelope.envelopeId,
-        operation_kind: sendIntent
-          ? sendIntent.operation_kind
-          : existingProjection?.operation_kind
-            ? existingProjection.operation_kind
-            : lineageMatch
-          ? 'replacement'
-          : document
-            ? 'document_send'
-            : event
-              ? 'connect_discovered'
-              : 'legacy',
-        doc_id: docId,
-        entity_id: entityId,
-        lineage_id: lineageMatch?.lineage_id ?? null,
-        send_intent_id: sendIntent?.intent_id ?? existingProjection?.send_intent_id ?? null,
-        provider_transaction_id: sendIntent?.provider_transaction_id ?? null,
-        expected_provider_status: sendIntent?.expected_provider_status ?? null,
-        provider_status: envelope.status,
-        provider_status_at: envelope.statusChangedDateTime,
-        provider_observed_at: now,
-        local_document_status: localStatus,
-        last_event_id: event?.event_id ?? null,
-        reconciliation_state: state,
-        issue_code: issueCode,
-        last_error: null,
-        attempts: Number(existingProjection?.attempts ?? 0) + 1,
-        last_reconciled_at: now,
-        next_reconcile_at: null,
-        updated_at: now,
+      if (commitError) throw new Error(commitError.message);
+      const commit = commitData as {
+        ok?: boolean;
+        error_code?: string;
+        seen?: number;
+        matched?: number;
+        unmapped?: number;
+        manual_review?: number;
+        next_start_position?: number | null;
       };
-    });
-    if (rows.length > 0) {
-      const { error } = await sb
-        .from('os_docusign_envelopes')
-        .upsert(rows, { onConflict: 'envelope_id' });
-      if (error) throw new Error(error.message);
+      if (commit.ok === false) {
+        return {
+          ok: false,
+          run_id: run.run_id,
+          seen,
+          matched,
+          unmapped,
+          manual_review: manualReview,
+          pages,
+          checkpoint: cursor,
+          completed: false,
+          error: commit.error_code || 'Reconciliation page rejected',
+        };
+      }
+      pages += 1;
+      seen += Number(commit.seen ?? result.envelopes.length);
+      matched += Number(commit.matched ?? 0);
+      unmapped += Number(commit.unmapped ?? 0);
+      manualReview += Number(commit.manual_review ?? 0);
+      const next = result.pagination.nextStartPosition;
+      console.info('docusign_reconciliation_page_committed', {
+        run_id: run.run_id,
+        page_no: pageNo,
+        count: result.envelopes.length,
+        next_start_position: next,
+      });
+      if (next == null) {
+        const { data: finish, error: finishError } = await sb.rpc(
+          'finish_docusign_reconciliation_batch',
+          { p_run_id: run.run_id, p_lease_token: run.lease_token },
+        );
+        if (finishError) throw new Error(finishError.message);
+        const final = finish as {
+          ok?: boolean;
+          error_code?: string;
+          seen?: number;
+          matched?: number;
+          unmapped?: number;
+          manual_review?: number;
+        };
+        if (final.ok === false) {
+          return {
+            ok: false,
+            run_id: run.run_id,
+            seen,
+            matched,
+            unmapped,
+            manual_review: manualReview,
+            pages,
+            checkpoint: cursor,
+            completed: false,
+            error: final.error_code || 'Reconciliation finish rejected',
+          };
+        }
+        return {
+          ok: true,
+          run_id: run.run_id,
+          seen: Number(final.seen ?? seen),
+          matched: Number(final.matched ?? matched),
+          unmapped: Number(final.unmapped ?? unmapped),
+          manual_review: Number(final.manual_review ?? manualReview),
+          pages,
+          checkpoint: null,
+          completed: true,
+        };
+      }
+      cursor = next;
+      pageNo += 1;
     }
-    const { error: finishRunError } = await sb
-      .from('os_docusign_reconciliation_runs')
-      .update({
-        status: manualReview > 0 ? 'partial' : 'completed',
-        seen,
-        matched,
-        unmapped,
-        manual_review: manualReview,
-        pages_scanned: pagesScanned,
-        truncated,
-        next_start_position: truncated ? nextStartPosition : null,
-        intents_matched: (intents ?? []).length,
-        intent_conflicts: rows.filter(
-          (row) => row.issue_code === 'send_intent_conflict',
-        ).length,
-        completed_at: now,
-      })
-      .eq('run_id', run.run_id);
-    if (finishRunError) throw new Error(finishRunError.message);
+    const { error: deferError } = await sb.rpc(
+      'fail_docusign_reconciliation_batch',
+      {
+        p_run_id: run.run_id,
+        p_lease_token: run.lease_token,
+        p_error_code: 'invocation_page_limit',
+        p_error_message: `Invocation checkpointed after ${pages} page(s)`,
+        p_retryable: true,
+      },
+    );
+    if (deferError) throw new Error(deferError.message);
     return {
       ok: true,
-      run_id: String(run.run_id),
+      run_id: run.run_id,
       seen,
       matched,
       unmapped,
       manual_review: manualReview,
+      pages,
+      checkpoint: cursor,
+      completed: false,
     };
   } catch (error) {
     const message =
       error instanceof Error ? error.message : 'Reconciliation failed';
-    await sb
-      .from('os_docusign_reconciliation_runs')
-      .update({
-        status: 'failed',
-        seen,
-        matched,
-        unmapped,
-        manual_review: manualReview,
-        failed: 1,
-        completed_at: new Date().toISOString(),
-        error: message,
-      })
-      .eq('run_id', run.run_id);
+    const retryable =
+      !/replay conflict|cursor.page drift|permission|invalid/i.test(message);
+    const { error: failError } = await sb.rpc(
+      'fail_docusign_reconciliation_batch',
+      {
+        p_run_id: run.run_id,
+        p_lease_token: run.lease_token,
+        p_error_code:
+          error instanceof Error ? error.name.slice(0, 100) : 'unknown',
+        p_error_message: message,
+        p_retryable: retryable,
+      },
+    );
+    console.error('docusign_reconciliation_failed', {
+      run_id: run.run_id,
+      page_no: pageNo,
+      checkpoint: cursor,
+      retryable,
+      error: message,
+      fail_rpc_error: failError?.message,
+    });
     return {
       ok: false,
-      run_id: String(run.run_id),
+      run_id: run.run_id,
       seen,
       matched,
       unmapped,
       manual_review: manualReview,
-      error: message,
+      pages,
+      checkpoint: cursor,
+      completed: false,
+      error: failError
+        ? `${message} · failure checkpoint error: ${failError.message}`
+        : message,
     };
   }
 }
@@ -317,7 +331,7 @@ export async function listDocuSignReconciliationRuns(limit = 10) {
   const { data } = await sb
     .from('os_docusign_reconciliation_runs')
     .select(
-      'run_id, trigger_source, status, seen, matched, unmapped, manual_review, started_at, completed_at, error',
+      'run_id, trigger_source, status, window_from, window_to, seen, matched, unmapped, manual_review, committed_pages, cursor_start_position, invocation_count, retry_attempts, max_attempts, next_attempt_at, replay_conflicts, drift_failures, last_checkpoint_at, last_failure_code, started_at, completed_at, error',
     )
     .order('started_at', { ascending: false })
     .limit(limit);

@@ -9,6 +9,10 @@ import {
 } from '@/lib/data/ticket-store';
 import { guardPermission } from '@/lib/rbac/session';
 import { SS_SERVICES, TICKET_PRIORITIES } from '@/lib/types';
+import {
+  acknowledgeSloAlert,
+  reassignSloAlert,
+} from '@/lib/shared-services/operational-health';
 
 export type TicketActionResult =
   | { ok: true; ticketId?: string; message?: string }
@@ -107,5 +111,63 @@ export async function resolveTicketAction(
     return { ok: true, ticketId, message: 'Resolved' };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Failed' };
+  }
+}
+
+export async function acknowledgeSloAlertAction(input: {
+  alertId: string;
+  rowVersion: number;
+  note?: string;
+}): Promise<TicketActionResult> {
+  const gate = await guardPermission('write:shared_services');
+  if (!gate.ok) return gate;
+  const parsed = z
+    .object({
+      alertId: z.string().uuid(),
+      rowVersion: z.number().int().nonnegative(),
+      note: z.string().trim().max(500).optional(),
+    })
+    .safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'Invalid acknowledgement' };
+  try {
+    await acknowledgeSloAlert({
+      ...parsed.data,
+      actorId: gate.profile.id,
+      expectedRowVersion: parsed.data.rowVersion,
+    });
+    revalidatePath('/shared-services');
+    return { ok: true, message: 'Alert acknowledged' };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Failed' };
+  }
+}
+
+export async function reassignSloAlertAction(input: {
+  alertId: string;
+  rowVersion: number;
+  ownerId: string;
+  note?: string;
+}): Promise<TicketActionResult> {
+  const gate = await guardPermission('write:shared_services');
+  if (!gate.ok) return gate;
+  const parsed = z
+    .object({
+      alertId: z.string().uuid(),
+      rowVersion: z.number().int().nonnegative(),
+      ownerId: z.string().uuid(),
+      note: z.string().trim().max(500).optional(),
+    })
+    .safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'Invalid reassignment' };
+  try {
+    await reassignSloAlert({
+      ...parsed.data,
+      actorId: gate.profile.id,
+      expectedRowVersion: parsed.data.rowVersion,
+    });
+    revalidatePath('/shared-services');
+    return { ok: true, message: 'Alert reassigned' };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Failed' };
   }
 }

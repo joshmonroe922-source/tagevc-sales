@@ -483,6 +483,8 @@ export async function listRecentEnvelopes(opts?: {
   count?: number;
   days?: number;
   startPosition?: number;
+  fromDate?: string;
+  toDate?: string;
 }): Promise<
   | {
       ok: true;
@@ -494,10 +496,20 @@ export async function listRecentEnvelopes(opts?: {
   const cfg = getDocuSignConfig();
   if (!cfg) return { ok: false, error: 'DocuSign is not configured' };
   try {
-    const from = new Date();
-    from.setUTCDate(
-      from.getUTCDate() - Math.min(Math.max(opts?.days ?? 30, 1), 90),
-    );
+    const to = opts?.toDate ? new Date(opts.toDate) : null;
+    const from = opts?.fromDate ? new Date(opts.fromDate) : new Date();
+    if (!opts?.fromDate) {
+      from.setUTCDate(
+        from.getUTCDate() - Math.min(Math.max(opts?.days ?? 30, 1), 90),
+      );
+    }
+    if (
+      !Number.isFinite(from.getTime()) ||
+      (to && !Number.isFinite(to.getTime())) ||
+      (to && from >= to)
+    ) {
+      return { ok: false, error: 'Invalid DocuSign envelope date window' };
+    }
     const params = new URLSearchParams({
       from_date: from.toISOString(),
       count: String(Math.min(opts?.count ?? 40, 100)),
@@ -506,6 +518,7 @@ export async function listRecentEnvelopes(opts?: {
         Math.max(0, Math.floor(opts?.startPosition ?? 0)),
       ),
     });
+    if (to) params.set('to_date', to.toISOString());
     if (opts?.status?.trim()) {
       params.set('status', opts.status.trim().toLowerCase());
     }

@@ -1,4 +1,4 @@
-# Multichannel Marketing System — Architecture (Phases 22–32)
+# Multichannel Marketing System — Architecture (Phases 22–38)
 
 **Status:** Functional · hub under Shared Services · Marketing.  
 **Live at:** `/shared-services/marketing`
@@ -116,8 +116,30 @@ SQL: `phase36_marketing_paid_reliability.sql`.
 
 SQL: `phase37_marketing_paid_contracts.sql`.
 
-## Phase 38+
+## Phase 38
 
-1. Authoritative account-total reconciliation and unmapped campaign deltas
-2. Period-aligned attributed revenue
-3. TikTok upload cancellation/reinitialization
+1. Meta and LinkedIn daily account totals are fetched independently from
+   campaign metrics and explicitly normalize omitted zero-activity dates.
+2. Exact fixed-scale reconciliation distinguishes provider-complete mapping
+   gaps from provider-inconsistent responses; inconsistent responses retry
+   without replacing accepted data.
+3. Atomic completion recomputes mapped sums and validates the current campaign
+   binding in PostgreSQL before replacing campaign and account daily metrics.
+4. Contract evidence uses PostgreSQL's canonical `jsonb` digest as the
+   authoritative hash.
+5. Paid reporting and headline UI totals use account metrics; campaign rows
+   remain attribution detail and mapping gaps are visible.
+6. Provider account and campaign identities are exact-match validated. Empty
+   LinkedIn analytics require a fresh account-access check before zero coverage
+   can be accepted.
+7. Campaign-binding changes supersede stale runs and enqueue a new exact-window
+   run. All account, access, and campaign request IDs remain in evidence.
+8. Mixed currencies remain grouped; combined spend, ROI, and ROAS are
+   intentionally unavailable.
+
+SQL: `phase38_marketing_paid_reconciliation.sql`.
+
+## Phase 39+
+
+1. Period-aligned attributed revenue
+2. TikTok upload cancellation/reinitialization

@@ -2,12 +2,18 @@ import { createHash, randomUUID } from 'crypto';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 import { ensureFreshAccessToken } from '@/lib/shared-services/marketing-token-refresh';
 import {
+  type AccountMetricRow,
   PAID_CONTRACT_VERSION,
+  PaidAuthorizationAmbiguousError,
   PaidContractError,
-  canonicalEvidenceHash,
+  PaidProviderInconsistentError,
   classifyPaidFailure,
+  linkedinAccountAccessConfirmed,
+  parseLinkedInAccountPage,
   parseLinkedInCampaignPage,
+  parseMetaAccountPage,
   parseMetaCampaignPage,
+  reconcileAccountDailyTotals,
 } from '@/lib/shared-services/marketing-paid-contracts';
 
 type SyncRun = {
@@ -19,6 +25,9 @@ type SyncRun = {
   reporting_timezone: string;
   window_start: string;
   window_end: string;
+  purpose: 'bootstrap_90d' | 'rolling_28d' | 'manual';
+  trigger_source: 'cron' | 'manual';
+  requested_by: string | null;
   lease_token: string;
 };
 
@@ -39,6 +48,27 @@ type MetricRow = {
   provider_metrics: Record<string, unknown>;
   row_fingerprint: string;
 };
+
+type ProviderRequestId = {
+  scope: 'account' | 'account_access' | 'campaign';
+  provider_object_ids: string[];
+  request_id: string;
+};
+
+function preserveRequestId(
+  target: ProviderRequestId[],
+  input: Omit<ProviderRequestId, 'request_id'> & {
+    request_id: string | null;
+  },
+) {
+  if (input.request_id) {
+    target.push({
+      scope: input.scope,
+      provider_object_ids: input.provider_object_ids,
+      request_id: input.request_id,
+    });
+  }
+}
 
 function shiftDate(iso: string, days: number): string {
   const value = new Date(`${iso}T12:00:00Z`);
@@ -188,7 +218,13 @@ async function fetchMetaWindow(input: {
   token: string;
   campaigns: BoundCampaign[];
   heartbeat: () => Promise<void>;
-}): Promise<{ rows: MetricRow[]; pages: number; requestId: string | null }> {
+  requestIds: ProviderRequestId[];
+}): Promise<{
+  rows: MetricRow[];
+  accountRows: AccountMetricRow[];
+  pages: number;
+  providerRequestIds: ProviderRequestId[];
+}> {
   const version = process.env.META_API_VERSION?.trim() || 'v25.0';
   const byExternal = new Map(
     input.campaigns.map((campaign) => [
@@ -199,7 +235,70 @@ async function fetchMetaWindow(input: {
   const rows: MetricRow[] = [];
   const seenRows = new Set<string>();
   let pages = 0;
-  let requestId: string | null = null;
+  const providerRequestIds = input.requestIds;
+  const accountRows: AccountMetricRow[] = [];
+  let accountAfter: string | null = null;
+  for (let page = 0; page < 10; page += 1) {
+    await input.heartbeat();
+    const accountParams = new URLSearchParams({
+      level: 'account',
+      time_increment: '1',
+      time_range: JSON.stringify({
+        since: input.run.window_start,
+        until: input.run.window_end,
+      }),
+      fields: 'account_id,date_start,date_stop,impressions,clicks,spend',
+      limit: '500',
+    });
+    if (accountAfter) accountParams.set('after', accountAfter);
+    const accountResponse = await fetch(
+      `https://graph.facebook.com/${version}/${encodeURIComponent(input.run.external_account_id)}/insights?${accountParams.toString()}`,
+      {
+        headers: { Authorization: `Bearer ${input.token}` },
+        signal: AbortSignal.timeout(20_000),
+      },
+    );
+    preserveRequestId(providerRequestIds, {
+      scope: 'account',
+      provider_object_ids: [input.run.external_account_id],
+      request_id: accountResponse.headers.get('x-fb-trace-id'),
+    });
+    const accountJson = (await accountResponse.json().catch(() => ({}))) as {
+      error?: { message?: string; code?: number };
+    };
+    if (!accountResponse.ok) {
+      const classification = classifyPaidFailure({
+        status: accountResponse.status,
+        code: String(accountJson.error?.code ?? accountResponse.status),
+        message:
+          accountJson.error?.message ||
+          `Meta account insights HTTP ${accountResponse.status}`,
+        retryAfter: accountResponse.headers.get('retry-after'),
+      });
+      const error = new Error(
+        accountJson.error?.message ||
+          `Meta account insights HTTP ${accountResponse.status}`,
+      );
+      Object.assign(error, classification, { status: accountResponse.status });
+      throw error;
+    }
+    pages += 1;
+    const contracted = parseMetaAccountPage({
+      raw: accountJson,
+      expectedExternalAccountId: input.run.external_account_id,
+      windowStart: input.run.window_start,
+      windowEnd: input.run.window_end,
+    });
+    accountRows.push(...contracted.rows);
+    accountAfter = contracted.nextCursor;
+    if (!accountAfter) break;
+    if (page === 9) {
+      throw new PaidProviderInconsistentError(
+        'meta_account_page_limit',
+        'Meta account insights page limit exceeded',
+      );
+    }
+  }
   for (let offset = 0; offset < input.campaigns.length; offset += 50) {
     const batch = input.campaigns.slice(offset, offset + 50);
     let after: string | null = null;
@@ -231,7 +330,13 @@ async function fetchMetaWindow(input: {
           signal: AbortSignal.timeout(20_000),
         },
       );
-      requestId ||= res.headers.get('x-fb-trace-id');
+      preserveRequestId(providerRequestIds, {
+        scope: 'campaign',
+        provider_object_ids: batch.map(
+          (campaign) => campaign.external_campaign_id,
+        ),
+        request_id: res.headers.get('x-fb-trace-id'),
+      });
       const json = (await res.json().catch(() => ({}))) as {
         error?: { message?: string; code?: number };
       };
@@ -300,10 +405,26 @@ async function fetchMetaWindow(input: {
       }
       after = contracted.nextCursor;
       if (!after) break;
-      if (page === 9) throw new Error('Meta insights page limit exceeded');
+      if (page === 9) {
+        throw new PaidProviderInconsistentError(
+          'provider_meta_campaign_page_limit',
+          'Meta campaign insights page limit exceeded',
+        );
+      }
     }
   }
-  return { rows, pages, requestId };
+  return {
+    rows,
+    accountRows: reconcileAccountDailyTotals({
+      campaignRows: rows,
+      providerRows: accountRows,
+      windowStart: input.run.window_start,
+      windowEnd: input.run.window_end,
+      reconcileConversions: false,
+    }),
+    pages,
+    providerRequestIds,
+  };
 }
 
 async function fetchLinkedInWindow(input: {
@@ -311,7 +432,13 @@ async function fetchLinkedInWindow(input: {
   token: string;
   campaigns: BoundCampaign[];
   heartbeat: () => Promise<void>;
-}): Promise<{ rows: MetricRow[]; pages: number; requestId: string | null }> {
+  requestIds: ProviderRequestId[];
+}): Promise<{
+  rows: MetricRow[];
+  accountRows: AccountMetricRow[];
+  pages: number;
+  providerRequestIds: ProviderRequestId[];
+}> {
   const byExternal = new Map(
     input.campaigns.map((campaign) => [
       campaign.external_campaign_id.replace(/^urn:li:sponsoredCampaign:/, ''),
@@ -319,9 +446,104 @@ async function fetchLinkedInWindow(input: {
     ]),
   );
   const rows: MetricRow[] = [];
-  let requestId: string | null = null;
+  const providerRequestIds = input.requestIds;
   let pages = 0;
   const seenRows = new Set<string>();
+  const accountUrn = input.run.external_account_id.startsWith('urn:')
+    ? input.run.external_account_id
+    : `urn:li:sponsoredAccount:${input.run.external_account_id}`;
+  const accountParams = new URLSearchParams({
+    q: 'analytics',
+    pivot: 'ACCOUNT',
+    timeGranularity: 'DAILY',
+    dateRange: `(start:${datePart(input.run.window_start)},end:${datePart(
+      input.run.window_end,
+    )})`,
+    accounts: `List(${accountUrn})`,
+    fields:
+      'pivotValues,dateRange,impressions,clicks,costInLocalCurrency,externalWebsiteConversions',
+  });
+  await input.heartbeat();
+  const accountResponse = await fetch(
+    `https://api.linkedin.com/rest/adAnalytics?${accountParams.toString()}`,
+    {
+      headers: {
+        Authorization: `Bearer ${input.token}`,
+        'LinkedIn-Version':
+          process.env.LINKEDIN_API_VERSION?.trim() || '202607',
+        'X-Restli-Protocol-Version': '2.0.0',
+      },
+      signal: AbortSignal.timeout(20_000),
+    },
+  );
+  preserveRequestId(providerRequestIds, {
+    scope: 'account',
+    provider_object_ids: [accountUrn],
+    request_id: accountResponse.headers.get('x-li-uuid'),
+  });
+  const accountJson = (await accountResponse.json().catch(() => ({}))) as {
+    message?: string;
+  };
+  if (!accountResponse.ok) {
+    const classification = classifyPaidFailure({
+      status: accountResponse.status,
+      code: String(accountResponse.status),
+      message:
+        accountJson.message ||
+        `LinkedIn account analytics HTTP ${accountResponse.status}`,
+      retryAfter: accountResponse.headers.get('retry-after'),
+    });
+    const error = new Error(
+      accountJson.message ||
+        `LinkedIn account analytics HTTP ${accountResponse.status}`,
+    );
+    Object.assign(error, classification, { status: accountResponse.status });
+    throw error;
+  }
+  pages += 1;
+  const accountRows = parseLinkedInAccountPage({
+    raw: accountJson,
+    expectedExternalAccountId: input.run.external_account_id,
+    windowStart: input.run.window_start,
+    windowEnd: input.run.window_end,
+  }).rows;
+  if (accountRows.length === 0) {
+    await input.heartbeat();
+    const accessResponse = await fetch(
+      'https://api.linkedin.com/rest/adAccounts?q=search&count=100',
+      {
+        headers: {
+          Authorization: `Bearer ${input.token}`,
+          'LinkedIn-Version':
+            process.env.LINKEDIN_API_VERSION?.trim() || '202607',
+          'X-Restli-Protocol-Version': '2.0.0',
+        },
+        signal: AbortSignal.timeout(20_000),
+      },
+    );
+    preserveRequestId(providerRequestIds, {
+      scope: 'account_access',
+      provider_object_ids: [accountUrn],
+      request_id: accessResponse.headers.get('x-li-uuid'),
+    });
+    const accessJson = (await accessResponse.json().catch(() => ({}))) as {
+      elements?: Array<{ id?: number | string }>;
+      message?: string;
+    };
+    if (
+      !accessResponse.ok ||
+      !linkedinAccountAccessConfirmed(
+        accessJson,
+        input.run.external_account_id,
+      )
+    ) {
+      throw new PaidAuthorizationAmbiguousError(
+        'linkedin_empty_account_access_ambiguous',
+        accessJson.message ||
+          'LinkedIn returned empty analytics and fresh account access could not be confirmed',
+      );
+    }
+  }
   for (let offset = 0; offset < input.campaigns.length; offset += 25) {
     const batch = input.campaigns.slice(offset, offset + 25);
     const urns = batch.map((campaign) =>
@@ -329,107 +551,107 @@ async function fetchLinkedInWindow(input: {
         ? campaign.external_campaign_id
         : `urn:li:sponsoredCampaign:${campaign.external_campaign_id}`,
     );
-    let start = 0;
-    let page = 0;
-    do {
-      await input.heartbeat();
-      const params = new URLSearchParams({
-        q: 'analytics',
-        pivot: 'CAMPAIGN',
-        timeGranularity: 'DAILY',
-        dateRange: `(start:${datePart(input.run.window_start)},end:${datePart(input.run.window_end)})`,
-        campaigns: `List(${urns.join(',')})`,
-        fields:
-          'pivotValues,dateRange,impressions,clicks,costInLocalCurrency,externalWebsiteConversions',
-        start: String(start),
-        count: '500',
-      });
-      const res = await fetch(
-        `https://api.linkedin.com/rest/adAnalytics?${params.toString()}`,
-        {
-          headers: {
-            Authorization: `Bearer ${input.token}`,
-            'LinkedIn-Version':
-              process.env.LINKEDIN_API_VERSION?.trim() || '202607',
-            'X-Restli-Protocol-Version': '2.0.0',
-          },
-          signal: AbortSignal.timeout(20_000),
+    await input.heartbeat();
+    const params = new URLSearchParams({
+      q: 'analytics',
+      pivot: 'CAMPAIGN',
+      timeGranularity: 'DAILY',
+      dateRange: `(start:${datePart(input.run.window_start)},end:${datePart(
+        input.run.window_end,
+      )})`,
+      campaigns: `List(${urns.join(',')})`,
+      fields:
+        'pivotValues,dateRange,impressions,clicks,costInLocalCurrency,externalWebsiteConversions',
+    });
+    const res = await fetch(
+      `https://api.linkedin.com/rest/adAnalytics?${params.toString()}`,
+      {
+        headers: {
+          Authorization: `Bearer ${input.token}`,
+          'LinkedIn-Version':
+            process.env.LINKEDIN_API_VERSION?.trim() || '202607',
+          'X-Restli-Protocol-Version': '2.0.0',
         },
-      );
-      requestId ||= res.headers.get('x-li-uuid');
-      const json = (await res.json().catch(() => ({}))) as {
-        message?: string;
-      };
-      if (!res.ok) {
-        const classification = classifyPaidFailure({
-          status: res.status,
-          code: String(res.status),
-          message: json.message || `LinkedIn analytics HTTP ${res.status}`,
-          retryAfter: res.headers.get('retry-after'),
-        });
-        const error = new Error(
-          json.message || `LinkedIn analytics HTTP ${res.status}`,
-        ) as Error & {
-          retryable?: boolean;
-          code?: string;
-          errorClass?: string;
-          retryAfterSeconds?: number | null;
-          status?: number;
-        };
-        Object.assign(error, classification, { status: res.status });
-        throw error;
-      }
-      const contracted = parseLinkedInCampaignPage({
-        raw: json,
-        knownCampaignIds: new Set(byExternal.keys()),
-        windowStart: input.run.window_start,
-        windowEnd: input.run.window_end,
-        requestedStart: start,
+        signal: AbortSignal.timeout(20_000),
+      },
+    );
+    preserveRequestId(providerRequestIds, {
+      scope: 'campaign',
+      provider_object_ids: urns,
+      request_id: res.headers.get('x-li-uuid'),
+    });
+    const json = (await res.json().catch(() => ({}))) as {
+      message?: string;
+    };
+    if (!res.ok) {
+      const classification = classifyPaidFailure({
+        status: res.status,
+        code: String(res.status),
+        message: json.message || `LinkedIn analytics HTTP ${res.status}`,
+        retryAfter: res.headers.get('retry-after'),
       });
-      for (const insight of contracted.rows) {
-        const campaign = byExternal.get(insight.external_campaign_id);
-        if (!campaign) {
-          throw new PaidContractError(
-            'linkedin_campaign_binding_missing',
-            'Validated LinkedIn campaign lost its local binding',
-          );
-        }
-        const rowKey = `${campaign.campaign_id}:${insight.metric_date}`;
-        if (seenRows.has(rowKey)) {
-          throw new PaidContractError(
-            'linkedin_duplicate_across_pages',
-            `LinkedIn returned duplicate metric ${rowKey} across pages`,
-          );
-        }
-        seenRows.add(rowKey);
-        const base = {
-          campaign_id: campaign.campaign_id,
-          external_campaign_id: campaign.external_campaign_id,
-          metric_date: insight.metric_date,
-          impressions: insight.impressions,
-          clicks: insight.clicks,
-          spend: insight.spend,
-          conversions: insight.conversions,
-          provider_metrics: {
-            conversion_definition: 'externalWebsiteConversions',
-            contract_version: PAID_CONTRACT_VERSION,
-          },
-        };
-        rows.push({ ...base, row_fingerprint: fingerprint(base) });
+      const error = new Error(
+        json.message || `LinkedIn analytics HTTP ${res.status}`,
+      ) as Error & {
+        retryable?: boolean;
+        code?: string;
+        errorClass?: string;
+        retryAfterSeconds?: number | null;
+        status?: number;
+      };
+      Object.assign(error, classification, { status: res.status });
+      throw error;
+    }
+    const contracted = parseLinkedInCampaignPage({
+      raw: json,
+      knownCampaignIds: new Set(byExternal.keys()),
+      windowStart: input.run.window_start,
+      windowEnd: input.run.window_end,
+    });
+    for (const insight of contracted.rows) {
+      const campaign = byExternal.get(insight.external_campaign_id);
+      if (!campaign) {
+        throw new PaidContractError(
+          'linkedin_campaign_binding_missing',
+          'Validated LinkedIn campaign lost its local binding',
+        );
       }
-      page += 1;
-      pages += 1;
-      if (contracted.nextStart == null) break;
-      start = contracted.nextStart;
-      if (page >= 10) {
-        throw new Error('LinkedIn analytics page limit exceeded');
+      const rowKey = `${campaign.campaign_id}:${insight.metric_date}`;
+      if (seenRows.has(rowKey)) {
+        throw new PaidContractError(
+          'linkedin_duplicate_across_pages',
+          `LinkedIn returned duplicate metric ${rowKey} across batches`,
+        );
       }
-    } while (true);
+      seenRows.add(rowKey);
+      const base = {
+        campaign_id: campaign.campaign_id,
+        external_campaign_id: campaign.external_campaign_id,
+        metric_date: insight.metric_date,
+        impressions: insight.impressions,
+        clicks: insight.clicks,
+        spend: insight.spend,
+        conversions: insight.conversions,
+        provider_metrics: {
+          conversion_definition: 'externalWebsiteConversions',
+          contract_version: PAID_CONTRACT_VERSION,
+        },
+      };
+      rows.push({ ...base, row_fingerprint: fingerprint(base) });
+    }
+    pages += 1;
   }
   return {
     rows,
+    accountRows: reconcileAccountDailyTotals({
+      campaignRows: rows,
+      providerRows: accountRows,
+      windowStart: input.run.window_start,
+      windowEnd: input.run.window_end,
+      reconcileConversions: true,
+    }),
     pages,
-    requestId,
+    providerRequestIds,
   };
 }
 
@@ -462,6 +684,7 @@ export async function processPaidMetricRuns(limit = 1): Promise<{
   let failed = 0;
   const details: string[] = [];
   for (const run of runs) {
+    const providerRequestIds: ProviderRequestId[] = [];
     try {
       const [{ data: campaigns, error: campaignError }, token] =
         await Promise.all([
@@ -501,59 +724,112 @@ export async function processPaidMetricRuns(limit = 1): Promise<{
               token: token.token,
               campaigns: bound,
               heartbeat,
+              requestIds: providerRequestIds,
             })
           : await fetchLinkedInWindow({
               run,
               token: token.token,
               campaigns: bound,
               heartbeat,
+              requestIds: providerRequestIds,
             });
-      if (result.rows.length === 0) {
-        throw new PaidContractError(
-          'unreconciled_empty_response',
-          'Provider returned no campaign metrics; account-total reconciliation is required before replacing existing coverage',
-        );
-      }
       const responseSha = createHash('sha256')
-        .update(JSON.stringify(result.rows))
+        .update(
+          JSON.stringify({
+            campaign_rows: result.rows,
+            account_rows: result.accountRows,
+          }),
+        )
         .digest('hex');
+      const mappingGapDays = result.accountRows.filter(
+        (row) => row.mapping_status === 'gap',
+      ).length;
       const validationEvidence = {
         status: 'passed',
         contract_version: PAID_CONTRACT_VERSION,
         provider: run.provider,
+        external_account_id: run.external_account_id,
         window_start: run.window_start,
         window_end: run.window_end,
         page_count: result.pages,
         row_count: result.rows.length,
+        account_row_count: result.accountRows.length,
+        provider_complete_days: result.accountRows.length,
+        mapping_gap_days: mappingGapDays,
         response_sha256: responseSha,
-        provider_request_id: result.requestId,
+        provider_request_ids: result.providerRequestIds,
       };
-      const validationSha = canonicalEvidenceHash(validationEvidence);
       const { data: completion, error: completeError } = await sb.rpc(
-        'complete_marketing_paid_sync_run_v2',
+        'complete_marketing_paid_sync_run_v3',
         {
           p_run_id: run.run_id,
           p_lease_token: run.lease_token,
           p_rows: result.rows,
+          p_account_rows: result.accountRows,
           p_pages_fetched: result.pages,
           p_response_sha256: responseSha,
-          p_provider_request_id: result.requestId,
+          p_provider_request_id:
+            result.providerRequestIds[0]?.request_id ?? null,
+          p_provider_request_ids: result.providerRequestIds,
           p_contract_version: PAID_CONTRACT_VERSION,
           p_validation_evidence: validationEvidence,
-          p_validation_evidence_sha256: validationSha,
         },
       );
-      if (completeError) throw new Error(completeError.message);
+      if (completeError) {
+        if (
+          completeError.message.includes(
+            'Provider account totals are inconsistent',
+          )
+        ) {
+          throw new PaidProviderInconsistentError(
+            'provider_sql_reconciliation_inconsistent',
+            completeError.message,
+          );
+        }
+        if (completeError.message.includes('campaign binding')) {
+          throw new PaidContractError(
+            'campaign_binding_changed',
+            completeError.message,
+          );
+        }
+        throw new Error(completeError.message);
+      }
       const completionStatus = String(
         (completion as { status?: string } | null)?.status ?? '',
       );
       if (completionStatus === 'superseded') {
         superseded += 1;
-        details.push(`${run.run_id}: superseded before commit`);
+        const { data: replacement, error: replacementError } = await sb.rpc(
+          'enqueue_marketing_paid_sync_v3',
+          {
+            p_ad_account_id: run.ad_account_id,
+            p_window_start: run.window_start,
+            p_window_end: run.window_end,
+            p_purpose: run.purpose,
+            p_trigger_source: run.trigger_source,
+            p_requested_by: run.requested_by,
+          },
+        );
+        if (replacementError) {
+          failed += 1;
+          details.push(
+            `${run.run_id}: superseded; replacement enqueue failed: ${replacementError.message}`,
+          );
+        } else {
+          details.push(
+            `${run.run_id}: superseded; replacement ${String(
+              (replacement as { run_id?: string } | null)?.run_id ?? 'queued',
+            )}`,
+          );
+        }
       } else {
         completed += 1;
+        const authoritativeHash = String(
+          (completion as { evidence_sha256?: string } | null)
+            ?.evidence_sha256 ?? '',
+        );
         details.push(
-          `${run.run_id}: ${result.rows.length} validated rows · ${validationSha.slice(0, 12)}`,
+          `${run.run_id}: ${result.rows.length} mapped rows · ${mappingGapDays} mapping-gap days · ${authoritativeHash.slice(0, 12)}`,
         );
       }
     } catch (caught) {
@@ -570,10 +846,10 @@ export async function processPaidMetricRuns(limit = 1): Promise<{
       const classification =
         caught instanceof PaidContractError
           ? {
-              retryable: false,
+              retryable: caught.retryable,
               code: caught.code,
-              errorClass: 'contract',
-              retryAfterSeconds: null,
+              errorClass: caught.errorClass,
+              retryAfterSeconds: caught.retryable ? 300 : null,
             }
           : typed.errorClass
             ? {
@@ -591,8 +867,10 @@ export async function processPaidMetricRuns(limit = 1): Promise<{
         status: 'failed',
         contract_version: PAID_CONTRACT_VERSION,
         provider: run.provider,
+        external_account_id: run.external_account_id,
         code: classification.code,
         error_class: classification.errorClass,
+        provider_request_ids: providerRequestIds,
       };
       const { error: failureError } = await sb.rpc(
         'fail_marketing_paid_sync_run_v2',
@@ -626,13 +904,15 @@ export async function listPaidMetricOperations(input?: {
   let runQuery = sb
     .from('os_marketing_paid_sync_runs')
     .select(
-      'run_id, ad_account_id, entity_id, provider, window_start, window_end, purpose, status, attempts, pages_fetched, rows_written, next_attempt_at, error_code, error_detail, error_class, retry_disposition, last_http_status, retry_after_seconds, contract_version, validation_status, validation_evidence_sha256, provider_request_id, queued_at, completed_at',
+      'run_id, ad_account_id, entity_id, provider, window_start, window_end, purpose, status, attempts, pages_fetched, rows_written, provider_complete_days, mapping_gap_days, reconciliation_status, next_attempt_at, error_code, error_detail, error_class, retry_disposition, last_http_status, retry_after_seconds, contract_version, validation_status, validation_evidence_sha256, provider_request_id, provider_request_ids, queued_at, completed_at',
     )
     .order('queued_at', { ascending: false })
     .limit(30);
   let dayQuery = sb
     .from('os_marketing_paid_sync_days')
-    .select('ad_account_id, metric_date, entity_id')
+    .select(
+      'ad_account_id, metric_date, entity_id, provider_complete, mapping_status, source_run_id',
+    )
     .gte('metric_date', shiftDate(new Date().toISOString().slice(0, 10), -90));
   if (!input?.firmWide) {
     if (!input?.entityId) return { runs: [], coverage: [] };

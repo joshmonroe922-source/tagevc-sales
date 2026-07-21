@@ -17,13 +17,15 @@ export const BREAK_GLASS_PERMISSIONS: readonly Permission[] = [
   'action:wire',
   'action:docusign_capital',
   'action:docusign_manual_review',
+  'action:docusign_reconcile',
   'action:intune_retire',
+  'action:intune_manual_review',
   'action:snapshot_rollback_attest',
   'write:capital',
 ] as const;
 
 export const BREAK_GLASS_MESSAGE =
-  'Blocked while impersonating. Exit impersonation to perform capital, IC, wire, or capital DocuSign actions.';
+  'Blocked while impersonating. Exit impersonation to perform high-stakes capital, signing, snapshot, or Intune actions.';
 
 const IMPERSONATABLE_ROLES = APP_ROLES.filter((r) => r !== 'visionary');
 

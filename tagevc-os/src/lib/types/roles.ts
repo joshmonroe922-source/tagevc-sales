@@ -74,7 +74,9 @@ export type Permission =
   | 'action:wire'
   | 'action:docusign_capital'
   | 'action:docusign_manual_review'
+  | 'action:docusign_reconcile'
   | 'action:intune_retire'
+  | 'action:intune_manual_review'
   | 'action:snapshot_rollback_attest';
 
 const ALL_READ: Permission[] = [
@@ -109,7 +111,9 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     'action:wire',
     'action:docusign_capital',
     'action:docusign_manual_review',
+    'action:docusign_reconcile',
     'action:intune_retire',
+    'action:intune_manual_review',
     'action:snapshot_rollback_attest',
     'admin:users',
     'admin:enums',
@@ -165,6 +169,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     'read:marketing',
     'write:marketing',
     'action:intune_retire',
+    'action:intune_manual_review',
   ],
   sub_lead: [
     'read:command_center',
@@ -199,6 +204,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     'write:documents',
     'action:wire',
     'action:docusign_manual_review',
+    'action:docusign_reconcile',
     'read:it_assets',
   ],
   admin: [
@@ -218,7 +224,9 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     'admin:users',
     'admin:enums',
     'action:docusign_manual_review',
+    'action:docusign_reconcile',
     'action:intune_retire',
+    'action:intune_manual_review',
     'action:snapshot_rollback_attest',
   ],
 };

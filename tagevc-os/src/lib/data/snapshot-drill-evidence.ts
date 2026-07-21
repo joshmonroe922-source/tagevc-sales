@@ -2,33 +2,56 @@ import { createHash } from 'crypto';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 import type { EmptySnapshotDrillReport } from '@/lib/data/snapshot-drills';
 
+const SNAPSHOT_EVIDENCE_CONTRACT_VERSION = 'phase38-v1';
+
+function normalizedBoolean(value: string | undefined): boolean | null {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized) return null;
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+  return null;
+}
+
+function normalizedList(value: string | undefined): string[] {
+  return [
+    ...new Set(
+      (value ?? '')
+        .split(',')
+        .map((item) => item.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  ].sort();
+}
+
+function normalizedTimestamp(value: string | undefined): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  const parsed = Date.parse(trimmed);
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : trimmed;
+}
+
 export function snapshotConfigFingerprint(): string {
-  const config = {
+  return createHash('sha256')
+    .update(JSON.stringify(snapshotNormalizedConfig()))
+    .digest('hex');
+}
+
+export function snapshotNormalizedConfig(): Record<string, unknown> {
+  return {
+    evidence_contract_version: SNAPSHOT_EVIDENCE_CONTRACT_VERSION,
     retired_table: process.env.SNAPSHOT_RETIRED_TABLE_NAME?.trim() || null,
-    soft_renamed_at: process.env.SNAPSHOT_SOFT_RENAMED_AT?.trim() || null,
-    write_cutover_mature:
-      process.env.WRITE_CUTOVER_MATURE?.trim() || null,
-    write_cutover_all: process.env.WRITE_CUTOVER_ALL?.trim() || null,
-    read_cutover_all: process.env.READ_CUTOVER_ALL?.trim() || null,
-    write_snapshots: process.env.WRITE_SNAPSHOTS?.trim() || null,
-    write_domains:
-      process.env.SNAPSHOT_WRITE_DOMAINS?.split(',')
-        .map((value) => value.trim())
-        .filter(Boolean)
-        .sort() ?? [],
-    skip_domains:
-      process.env.SNAPSHOT_SKIP_DOMAINS?.split(',')
-        .map((value) => value.trim())
-        .filter(Boolean)
-        .sort() ?? [],
-    read_force: process.env.SNAPSHOT_READ_FORCE?.trim() || null,
-    read_skip_domains:
-      process.env.SNAPSHOT_READ_SKIP_DOMAINS?.split(',')
-        .map((value) => value.trim())
-        .filter(Boolean)
-        .sort() ?? [],
+    soft_renamed_at: normalizedTimestamp(process.env.SNAPSHOT_SOFT_RENAMED_AT),
+    write_cutover_mature: normalizedBoolean(
+      process.env.WRITE_CUTOVER_MATURE,
+    ),
+    write_cutover_all: normalizedBoolean(process.env.WRITE_CUTOVER_ALL),
+    read_cutover_all: normalizedBoolean(process.env.READ_CUTOVER_ALL),
+    write_snapshots: normalizedBoolean(process.env.WRITE_SNAPSHOTS),
+    write_domains: normalizedList(process.env.SNAPSHOT_WRITE_DOMAINS),
+    skip_domains: normalizedList(process.env.SNAPSHOT_SKIP_DOMAINS),
+    read_force: normalizedBoolean(process.env.SNAPSHOT_READ_FORCE),
+    read_skip_domains: normalizedList(process.env.SNAPSHOT_READ_SKIP_DOMAINS),
   };
-  return createHash('sha256').update(JSON.stringify(config)).digest('hex');
 }
 
 export async function persistSnapshotDrillEvidence(input: {
@@ -88,26 +111,33 @@ export async function persistSnapshotEvidenceCycle(input: {
   | { ok: false; error: string }
 > {
   const sb = await createPersistClient();
-  const configFingerprint = snapshotConfigFingerprint();
-  const { data, error } = await sb.rpc('record_snapshot_evidence_cycle', {
+  const normalizedConfig = snapshotNormalizedConfig();
+  const configFingerprint = createHash('sha256')
+    .update(JSON.stringify(normalizedConfig))
+    .digest('hex');
+  const requestedActor = {
+    actor_id: input.requestedBy ?? null,
+    actor_type: input.source === 'cron' ? 'cron' : 'user',
+  };
+  const observation =
+    input.observation ?? {
+      healthy: input.report.ok,
+      issues: input.report.ok ? [] : [input.report.summary],
+      stage: 'manual_drill',
+      sync_failure_count: 0,
+      fk_orphan_total: 0,
+      stage4_ready: input.report.stage4_ready,
+      drill_summary: input.report.summary,
+    };
+  const { data, error } = await sb.rpc('record_snapshot_evidence_cycle_v2', {
     p_source: input.source,
-    p_requested_by: input.requestedBy ?? null,
+    p_requested_actor: requestedActor,
     p_observed_at: input.observedAt,
-    p_retired_table_name:
-      process.env.SNAPSHOT_RETIRED_TABLE_NAME?.trim() || null,
-    p_config_fingerprint: configFingerprint,
+    p_normalized_config: normalizedConfig,
+    p_contract_version: SNAPSHOT_EVIDENCE_CONTRACT_VERSION,
     p_code_revision: process.env.VERCEL_GIT_COMMIT_SHA?.trim() || 'local',
     p_report: input.report,
-    p_observation:
-      input.observation ?? {
-        healthy: input.report.ok,
-        issues: input.report.ok ? [] : [input.report.summary],
-        stage: 'manual_drill',
-        sync_failure_count: 0,
-        fk_orphan_total: 0,
-        stage4_ready: input.report.stage4_ready,
-        drill_summary: input.report.summary,
-      },
+    p_observation: observation,
     p_record_soak: input.recordSoak,
   });
   if (error || !data) {
@@ -121,7 +151,18 @@ export async function persistSnapshotEvidenceCycle(input: {
     evidence_sha256: string;
     replayed: boolean;
     input_matched?: boolean;
+    ok?: boolean;
+    replay_conflict?: boolean;
+    error?: string;
   };
+  if (row.ok === false) {
+    return {
+      ok: false,
+      error: row.replay_conflict
+        ? 'Snapshot evidence replay conflicted; both inputs were retained'
+        : row.error || 'Snapshot evidence cycle failed',
+    };
+  }
   if (row.replayed && row.input_matched !== true) {
     return { ok: false, error: 'Snapshot evidence replay did not match input' };
   }

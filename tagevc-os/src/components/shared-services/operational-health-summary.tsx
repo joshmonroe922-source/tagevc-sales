@@ -1,4 +1,9 @@
+'use client';
+
+import { useRouter } from 'next/navigation';
+import { useState, useTransition } from 'react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
@@ -6,6 +11,10 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import {
+  acknowledgeSloAlertAction,
+  reassignSloAlertAction,
+} from '@/app/(app)/shared-services/actions';
 
 export function OperationalHealthSummary({
   health,
@@ -14,10 +23,41 @@ export function OperationalHealthSummary({
     evaluations: Array<Record<string, unknown>>;
     alerts: Array<Record<string, unknown>>;
     workerRuns: Array<Record<string, unknown>>;
+    owners: Array<Record<string, unknown>>;
+    workerDefinitions: Array<Record<string, unknown>>;
+    deliveryJobs: Array<Record<string, unknown>>;
     error?: string;
   };
 }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [message, setMessage] = useState<string | null>(null);
   const services = ['marketing', 'docusign', 'intune', 'snapshot'];
+  function acknowledge(alert: Record<string, unknown>) {
+    startTransition(async () => {
+      const result = await acknowledgeSloAlertAction({
+        alertId: String(alert.alert_id),
+        rowVersion: Number(alert.row_version),
+        note: 'Acknowledged from operational health dashboard',
+      });
+      setMessage(result.ok ? result.message ?? 'Acknowledged' : result.error);
+      if (result.ok) router.refresh();
+    });
+  }
+  function reassign(alert: Record<string, unknown>) {
+    const ownerId = window.prompt('New owner UUID:', String(alert.owner_id ?? ''));
+    if (!ownerId) return;
+    startTransition(async () => {
+      const result = await reassignSloAlertAction({
+        alertId: String(alert.alert_id),
+        rowVersion: Number(alert.row_version),
+        ownerId,
+        note: 'Reassigned from operational health dashboard',
+      });
+      setMessage(result.ok ? result.message ?? 'Reassigned' : result.error);
+      if (result.ok) router.refresh();
+    });
+  }
   return (
     <section className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -26,7 +66,7 @@ export function OperationalHealthSummary({
             Operational health
           </h2>
           <p className="text-sm text-muted-foreground">
-            Phase 37 SLO evaluations, durable alerts, and worker history.
+            Phase 38 versioned SLOs, ownership, delivery, and worker freshness.
           </p>
         </div>
         <Badge
@@ -86,9 +126,30 @@ export function OperationalHealthSummary({
               </CardHeader>
               <CardContent className="space-y-1 text-xs">
                 {alerts.slice(0, 2).map((alert) => (
-                  <p key={String(alert.alert_id)}>
-                    {String(alert.metric_key).replaceAll('_', ' ')}
-                  </p>
+                  <div key={String(alert.alert_id)} className="space-y-1">
+                    <p>
+                      {String(alert.metric_key).replaceAll('_', ' ')} ·{' '}
+                      {alert.owner_id ? `owner ${String(alert.owner_id).slice(0, 8)}` : 'unowned'}
+                    </p>
+                    <div className="flex gap-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={pending || Boolean(alert.acknowledged_at)}
+                        onClick={() => acknowledge(alert)}
+                      >
+                        {alert.acknowledged_at ? 'Acknowledged' : 'Acknowledge'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={pending}
+                        onClick={() => reassign(alert)}
+                      >
+                        Reassign
+                      </Button>
+                    </div>
+                  </div>
                 ))}
                 <p className="text-muted-foreground">
                   Last worker:{' '}
@@ -103,6 +164,60 @@ export function OperationalHealthSummary({
           );
         })}
       </div>
+      <div className="grid gap-3 lg:grid-cols-2">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Worker cadence</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1 text-xs">
+            {health.workerDefinitions.map((definition) => {
+              const run = health.workerRuns.find(
+                (item) =>
+                  item.service === definition.service &&
+                  item.worker_name === definition.worker_name,
+              );
+              const ageSeconds = run
+                ? (Date.now() - Date.parse(String(run.started_at))) / 1000
+                : definition.latest_started_at
+                  ? (Date.now() -
+                      Date.parse(String(definition.latest_started_at))) /
+                    1000
+                  : Number.POSITIVE_INFINITY;
+              const stale = Boolean(
+                definition.stale ??
+                  ageSeconds > Number(definition.stale_after_seconds ?? 0),
+              );
+              return (
+                <p key={`${String(definition.service)}:${String(definition.worker_name)}`}>
+                  {String(definition.worker_name)} · every{' '}
+                  {Number(definition.cadence_seconds) / 60}m ·{' '}
+                  <span className={stale ? 'text-destructive' : 'text-emerald-700'}>
+                    {stale ? 'stale' : 'current'}
+                  </span>
+                </p>
+              );
+            })}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Alert delivery</CardTitle>
+            <CardDescription>
+              {health.deliveryJobs.length} queued, retrying, or failed job
+              {health.deliveryJobs.length === 1 ? '' : 's'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-1 text-xs">
+            {health.deliveryJobs.slice(0, 5).map((job) => (
+              <p key={String(job.job_id)}>
+                {String(job.adapter)} · {String(job.status)} · attempt{' '}
+                {String(job.attempt_count)}
+              </p>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+      {message ? <p className="text-xs text-muted-foreground">{message}</p> : null}
     </section>
   );
 }

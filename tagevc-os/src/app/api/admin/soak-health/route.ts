@@ -12,7 +12,7 @@ import {
 } from '@/lib/shared-services/operational-health';
 
 async function authorize(request: Request): Promise<
-  | { ok: true; source: 'cron' | 'admin' }
+  | { ok: true; source: 'cron' | 'admin'; actor: string | null }
   | { ok: false; status: number; error: string }
 > {
   const secret =
@@ -25,11 +25,11 @@ async function authorize(request: Request): Promise<
     bearer === `Bearer ${secret}`;
 
   if ((secret && header === secret) || bearerOk) {
-    return { ok: true, source: 'cron' };
+    return { ok: true, source: 'cron', actor: null };
   }
 
   const gate = await guardPermission('admin:users');
-  if (gate.ok) return { ok: true, source: 'admin' };
+  if (gate.ok) return { ok: true, source: 'admin', actor: gate.profile.id };
 
   if (secret) {
     return { ok: false, status: 401, error: 'Unauthorized' };
@@ -298,6 +298,7 @@ async function runSoak(request: Request) {
     const evidenceCycle = await persistSnapshotEvidenceCycle({
       report: drills,
       source: auth.source,
+      requestedBy: auth.actor,
       observedAt: fetched_at,
       recordSoak: true,
       observation: {

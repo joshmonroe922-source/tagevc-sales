@@ -783,6 +783,36 @@ export type ItIntuneAction = {
   lease_expires_at: string | null;
   worker_id: string | null;
   retry_child_action_id: string | null;
+  manual_review_started_at: string | null;
+  ambiguity_resolution_id: string | null;
+  ambiguity_disposition: string | null;
+  row_version: number;
+};
+
+export type ItIntuneAmbiguityResolution = {
+  resolution_id: string;
+  action_id: string;
+  entity_id: string | null;
+  decision: 'confirm_retired' | 'close_unresolved' | 'create_retry_child';
+  status: 'awaiting_review' | 'approved' | 'rejected' | 'expired';
+  evidence_sha256: string;
+  provider_http_status: number;
+  provider_request_id: string;
+  provider_state: string | null;
+  dispatch_attempt_id: string | null;
+  approval_match_sha256: string | null;
+  asset_sha256: string | null;
+  provider_preflight_sha256: string | null;
+  evidence_semantic_sha256: string | null;
+  reviewer_evidence_semantic_sha256: string | null;
+  proposed_by: string;
+  proposed_reason: string;
+  proposed_at: string;
+  expires_at: string;
+  reviewed_by: string | null;
+  reviewer_statement: string | null;
+  reviewed_at: string | null;
+  retry_child_action_id: string | null;
   row_version: number;
 };
 
@@ -794,7 +824,7 @@ export async function listIntuneActions(
     const { data, error } = await sb
       .from('os_it_intune_actions')
       .select(
-        'action_id, run_id, managed_device_id, user_id, entity_id, status, requested_at, approved_at, approval_expires_at, approval_expired_at, submitted_at, dispatch_authorized_at, verified_at, graph_request_id, attempt_count, poll_count, provider_state, verification_code, last_error, last_error_code, last_error_class, request_metadata, verification_evidence, local_asset_id, matched_by, matched_at, match_sha256, retry_of_action_id, retry_child_action_id, retry_generation, cancelled_at, cancel_reason, failure_code, lease_expires_at, worker_id, row_version',
+        'action_id, run_id, managed_device_id, user_id, entity_id, status, requested_at, approved_at, approval_expires_at, approval_expired_at, submitted_at, dispatch_authorized_at, verified_at, graph_request_id, attempt_count, poll_count, provider_state, verification_code, last_error, last_error_code, last_error_class, request_metadata, verification_evidence, local_asset_id, matched_by, matched_at, match_sha256, retry_of_action_id, retry_child_action_id, retry_generation, cancelled_at, cancel_reason, failure_code, lease_expires_at, worker_id, manual_review_started_at, ambiguity_resolution_id, ambiguity_disposition, row_version',
       )
       .order('requested_at', { ascending: false })
       .limit(limit);
@@ -806,6 +836,40 @@ export async function listIntuneActions(
       error: error instanceof Error ? error.message : 'Intune list failed',
     };
   }
+}
+
+export async function listIntuneAmbiguityResolutions(limit = 50): Promise<{
+  rows: ItIntuneAmbiguityResolution[];
+  error?: string;
+}> {
+  try {
+    const sb = await createPersistClient();
+    const { data, error } = await sb
+      .from('os_it_intune_ambiguity_resolutions')
+      .select(
+        'resolution_id, action_id, entity_id, decision, status, evidence_sha256, provider_http_status, provider_request_id, provider_state, dispatch_attempt_id, approval_match_sha256, asset_sha256, provider_preflight_sha256, evidence_semantic_sha256, reviewer_evidence_semantic_sha256, proposed_by, proposed_reason, proposed_at, expires_at, reviewed_by, reviewer_statement, reviewed_at, retry_child_action_id, row_version',
+      )
+      .order('proposed_at', { ascending: false })
+      .limit(limit);
+    if (error) return { rows: [], error: error.message };
+    return { rows: (data ?? []) as ItIntuneAmbiguityResolution[] };
+  } catch (error) {
+    return {
+      rows: [],
+      error:
+        error instanceof Error ? error.message : 'Intune ambiguity list failed',
+    };
+  }
+}
+
+export async function listIntuneManualReviewSlo(limit = 50) {
+  const sb = await createPersistClient();
+  const { data } = await sb
+    .from('os_it_intune_manual_review_slo')
+    .select('action_id, entity_id, manual_review_started_at, age_minutes, slo_state')
+    .order('age_minutes', { ascending: false })
+    .limit(limit);
+  return data ?? [];
 }
 
 export async function listIntuneActionEvents(limit = 80) {
@@ -906,6 +970,48 @@ export async function retryIntuneAction(input: {
     p_actor_id: input.actor_id,
     p_reason: input.reason,
     p_expected_row_version: input.expected_row_version,
+  });
+  return error ? { ok: false as const, error: error.message } : { ok: true as const };
+}
+
+export async function proposeIntuneAmbiguityResolution(input: {
+  action_id: string;
+  actor_id: string;
+  decision: ItIntuneAmbiguityResolution['decision'];
+  provider_evidence: Record<string, unknown>;
+  reason: string;
+  expected_action_version: number;
+}) {
+  const sb = await createPersistClient();
+  const { error } = await sb.rpc('propose_it_intune_ambiguity_resolution', {
+    p_action_id: input.action_id,
+    p_actor_id: input.actor_id,
+    p_decision: input.decision,
+    p_provider_evidence: input.provider_evidence,
+    p_reason: input.reason,
+    p_expected_action_version: input.expected_action_version,
+  });
+  return error ? { ok: false as const, error: error.message } : { ok: true as const };
+}
+
+export async function reviewIntuneAmbiguityResolution(input: {
+  resolution_id: string;
+  actor_id: string;
+  review_decision: 'approve' | 'reject';
+  provider_evidence: Record<string, unknown>;
+  statement: string;
+  expected_resolution_version: number;
+  expected_action_version: number;
+}) {
+  const sb = await createPersistClient();
+  const { error } = await sb.rpc('review_it_intune_ambiguity_resolution', {
+    p_resolution_id: input.resolution_id,
+    p_actor_id: input.actor_id,
+    p_review_decision: input.review_decision,
+    p_provider_evidence: input.provider_evidence,
+    p_statement: input.statement,
+    p_expected_resolution_version: input.expected_resolution_version,
+    p_expected_action_version: input.expected_action_version,
   });
   return error ? { ok: false as const, error: error.message } : { ok: true as const };
 }

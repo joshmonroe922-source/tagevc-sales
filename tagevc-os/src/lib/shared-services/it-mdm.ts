@@ -4,6 +4,7 @@
  */
 
 import { createPersistClient } from '@/lib/supabase/persist-client';
+import { randomUUID } from 'crypto';
 
 type MdmResult = {
   ok: boolean;
@@ -59,6 +60,171 @@ export async function getMsGraphToken(): Promise<
       detail: e instanceof Error ? e.message : 'Graph token failed',
     };
   }
+}
+
+export type IntuneAmbiguityEvidence = {
+  evidence_version: 'phase38-v1';
+  managed_device_id: string;
+  observed_at: string;
+  http_status: number;
+  graph_request_id: string;
+  provider_request_id: string | null;
+  audit_http_status: number;
+  audit_graph_request_id: string;
+  audit_provider_request_id: string | null;
+  outcome: 'present' | 'not_found' | 'error';
+  provider_body: {
+    id: string | null;
+    deviceName: string | null;
+    serialNumber: string | null;
+    managementState: string | null;
+    lastSyncDateTime: string | null;
+  } | null;
+  retirement_audit: {
+    id: string;
+    display_name: string;
+    activity_datetime: string;
+    activity_result: string;
+    resource_id: string;
+  } | null;
+};
+
+export type IntuneAuditEventInput = {
+  id?: string;
+  displayName?: string;
+  activityDateTime?: string;
+  activityResult?: string;
+  resources?: Array<{ resourceId?: string }>;
+};
+
+export function selectBoundRetirementAudit(
+  events: IntuneAuditEventInput[],
+  managedDeviceId: string,
+): IntuneAmbiguityEvidence['retirement_audit'] {
+  for (const event of events.slice(0, 100)) {
+    const resource = event.resources?.find(
+      (candidate) => candidate.resourceId === managedDeviceId,
+    );
+    if (
+      resource?.resourceId &&
+      event.id &&
+      event.displayName &&
+      event.activityDateTime &&
+      event.activityResult &&
+      /retire/i.test(event.displayName) &&
+      /^success$/i.test(event.activityResult)
+    ) {
+      return {
+        id: event.id,
+        display_name: event.displayName,
+        activity_datetime: event.activityDateTime,
+        activity_result: event.activityResult,
+        resource_id: resource.resourceId,
+      };
+    }
+  }
+  return null;
+}
+
+/**
+ * Collect one independent, read-only observation for two-actor ambiguity review.
+ * A 404 is recorded as not_found and is never translated to retired.
+ */
+export async function getIntuneAmbiguityEvidence(
+  managedDeviceId: string,
+): Promise<IntuneAmbiguityEvidence> {
+  if (!graphConfigured()) {
+    throw new Error('MS_GRAPH_* is required for Intune ambiguity review');
+  }
+  const token = await getMsGraphToken();
+  if (!token.ok) throw new Error(token.detail);
+  const clientRequestId = randomUUID();
+  const auditClientRequestId = randomUUID();
+  const response = await fetch(
+    `https://graph.microsoft.com/v1.0/deviceManagement/managedDevices/${encodeURIComponent(
+      managedDeviceId,
+    )}?$select=id,deviceName,serialNumber,managementState,lastSyncDateTime`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token.token}`,
+        'client-request-id': clientRequestId,
+        'return-client-request-id': 'true',
+      },
+      cache: 'no-store',
+    },
+  );
+  let providerBody: IntuneAmbiguityEvidence['provider_body'] = null;
+  if (response.ok) {
+    const body = (await response.json()) as Record<string, unknown>;
+    providerBody = {
+      id: typeof body.id === 'string' ? body.id : null,
+      deviceName: typeof body.deviceName === 'string' ? body.deviceName : null,
+      serialNumber:
+        typeof body.serialNumber === 'string' ? body.serialNumber : null,
+      managementState:
+        typeof body.managementState === 'string' ? body.managementState : null,
+      lastSyncDateTime:
+        typeof body.lastSyncDateTime === 'string' ? body.lastSyncDateTime : null,
+    };
+  } else {
+    await response.text().catch(() => '');
+  }
+  const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
+  const auditResponse = await fetch(
+    `https://graph.microsoft.com/v1.0/deviceManagement/auditEvents?${new URLSearchParams(
+      {
+        $filter: `activityDateTime ge ${since}`,
+        $orderby: 'activityDateTime desc',
+        $top: '100',
+        $select:
+          'id,displayName,activityDateTime,activityResult,resources',
+      },
+    ).toString()}`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token.token}`,
+        'client-request-id': auditClientRequestId,
+        'return-client-request-id': 'true',
+      },
+      cache: 'no-store',
+    },
+  );
+  let retirementAudit: IntuneAmbiguityEvidence['retirement_audit'] = null;
+  if (auditResponse.ok) {
+    const auditBody = (await auditResponse.json()) as {
+      value?: IntuneAuditEventInput[];
+    };
+    retirementAudit = selectBoundRetirementAudit(
+      auditBody.value ?? [],
+      managedDeviceId,
+    );
+  } else {
+    await auditResponse.text().catch(() => '');
+  }
+  return {
+    evidence_version: 'phase38-v1',
+    managed_device_id: managedDeviceId,
+    observed_at: new Date().toISOString(),
+    http_status: response.status,
+    graph_request_id: clientRequestId,
+    provider_request_id:
+      response.headers.get('request-id') ??
+      response.headers.get('x-ms-request-id'),
+    audit_http_status: auditResponse.status,
+    audit_graph_request_id: auditClientRequestId,
+    audit_provider_request_id:
+      auditResponse.headers.get('request-id') ??
+      auditResponse.headers.get('x-ms-request-id'),
+    outcome: response.ok
+      ? 'present'
+      : response.status === 404
+        ? 'not_found'
+        : 'error',
+    provider_body: providerBody,
+    retirement_audit: retirementAudit,
+  };
 }
 
 async function resolveGraphUserId(

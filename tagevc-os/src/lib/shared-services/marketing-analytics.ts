@@ -4,6 +4,7 @@
 
 import { randomUUID } from 'crypto';
 import { createPersistClient } from '@/lib/supabase/persist-client';
+import { authoritativePaidHeadlines } from './marketing-paid-reporting';
 
 export type MarketingAnalyticsEvent = {
   event_id: string;
@@ -60,7 +61,7 @@ export type MarketingAnalyticsSummary = {
     impressions: number;
     engagement_rate: number | null;
   }>;
-  paid_spend_k: number;
+  paid_spend_k: number | null;
   paid_revenue_k: number;
   paid_roi: number | null;
   paid_roas: number | null;
@@ -71,7 +72,11 @@ export type MarketingAnalyticsSummary = {
   paid_data_through: string | null;
   paid_typed: boolean;
   paid_coverage_days: number;
-  paid_coverage_status: 'complete' | 'partial' | 'unavailable';
+  paid_coverage_status:
+    | 'complete'
+    | 'complete_with_mapping_gaps'
+    | 'partial'
+    | 'unavailable';
   paid_account_coverage: Array<{
     account_id: string;
     entity_id: string | null;
@@ -81,6 +86,20 @@ export type MarketingAnalyticsSummary = {
     expected_days: number;
     latest_covered_date: string | null;
     coverage_status: 'complete' | 'partial' | 'unavailable';
+    mapping_complete_days: number;
+    mapping_gap_days: number;
+    authoritative_impressions: number;
+    authoritative_clicks: number;
+    authoritative_spend: number;
+    authoritative_conversions: number | null;
+    mapped_impressions: number;
+    mapped_clicks: number;
+    mapped_spend: number;
+    mapped_conversions: number | null;
+    delta_impressions: number;
+    delta_clicks: number;
+    delta_spend: number;
+    delta_conversions: number | null;
   }>;
   paid_currency_totals: Array<{
     currency: string;
@@ -315,7 +334,7 @@ export async function getMarketingAnalyticsSummary(opts?: {
           const conversions = Number(e.metrics.conversions ?? 0);
           const currency = String(e.metrics.currency ?? 'USD');
           paidCurrencies.add(currency);
-          summary.paid_spend_k += spendK;
+          summary.paid_spend_k = (summary.paid_spend_k ?? 0) + spendK;
           summary.paid_revenue_k += revenueK;
           paidImpressions += impressions;
           paidClicks += clicks;
@@ -402,12 +421,12 @@ export async function getMarketingAnalyticsSummary(opts?: {
         ? engTotal / summary.engagement_impressions
         : null;
     summary.paid_roi =
-      summary.paid_spend_k > 0
+      summary.paid_spend_k != null && summary.paid_spend_k > 0
         ? (summary.paid_revenue_k - summary.paid_spend_k) /
           summary.paid_spend_k
         : null;
     summary.paid_roas =
-      summary.paid_spend_k > 0
+      summary.paid_spend_k != null && summary.paid_spend_k > 0
         ? summary.paid_revenue_k / summary.paid_spend_k
         : null;
     summary.paid_ctr =
@@ -415,6 +434,7 @@ export async function getMarketingAnalyticsSummary(opts?: {
     summary.paid_currencies = [...paidCurrencies].sort();
     summary.paid_currency_mixed = paidCurrencies.size > 1;
     if (summary.paid_currency_mixed) {
+      summary.paid_spend_k = null;
       summary.paid_roi = null;
       summary.paid_roas = null;
     }
@@ -431,17 +451,23 @@ export async function getMarketingAnalyticsSummary(opts?: {
       .order('metric_date', { ascending: true });
     if (opts?.entityId) paidQuery = paidQuery.eq('entity_id', opts.entityId);
     const { data: typedPaidRows } = await paidQuery;
-    const { data: paidReport } = await sb.rpc('get_marketing_paid_report', {
+    const { data: paidReport } = await sb.rpc('get_marketing_paid_report_v2', {
       p_entity_id: opts?.entityId ?? null,
       p_days: paidDays,
     });
     const report = (paidReport ?? {}) as {
-      overall_status?: 'complete' | 'partial' | 'unavailable';
+      overall_status?:
+        | 'complete'
+        | 'complete_with_mapping_gaps'
+        | 'partial'
+        | 'unavailable';
       accounts?: MarketingAnalyticsSummary['paid_account_coverage'];
       currencies?: MarketingAnalyticsSummary['paid_currency_totals'];
+      daily?: MarketingAnalyticsSummary['paid_daily_trend'];
     };
     summary.paid_account_coverage = report.accounts ?? [];
     summary.paid_currency_totals = report.currencies ?? [];
+    const accountDaily = report.daily ?? [];
     summary.paid_coverage_status =
       report.overall_status ?? 'unavailable';
     summary.paid_coverage_days =
@@ -452,7 +478,10 @@ export async function getMarketingAnalyticsSummary(opts?: {
             ),
           )
         : 0;
-    if (typedPaidRows && typedPaidRows.length > 0) {
+    if (
+      (typedPaidRows && typedPaidRows.length > 0) ||
+      summary.paid_currency_totals.length > 0
+    ) {
       summary.paid_typed = true;
       summary.paid_reporting_days = paidDays;
       summary.paid_campaigns = [];
@@ -494,7 +523,7 @@ export async function getMarketingAnalyticsSummary(opts?: {
           conversions: number;
         }
       >();
-      for (const row of typedPaidRows) {
+      for (const row of typedPaidRows ?? []) {
         const day = String(row.metric_date);
         const spend = Number(row.spend ?? 0);
         const impressions = Number(row.impressions ?? 0);
@@ -503,7 +532,8 @@ export async function getMarketingAnalyticsSummary(opts?: {
         const currency = String(row.currency ?? 'USD');
         const campaignId = String(row.campaign_id);
         currencies.add(currency);
-        summary.paid_spend_k += spend / 1000;
+        summary.paid_spend_k =
+          (summary.paid_spend_k ?? 0) + spend / 1000;
         summary.paid_data_through =
           !summary.paid_data_through || day > summary.paid_data_through
             ? day
@@ -580,6 +610,33 @@ export async function getMarketingAnalyticsSummary(opts?: {
       );
       summary.paid_ctr =
         typedImpressions > 0 ? typedClicks / typedImpressions : null;
+      // Account-level provider totals are authoritative. Campaign rows remain
+      // useful for attribution detail, but mapping gaps must not understate
+      // headline spend, delivery, or daily trends.
+      summary.paid_currencies = summary.paid_currency_totals
+        .map((row) => row.currency)
+        .sort();
+      summary.paid_currency_mixed = summary.paid_currencies.length > 1;
+      const headlines = authoritativePaidHeadlines(
+        summary.paid_currency_totals,
+      );
+      summary.paid_spend_k = headlines.spendK;
+      summary.paid_daily_trend = accountDaily.map((row) => ({
+        day: String(row.day),
+        spend: Number(row.spend),
+        impressions: Number(row.impressions),
+        clicks: Number(row.clicks),
+        conversions: Number(row.conversions),
+      }));
+      summary.paid_ctr = headlines.ctr;
+      const accountThroughDates = summary.paid_account_coverage.map(
+        (account) => account.latest_covered_date,
+      );
+      summary.paid_data_through =
+        accountThroughDates.length > 0 &&
+        accountThroughDates.every((date): date is string => Boolean(date))
+          ? accountThroughDates.sort()[0]
+          : null;
     }
 
     if (summary.paid_campaigns.length > 0) {

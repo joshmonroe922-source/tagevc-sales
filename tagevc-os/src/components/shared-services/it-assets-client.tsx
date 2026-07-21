@@ -25,6 +25,8 @@ import {
   matchIntuneActionAction,
   cancelIntuneActionAction,
   retryIntuneActionAction,
+  proposeIntuneAmbiguityResolutionAction,
+  reviewIntuneAmbiguityResolutionAction,
   runIntuneWorkerAction,
   type ItAssetActionResult,
 } from '@/app/(app)/shared-services/it/assets/actions';
@@ -40,6 +42,7 @@ import type {
 } from '@/lib/shared-services/it-assets-types';
 import type {
   ItIntuneAction,
+  ItIntuneAmbiguityResolution,
   ItLifecycleEvent,
 } from '@/lib/shared-services/it-assets-repo';
 
@@ -85,7 +88,11 @@ export function ItAssetsClient({
   intuneEvents = [],
   intuneDispatchAttempts = [],
   intuneWorkerRuns = [],
+  intuneAmbiguityResolutions = [],
+  intuneManualReviewSlo = [],
   canIntuneRetire = false,
+  canIntuneManualReview = false,
+  currentActorId = null,
   canWrite,
   tableError,
 }: {
@@ -111,7 +118,11 @@ export function ItAssetsClient({
   intuneEvents?: Array<Record<string, unknown>>;
   intuneDispatchAttempts?: Array<Record<string, unknown>>;
   intuneWorkerRuns?: Array<Record<string, unknown>>;
+  intuneAmbiguityResolutions?: ItIntuneAmbiguityResolution[];
+  intuneManualReviewSlo?: Array<Record<string, unknown>>;
   canIntuneRetire?: boolean;
+  canIntuneManualReview?: boolean;
+  currentActorId?: string | null;
   canWrite: boolean;
   tableError?: string;
 }) {
@@ -349,6 +360,14 @@ export function ItAssetsClient({
                     .replace(/[^a-z0-9]/gi, '')
                     .toUpperCase() === providerSerial,
               );
+              const pendingResolution = intuneAmbiguityResolutions.find(
+                (resolution) =>
+                  resolution.action_id === action.action_id &&
+                  resolution.status === 'awaiting_review',
+              );
+              const manualSlo = intuneManualReviewSlo.find(
+                (row) => String(row.action_id) === action.action_id,
+              );
               return (
                 <div
                   className="rounded border p-2"
@@ -444,8 +463,117 @@ export function ItAssetsClient({
                         Provider dispatch authorized — verification only
                       </span>
                     ) : null}
+                    {action.status === 'manual_review' ? (
+                      <span className="text-xs font-medium text-amber-700">
+                        Quarantined — no polling or redispatch
+                      </span>
+                    ) : null}
+                    {canIntuneManualReview &&
+                    action.status === 'manual_review' &&
+                    !pendingResolution
+                      ? (
+                          [
+                            ['confirm_retired', 'Confirm retired'],
+                            ['close_unresolved', 'Close unresolved'],
+                            ['create_retry_child', 'Propose retry child'],
+                          ] as const
+                        ).map(([decision, label]) => (
+                          <Button
+                            key={decision}
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={pending}
+                            onClick={() => {
+                              const reason = window.prompt(
+                                `${label} reason (20+ characters). Fresh read-only Graph evidence will be captured:`,
+                              );
+                              if (!reason?.trim()) return;
+                              run(() =>
+                                proposeIntuneAmbiguityResolutionAction({
+                                  actionId: action.action_id,
+                                  decision,
+                                  reason: reason.trim(),
+                                  expectedActionVersion: action.row_version,
+                                }),
+                              );
+                            }}
+                          >
+                            {label}
+                          </Button>
+                        ))
+                      : null}
+                    {canIntuneManualReview &&
+                    action.status === 'manual_review' &&
+                    pendingResolution ? (
+                      <>
+                        <span className="text-xs text-muted-foreground">
+                          Awaiting independent review: {pendingResolution.decision}
+                          {' · '}expires {pendingResolution.expires_at}
+                        </span>
+                        {pendingResolution.proposed_by !== currentActorId ? (
+                          <>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={pending}
+                              onClick={() => {
+                                const statement = window.prompt(
+                                  'Independent approval statement (20+ characters). A new Graph GET will be captured:',
+                                );
+                                if (!statement?.trim()) return;
+                                run(() =>
+                                  reviewIntuneAmbiguityResolutionAction({
+                                    resolutionId:
+                                      pendingResolution.resolution_id,
+                                    reviewDecision: 'approve',
+                                    statement: statement.trim(),
+                                    expectedResolutionVersion:
+                                      pendingResolution.row_version,
+                                    expectedActionVersion: action.row_version,
+                                  }),
+                                );
+                              }}
+                            >
+                              Approve resolution
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={pending}
+                              onClick={() => {
+                                const statement = window.prompt(
+                                  'Rejection statement (20+ characters):',
+                                );
+                                if (!statement?.trim()) return;
+                                run(() =>
+                                  reviewIntuneAmbiguityResolutionAction({
+                                    resolutionId:
+                                      pendingResolution.resolution_id,
+                                    reviewDecision: 'reject',
+                                    statement: statement.trim(),
+                                    expectedResolutionVersion:
+                                      pendingResolution.row_version,
+                                    expectedActionVersion: action.row_version,
+                                  }),
+                                );
+                              }}
+                            >
+                              Reject
+                            </Button>
+                          </>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">
+                            A different authorized actor must review
+                          </span>
+                        )}
+                      </>
+                    ) : null}
                     {canIntuneRetire &&
                     ['failed', 'cancelled'].includes(action.status) &&
+                    !action.dispatch_authorized_at &&
                     action.retry_generation < 2 ? (
                       <Button
                         type="button"
@@ -492,6 +620,16 @@ export function ItAssetsClient({
                     dispatch authorized {action.dispatch_authorized_at ?? 'no'} ·
                     lease {action.lease_expires_at ?? 'none'}
                   </p>
+                  {action.status === 'manual_review' ? (
+                    <p className="text-amber-700">
+                      review started {action.manual_review_started_at ?? 'unknown'}
+                      {manualSlo
+                        ? ` · ${String(manualSlo.slo_state)} · ${Math.round(
+                            Number(manualSlo.age_minutes ?? 0),
+                          )} min`
+                        : ''}
+                    </p>
+                  ) : null}
                   {action.last_error_code ? (
                     <p className="text-destructive">
                       {action.last_error_class ?? 'error'} ·{' '}
@@ -506,6 +644,22 @@ export function ItAssetsClient({
             })}
           </div>
         )}
+        {intuneAmbiguityResolutions.length > 0 ? (
+          <div className="space-y-1 rounded border p-2 text-xs">
+            <p className="font-medium">Ambiguity review history</p>
+            {intuneAmbiguityResolutions.slice(0, 10).map((resolution) => (
+              <p key={resolution.resolution_id}>
+                {resolution.proposed_at} · action{' '}
+                {resolution.action_id.slice(0, 8)}… · {resolution.decision} ·{' '}
+                {resolution.status} · evidence{' '}
+                {resolution.evidence_sha256.slice(0, 12)}…
+                {resolution.retry_child_action_id
+                  ? ` · child ${resolution.retry_child_action_id.slice(0, 8)}…`
+                  : ''}
+              </p>
+            ))}
+          </div>
+        ) : null}
         {intuneWorkerRuns.length > 0 ? (
           <div className="space-y-1 rounded border p-2 text-xs">
             <p className="font-medium">Recent worker runs</p>

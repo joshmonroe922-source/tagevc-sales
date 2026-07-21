@@ -15,7 +15,13 @@ import {
 } from '@/app/(app)/shared-services/legal/docusign/actions';
 import { Button } from '@/components/ui/button';
 
-export function DocuSignHubActions({ canWrite }: { canWrite: boolean }) {
+export function DocuSignHubActions({
+  canWrite,
+  canReconcile,
+}: {
+  canWrite: boolean;
+  canReconcile: boolean;
+}) {
   const [flash, setFlash] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -124,15 +130,17 @@ export function DocuSignHubActions({ canWrite }: { canWrite: boolean }) {
         >
           Run reminder worker
         </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={pending}
-          onClick={() => run(() => reconcileDocuSignAction())}
-        >
-          Reconcile envelopes
-        </Button>
+        {canReconcile ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={pending}
+            onClick={() => run(() => reconcileDocuSignAction())}
+          >
+            Reconcile envelopes
+          </Button>
+        ) : null}
         <Button
           type="button"
           size="sm"
