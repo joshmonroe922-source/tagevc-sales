@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { DocuSignHubActions } from '@/components/shared-services/docusign-hub-actions';
 import { DocuSignTemplateSendForm } from '@/components/shared-services/docusign-template-send-form';
 import { DocuSignReplacementForm } from '@/components/shared-services/docusign-replacement-form';
+import { DocuSignManualReview } from '@/components/shared-services/docusign-manual-review';
 import { Badge } from '@/components/ui/badge';
 import {
   Card,
@@ -27,7 +28,10 @@ import { DOCUSIGN_ENV_KEYS } from '@/lib/docusign/types';
 import { roleHasPermission } from '@/lib/types/roles';
 import { getSessionContext, requirePermission } from '@/lib/rbac/session';
 import { isFirmWideAccess } from '@/lib/rbac/entity-scope';
-import { listDocuSignSendIntents } from '@/lib/docusign/send-intents-repo';
+import {
+  listDocuSignManualReviewResolutions,
+  listDocuSignSendIntents,
+} from '@/lib/docusign/send-intents-repo';
 
 function formatBytes(n: number | null | undefined): string {
   if (n == null || n <= 0) return '—';
@@ -108,6 +112,7 @@ export default async function DocuSignModulePage({
     reconciliation,
     reconciliationRuns,
     sendIntents,
+    manualReview,
   ] = await Promise.all([
     listDocuSignEvents({
       limit: 40,
@@ -153,6 +158,10 @@ export default async function DocuSignModulePage({
       ? listDocuSignReconciliationRuns(8)
       : Promise.resolve([]),
     listDocuSignSendIntents({
+      entityId: ctx?.profile.entity_id ?? null,
+      firmWide,
+    }),
+    listDocuSignManualReviewResolutions({
       entityId: ctx?.profile.entity_id ?? null,
       firmWide,
     }),
@@ -226,12 +235,13 @@ export default async function DocuSignModulePage({
           <Badge variant={mode === 'live' ? 'default' : 'secondary'}>
             {mode === 'live' ? 'Live JWT' : 'Mock envelopes'}
           </Badge>
-          <Badge variant="secondary">Phase 36</Badge>
+          <Badge variant="secondary">Phase 37</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">DocuSign</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
           Replay-safe transactional sends, evidence-verified timeout recovery,
-          intent-aware reconciliation, and entity-scoped audit visibility.
+          two-actor manual-review resolution, intent-aware reconciliation, and
+          entity-scoped audit visibility.
           Void policy: {voidPolicy}. Capital sends still require{' '}
           <code className="text-xs">action:docusign_capital</code>.
         </p>
@@ -246,6 +256,21 @@ export default async function DocuSignModulePage({
             .filter((envelope) => envelope.status === 'voided')
             .map((envelope) => envelope.envelopeId)}
           canWrite={canWrite}
+        />
+        <DocuSignManualReview
+          intents={sendIntents.filter(
+            (intent) => intent.state === 'manual_review',
+          )}
+          resolutions={manualReview.resolutions}
+          profileId={ctx?.profile.id ?? null}
+          canResolve={
+            ctx
+              ? roleHasPermission(
+                  ctx.profile.role,
+                  'action:docusign_manual_review',
+                )
+              : false
+          }
         />
         <Card>
           <CardHeader>

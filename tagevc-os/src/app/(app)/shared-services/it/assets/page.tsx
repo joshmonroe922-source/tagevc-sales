@@ -7,6 +7,7 @@ import {
   listLifecycleEvents,
   listIntuneActions,
   listIntuneActionEvents,
+  listIntuneDispatchAttempts,
   listIntuneWorkerRuns,
   listSoftwareLicenses,
 } from '@/lib/shared-services/it-assets-repo';
@@ -25,7 +26,7 @@ import { isFirmWideAccess } from '@/lib/rbac/entity-scope';
 export default async function ItAssetsModulePage() {
   await requirePermission('read:it_assets');
 
-  const [hw, lic, ev, lifecycle, off, onb, intune, intuneEvents, workerRuns] =
+  const [hw, lic, ev, lifecycle, off, onb, intune, intuneEvents, dispatchAttempts, workerRuns] =
     await Promise.all([
     listHardwareAssets(),
     listSoftwareLicenses(),
@@ -35,6 +36,7 @@ export default async function ItAssetsModulePage() {
     listOnboardingRuns(),
     listIntuneActions(),
     listIntuneActionEvents(),
+    listIntuneDispatchAttempts(),
     listIntuneWorkerRuns(),
   ]);
   const candidateTickets = listOffboardingCandidateTickets();
@@ -77,14 +79,14 @@ export default async function ItAssetsModulePage() {
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">IT</Badge>
-          <Badge variant="secondary">Phase 36</Badge>
+          <Badge variant="secondary">Phase 37</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Hardware &amp; licensing
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Atomic warranty preview/commit, fenced one-at-a-time Intune workers,
-          approval expiry and transition evidence, renewals, and asset lifecycle.
+          Atomic warranty preview/commit, final pre-dispatch authorization,
+          verification-only recovery, worker timelines, and asset lifecycle.
         </p>
       </div>
 
@@ -99,6 +101,9 @@ export default async function ItAssetsModulePage() {
         onboardingTickets={onboardingTickets}
         intuneActions={intune.rows}
         intuneEvents={visibleIntuneEvents}
+        intuneDispatchAttempts={dispatchAttempts.filter((attempt) =>
+          visibleActionIds.has(String(attempt.action_id)),
+        )}
         intuneWorkerRuns={firmWide ? workerRuns : []}
         canWrite={canWrite}
         canIntuneRetire={canIntuneRetire}

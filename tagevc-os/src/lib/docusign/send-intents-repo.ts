@@ -19,6 +19,7 @@ export type DocuSignSendIntent = {
   provider_envelope_id: string | null;
   lease_token: string | null;
   recovery_attempts: number;
+  row_version: number;
   requested_at: string;
   last_error_code: string | null;
   last_error_message: string | null;
@@ -303,7 +304,7 @@ export async function listDocuSignSendIntents(input?: {
   let query = sb
     .from('os_docusign_send_intents')
     .select(
-      'intent_id, request_id, operation_kind, state, doc_id, entity_id, template_id, source_envelope_id, provider_transaction_id, provider_envelope_id, dispatch_attempts, recovery_attempts, last_error_code, last_error_message, candidate_envelope_id, last_lookup_at, last_lookup_disposition, manual_review_reason, next_recovery_at, requested_at, finalized_at',
+      'intent_id, request_id, operation_kind, state, doc_id, entity_id, template_id, source_envelope_id, provider_transaction_id, provider_envelope_id, dispatch_attempts, recovery_attempts, last_error_code, last_error_message, candidate_envelope_id, last_lookup_at, last_lookup_disposition, manual_review_reason, next_recovery_at, row_version, resolution_id, resolved_at, resolved_by, resolution_disposition, resolution_evidence_sha256, requested_at, finalized_at',
     )
     .order('requested_at', { ascending: false })
     .limit(30);
@@ -313,4 +314,40 @@ export async function listDocuSignSendIntents(input?: {
   }
   const { data } = await query;
   return data ?? [];
+}
+
+export async function listDocuSignManualReviewResolutions(input?: {
+  entityId?: string | null;
+  firmWide?: boolean;
+}) {
+  const sb = await createPersistClient();
+  await sb.rpc('expire_docusign_manual_reviews');
+  let resolutionQuery = sb
+    .from('os_docusign_manual_review_resolutions')
+    .select(
+      'resolution_id, intent_id, entity_id, decision, status, candidate_envelope_id, candidate_provider_status, evidence_sha256, proposed_intent_version, proposed_by, proposed_reason, proposed_at, expires_at, reviewed_by, reviewer_statement, reviewed_at, row_version',
+    )
+    .order('proposed_at', { ascending: false })
+    .limit(30);
+  let eventQuery = sb
+    .from('os_docusign_manual_review_events')
+    .select(
+      'event_id, resolution_id, intent_id, entity_id, event_type, actor_id, from_status, to_status, evidence_sha256, intent_version, resolution_version, reason, created_at',
+    )
+    .order('created_at', { ascending: false })
+    .limit(100);
+  if (!input?.firmWide) {
+    if (!input?.entityId) return { resolutions: [], events: [] };
+    resolutionQuery = resolutionQuery.eq('entity_id', input.entityId);
+    eventQuery = eventQuery.eq('entity_id', input.entityId);
+  }
+  const [
+    { data: resolutions, error: resolutionError },
+    { data: events, error: eventError },
+  ] = await Promise.all([resolutionQuery, eventQuery]);
+  return {
+    resolutions: resolutions ?? [],
+    events: events ?? [],
+    error: resolutionError?.message || eventError?.message,
+  };
 }

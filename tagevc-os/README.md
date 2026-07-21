@@ -652,12 +652,33 @@ Docs: `docs/OS_PHASE35.md`
 
 Docs: `docs/OS_PHASE36.md`
 
-### Phase 37+ backlog
+### Phase 37 scope (contracts · dispatch boundaries · SLOs)
 
-- Provider contract fixtures and authoritative paid account-total reconciliation
-- DocuSign manual-review resolution and hash-idempotent signed archives
-- Intune final dispatch-authorization RPC and Graph outage circuit breaker
-- Fully transactional snapshot drill/soak persistence and expiry notifications
+- Versioned Meta/LinkedIn runtime contracts, durable validation evidence, and
+  governed paid-sync recovery
+- Two-actor DocuSign manual-review candidate binding or local closure without
+  resend authorization
+- Final Intune pre-dispatch authorization bound to current asset, approval,
+  provider identity, lease, and row version
+- Transactional snapshot drill/check/epoch/observation persistence with exact
+  replay handling
+- Entity-scoped Shared Services SLO evaluations, durable alert lifecycle, and
+  generic worker history
+- SQL: apply `phase37_marketing_paid_contracts.sql`,
+  `phase37_docusign_manual_review.sql`,
+  `phase37_intune_dispatch_boundary.sql`,
+  `phase37_snapshot_evidence_transaction.sql`, and
+  `phase37_shared_service_slos.sql`
+
+Docs: `docs/OS_PHASE37.md`
+
+### Phase 38+ backlog
+
+- Paid provider account-total reconciliation and unmapped-campaign deltas
+- Transactional, leased DocuSign reconciliation page commits
+- Two-actor Intune manual-review outcomes and Graph outage circuit breaking
+- Configurable SLO ownership, acknowledgement, and external delivery adapters
+- Continue Stage 4e evidence and attestation soak; do not drop snapshots
 - Push · user admin
 
 ## Run locally

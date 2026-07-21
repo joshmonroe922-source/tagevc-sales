@@ -32,9 +32,23 @@ import {
 } from '@/lib/shared-services/modules';
 import { AUTONOMY_BANDS } from '@/lib/types';
 import type { AutonomyBand } from '@/lib/types/enums';
+import { OperationalHealthSummary } from '@/components/shared-services/operational-health-summary';
+import { listOperationalHealth } from '@/lib/shared-services/operational-health';
+import { getSessionContext } from '@/lib/rbac/session';
+import { isFirmWideAccess } from '@/lib/rbac/entity-scope';
 
 export default async function SharedServicesPage() {
-  const tickets = await listScopedTickets();
+  const ctx = await getSessionContext();
+  const firmWide = ctx
+    ? isFirmWideAccess(ctx.profile.role, ctx.profile.entity_id)
+    : false;
+  const [tickets, operationalHealth] = await Promise.all([
+    listScopedTickets(),
+    listOperationalHealth({
+      firmWide,
+      entityId: ctx?.profile.entity_id ?? null,
+    }),
+  ]);
   const bands: Record<AutonomyBand, number> = {
     AUTO: 0,
     DRAFT: 0,
@@ -71,6 +85,8 @@ export default async function SharedServicesPage() {
           or forbid-list.
         </p>
       </header>
+
+      <OperationalHealthSummary health={operationalHealth} />
 
       <section className="space-y-4">
         <div className="space-y-1">

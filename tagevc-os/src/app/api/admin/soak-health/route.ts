@@ -5,7 +5,11 @@ import { recordSoakRun } from '@/lib/data/soak-state';
 import { captureException, captureMessage } from '@/lib/observability';
 import { guardPermission } from '@/lib/rbac/session';
 import { createPersistClient } from '@/lib/supabase/persist-client';
-import { persistSnapshotDrillEvidence } from '@/lib/data/snapshot-drill-evidence';
+import { persistSnapshotEvidenceCycle } from '@/lib/data/snapshot-drill-evidence';
+import {
+  finishOperationalWorker,
+  startOperationalWorker,
+} from '@/lib/shared-services/operational-health';
 
 async function authorize(request: Request): Promise<
   | { ok: true; source: 'cron' | 'admin' }
@@ -251,6 +255,10 @@ async function persistSoakEvidence(input: {
     : { epochStatus: continuityStatus };
 }
 
+// Retained only to make Phase 36 deployments rollback-compatible. Phase 37
+// uses the single transactional RPC below and never calls this split writer.
+void persistSoakEvidence;
+
 async function runSoak(request: Request) {
   const auth = await authorize(request);
   if (!auth.ok) {
@@ -259,6 +267,11 @@ async function runSoak(request: Request) {
       { status: auth.status },
     );
   }
+  const worker = await startOperationalWorker({
+    service: 'snapshot',
+    workerName: 'soak-health',
+    triggerSource: auth.source,
+  });
 
   try {
     const [status, drills] = await Promise.all([
@@ -281,13 +294,24 @@ async function runSoak(request: Request) {
     }
 
     let healthy = issues.length === 0;
-    const fetched_at = new Date().toISOString();
-    const drillEvidence = await persistSnapshotDrillEvidence({
+    const fetched_at = drills.fetched_at;
+    const evidenceCycle = await persistSnapshotEvidenceCycle({
       report: drills,
       source: auth.source,
+      observedAt: fetched_at,
+      recordSoak: true,
+      observation: {
+        healthy,
+        issues,
+        stage: status.cutover_hints.stage,
+        sync_failure_count: status.sync_failure_count,
+        fk_orphan_total: status.fk_orphan_total,
+        stage4_ready: drills.stage4_ready,
+        drill_summary: drills.summary,
+      },
     });
-    if (!drillEvidence.ok) {
-      issues.push(`drill_evidence=${drillEvidence.error}`);
+    if (!evidenceCycle.ok) {
+      issues.push(`evidence_cycle=${evidenceCycle.error}`);
       healthy = false;
     }
     recordSoakRun({
@@ -301,46 +325,6 @@ async function runSoak(request: Request) {
       drill_summary: drills.summary,
       source: auth.source,
     });
-    const soakEvidence = await persistSoakEvidence({
-      healthy,
-      issues,
-      stage: status.cutover_hints.stage,
-      syncFailureCount: status.sync_failure_count,
-      fkOrphanTotal: status.fk_orphan_total,
-      stage4Ready: drills.stage4_ready,
-      drillSummary: drills.summary,
-      source: auth.source,
-      observedAt: fetched_at,
-      drillRunId: drillEvidence.ok ? drillEvidence.drill_run_id : null,
-      configFingerprint: drillEvidence.ok
-        ? drillEvidence.config_fingerprint
-        : null,
-      evidenceSha256: drillEvidence.ok
-        ? drillEvidence.evidence_sha256
-        : null,
-    });
-    const observationError = soakEvidence.error
-      ? { message: soakEvidence.error }
-      : null;
-    if (
-      observationError &&
-      !observationError.message.includes('os_snapshot_soak_observations')
-    ) {
-      issues.push(`soak_persist=${observationError.message}`);
-      healthy = false;
-      recordSoakRun({
-        fetched_at,
-        healthy,
-        issues,
-        stage: status.cutover_hints.stage,
-        sync_failure_count: status.sync_failure_count,
-        fk_orphan_total: status.fk_orphan_total,
-        stage4_ready: drills.stage4_ready,
-        drill_summary: drills.summary,
-        source: auth.source,
-      });
-    }
-
     if (!healthy) {
       captureMessage(`Soak health degraded: ${issues.join('; ')}`, 'warning', {
         route: 'soak-health',
@@ -351,6 +335,22 @@ async function runSoak(request: Request) {
         issues,
       });
     }
+    await finishOperationalWorker({
+      workerRunId: worker.workerRunId,
+      status: healthy ? 'completed' : 'partial',
+      claimed: 1,
+      succeeded: healthy ? 1 : 0,
+      failed: healthy ? 0 : 1,
+      errorCode: healthy ? null : 'snapshot_health_degraded',
+      errorDetail: healthy ? null : issues.join('; '),
+      details: evidenceCycle.ok
+        ? {
+            drill_run_id: evidenceCycle.drill_run_id,
+            observation_id: evidenceCycle.observation_id,
+            replayed: evidenceCycle.replayed,
+          }
+        : {},
+    });
 
     return NextResponse.json({
       ok: true,
@@ -361,12 +361,30 @@ async function runSoak(request: Request) {
       fk_orphan_total: status.fk_orphan_total,
       stage4_ready: drills.stage4_ready,
       drill_summary: drills.summary,
-      soak_epoch_status: soakEvidence.epochStatus ?? null,
+      soak_epoch_status: evidenceCycle.ok
+        ? evidenceCycle.epoch_status
+        : null,
+      evidence_cycle: evidenceCycle.ok
+        ? {
+            drill_run_id: evidenceCycle.drill_run_id,
+            observation_id: evidenceCycle.observation_id,
+            epoch_id: evidenceCycle.epoch_id,
+            evidence_sha256: evidenceCycle.evidence_sha256,
+            replayed: evidenceCycle.replayed,
+          }
+        : null,
       sentry_configured: status.sentry_configured,
       fetched_at,
     });
   } catch (e) {
     captureException(e, { route: 'soak-health' });
+    await finishOperationalWorker({
+      workerRunId: worker.workerRunId,
+      status: 'failed',
+      failed: 1,
+      errorCode: 'snapshot_soak_worker_failed',
+      errorDetail: e instanceof Error ? e.message : 'soak failed',
+    });
     return NextResponse.json(
       {
         ok: false,

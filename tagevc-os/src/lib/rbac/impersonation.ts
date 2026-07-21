@@ -16,6 +16,7 @@ export const BREAK_GLASS_PERMISSIONS: readonly Permission[] = [
   'action:ic_vote',
   'action:wire',
   'action:docusign_capital',
+  'action:docusign_manual_review',
   'action:intune_retire',
   'action:snapshot_rollback_attest',
   'write:capital',

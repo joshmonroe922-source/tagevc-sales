@@ -126,6 +126,15 @@ export async function createEnvelope(
                 value: input.operationKind ?? 'document_send',
                 show: 'false',
               },
+              ...(input.transactionId
+                ? [
+                    {
+                      name: 'tagevc_provider_transaction_id',
+                      value: input.transactionId,
+                      show: 'false',
+                    },
+                  ]
+                : []),
               ...(input.docId
                 ? [
                     {
@@ -224,6 +233,24 @@ export async function createEnvelopeFromTemplate(
                 value: input.operationKind ?? 'template_send',
                 show: 'false',
               },
+              ...(input.transactionId
+                ? [
+                    {
+                      name: 'tagevc_provider_transaction_id',
+                      value: input.transactionId,
+                      show: 'false',
+                    },
+                  ]
+                : []),
+              ...(input.docId
+                ? [
+                    {
+                      name: 'tagevc_doc_id',
+                      value: input.docId,
+                      show: 'false',
+                    },
+                  ]
+                : []),
             ],
           },
         }
@@ -320,6 +347,45 @@ export async function getEnvelopeRecoveryEvidence(
       )
       .map((field) => [field.name, field.value]),
   );
+}
+
+export async function getManualReviewEvidence(
+  providerTransactionId: string,
+): Promise<{
+  evidence_version: 'phase37-v1';
+  provider_transaction_id: string;
+  observed_at: string;
+  total_candidates: number;
+  truncated: boolean;
+  candidates: Array<{
+    envelope_id: string;
+    provider_status: string;
+    custom_fields: Record<string, string>;
+  }>;
+}> {
+  const statuses = await listEnvelopeStatusesByTransactionIds([
+    providerTransactionId,
+  ]);
+  const allMatching = statuses.filter(
+    (status) => status.transactionId === providerTransactionId,
+  );
+  const matching = allMatching.slice(0, 20);
+  const candidates = await Promise.all(
+    matching.map(async (status) => ({
+      envelope_id: status.envelopeId,
+      provider_status: status.status,
+      custom_fields: await getEnvelopeRecoveryEvidence(status.envelopeId),
+    })),
+  );
+  candidates.sort((a, b) => a.envelope_id.localeCompare(b.envelope_id));
+  return {
+    evidence_version: 'phase37-v1',
+    provider_transaction_id: providerTransactionId,
+    observed_at: new Date().toISOString(),
+    total_candidates: allMatching.length,
+    truncated: allMatching.length > matching.length,
+    candidates,
+  };
 }
 
 export async function getEnvelopeStatus(envelopeId: string): Promise<{

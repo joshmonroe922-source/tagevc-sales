@@ -122,9 +122,22 @@ SQL: `phase35_intune_rollback_attestations.sql`.
 
 SQL: `phase36_intune_worker_fencing.sql`.
 
-## Phase 37+
+## Phase 37
 
-1. Separate final dispatch-authorization RPC and outage circuit breaker
+1. Claim now grants only a preflight lease; it does not authorize Graph POST.
+2. Final dispatch authorization atomically binds live provider identity, the
+   current asset, approval hash, lease, and row version.
+3. One unique dispatch attempt and authorization token exist per action.
+4. Any authorized worker crash recovers to verification only; bounded unknown
+   outcomes enter manual review.
+5. The IT hub shows dispatch-attempt hashes, worker phase counts, and
+   verification-only status after authorization.
+
+SQL: `phase37_intune_dispatch_boundary.sql`.
+
+## Phase 38+
+
+1. Two-actor Intune manual-review outcome resolution and outage circuit breaker
 2. Signed Exchange hold callback + deleted-user restore
 3. Downloadable warranty preview failure reports
 

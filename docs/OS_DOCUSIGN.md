@@ -140,10 +140,23 @@ SQL: `phase35_docusign_transactional_send.sql`.
 
 SQL: `phase36_docusign_send_hardening.sql`.
 
+## Phase 37
+
+- Manual-review intents can be proposed for one evidence-matched candidate or
+  local closure without resend authorization.
+- A different authorized actor must re-fetch matching provider evidence and
+  approve within 30 minutes.
+- Candidate binding, projection/document updates, replacement lineage, intent
+  finalization, and lifecycle events commit atomically.
+- Dispatched ambiguous sends remain permanent resend tombstones.
+- New template envelopes carry transaction and document evidence fields.
+
+SQL: `phase37_docusign_manual_review.sql`.
+
 ## Still deferred
 
 - Dedicated recipient detail drawer
-- Dual-approved manual-review resolution
+- Transactional leased reconciliation page commits
 - Idempotent signed-archive metadata with content hashes
 - Retire simulate button in production  
 

@@ -13,6 +13,7 @@ import { syncDocuSignTemplates } from '@/lib/docusign/templates';
 import { logActivity } from '@/lib/data/activity';
 import { guardPermission } from '@/lib/rbac/session';
 import { createPersistClient } from '@/lib/supabase/persist-client';
+import { getManualReviewEvidence } from '@/lib/docusign/envelopes';
 import {
   canAccessEntityId,
   entityScopeDeniedMessage,
@@ -29,6 +30,180 @@ export type DocuSignActionResult =
 function revalidateDocuSign() {
   revalidatePath('/shared-services/legal/docusign');
   revalidatePath('/documents');
+}
+
+export async function proposeDocuSignManualReviewAction(input: {
+  intentId: string;
+  decision: 'finalize_candidate' | 'cancel_intent';
+  candidateEnvelopeId?: string | null;
+  reason: string;
+  expectedIntentVersion: number;
+}): Promise<DocuSignActionResult> {
+  const gate = await guardPermission('action:docusign_manual_review');
+  if (!gate.ok) return gate;
+  const parsed = z.object({
+    intentId: z.string().uuid(),
+    decision: z.enum(['finalize_candidate', 'cancel_intent']),
+    candidateEnvelopeId: z.string().trim().min(1).nullable().optional(),
+    reason: z.string().trim().min(20).max(1000),
+    expectedIntentVersion: z.number().int().nonnegative(),
+  }).safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message || 'Invalid manual-review proposal',
+    };
+  }
+  const service = await createPersistClient();
+  const { data: intent, error: intentError } = await service
+    .from('os_docusign_send_intents')
+    .select('provider_transaction_id, entity_id, state')
+    .eq('intent_id', parsed.data.intentId)
+    .single();
+  if (intentError || !intent || intent.state !== 'manual_review') {
+    return {
+      ok: false,
+      error: intentError?.message || 'Manual-review intent is unavailable',
+    };
+  }
+  if (
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      intent.entity_id,
+    )
+  ) {
+    return {
+      ok: false,
+      error: entityScopeDeniedMessage(intent.entity_id || 'firm-wide'),
+    };
+  }
+  try {
+    const evidence = await getManualReviewEvidence(
+      intent.provider_transaction_id,
+    );
+    const { error } = await service.rpc(
+      'propose_docusign_manual_review_resolution',
+      {
+        p_intent_id: parsed.data.intentId,
+        p_actor_id: gate.profile.id,
+        p_decision: parsed.data.decision,
+        p_candidate_envelope_id:
+          parsed.data.candidateEnvelopeId ?? null,
+        p_provider_evidence: evidence,
+        p_reason: parsed.data.reason,
+        p_expected_intent_version: parsed.data.expectedIntentVersion,
+      },
+    );
+    if (error) return { ok: false, error: error.message };
+    revalidateDocuSign();
+    return {
+      ok: true,
+      message:
+        'Manual-review proposal recorded. A different authorized reviewer must approve it within 30 minutes.',
+    };
+  } catch (caught) {
+    return {
+      ok: false,
+      error:
+        caught instanceof Error
+          ? caught.message
+          : 'Could not gather DocuSign review evidence',
+    };
+  }
+}
+
+export async function reviewDocuSignManualReviewAction(input: {
+  resolutionId: string;
+  reviewDecision: 'approve' | 'reject';
+  statement: string;
+  expectedResolutionVersion: number;
+  expectedIntentVersion: number;
+}): Promise<DocuSignActionResult> {
+  const gate = await guardPermission('action:docusign_manual_review');
+  if (!gate.ok) return gate;
+  const parsed = z.object({
+    resolutionId: z.string().uuid(),
+    reviewDecision: z.enum(['approve', 'reject']),
+    statement: z.string().trim().min(20).max(1000),
+    expectedResolutionVersion: z.number().int().nonnegative(),
+    expectedIntentVersion: z.number().int().nonnegative(),
+  }).safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message || 'Invalid manual-review decision',
+    };
+  }
+  const service = await createPersistClient();
+  const { data: resolution, error: resolutionError } = await service
+    .from('os_docusign_manual_review_resolutions')
+    .select('intent_id, entity_id')
+    .eq('resolution_id', parsed.data.resolutionId)
+    .single();
+  if (resolutionError || !resolution) {
+    return {
+      ok: false,
+      error: resolutionError?.message || 'Manual-review proposal not found',
+    };
+  }
+  if (
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      resolution.entity_id,
+    )
+  ) {
+    return {
+      ok: false,
+      error: entityScopeDeniedMessage(resolution.entity_id || 'firm-wide'),
+    };
+  }
+  const { data: intent, error: intentError } = await service
+    .from('os_docusign_send_intents')
+    .select('provider_transaction_id')
+    .eq('intent_id', resolution.intent_id)
+    .single();
+  if (intentError || !intent) {
+    return {
+      ok: false,
+      error: intentError?.message || 'Manual-review intent not found',
+    };
+  }
+  try {
+    const evidence = await getManualReviewEvidence(
+      intent.provider_transaction_id,
+    );
+    const { error } = await service.rpc(
+      'review_docusign_manual_review_resolution',
+      {
+        p_resolution_id: parsed.data.resolutionId,
+        p_actor_id: gate.profile.id,
+        p_review_decision: parsed.data.reviewDecision,
+        p_provider_evidence: evidence,
+        p_statement: parsed.data.statement,
+        p_expected_resolution_version: parsed.data.expectedResolutionVersion,
+        p_expected_intent_version: parsed.data.expectedIntentVersion,
+      },
+    );
+    if (error) return { ok: false, error: error.message };
+    revalidateDocuSign();
+    return {
+      ok: true,
+      message:
+        parsed.data.reviewDecision === 'approve'
+          ? 'Manual-review resolution approved and committed atomically'
+          : 'Manual-review proposal rejected; intent remains quarantined',
+    };
+  } catch (caught) {
+    return {
+      ok: false,
+      error:
+        caught instanceof Error
+          ? caught.message
+          : 'Could not revalidate DocuSign provider evidence',
+    };
+  }
 }
 
 async function envelopeScopeError(
@@ -477,6 +652,7 @@ export async function createReplacementEnvelopeAction(input: {
           intentId: leased.intent_id,
           entityId: sourceContext.entity_id,
           operationKind: 'replacement',
+          docId: sourceContext.doc_id,
         }),
     });
     revalidateDocuSign();

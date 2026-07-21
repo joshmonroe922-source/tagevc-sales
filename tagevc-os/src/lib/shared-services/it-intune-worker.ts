@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 import {
   getMsGraphToken,
@@ -20,6 +20,7 @@ type ClaimedAction = {
   approval_match_sha256: string | null;
   match_sha256: string | null;
   row_version: number;
+  last_error_code: string | null;
 };
 
 export async function processIntuneActions(): Promise<{
@@ -31,7 +32,7 @@ export async function processIntuneActions(): Promise<{
   const sb = await createPersistClient();
   const workerId = `intune-${randomUUID()}`;
   const { error: expiryError } = await sb.rpc(
-    'expire_it_intune_actions_v2',
+    'expire_it_intune_actions_v3',
     { p_limit: 100 },
   );
   if (expiryError) {
@@ -98,7 +99,7 @@ export async function processIntuneActions(): Promise<{
     }
     return { ok: false, claimed: 0, processed: [], error: token.detail };
   }
-  const { data, error } = await sb.rpc('claim_it_intune_action_v2', {
+  const { data, error } = await sb.rpc('claim_it_intune_action_v3', {
     p_worker_id: workerId,
     p_lease_seconds: 120,
   });
@@ -121,11 +122,18 @@ export async function processIntuneActions(): Promise<{
     status: string;
     detail: string;
   }> = [];
+  let preflighted = 0;
+  let authorizedCount = 0;
+  let ambiguousCount = 0;
+  let recoveredCount = 0;
   const headers = {
     Authorization: `Bearer ${token.token}`,
     'Content-Type': 'application/json',
   };
   for (const action of actions) {
+    if (action.last_error_code === 'authorized_worker_recovered') {
+      recoveredCount += 1;
+    }
     let nextStatus = 'verifying';
     let detail = '';
     let evidence: Record<string, unknown> = {};
@@ -137,8 +145,13 @@ export async function processIntuneActions(): Promise<{
       null;
     let retryAfterSeconds: number | null = null;
     let providerPostStarted = false;
+    let dispatchAuthorized = false;
+    let dispatchAttemptId: string | null = null;
+    let authorizationToken: string | null = null;
+    let finishRowVersion = action.row_version;
     try {
-      if (action.status === 'dispatching') {
+      if (action.status === 'preflighting') {
+        preflighted += 1;
         const preflight = await fetch(
           `https://graph.microsoft.com/v1.0/deviceManagement/managedDevices/${encodeURIComponent(action.managed_device_id)}?$select=id,serialNumber,managementState,deviceName,model`,
           { headers, signal: AbortSignal.timeout(20_000) },
@@ -225,6 +238,61 @@ export async function processIntuneActions(): Promise<{
           };
           detail = 'Provider already reports matching device retired';
         } else {
+        const observedAt = new Date().toISOString();
+        const providerPreflight = {
+          managed_device_id: device.id,
+          serial_number: device.serialNumber ?? '',
+          management_state: device.managementState ?? null,
+          device_name: device.deviceName ?? null,
+          model: device.model ?? null,
+          provider_request_id:
+            preflight.headers.get('request-id') ||
+            preflight.headers.get('client-request-id'),
+          http_status: preflight.status,
+          observed_at: observedAt,
+        };
+        const preflightSha = createHash('sha256')
+          .update(JSON.stringify(providerPreflight))
+          .digest('hex');
+        const authorizationRequestId = randomUUID();
+        const authorizationArgs = {
+            p_action_id: action.action_id,
+            p_lease_token: action.lease_token,
+            p_worker_id: workerId,
+            p_expected_row_version: action.row_version,
+            p_authorization_request_id: authorizationRequestId,
+            p_provider_preflight: providerPreflight,
+            p_client_preflight_sha256: preflightSha,
+          };
+        let authorization: unknown = null;
+        let authorizationError: { message: string } | null = null;
+        for (let attempt = 0; attempt < 2 && !authorization; attempt += 1) {
+          const response = await sb.rpc(
+            'authorize_it_intune_dispatch_v3',
+            authorizationArgs,
+          );
+          authorization = response.data;
+          authorizationError = response.error;
+          if (authorizationError && attempt === 0) {
+            await new Promise((resolve) => setTimeout(resolve, 250));
+          }
+        }
+        if (authorizationError || !authorization) {
+          throw new Error(
+            authorizationError?.message ||
+              'Dispatch authorization returned no evidence',
+          );
+        }
+        const authorized = authorization as {
+          dispatch_attempt_id: string;
+          authorization_token: string;
+          row_version: number;
+        };
+        dispatchAuthorized = true;
+        authorizedCount += 1;
+        dispatchAttemptId = authorized.dispatch_attempt_id;
+        authorizationToken = authorized.authorization_token;
+        finishRowVersion = authorized.row_version;
         providerPostStarted = true;
         const res = await fetch(
           `https://graph.microsoft.com/v1.0/deviceManagement/managedDevices/${encodeURIComponent(action.managed_device_id)}/retire`,
@@ -232,7 +300,7 @@ export async function processIntuneActions(): Promise<{
             method: 'POST',
             headers: {
               ...headers,
-              'client-request-id': `${action.action_id}:${action.attempt_count + 1}`,
+              'client-request-id': authorized.dispatch_attempt_id,
             },
             signal: AbortSignal.timeout(20_000),
           },
@@ -249,18 +317,21 @@ export async function processIntuneActions(): Promise<{
         if (res.ok) {
           nextStatus = 'submitted';
           detail = `Graph accepted retirement (${res.status})`;
-        } else if (res.status === 429) {
-          nextStatus = 'approved';
-          errorMessage = 'Graph throttled retirement request';
-          errorCode = 'provider_throttled';
-          errorClass = 'transient';
-          retryAfterSeconds = Number(res.headers.get('retry-after') ?? 300);
-          detail = errorMessage;
-        } else if (res.status >= 500) {
+        } else if (
+          [408, 409, 425, 429].includes(res.status) ||
+          res.status >= 500
+        ) {
           nextStatus = 'verifying';
           errorMessage = `Ambiguous Graph HTTP ${res.status}; polling before retry`;
-          errorCode = 'provider_5xx_ambiguous';
+          errorCode =
+            res.status === 429
+              ? 'provider_throttled_ambiguous'
+              : 'provider_response_ambiguous';
           errorClass = 'ambiguous';
+          retryAfterSeconds =
+            res.status === 429
+              ? Number(res.headers.get('retry-after') ?? 300)
+              : null;
           detail = errorMessage;
         } else {
           nextStatus = 'failed';
@@ -303,8 +374,8 @@ export async function processIntuneActions(): Promise<{
           const ageHours =
             (Date.now() - Date.parse(action.requested_at)) / 3_600_000;
           if (action.poll_count >= 32 || ageHours >= 24) {
-            nextStatus = 'failed';
-            verificationCode = 'poll_timeout';
+            nextStatus = 'manual_review';
+            verificationCode = 'manual_review_required';
             errorMessage = 'Retirement was not verified within policy';
             detail = errorMessage;
           } else if (res.status === 401 || res.status === 403) {
@@ -327,7 +398,9 @@ export async function processIntuneActions(): Promise<{
         }
       }
     } catch (caught) {
-      nextStatus = 'verifying';
+      nextStatus = dispatchAuthorized || providerPostStarted
+        ? 'verifying'
+        : 'approved';
       errorMessage =
         caught instanceof Error ? caught.message : 'Graph transport failure';
       evidence = {
@@ -339,16 +412,15 @@ export async function processIntuneActions(): Promise<{
         ? 'transport_ambiguous'
         : 'preflight_transport';
       errorClass = providerPostStarted ? 'ambiguous' : 'transient';
-      nextStatus = providerPostStarted ? 'verifying' : 'approved';
-      detail = providerPostStarted
+      detail = dispatchAuthorized || providerPostStarted
         ? `${errorMessage}; polling before retry`
         : `${errorMessage}; dispatch was not attempted`;
     }
-    const { error: finishError } = await sb.rpc('finish_it_intune_action_v2', {
+    const { error: finishError } = await sb.rpc('finish_it_intune_action_v3', {
       p_action_id: action.action_id,
       p_lease_token: action.lease_token,
       p_worker_id: workerId,
-      p_expected_row_version: action.row_version,
+      p_expected_row_version: finishRowVersion,
       p_status: nextStatus,
       p_evidence: evidence,
       p_error: errorMessage,
@@ -357,7 +429,12 @@ export async function processIntuneActions(): Promise<{
       p_error_code: errorCode,
       p_error_class: errorClass,
       p_retry_after_seconds: retryAfterSeconds,
+      p_dispatch_attempt_id: dispatchAttemptId,
+      p_authorization_token: authorizationToken,
     });
+    if (nextStatus === 'verifying' && (dispatchAuthorized || providerPostStarted)) {
+      ambiguousCount += 1;
+    }
     processed.push({
       action_id: action.action_id,
       status: finishError ? 'lease_error' : nextStatus,
@@ -379,6 +456,10 @@ export async function processIntuneActions(): Promise<{
         lease_conflicts: processed.filter(
           (item) => item.status === 'lease_error',
         ).length,
+        preflighted,
+        authorized: authorizedCount,
+        ambiguous: ambiguousCount,
+        recovered: recoveredCount,
         completed_at: new Date().toISOString(),
       })
       .eq('worker_run_id', workerRun.worker_run_id);

@@ -83,6 +83,7 @@ export function ItAssetsClient({
   onboardingTickets = [],
   intuneActions = [],
   intuneEvents = [],
+  intuneDispatchAttempts = [],
   intuneWorkerRuns = [],
   canIntuneRetire = false,
   canWrite,
@@ -108,6 +109,7 @@ export function ItAssetsClient({
   }>;
   intuneActions?: ItIntuneAction[];
   intuneEvents?: Array<Record<string, unknown>>;
+  intuneDispatchAttempts?: Array<Record<string, unknown>>;
   intuneWorkerRuns?: Array<Record<string, unknown>>;
   canIntuneRetire?: boolean;
   canWrite: boolean;
@@ -412,7 +414,7 @@ export function ItAssetsClient({
                         ))
                       : null}
                     {canIntuneRetire &&
-                    ['requested', 'approved'].includes(action.status) ? (
+                    ['requested', 'approved', 'preflighting'].includes(action.status) ? (
                       <Button
                         type="button"
                         size="sm"
@@ -434,6 +436,13 @@ export function ItAssetsClient({
                       >
                         Cancel
                       </Button>
+                    ) : null}
+                    {['dispatch_authorized', 'submitted', 'verifying'].includes(
+                      action.status,
+                    ) ? (
+                      <span className="text-xs text-amber-700">
+                        Provider dispatch authorized — verification only
+                      </span>
                     ) : null}
                     {canIntuneRetire &&
                     ['failed', 'cancelled'].includes(action.status) &&
@@ -505,6 +514,23 @@ export function ItAssetsClient({
                 {String(runRow.started_at)} · {String(runRow.status)} · claimed{' '}
                 {String(runRow.claimed)} · succeeded {String(runRow.succeeded)} ·
                 failed {String(runRow.failed)}
+                {' · '}preflight {String(runRow.preflighted ?? 0)}
+                {' · '}authorized {String(runRow.authorized ?? 0)}
+                {' · '}ambiguous {String(runRow.ambiguous ?? 0)}
+              </p>
+            ))}
+          </div>
+        ) : null}
+        {intuneDispatchAttempts.length > 0 ? (
+          <div className="space-y-1 rounded border p-2 text-xs">
+            <p className="font-medium">Dispatch authorization evidence</p>
+            {intuneDispatchAttempts.slice(0, 8).map((attempt) => (
+              <p key={String(attempt.dispatch_attempt_id)}>
+                {String(attempt.authorized_at)} · action{' '}
+                {String(attempt.action_id).slice(0, 8)}… · attempt{' '}
+                {String(attempt.dispatch_attempt_id).slice(0, 8)}… ·{' '}
+                {String(attempt.outcome ?? 'authorized')} · preflight{' '}
+                {String(attempt.provider_preflight_sha256).slice(0, 12)}…
               </p>
             ))}
           </div>

@@ -820,12 +820,24 @@ export async function listIntuneActionEvents(limit = 80) {
   return data ?? [];
 }
 
+export async function listIntuneDispatchAttempts(limit = 50) {
+  const sb = await createPersistClient();
+  const { data } = await sb
+    .from('os_it_intune_dispatch_attempts')
+    .select(
+      'dispatch_attempt_id, action_id, authorization_request_id, worker_id, action_row_version, approval_match_sha256, asset_sha256, provider_preflight_sha256, provider_observed_at, provider_request_id, authorized_at, outcome, outcome_at, graph_request_id, error_code, error_class',
+    )
+    .order('authorized_at', { ascending: false })
+    .limit(limit);
+  return data ?? [];
+}
+
 export async function listIntuneWorkerRuns(limit = 12) {
   const sb = await createPersistClient();
   const { data } = await sb
     .from('os_it_intune_worker_runs')
     .select(
-      'worker_run_id, status, claimed, succeeded, failed, lease_conflicts, platform_error, started_at, completed_at',
+      'worker_run_id, status, claimed, succeeded, failed, lease_conflicts, preflighted, authorized, ambiguous, recovered, platform_error, started_at, completed_at',
     )
     .order('started_at', { ascending: false })
     .limit(limit);

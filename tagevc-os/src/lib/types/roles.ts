@@ -73,6 +73,7 @@ export type Permission =
   | 'action:ic_vote'
   | 'action:wire'
   | 'action:docusign_capital'
+  | 'action:docusign_manual_review'
   | 'action:intune_retire'
   | 'action:snapshot_rollback_attest';
 
@@ -107,6 +108,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     'action:ic_vote',
     'action:wire',
     'action:docusign_capital',
+    'action:docusign_manual_review',
     'action:intune_retire',
     'action:snapshot_rollback_attest',
     'admin:users',
@@ -196,6 +198,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     'read:documents',
     'write:documents',
     'action:wire',
+    'action:docusign_manual_review',
     'read:it_assets',
   ],
   admin: [
@@ -214,6 +217,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     'write:marketing',
     'admin:users',
     'admin:enums',
+    'action:docusign_manual_review',
     'action:intune_retire',
     'action:snapshot_rollback_attest',
   ],

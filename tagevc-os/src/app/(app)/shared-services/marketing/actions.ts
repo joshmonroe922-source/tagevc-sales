@@ -21,6 +21,7 @@ import {
   canAccessEntityId,
   entityScopeDeniedMessage,
 } from '@/lib/rbac/entity-scope';
+import { createPersistClient } from '@/lib/supabase/persist-client';
 
 export type MarketingActionResult =
   | { ok: true; message?: string }
@@ -512,6 +513,50 @@ export async function queuePaidMetricsBackfillAction(
   return result.errors.length > 0
     ? { ok: false, error: result.errors.join('; ') }
     : { ok: true, message: `Queued ${result.queued} paid metric window(s)` };
+}
+
+export async function retryPaidMetricsRunAction(
+  runId: string,
+  reason: string,
+): Promise<MarketingActionResult> {
+  const gate = await guardPermission('write:marketing');
+  if (!gate.ok) return gate;
+  const parsed = z.object({
+    runId: z.string().uuid(),
+    reason: z.string().trim().min(15).max(500),
+  }).safeParse({ runId, reason });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message || 'Invalid retry' };
+  }
+  const sb = await createPersistClient();
+  const { data: run, error: runError } = await sb
+    .from('os_marketing_paid_sync_runs')
+    .select('entity_id')
+    .eq('run_id', parsed.data.runId)
+    .single();
+  if (runError || !run) {
+    return { ok: false, error: runError?.message || 'Paid sync run not found' };
+  }
+  if (
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      run.entity_id,
+    )
+  ) {
+    return {
+      ok: false,
+      error: entityScopeDeniedMessage(run.entity_id || 'firm-wide'),
+    };
+  }
+  const { error } = await sb.rpc('retry_marketing_paid_sync_run', {
+    p_run_id: parsed.data.runId,
+    p_actor_id: gate.profile.id,
+    p_reason: parsed.data.reason,
+  });
+  if (error) return { ok: false, error: error.message };
+  revalidateMarketing();
+  return { ok: true, message: 'Paid sync run queued for governed retry' };
 }
 
 export async function runScheduleWorkerAction(): Promise<MarketingActionResult> {

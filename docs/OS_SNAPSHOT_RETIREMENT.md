@@ -128,6 +128,25 @@ SQL: `phase35_intune_rollback_attestations.sql`. Read-only evidence inspection:
 
 SQL: `phase36_snapshot_attestation_lifecycle.sql`.
 
+## Phase 37 transactional evidence cycles
+
+- One service-role RPC atomically persists the drill run, every check, epoch
+  transition, and linked soak observation.
+- Transaction-scoped locking and an effective-epoch uniqueness rule prevent
+  concurrent epoch forks.
+- Exact cron retries return the committed cycle; hash or check-count conflicts
+  fail closed.
+- Qualification preserves its first timestamp and requires linked, hashed cron
+  evidence.
+- Hourly Shared Services SLO evaluation proactively refreshes attestation
+  lifecycle state and monitors observation age, validity, and evidence
+  integrity.
+- No Phase 37 migration drops, renames, alters, or writes
+  `os_store_snapshots`.
+
+SQL: `phase37_snapshot_evidence_transaction.sql` and
+`phase37_shared_service_slos.sql`.
+
 ## Non-goals
 
 - Dropping the table in Phase 16–19  

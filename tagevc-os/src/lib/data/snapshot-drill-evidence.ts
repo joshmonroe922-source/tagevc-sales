@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'crypto';
+import { createHash } from 'crypto';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 import type { EmptySnapshotDrillReport } from '@/lib/data/snapshot-drills';
 
@@ -11,6 +11,22 @@ export function snapshotConfigFingerprint(): string {
     write_cutover_all: process.env.WRITE_CUTOVER_ALL?.trim() || null,
     read_cutover_all: process.env.READ_CUTOVER_ALL?.trim() || null,
     write_snapshots: process.env.WRITE_SNAPSHOTS?.trim() || null,
+    write_domains:
+      process.env.SNAPSHOT_WRITE_DOMAINS?.split(',')
+        .map((value) => value.trim())
+        .filter(Boolean)
+        .sort() ?? [],
+    skip_domains:
+      process.env.SNAPSHOT_SKIP_DOMAINS?.split(',')
+        .map((value) => value.trim())
+        .filter(Boolean)
+        .sort() ?? [],
+    read_force: process.env.SNAPSHOT_READ_FORCE?.trim() || null,
+    read_skip_domains:
+      process.env.SNAPSHOT_READ_SKIP_DOMAINS?.split(',')
+        .map((value) => value.trim())
+        .filter(Boolean)
+        .sort() ?? [],
   };
   return createHash('sha256').update(JSON.stringify(config)).digest('hex');
 }
@@ -28,77 +44,95 @@ export async function persistSnapshotDrillEvidence(input: {
     }
   | { ok: false; error: string }
 > {
+  const result = await persistSnapshotEvidenceCycle({
+    ...input,
+    observedAt: input.report.fetched_at,
+    recordSoak: false,
+  });
+  return result.ok
+    ? {
+        ok: true,
+        drill_run_id: result.drill_run_id,
+        evidence_sha256: result.evidence_sha256,
+        config_fingerprint: result.config_fingerprint,
+      }
+    : result;
+}
+
+export async function persistSnapshotEvidenceCycle(input: {
+  report: EmptySnapshotDrillReport;
+  source: 'cron' | 'admin';
+  requestedBy?: string | null;
+  observedAt: string;
+  recordSoak: boolean;
+  observation?: {
+    healthy: boolean;
+    issues: string[];
+    stage: string;
+    sync_failure_count: number;
+    fk_orphan_total: number;
+    stage4_ready: boolean;
+    drill_summary: string;
+  };
+}): Promise<
+  | {
+      ok: true;
+      drill_run_id: string;
+      observation_id: string | null;
+      epoch_id: string | null;
+      epoch_status: string | null;
+      evidence_sha256: string;
+      config_fingerprint: string;
+      replayed: boolean;
+    }
+  | { ok: false; error: string }
+> {
   const sb = await createPersistClient();
   const configFingerprint = snapshotConfigFingerprint();
-  const evidenceSha256 = createHash('sha256')
-    .update(JSON.stringify(input.report))
-    .digest('hex');
-  const bucket = new Date(input.report.fetched_at);
-  bucket.setUTCMinutes(0, 0, 0);
-  bucket.setUTCHours(Math.floor(bucket.getUTCHours() / 6) * 6);
-  const idempotencyKey =
-    input.source === 'cron'
-      ? `readiness:${configFingerprint}:${bucket.toISOString()}`
-      : `readiness:admin:${randomUUID()}`;
-  const { data: run, error } = await sb
-    .from('os_snapshot_drill_runs')
-    .insert({
-      idempotency_key: idempotencyKey,
-      drill_type: 'readiness',
-      trigger_source: input.source,
-      status: input.report.ok ? 'passed' : 'failed',
-      retired_table_name:
-        process.env.SNAPSHOT_RETIRED_TABLE_NAME?.trim() || null,
-      requested_by: input.requestedBy ?? null,
-      config_fingerprint: configFingerprint,
-      code_revision: process.env.VERCEL_GIT_COMMIT_SHA?.trim() || 'local',
-      started_at: input.report.fetched_at,
-      completed_at: new Date().toISOString(),
-      summary: {
-        text: input.report.summary,
+  const { data, error } = await sb.rpc('record_snapshot_evidence_cycle', {
+    p_source: input.source,
+    p_requested_by: input.requestedBy ?? null,
+    p_observed_at: input.observedAt,
+    p_retired_table_name:
+      process.env.SNAPSHOT_RETIRED_TABLE_NAME?.trim() || null,
+    p_config_fingerprint: configFingerprint,
+    p_code_revision: process.env.VERCEL_GIT_COMMIT_SHA?.trim() || 'local',
+    p_report: input.report,
+    p_observation:
+      input.observation ?? {
+        healthy: input.report.ok,
+        issues: input.report.ok ? [] : [input.report.summary],
+        stage: 'manual_drill',
+        sync_failure_count: 0,
+        fk_orphan_total: 0,
         stage4_ready: input.report.stage4_ready,
+        drill_summary: input.report.summary,
       },
-      evidence_sha256: evidenceSha256,
-    })
-    .select('drill_run_id')
-    .single();
-  if (error) {
-    if (error.code === '23505') {
-      const { data: existing } = await sb
-        .from('os_snapshot_drill_runs')
-        .select('drill_run_id, evidence_sha256')
-        .eq('idempotency_key', idempotencyKey)
-        .maybeSingle();
-      if (existing) {
-        return {
-          ok: true,
-          drill_run_id: String(existing.drill_run_id),
-          evidence_sha256: String(existing.evidence_sha256),
-          config_fingerprint: configFingerprint,
-        };
-      }
-    }
-    return { ok: false, error: error.message };
+    p_record_soak: input.recordSoak,
+  });
+  if (error || !data) {
+    return { ok: false, error: error?.message || 'Evidence RPC returned no data' };
   }
-  const checks = input.report.results.flatMap((result) =>
-    result.checks.map((check) => ({
-      drill_run_id: run.drill_run_id,
-      domain: result.collection,
-      check_name: check.name,
-      ok: check.ok,
-      expected: { ok: true },
-      observed: { detail: check.detail ?? null },
-      checked_at: input.report.fetched_at,
-    })),
-  );
-  const { error: checksError } = await sb
-    .from('os_snapshot_drill_checks')
-    .insert(checks);
-  if (checksError) return { ok: false, error: checksError.message };
+  const row = data as {
+    drill_run_id: string;
+    observation_id: string | null;
+    epoch_id: string | null;
+    epoch_status: string | null;
+    evidence_sha256: string;
+    replayed: boolean;
+    input_matched?: boolean;
+  };
+  if (row.replayed && row.input_matched !== true) {
+    return { ok: false, error: 'Snapshot evidence replay did not match input' };
+  }
   return {
     ok: true,
-    drill_run_id: String(run.drill_run_id),
-    evidence_sha256: evidenceSha256,
+    drill_run_id: row.drill_run_id,
+    observation_id: row.observation_id,
+    epoch_id: row.epoch_id,
+    epoch_status: row.epoch_status,
+    evidence_sha256: row.evidence_sha256,
     config_fingerprint: configFingerprint,
+    replayed: Boolean(row.replayed),
   };
 }

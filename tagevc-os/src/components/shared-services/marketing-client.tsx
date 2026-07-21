@@ -13,6 +13,7 @@ import {
   generateDraftAction,
   pullEngagementAction,
   queuePaidMetricsBackfillAction,
+  retryPaidMetricsRunAction,
   recordEngagementAction,
   refreshTokensAction,
   registerAccountAction,
@@ -93,6 +94,14 @@ export function MarketingClient({
       rows_written: number;
       error_code: string | null;
       error_detail: string | null;
+      error_class?: string | null;
+      retry_disposition?: string | null;
+      last_http_status?: number | null;
+      retry_after_seconds?: number | null;
+      contract_version?: string | null;
+      validation_status?: string | null;
+      validation_evidence_sha256?: string | null;
+      provider_request_id?: string | null;
     }>;
     coverage: Array<{ ad_account_id: string; metric_date: string }>;
   };
@@ -429,7 +438,9 @@ export function MarketingClient({
           <div>
             <p className="text-xs text-muted-foreground">Attributed revenue</p>
             <p className="font-semibold tabular-nums">
-              {analytics.paid_currency_mixed
+              {analytics.paid_typed
+                ? 'not period-aligned'
+                : analytics.paid_currency_mixed
                 ? 'grouped below'
                 : `$${analytics.paid_revenue_k.toFixed(1)}k`}
             </p>
@@ -559,7 +570,38 @@ export function MarketingClient({
                     {syncRun.status} · attempt {syncRun.attempts} ·{' '}
                     {syncRun.rows_written} rows · {covered}/90 covered
                     {syncRun.error_code ? ` · ${syncRun.error_code}` : ''}
+                    {syncRun.error_class ? ` · ${syncRun.error_class}` : ''}
+                    {syncRun.validation_status
+                      ? ` · contract ${syncRun.validation_status}`
+                      : ''}
+                    {syncRun.validation_evidence_sha256
+                      ? ` · evidence ${syncRun.validation_evidence_sha256.slice(0, 12)}…`
+                      : ''}
                   </span>
+                  {canWrite &&
+                  syncRun.status === 'failed' &&
+                  syncRun.retry_disposition === 'manual_after_correction' ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={pending}
+                      onClick={() => {
+                        const reason = window.prompt(
+                          'Describe the corrected OAuth/configuration condition:',
+                        );
+                        if (!reason?.trim()) return;
+                        run(() =>
+                          retryPaidMetricsRunAction(
+                            syncRun.run_id,
+                            reason.trim(),
+                          ),
+                        );
+                      }}
+                    >
+                      Governed retry
+                    </Button>
+                  ) : null}
                 </div>
               );
             })}

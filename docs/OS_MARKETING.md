@@ -102,8 +102,22 @@ SQL: `phase35_marketing_paid_backfill.sql`.
 
 SQL: `phase36_marketing_paid_reliability.sql`.
 
-## Phase 37+
+## Phase 37
 
-1. Provider fixtures and authoritative account-total reconciliation
+1. Meta and LinkedIn responses pass strict versioned runtime contracts before
+   any metric coverage is committed.
+2. Malformed numerics, unknown campaigns, invalid dates, duplicates, and
+   stalled pagination fail closed.
+3. Contract evidence, request IDs, structured error classes, and retry
+   dispositions are durable and visible.
+4. Automatic scheduling never revives terminal Phase 37 failures; corrected
+   authorization/configuration failures require a governed manual retry.
+5. Provider contract fixtures run in the app test suite.
+
+SQL: `phase37_marketing_paid_contracts.sql`.
+
+## Phase 38+
+
+1. Authoritative account-total reconciliation and unmapped campaign deltas
 2. Period-aligned attributed revenue
 3. TikTok upload cancellation/reinitialization

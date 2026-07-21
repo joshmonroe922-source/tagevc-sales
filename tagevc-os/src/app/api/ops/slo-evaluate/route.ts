@@ -1,0 +1,85 @@
+import { NextResponse } from 'next/server';
+import { captureException, captureMessage } from '@/lib/observability';
+import { guardPermission } from '@/lib/rbac/session';
+import {
+  evaluateSharedServiceSlos,
+  finishOperationalWorker,
+  startOperationalWorker,
+} from '@/lib/shared-services/operational-health';
+
+async function run(source: 'cron' | 'admin') {
+  const worker = await startOperationalWorker({
+    service: 'shared_services',
+    workerName: 'slo-evaluate',
+    triggerSource: source,
+  });
+  try {
+    const result = await evaluateSharedServiceSlos();
+    for (const transition of result.transitions) {
+      captureMessage(
+        `Shared Services SLO ${transition.transition}: ${transition.service}/${transition.metric_key}`,
+        transition.transition === 'resolved'
+          ? 'info'
+          : transition.severity === 'critical'
+            ? 'error'
+            : 'warning',
+        {
+          ...transition,
+          policy_version: result.policy_version,
+          alert_fingerprint: [
+            'shared-services-slo',
+            transition.service,
+            transition.metric_key,
+            transition.entity_id ?? 'firm',
+          ],
+        },
+      );
+    }
+    await finishOperationalWorker({
+      workerRunId: worker.workerRunId,
+      status: 'completed',
+      claimed: result.evaluations,
+      succeeded: result.evaluations,
+      details: { transition_count: result.transitions.length },
+    });
+    return NextResponse.json({
+      ok: true,
+      policy_version: result.policy_version,
+      evaluation_bucket: result.evaluation_bucket,
+      evaluations: result.evaluations,
+      transition_count: result.transitions.length,
+    });
+  } catch (error) {
+    captureException(error, { route: 'slo-evaluate' });
+    await finishOperationalWorker({
+      workerRunId: worker.workerRunId,
+      status: 'failed',
+      failed: 1,
+      errorCode: 'slo_evaluation_failed',
+      errorDetail: error instanceof Error ? error.message : 'SLO evaluation failed',
+    });
+    return NextResponse.json(
+      {
+        ok: false,
+        error: error instanceof Error ? error.message : 'SLO evaluation failed',
+      },
+      { status: 500 },
+    );
+  }
+}
+
+export async function GET(request: Request) {
+  const secret = process.env.CRON_SECRET?.trim();
+  if (!secret || request.headers.get('authorization') !== `Bearer ${secret}`) {
+    return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+  }
+  return run('cron');
+}
+
+export async function POST() {
+  const gate = await guardPermission('admin:users');
+  if (!gate.ok) {
+    return NextResponse.json({ ok: false, error: gate.error }, { status: 403 });
+  }
+  return run('admin');
+}
