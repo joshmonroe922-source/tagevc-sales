@@ -3,7 +3,14 @@
  * Prefer Microsoft Graph Intune when MS_GRAPH_* is set; also posts MDM_WEBHOOK_URL.
  */
 
-type MdmResult = { ok: boolean; skipped?: boolean; detail: string };
+import { createPersistClient } from '@/lib/supabase/persist-client';
+
+type MdmResult = {
+  ok: boolean;
+  skipped?: boolean;
+  pending?: boolean;
+  detail: string;
+};
 
 function graphConfigured(): boolean {
   return Boolean(
@@ -177,23 +184,155 @@ async function invokeGraphIntuneLifecycle(input: {
 
     if (input.action === 'offboard' && autoRetire && devices.length > 0) {
       const retireResults: string[] = [];
+      const audit = await createPersistClient();
       for (const d of devices.slice(0, 10)) {
         if (!d.id) continue;
+        const idempotencyKey = `${input.run_id}:${d.id}:retire`;
+        const { data: existing } = await audit
+          .from('os_it_intune_actions')
+          .select('action_id, status')
+          .eq('idempotency_key', idempotencyKey)
+          .maybeSingle();
+        if (existing?.status === 'verified') {
+          retireResults.push(`verified ${d.deviceName || d.id}`);
+          continue;
+        }
+        if (
+          existing &&
+          ['submitted', 'verifying'].includes(String(existing.status))
+        ) {
+          const verify = await fetch(
+            `https://graph.microsoft.com/v1.0/deviceManagement/managedDevices/${encodeURIComponent(d.id)}?$select=id,managementState,lastSyncDateTime`,
+            { headers },
+          );
+          const verification = (await verify.json().catch(() => ({}))) as {
+            managementState?: string;
+            lastSyncDateTime?: string;
+          };
+          const verified =
+            verify.status === 404 ||
+            String(verification.managementState ?? '').toLowerCase() ===
+              'retired';
+          await audit
+            .from('os_it_intune_actions')
+            .update({
+              status: verified ? 'verified' : 'verifying',
+              verified_at: verified ? new Date().toISOString() : null,
+              next_poll_at: verified
+                ? null
+                : new Date(Date.now() + 15 * 60_000).toISOString(),
+              verification_evidence: {
+                http_status: verify.status,
+                management_state: verification.managementState ?? null,
+                last_sync_at: verification.lastSyncDateTime ?? null,
+                checked_at: new Date().toISOString(),
+              },
+              updated_at: new Date().toISOString(),
+            })
+            .eq('action_id', existing.action_id);
+          retireResults.push(
+            verified
+              ? `verified ${d.deviceName || d.id}`
+              : `verifying ${d.deviceName || d.id}`,
+          );
+          continue;
+        }
+        const { data: action, error: intentError } = await audit
+          .from('os_it_intune_actions')
+          .insert({
+            idempotency_key: idempotencyKey,
+            run_id: input.run_id,
+            item_id: 'mdm',
+            managed_device_id: d.id,
+            user_id: input.user_id,
+            entity_id: input.entity_id ?? null,
+            action_type: 'retire',
+            status: 'approved',
+            approved_at: new Date().toISOString(),
+            request_metadata: {
+              device_name: d.deviceName ?? null,
+              serial_number: d.serialNumber ?? null,
+              model: d.model ?? null,
+              compliance_state: d.complianceState ?? null,
+              encrypted: d.isEncrypted ?? null,
+              approval_source: 'INTUNE_AUTO_RETIRE',
+            },
+          })
+          .select('action_id')
+          .single();
+        if (intentError || !action) {
+          retireResults.push(
+            `audit fail ${d.id}:${intentError?.message || 'intent missing'}`,
+          );
+          continue;
+        }
+        await audit.from('os_it_intune_action_events').insert({
+          action_id: action.action_id,
+          from_status: 'requested',
+          to_status: 'approved',
+          source: 'offboarding',
+          evidence: { idempotency_key: idempotencyKey },
+        });
         const retire = await fetch(
           `https://graph.microsoft.com/v1.0/deviceManagement/managedDevices/${encodeURIComponent(d.id)}/retire`,
           { method: 'POST', headers },
         );
+        const graphRequestId =
+          retire.headers.get('request-id') ||
+          retire.headers.get('client-request-id');
+        const submittedAt = new Date().toISOString();
+        await audit
+          .from('os_it_intune_actions')
+          .update({
+            status: retire.ok ? 'submitted' : 'failed',
+            submitted_at: retire.ok ? submittedAt : null,
+            graph_request_id: graphRequestId,
+            attempt_count: 1,
+            next_poll_at: retire.ok
+              ? new Date(Date.now() + 15 * 60_000).toISOString()
+              : null,
+            last_error: retire.ok ? null : `Graph HTTP ${retire.status}`,
+            submission_evidence: {
+              http_status: retire.status,
+              graph_request_id: graphRequestId,
+              submitted_at: submittedAt,
+            },
+            updated_at: submittedAt,
+          })
+          .eq('action_id', action.action_id);
+        await audit.from('os_it_intune_action_events').insert({
+          action_id: action.action_id,
+          from_status: 'approved',
+          to_status: retire.ok ? 'submitted' : 'failed',
+          source: 'graph',
+          evidence: {
+            http_status: retire.status,
+            graph_request_id: graphRequestId,
+          },
+        });
         retireResults.push(
           retire.ok
-            ? `retired ${d.deviceName || 'device'} [${d.id}]`
+            ? `submitted ${d.deviceName || 'device'} [${d.id}]`
             : `retire fail ${d.id}:${retire.status}`,
         );
       }
+      const allVerified = retireResults.every((result) =>
+        result.startsWith('verified'),
+      );
+      const hasFailure = retireResults.some(
+        (result) =>
+          result.startsWith('retire fail') ||
+          result.startsWith('audit fail'),
+      );
       return {
-        ok: retireResults.every((r) => r.startsWith('retired')),
+        ok: allVerified,
+        pending: !allVerified && !hasFailure,
+        skipped: !allVerified && !hasFailure,
         detail: `Intune offboard · ${devices.length} inventoried across ${pages} page(s)${
           truncated ? ' (truncated)' : ''
-        } · ${retireResults.join('; ')}`,
+        } · ${retireResults.join('; ')}${
+          allVerified ? '' : ' · awaiting structured provider verification'
+        }`,
       };
     }
 
@@ -272,6 +411,17 @@ export async function invokeMdmLifecycleHook(input: {
 }): Promise<MdmResult> {
   const graph = await invokeGraphIntuneLifecycle(input);
   const webhook = await invokeMdmWebhook(input);
+
+  if (graph.pending) {
+    return {
+      ok: false,
+      skipped: true,
+      pending: true,
+      detail: [graph.detail, webhook.skipped ? null : webhook.detail]
+        .filter(Boolean)
+        .join(' · '),
+    };
+  }
 
   if (graph.skipped && webhook.skipped) {
     return {

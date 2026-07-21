@@ -181,7 +181,9 @@ export function NormalizationHealthPanel({
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Stage 4e DROP checklist</CardTitle>
+            <CardTitle className="text-base">
+              Stage 4e soft-rename evidence
+            </CardTitle>
             <CardDescription>
               Soft-rename verification plus legacy destructive gates. The app
               never drops{' '}
@@ -198,7 +200,7 @@ export function NormalizationHealthPanel({
                 Verified soft rename and soak gates are complete. The app has no
                 destructive execution path. Offline rename/rollback guidance:{' '}
                 <code className="text-[10px]">
-                  phase32_stage4e_soft_rename.sql
+                  phase33_stage4e_soft_rename.sql
                 </code>
                 .
               </div>
@@ -230,6 +232,38 @@ export function NormalizationHealthPanel({
                 ) : null}
               </div>
             ))}
+            {status.soak_epoch ? (
+              <div className="mt-3 rounded-md border border-border/60 p-3 text-xs">
+                <p className="font-medium">
+                  Durable epoch: {status.soak_epoch.status}
+                </p>
+                <p className="text-muted-foreground">
+                  {status.soak_epoch.healthy_count} healthy observations ·
+                  started {status.soak_epoch.streak_started_at ?? 'pending'} ·
+                  last {status.soak_epoch.last_observed_at ?? 'pending'}
+                </p>
+                {status.soak_epoch.reset_reason ? (
+                  <p className="text-destructive">
+                    Reset: {status.soak_epoch.reset_reason}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+            {status.retirement_timeline.length > 0 ? (
+              <div className="mt-3 space-y-1">
+                <p className="text-xs font-medium">Retirement evidence timeline</p>
+                {status.retirement_timeline.slice(0, 8).map((event) => (
+                  <p
+                    className="font-mono text-[10px] text-muted-foreground"
+                    key={`${event.occurred_at}-${event.stage}`}
+                  >
+                    {event.occurred_at} · {event.stage} ·{' '}
+                    {event.retired_table_name ?? 'no table'} ·{' '}
+                    {event.approved_by ?? 'unknown approver'}
+                  </p>
+                ))}
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       </div>

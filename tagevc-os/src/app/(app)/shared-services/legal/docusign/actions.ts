@@ -12,6 +12,8 @@ import { backfillSignedFilesToStorage } from '@/lib/docusign/signed-docs';
 import { syncDocuSignTemplates } from '@/lib/docusign/templates';
 import { logActivity } from '@/lib/data/activity';
 import { guardPermission } from '@/lib/rbac/session';
+import { createPersistClient } from '@/lib/supabase/persist-client';
+import { z } from 'zod';
 
 export type DocuSignActionResult =
   | { ok: true; message?: string }
@@ -187,22 +189,54 @@ export async function voidEnvelopeAction(
 
 /** Void cannot be undone in DocuSign; create a replacement with lineage. */
 export async function createReplacementEnvelopeAction(input: {
+  requestId?: string;
   sourceEnvelopeId: string;
   templateId: string;
   emailSubject: string;
-  signerEmail: string;
-  signerName: string;
+  signerEmail?: string;
+  signerName?: string;
   roleName?: string;
+  roles?: Array<{ roleName: string; email: string; name?: string }>;
+  reason?: string;
 }): Promise<DocuSignActionResult> {
   const gate = await guardPermission('write:documents');
   if (!gate.ok) return gate;
   const sourceEnvelopeId = input.sourceEnvelopeId.trim();
   const templateId = input.templateId.trim();
-  if (!sourceEnvelopeId || !templateId || !input.signerEmail.trim()) {
+  const rolesInput =
+    input.roles ??
+    (input.signerEmail
+      ? [
+          {
+            roleName: input.roleName?.trim() || 'Signer',
+            email: input.signerEmail,
+            name: input.signerName,
+          },
+        ]
+      : []);
+  const parsedRoles = z
+    .array(
+      z.object({
+        roleName: z.string().trim().min(1).max(100),
+        email: z.string().trim().email(),
+        name: z.string().trim().max(100).optional(),
+      }),
+    )
+    .min(1)
+    .max(20)
+    .safeParse(rolesInput);
+  if (!sourceEnvelopeId || !templateId || !parsedRoles.success) {
     return {
       ok: false,
-      error: 'Source envelope, template, and signer email are required',
+      error:
+        parsedRoles.success
+          ? 'Source envelope and template are required'
+          : parsedRoles.error.issues[0]?.message || 'Valid roles are required',
     };
+  }
+  const roleNames = parsedRoles.data.map((role) => role.roleName.toLowerCase());
+  if (new Set(roleNames).size !== roleNames.length) {
+    return { ok: false, error: 'Replacement role names must be unique' };
   }
   if (!sourceEnvelopeId.startsWith('ENV-')) {
     try {
@@ -220,6 +254,66 @@ export async function createReplacementEnvelopeAction(input: {
       };
     }
   }
+  let sourceContext: {
+    doc_id: string | null;
+    entity_id: string | null;
+    deal_id: string | null;
+    ticket_id: string | null;
+  } = { doc_id: null, entity_id: null, deal_id: null, ticket_id: null };
+  try {
+    const { listDocuments } = await import('@/lib/data/document-store');
+    const { isCapitalDocument } = await import('@/lib/documents/capital-gate');
+    const doc = listDocuments().find(
+      (candidate) => candidate.envelope_id === sourceEnvelopeId,
+    );
+    if (doc) {
+      sourceContext = {
+        doc_id: doc.doc_id,
+        entity_id: doc.entity_id ?? null,
+        deal_id: null,
+        ticket_id: null,
+      };
+      if (isCapitalDocument(doc.doc_type)) {
+        const capitalGate = await guardPermission('action:docusign_capital');
+        if (!capitalGate.ok) {
+          return {
+            ok: false,
+            error:
+              capitalGate.error ||
+              'Capital replacement requires action:docusign_capital',
+          };
+        }
+      }
+    }
+  } catch {
+    // Connect-only envelopes may not have a local document.
+  }
+  const requestId =
+    input.requestId?.trim() ||
+    `DSR-${Date.now().toString(36).toUpperCase()}-${sourceEnvelopeId.slice(0, 8)}`;
+  const sb = await createPersistClient();
+  const { error: lineageIntentError } = await sb
+    .from('os_docusign_envelope_lineage')
+    .insert({
+      request_id: requestId,
+      source_envelope_id: sourceEnvelopeId,
+      source_doc_id: sourceContext.doc_id,
+      entity_id: sourceContext.entity_id,
+      deal_id: sourceContext.deal_id,
+      ticket_id: sourceContext.ticket_id,
+      template_id: templateId,
+      role_map: parsedRoles.data,
+      replacement_reason: input.reason?.trim() || null,
+      status: 'requested',
+      actor_id: gate.profile.id,
+      actor_email: gate.profile.email ?? null,
+    });
+  if (lineageIntentError) {
+    return {
+      ok: false,
+      error: `Replacement intent rejected: ${lineageIntentError.message}`,
+    };
+  }
   const intent = await insertDocuSignEvent({
     envelope_id: sourceEnvelopeId,
     status: 'replacement-requested',
@@ -230,9 +324,16 @@ export async function createReplacementEnvelopeAction(input: {
       actor_id: gate.profile.id,
       actor_email: gate.profile.email ?? null,
       requested_at: new Date().toISOString(),
+      request_id: requestId,
+      roles: parsedRoles.data,
+      reason: input.reason?.trim() || null,
     },
   });
   if (!intent.ok) {
+    await sb
+      .from('os_docusign_envelope_lineage')
+      .update({ status: 'failed', error: intent.error, updated_at: new Date().toISOString() })
+      .eq('request_id', requestId);
     return {
       ok: false,
       error: `Replacement aborted because lineage intent could not be persisted: ${intent.error}`,
@@ -245,14 +346,28 @@ export async function createReplacementEnvelopeAction(input: {
     const created = await createEnvelopeFromTemplate({
       templateId,
       emailSubject: input.emailSubject.trim() || 'Replacement signature request',
-      signers: [
-        {
-          email: input.signerEmail.trim(),
-          name: input.signerName.trim() || input.signerEmail.trim(),
-          roleName: input.roleName?.trim() || 'Signer',
-        },
-      ],
+      signers: parsedRoles.data.map((role) => ({
+        email: role.email,
+        name: role.name || role.email,
+        roleName: role.roleName,
+      })),
     });
+    const { error: lineageUpdateError } = await sb
+      .from('os_docusign_envelope_lineage')
+      .update({
+        replacement_envelope_id: created.envelopeId,
+        status: 'created',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('request_id', requestId)
+      .eq('status', 'requested');
+    if (lineageUpdateError) {
+      return {
+        ok: false,
+        error: `Replacement ${created.envelopeId} was sent, but durable lineage finalization failed: ${lineageUpdateError.message}`,
+      };
+    }
     const audit = await insertDocuSignEvent({
       envelope_id: created.envelopeId,
       status: created.status,
@@ -263,6 +378,8 @@ export async function createReplacementEnvelopeAction(input: {
         templateId,
         actor_id: gate.profile.id,
         actor_email: gate.profile.email ?? null,
+        request_id: requestId,
+        roles: parsedRoles.data,
       },
     });
     if (!audit.ok) {
@@ -281,6 +398,7 @@ export async function createReplacementEnvelopeAction(input: {
         templateId,
         actor_id: gate.profile.id,
         actor_email: gate.profile.email ?? null,
+        request_id: requestId,
       },
     });
     if (!reciprocal.ok) {
@@ -295,9 +413,36 @@ export async function createReplacementEnvelopeAction(input: {
       message: `Replacement ${created.envelopeId} sent for voided ${sourceEnvelopeId}`,
     };
   } catch (e) {
+    const message =
+      e instanceof Error ? e.message : 'Replacement send failed';
+    await sb
+      .from('os_docusign_envelope_lineage')
+      .update({
+        status: 'failed',
+        error: message,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('request_id', requestId)
+      .eq('status', 'requested');
+    await insertDocuSignEvent({
+      envelope_id: sourceEnvelopeId,
+      status: 'replacement-failed',
+      event_type: 'envelope-replacement-failed',
+      doc_id: sourceContext.doc_id,
+      entity_id: sourceContext.entity_id,
+      deal_id: sourceContext.deal_id,
+      ticket_id: sourceContext.ticket_id,
+      raw_payload: {
+        request_id: requestId,
+        templateId,
+        error: message,
+        actor_id: gate.profile.id,
+        actor_email: gate.profile.email ?? null,
+      },
+    });
     return {
       ok: false,
-      error: e instanceof Error ? e.message : 'Replacement send failed',
+      error: message,
     };
   }
 }
@@ -339,7 +484,12 @@ export async function syncTemplatesAction(): Promise<DocuSignActionResult> {
   const res = await syncDocuSignTemplates();
   if (!res.ok) return res;
   revalidateDocuSign();
-  return { ok: true, message: `Synced ${res.count} templates` };
+  return {
+    ok: true,
+    message: `Synced ${res.count} templates across ${res.pages} page(s)${
+      res.truncated ? ' · bounded sync truncated' : ''
+    }`,
+  };
 }
 
 export async function refreshTemplateRecipientsAction(

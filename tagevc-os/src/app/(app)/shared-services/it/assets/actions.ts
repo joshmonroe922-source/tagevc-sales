@@ -428,18 +428,46 @@ export async function bulkUpdateWarrantyAction(
   const res = await bulkUpdateWarranties({
     lines,
     actor_id: gate.profile.id,
+    source_name:
+      upload instanceof File && upload.size > 0 ? upload.name : 'pasted.csv',
   });
-  revalidateAssets();
   const errHint =
     res.errors.length > 0 ? ` · errors: ${res.errors.slice(0, 3).join('; ')}` : '';
-  if (res.updated === 0 && res.failed > 0) {
+  if (!res.batch_id || res.failed > 0) {
     return {
       ok: false,
-      error: `Warranty import rejected: ${res.failed} failed${errHint}`,
+      error: `Warranty preview rejected: ${res.failed} failed${errHint}`,
     };
   }
   return {
     ok: true,
-    message: `Warranty import: ${res.updated} updated, ${res.failed} failed${errHint}`,
+    message: `Warranty preview ready: ${res.updated} rows · batch ${res.batch_id} · hash ${res.source_sha256}`,
+  };
+}
+
+export async function commitWarrantyImportAction(
+  _prev: ItAssetActionResult | null,
+  formData: FormData,
+): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('write:it_assets');
+  if (!gate.ok) return gate;
+  const batchId = String(formData.get('batch_id') ?? '').trim();
+  const sourceSha256 = String(formData.get('source_sha256') ?? '').trim();
+  if (!batchId || !/^[a-f0-9]{64}$/.test(sourceSha256)) {
+    return { ok: false, error: 'Valid batch ID and source hash are required' };
+  }
+  const { commitWarrantyImport } = await import(
+    '@/lib/shared-services/it-assets-repo'
+  );
+  const result = await commitWarrantyImport({
+    batch_id: batchId,
+    source_sha256: sourceSha256,
+    actor_id: gate.profile.id,
+  });
+  if (!result.ok) return result;
+  revalidateAssets();
+  return {
+    ok: true,
+    message: `Warranty batch committed atomically · ${result.changed} assets changed`,
   };
 }

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { DocuSignHubActions } from '@/components/shared-services/docusign-hub-actions';
 import { DocuSignTemplateSendForm } from '@/components/shared-services/docusign-template-send-form';
+import { DocuSignReplacementForm } from '@/components/shared-services/docusign-replacement-form';
 import { Badge } from '@/components/ui/badge';
 import {
   Card,
@@ -29,6 +30,22 @@ function formatBytes(n: number | null | undefined): string {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function queryHref(
+  current: Record<string, string | string[] | undefined>,
+  changes: Record<string, string | number | null>,
+): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(current)) {
+    if (typeof value === 'string' && value) params.set(key, value);
+  }
+  for (const [key, value] of Object.entries(changes)) {
+    if (value == null || value === '') params.delete(key);
+    else params.set(key, String(value));
+  }
+  const query = params.toString();
+  return `/shared-services/legal/docusign${query ? `?${query}` : ''}`;
+}
+
 export default async function DocuSignModulePage({
   searchParams,
 }: {
@@ -54,6 +71,16 @@ export default async function DocuSignModulePage({
       : '';
   const daysRaw = typeof sp.days === 'string' ? Number(sp.days) : 30;
   const liveDays = [7, 30, 60, 90].includes(daysRaw) ? daysRaw : 30;
+  const liveStartRaw =
+    typeof sp.live_start === 'string' ? Number(sp.live_start) : 0;
+  const liveStart =
+    Number.isInteger(liveStartRaw) && liveStartRaw >= 0 ? liveStartRaw : 0;
+  const templatePageRaw =
+    typeof sp.template_page === 'string' ? Number(sp.template_page) : 1;
+  const templatePage =
+    Number.isInteger(templatePageRaw) && templatePageRaw > 0
+      ? templatePageRaw
+      : 1;
 
   const mode = getDocuSignMode();
   const configured = isDocuSignConfigured();
@@ -73,17 +100,30 @@ export default async function DocuSignModulePage({
     listDocuSignEvents({ limit: 120 }),
     countDocuSignEvents(),
     listSignedFiles({ limit: 20, withDownloadUrls: true }),
-    listCachedTemplates(100),
+    listCachedTemplates({
+      limit: 25,
+      offset: (templatePage - 1) * 25,
+      search: templateSearch,
+    }),
     listReminderJobs(20),
     configured
       ? listRecentEnvelopes({
           status: liveStatusFilter,
           count: 100,
           days: liveDays,
+          startPosition: liveStart,
         })
       : Promise.resolve({
           ok: true as const,
           envelopes: [],
+          pagination: {
+            resultSetSize: 0,
+            totalSetSize: 0,
+            startPosition: 0,
+            endPosition: 0,
+            nextStartPosition: null,
+            previousStartPosition: null,
+          },
         }),
   ]);
 
@@ -104,12 +144,7 @@ export default async function DocuSignModulePage({
       e.event_type === 'envelope-voided' ||
       String(e.status).toLowerCase() === 'voided',
   );
-  const templateRows = templates.rows.filter((template) => {
-    if (!templateSearch) return true;
-    return `${template.name} ${template.description ?? ''} ${template.template_id}`
-      .toLowerCase()
-      .includes(templateSearch);
-  });
+  const templateRows = templates.rows;
   const liveRows = liveEnvelopes.ok
     ? liveEnvelopes.envelopes.filter((envelope) => {
         if (!liveSearch) return true;
@@ -143,18 +178,25 @@ export default async function DocuSignModulePage({
           <Badge variant={mode === 'live' ? 'default' : 'secondary'}>
             {mode === 'live' ? 'Live JWT' : 'Mock envelopes'}
           </Badge>
-          <Badge variant="secondary">Phase 32</Badge>
+          <Badge variant="secondary">Phase 33</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">DocuSign</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Recipient-aware envelope search, durable void intent, reciprocal
-          replacement lineage, template freshness, CoC email, and reminders.
+          Paginated envelopes and templates, preserved filters, and durable
+          idempotent multi-role replacement lineage.
           Void policy: {voidPolicy}. Capital sends still require{' '}
           <code className="text-xs">action:docusign_capital</code>.
         </p>
         <DocuSignHubActions canWrite={canWrite} />
         <DocuSignTemplateSendForm
           templates={templates.rows}
+          canWrite={canWrite}
+        />
+        <DocuSignReplacementForm
+          templates={templates.rows}
+          voidedEnvelopeIds={liveRows
+            .filter((envelope) => envelope.status === 'voided')
+            .map((envelope) => envelope.envelopeId)}
           canWrite={canWrite}
         />
       </div>
@@ -224,6 +266,7 @@ export default async function DocuSignModulePage({
         </CardHeader>
         <CardContent className="space-y-3">
           <form className="flex flex-wrap gap-2">
+            <input type="hidden" name="template_page" value="1" />
             <input
               name="template_q"
               defaultValue={templateSearch}
@@ -271,6 +314,33 @@ export default async function DocuSignModulePage({
               ))}
             </ul>
           )}
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>
+              Page {templatePage} · {templates.count} cached templates
+            </span>
+            <span className="flex gap-2">
+              {templatePage > 1 ? (
+                <Link
+                  href={queryHref(sp, {
+                    template_page: templatePage - 1,
+                  })}
+                  className="underline-offset-4 hover:underline"
+                >
+                  Previous
+                </Link>
+              ) : null}
+              {templatePage * 25 < templates.count ? (
+                <Link
+                  href={queryHref(sp, {
+                    template_page: templatePage + 1,
+                  })}
+                  className="underline-offset-4 hover:underline"
+                >
+                  Next
+                </Link>
+              ) : null}
+            </span>
+          </div>
         </CardContent>
       </Card>
 
@@ -331,6 +401,7 @@ export default async function DocuSignModulePage({
         </CardHeader>
         <CardContent className="space-y-3">
           <form className="flex flex-wrap gap-2 text-xs">
+            <input type="hidden" name="live_start" value="0" />
             <input
               name="q"
               defaultValue={liveSearch}
@@ -365,9 +436,10 @@ export default async function DocuSignModulePage({
               <Link
                 key={s}
                 href={
-                  s === 'all'
-                    ? '/shared-services/legal/docusign'
-                    : `/shared-services/legal/docusign?live_status=${s}&days=${liveDays}`
+                  queryHref(sp, {
+                    live_status: s === 'all' ? null : s,
+                    live_start: 0,
+                  })
                 }
                 className="rounded-full border px-2 py-1 underline-offset-4 hover:underline"
               >
@@ -451,6 +523,40 @@ export default async function DocuSignModulePage({
             Voids cannot be undone in DocuSign. Use “Replace voided envelope”
             to create a new envelope with audit lineage.
           </p>
+          {liveEnvelopes.ok ? (
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>
+                {liveEnvelopes.pagination.totalSetSize === 0
+                  ? '0 results'
+                  : `${liveEnvelopes.pagination.startPosition + 1}–${
+                      liveEnvelopes.pagination.endPosition
+                    } of ${liveEnvelopes.pagination.totalSetSize}`}
+              </span>
+              <span className="flex gap-2">
+                {liveEnvelopes.pagination.previousStartPosition != null ? (
+                  <Link
+                    href={queryHref(sp, {
+                      live_start:
+                        liveEnvelopes.pagination.previousStartPosition,
+                    })}
+                    className="underline-offset-4 hover:underline"
+                  >
+                    Previous
+                  </Link>
+                ) : null}
+                {liveEnvelopes.pagination.nextStartPosition != null ? (
+                  <Link
+                    href={queryHref(sp, {
+                      live_start: liveEnvelopes.pagination.nextStartPosition,
+                    })}
+                    className="underline-offset-4 hover:underline"
+                  >
+                    Next
+                  </Link>
+                ) : null}
+              </span>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 

@@ -43,21 +43,41 @@ export function extractTemplateRoles(raw: unknown): string[] {
   return [...names];
 }
 
-export async function listCachedTemplates(limit = 40): Promise<{
+export async function listCachedTemplates(opts?: {
+  limit?: number;
+  offset?: number;
+  search?: string;
+}): Promise<{
   rows: CachedDocuSignTemplate[];
+  count: number;
   error?: string;
 }> {
   try {
     const sb = await createPersistClient();
-    const { data, error } = await sb
+    const limit = Math.min(Math.max(opts?.limit ?? 40, 1), 100);
+    const offset = Math.max(opts?.offset ?? 0, 0);
+    let query = sb
       .from('os_docusign_templates')
       .select(
         'template_id, name, description, shared, last_modified, synced_at, raw',
+        { count: 'exact' },
       )
-      .order('name', { ascending: true })
-      .limit(limit);
-    if (error) return { rows: [], error: error.message };
+      .order('name', { ascending: true });
+    if (opts?.search?.trim()) {
+      const term = opts.search.trim().replace(/[,%()]/g, '').slice(0, 100);
+      if (term) {
+        query = query.or(
+          `name.ilike.%${term}%,description.ilike.%${term}%,template_id.ilike.%${term}%`,
+        );
+      }
+    }
+    const { data, error, count } = await query.range(
+      offset,
+      offset + limit - 1,
+    );
+    if (error) return { rows: [], count: 0, error: error.message };
     return {
+      count: count ?? 0,
       rows: (data ?? []).map((row) => {
         const roles = extractTemplateRoles(row.raw);
         return {
@@ -74,6 +94,7 @@ export async function listCachedTemplates(limit = 40): Promise<{
   } catch (e) {
     return {
       rows: [],
+      count: 0,
       error: e instanceof Error ? e.message : 'list failed',
     };
   }
@@ -108,32 +129,51 @@ export async function getCachedTemplate(
 }
 
 export async function syncDocuSignTemplates(): Promise<
-  | { ok: true; count: number }
+  | { ok: true; count: number; pages: number; truncated: boolean }
   | { ok: false; error: string }
 > {
-  const api = await listDocuSignTemplatesFromApi({ count: 50 });
-  if (!api.ok) return api;
-
   try {
     const sb = await createPersistClient();
     const now = new Date().toISOString();
     let count = 0;
-    for (const t of api.templates) {
-      const { error } = await sb.from('os_docusign_templates').upsert(
-        {
-          template_id: t.templateId,
-          name: t.name,
-          description: t.description ?? null,
-          shared: Boolean(t.shared),
-          last_modified: t.lastModified ?? null,
-          raw: t.raw ?? {},
-          synced_at: now,
-        },
-        { onConflict: 'template_id' },
-      );
-      if (!error) count += 1;
+    let pages = 0;
+    let startPosition = 0;
+    let truncated = false;
+    while (pages < 10 && count < 10_000) {
+      const api = await listDocuSignTemplatesFromApi({
+        count: 500,
+        startPosition,
+      });
+      if (!api.ok) return api;
+      pages += 1;
+      for (const t of api.templates) {
+        const { error } = await sb.from('os_docusign_templates').upsert(
+          {
+            template_id: t.templateId,
+            name: t.name,
+            description: t.description ?? null,
+            shared: Boolean(t.shared),
+            last_modified: t.lastModified ?? null,
+            raw: t.raw ?? {},
+            synced_at: now,
+          },
+          { onConflict: 'template_id' },
+        );
+        if (error) {
+          return {
+            ok: false,
+            error: `Template ${t.templateId} upsert failed: ${error.message}`,
+          };
+        }
+        count += 1;
+      }
+      if (api.pagination.nextStartPosition == null) {
+        return { ok: true, count, pages, truncated: false };
+      }
+      startPosition = api.pagination.nextStartPosition;
     }
-    return { ok: true, count };
+    truncated = true;
+    return { ok: true, count, pages, truncated };
   } catch (e) {
     return {
       ok: false,

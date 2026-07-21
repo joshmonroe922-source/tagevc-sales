@@ -4,6 +4,7 @@
  */
 
 import { createPersistClient } from '@/lib/supabase/persist-client';
+import { createHash, randomBytes } from 'crypto';
 import {
   canStoreOAuthTokens,
   encryptSecret,
@@ -19,6 +20,7 @@ export const OAUTH_PLATFORMS = [
   'tiktok',
 ] as const;
 export type OAuthPlatform = (typeof OAUTH_PLATFORMS)[number];
+export type MarketingConnectionPurpose = 'publisher' | 'paid_ads';
 
 export function isOAuthPlatform(p: string): p is OAuthPlatform {
   return (OAUTH_PLATFORMS as readonly string[]).includes(p);
@@ -102,6 +104,7 @@ export function getOAuthConfig(platform: OAuthPlatform): {
 export function buildAuthorizeUrl(
   platform: OAuthPlatform,
   state: string,
+  purpose: MarketingConnectionPurpose = 'publisher',
 ): string | null {
   const cfg = getOAuthConfig(platform);
   if (!cfg.configured || !cfg.clientId || !cfg.redirectUri) return null;
@@ -114,6 +117,7 @@ export function buildAuthorizeUrl(
     u.searchParams.set('state', state);
     const scopes = ['openid', 'profile', 'w_member_social'];
     if (
+      purpose === 'paid_ads' ||
       process.env.LINKEDIN_ADS_API === '1' ||
       process.env.LINKEDIN_ADS_API === 'true'
     ) {
@@ -139,13 +143,16 @@ export function buildAuthorizeUrl(
   }
 
   if (platform === 'facebook' || platform === 'instagram') {
-    const u = new URL('https://www.facebook.com/v19.0/dialog/oauth');
+    const version = process.env.META_API_VERSION?.trim() || 'v25.0';
+    const u = new URL(`https://www.facebook.com/${version}/dialog/oauth`);
     u.searchParams.set('client_id', cfg.clientId);
     u.searchParams.set('redirect_uri', cfg.redirectUri);
     u.searchParams.set('state', state);
     u.searchParams.set(
       'scope',
-      platform === 'instagram'
+      purpose === 'paid_ads'
+        ? 'ads_read,public_profile'
+        : platform === 'instagram'
         ? 'instagram_basic,pages_show_list,pages_read_engagement'
         : 'pages_manage_posts,pages_read_engagement,public_profile',
     );
@@ -260,7 +267,10 @@ export async function exchangeOAuthCode(
   }
 
   if (platform === 'facebook' || platform === 'instagram') {
-    const u = new URL('https://graph.facebook.com/v19.0/oauth/access_token');
+    const version = process.env.META_API_VERSION?.trim() || 'v25.0';
+    const u = new URL(
+      `https://graph.facebook.com/${version}/oauth/access_token`,
+    );
     u.searchParams.set('client_id', cfg.clientId);
     u.searchParams.set('client_secret', cfg.clientSecret);
     u.searchParams.set('redirect_uri', cfg.redirectUri);
@@ -369,6 +379,10 @@ export async function persistOAuthTokens(input: {
   refreshToken?: string;
   expiresIn?: number;
   scopes?: string[];
+  externalAccountId?: string | null;
+  currency?: string | null;
+  timezone?: string | null;
+  capabilities?: Record<string, unknown>;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const accessCipher = encryptSecret(input.accessToken);
   if (!accessCipher) {
@@ -402,12 +416,233 @@ export async function persistOAuthTokens(input: {
 
     await sb
       .from('os_marketing_social_accounts')
-      .update({ status: 'connected', updated_at: now, last_synced_at: now })
+      .update({
+        status: 'connected',
+        external_account_id: input.externalAccountId ?? undefined,
+        currency: input.currency ?? null,
+        timezone: input.timezone ?? null,
+        capabilities: input.capabilities ?? {},
+        verified_at: now,
+        updated_at: now,
+        last_synced_at: now,
+      })
       .eq('account_id', input.account_id);
 
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'persist failed' };
+  }
+}
+
+function hashOAuthState(state: string): string {
+  return createHash('sha256').update(state).digest('hex');
+}
+
+export async function createOAuthState(input: {
+  account_id: string;
+  platform: OAuthPlatform;
+  purpose: MarketingConnectionPurpose;
+  entity_id?: string | null;
+  actor_id: string;
+}): Promise<{ ok: true; state: string } | { ok: false; error: string }> {
+  try {
+    const state = randomBytes(32).toString('base64url');
+    const sb = await createPersistClient();
+    const { error } = await sb.from('os_marketing_oauth_states').insert({
+      state_hash: hashOAuthState(state),
+      account_id: input.account_id,
+      platform: input.platform,
+      purpose: input.purpose,
+      entity_id: input.entity_id ?? null,
+      actor_id: input.actor_id,
+      expires_at: new Date(Date.now() + 10 * 60_000).toISOString(),
+    });
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, state };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'OAuth state creation failed',
+    };
+  }
+}
+
+export async function consumeOAuthState(
+  state: string,
+  platform: OAuthPlatform,
+): Promise<
+  | {
+      ok: true;
+      account_id: string;
+      entity_id: string | null;
+      actor_id: string;
+      purpose: MarketingConnectionPurpose;
+    }
+  | { ok: false; error: string }
+> {
+  try {
+    const sb = await createPersistClient();
+    const now = new Date().toISOString();
+    const { data, error } = await sb
+      .from('os_marketing_oauth_states')
+      .update({ consumed_at: now })
+      .eq('state_hash', hashOAuthState(state))
+      .eq('platform', platform)
+      .is('consumed_at', null)
+      .gt('expires_at', now)
+      .select('account_id, entity_id, actor_id, purpose')
+      .maybeSingle();
+    if (error) return { ok: false, error: error.message };
+    if (!data) return { ok: false, error: 'OAuth state expired or already used' };
+    return {
+      ok: true,
+      account_id: String(data.account_id),
+      entity_id: (data.entity_id as string) ?? null,
+      actor_id: String(data.actor_id),
+      purpose:
+        data.purpose === 'paid_ads' ? 'paid_ads' : 'publisher',
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'OAuth state validation failed',
+    };
+  }
+}
+
+export async function verifyOAuthConnection(input: {
+  platform: OAuthPlatform;
+  purpose: MarketingConnectionPurpose;
+  accessToken: string;
+  requestedExternalId?: string | null;
+}): Promise<
+  | {
+      ok: true;
+      externalAccountId: string | null;
+      currency: string | null;
+      timezone: string | null;
+      capabilities: Record<string, unknown>;
+    }
+  | { ok: false; error: string }
+> {
+  if (input.purpose !== 'paid_ads') {
+    return {
+      ok: true,
+      externalAccountId: input.requestedExternalId ?? null,
+      currency: null,
+      timezone: null,
+      capabilities: { purpose: 'publisher', identity_verified: true },
+    };
+  }
+  const requested = input.requestedExternalId?.trim();
+  if (!requested) {
+    return { ok: false, error: 'Paid OAuth connection is missing account ID' };
+  }
+  try {
+    if (input.platform === 'facebook') {
+      const version = process.env.META_API_VERSION?.trim() || 'v25.0';
+      const res = await fetch(
+        `https://graph.facebook.com/${version}/me/adaccounts?fields=id,name,currency,timezone_name&limit=100`,
+        { headers: { Authorization: `Bearer ${input.accessToken}` } },
+      );
+      const json = (await res.json().catch(() => ({}))) as {
+        data?: Array<{
+          id?: string;
+          name?: string;
+          currency?: string;
+          timezone_name?: string;
+        }>;
+        error?: { message?: string };
+      };
+      if (!res.ok) {
+        return {
+          ok: false,
+          error: json.error?.message || `Meta ad accounts HTTP ${res.status}`,
+        };
+      }
+      const normalized = requested.startsWith('act_')
+        ? requested
+        : `act_${requested}`;
+      const account = json.data?.find((row) => row.id === normalized);
+      if (!account) {
+        return {
+          ok: false,
+          error: 'Requested Meta ad account is not accessible to this OAuth user',
+        };
+      }
+      return {
+        ok: true,
+        externalAccountId: normalized,
+        currency: account.currency ?? null,
+        timezone: account.timezone_name ?? null,
+        capabilities: {
+          purpose: 'paid_ads',
+          identity_verified: true,
+          provider_name: account.name ?? null,
+          reporting: true,
+        },
+      };
+    }
+    if (input.platform === 'linkedin') {
+      const res = await fetch(
+        'https://api.linkedin.com/rest/adAccounts?q=search&count=100',
+        {
+          headers: {
+            Authorization: `Bearer ${input.accessToken}`,
+            'LinkedIn-Version':
+              process.env.LINKEDIN_API_VERSION?.trim() || '202607',
+            'X-Restli-Protocol-Version': '2.0.0',
+          },
+        },
+      );
+      const json = (await res.json().catch(() => ({}))) as {
+        elements?: Array<{
+          id?: number | string;
+          name?: string;
+          currency?: string;
+        }>;
+        message?: string;
+      };
+      if (!res.ok) {
+        return {
+          ok: false,
+          error: json.message || `LinkedIn ad accounts HTTP ${res.status}`,
+        };
+      }
+      const requestedNumber = requested.match(/(\d+)$/)?.[1] ?? requested;
+      const account = json.elements?.find(
+        (row) => String(row.id ?? '') === requestedNumber,
+      );
+      if (!account) {
+        return {
+          ok: false,
+          error:
+            'Requested LinkedIn ad account is not accessible to this OAuth user',
+        };
+      }
+      return {
+        ok: true,
+        externalAccountId: String(account.id),
+        currency: account.currency ?? null,
+        timezone: null,
+        capabilities: {
+          purpose: 'paid_ads',
+          identity_verified: true,
+          provider_name: account.name ?? null,
+          reporting: true,
+        },
+      };
+    }
+    return {
+      ok: false,
+      error: `Paid OAuth is not supported for ${input.platform}`,
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      error:
+        e instanceof Error ? e.message : 'Provider account verification failed',
+    };
   }
 }
 

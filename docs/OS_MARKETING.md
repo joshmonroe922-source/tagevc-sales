@@ -42,8 +42,24 @@ SQL: `phase31_marketing_it_governance.sql`.
 SQL: `phase32_operational_evidence.sql` is shared operational evidence only;
 Marketing needs no Phase 32 schema change.
 
-## Phase 33+
+## Phase 33
 
-1. Resumable binary media upload + creator capability preflight
-2. Per-account Ads OAuth bindings
-3. Server-side long-range analytics aggregation
+1. Cryptographically random, one-time OAuth state with expiry, platform,
+   purpose, actor, and entity binding
+2. Publisher vs paid-ad connections; paid campaigns require a connected
+   same-entity LinkedIn or Meta ad account
+3. Live ad sync uses the account token, strict provider dispatch, current
+   configurable API versions, explicit reporting windows, and no token in URLs
+4. Browser-to-TikTok resumable `FILE_UPLOAD` with sequential chunk evidence,
+   creator capability preflight, explicit privacy choice, and existing
+   publish-status polling
+5. Worker-time account/content/platform/entity/status revalidation and
+   production stub publishing disabled by default
+
+SQL: `phase33_marketing_connections.sql`.
+
+## Phase 34+
+
+1. Provider account discovery/selection and verified-scope health
+2. Typed daily paid metrics with 7/30/90-day trends
+3. Atomic scheduler leases and upload cancellation/reinitialization

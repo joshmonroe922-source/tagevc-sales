@@ -594,13 +594,26 @@ Docs: `docs/OS_PHASE31.md`
 
 Docs: `docs/OS_PHASE32.md`
 
-### Phase 32+ backlog
+### Phase 33 scope (bound connections · atomic operations · continuous evidence)
 
-- Resumable TikTok uploads · account-bound Ads OAuth
-- Exchange verification / restore · asset-to-Intune correlation
-- Stage 4e rename soak; no app DROP
+- Entity/purpose-bound one-time OAuth state and account-bound paid sync
+- Resumable TikTok binary upload with explicit privacy and durable progress
+- DocuSign envelope/template pagination and idempotent multi-role replacement
+- Atomic warranty preview/commit and structured Intune action verification
+- Continuous Stage 4e soak epochs and retirement timeline; no app rename/DROP
+- SQL: apply `phase33_marketing_connections.sql`,
+  `phase33_docusign_lineage.sql`, and
+  `phase33_it_warranty_intune_soak.sql`
+
+Docs: `docs/OS_PHASE33.md`
+
+### Phase 34+ backlog
+
+- Provider account discovery and typed daily paid metrics
+- Intune polling/approval UI and asset correlation
+- DocuSign replacement reconciliation
+- Stage 4e soak/rollback drills; no app DROP
 - Push · user admin
-
 
 ## Run locally
 

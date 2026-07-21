@@ -47,8 +47,9 @@ export async function createCampaignAction(
       channel: z.enum(['organic', 'paid']).optional(),
       budget_k: z.string().optional(),
       attributed_revenue_k: z.string().optional(),
-      ad_platform: z.string().optional(),
+      ad_platform: z.enum(['linkedin_ads', 'meta_ads']).optional(),
       external_campaign_id: z.string().optional(),
+      ad_account_id: z.string().optional(),
     })
     .safeParse({
       name: formData.get('name'),
@@ -61,6 +62,7 @@ export async function createCampaignAction(
         formData.get('attributed_revenue_k') || undefined,
       ad_platform: formData.get('ad_platform') || undefined,
       external_campaign_id: formData.get('external_campaign_id') || undefined,
+      ad_account_id: formData.get('ad_account_id') || undefined,
     });
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid' };
@@ -95,12 +97,35 @@ export async function createCampaignAction(
   if (
     parsed.data.channel === 'paid' &&
     (!parsed.data.ad_platform?.trim() ||
-      !parsed.data.external_campaign_id?.trim())
+      !parsed.data.external_campaign_id?.trim() ||
+      !parsed.data.ad_account_id?.trim())
   ) {
     return {
       ok: false,
-      error: 'Paid campaigns require ad platform and external campaign ID',
+      error:
+        'Paid campaigns require ad platform, connected ad account, and external campaign ID',
     };
+  }
+  if (parsed.data.channel === 'paid') {
+    const accounts = await listSocialAccounts(200);
+    const adAccount = accounts.rows.find(
+      (account) => account.account_id === parsed.data.ad_account_id,
+    );
+    const expectedPlatform =
+      parsed.data.ad_platform === 'linkedin_ads' ? 'linkedin' : 'facebook';
+    if (
+      !adAccount ||
+      adAccount.account_type !== 'paid_ads' ||
+      adAccount.status !== 'connected' ||
+      adAccount.entity_id !== (parsed.data.entity_id || null) ||
+      adAccount.platform !== expectedPlatform
+    ) {
+      return {
+        ok: false,
+        error:
+          'Ad account must be connected, provider-compatible, and scoped to the campaign entity',
+      };
+    }
   }
 
   const res = await createCampaign({
@@ -113,6 +138,7 @@ export async function createCampaignAction(
     attributed_revenue_k,
     ad_platform: parsed.data.ad_platform || null,
     external_campaign_id: parsed.data.external_campaign_id || null,
+    ad_account_id: parsed.data.ad_account_id || null,
   });
   if (!res.ok) return res;
   revalidateMarketing();
@@ -204,6 +230,8 @@ export async function registerAccountAction(
       display_name: z.string().optional(),
       entity_id: z.string().optional(),
       notes: z.string().optional(),
+      account_type: z.enum(['publisher', 'paid_ads']).optional(),
+      external_account_id: z.string().optional(),
     })
     .safeParse({
       platform: formData.get('platform'),
@@ -211,9 +239,22 @@ export async function registerAccountAction(
       display_name: formData.get('display_name') || undefined,
       entity_id: formData.get('entity_id') || undefined,
       notes: formData.get('notes') || undefined,
+      account_type: formData.get('account_type') || undefined,
+      external_account_id: formData.get('external_account_id') || undefined,
     });
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid' };
+  }
+  if (
+    parsed.data.account_type === 'paid_ads' &&
+    (!parsed.data.external_account_id?.trim() ||
+      !['linkedin', 'facebook'].includes(parsed.data.platform))
+  ) {
+    return {
+      ok: false,
+      error:
+        'Paid ad connections require LinkedIn or Facebook and an external ad account ID',
+    };
   }
   if (
     !canAccessEntityId(
@@ -234,6 +275,8 @@ export async function registerAccountAction(
     display_name: parsed.data.display_name || null,
     entity_id: parsed.data.entity_id || null,
     notes: parsed.data.notes || null,
+    account_type: parsed.data.account_type ?? 'publisher',
+    external_account_id: parsed.data.external_account_id || null,
   });
   if (!res.ok) return res;
   revalidateMarketing();
@@ -416,6 +459,12 @@ export async function stubConnectAccountAction(
 ): Promise<MarketingActionResult> {
   const gate = await guardPermission('write:marketing');
   if (!gate.ok) return gate;
+  if (
+    process.env.MARKETING_ALLOW_STUB_OAUTH !== '1' &&
+    process.env.MARKETING_ALLOW_STUB_OAUTH !== 'true'
+  ) {
+    return { ok: false, error: 'Stub OAuth is disabled' };
+  }
   const { stubConnectAccount } = await import(
     '@/lib/shared-services/marketing-oauth'
   );

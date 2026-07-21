@@ -32,6 +32,170 @@ async function authorize(request: Request): Promise<
   return { ok: false, status: 403, error: gate.error };
 }
 
+async function persistSoakEvidence(input: {
+  healthy: boolean;
+  issues: string[];
+  stage: string;
+  syncFailureCount: number;
+  fkOrphanTotal: number;
+  stage4Ready: boolean;
+  drillSummary: string;
+  source: 'cron' | 'admin';
+  observedAt: string;
+}): Promise<{ error?: string; epochStatus?: string }> {
+  const persist = await createPersistClient();
+  const retiredTable =
+    process.env.SNAPSHOT_RETIRED_TABLE_NAME?.trim() || null;
+  let epochId: string | null = null;
+  let continuityStatus = retiredTable ? 'not_started' : 'pre_rename';
+  let streakCount = 0;
+  let streakStartedAt: string | null = null;
+  if (retiredTable) {
+    const { data: events } = await persist
+      .from('os_snapshot_retirement_events')
+      .select('event_id, stage, retired_table_name, occurred_at')
+      .eq('retired_table_name', retiredTable)
+      .order('occurred_at', { ascending: false })
+      .limit(1);
+    const latestEvent = events?.[0] as
+      | {
+          event_id?: string;
+          stage?: string;
+          occurred_at?: string;
+        }
+      | undefined;
+    const { data: epochs } = await persist
+      .from('os_snapshot_soak_epochs')
+      .select('*')
+      .eq('retired_table_name', retiredTable)
+      .in('status', ['active', 'qualified'])
+      .order('created_at', { ascending: false })
+      .limit(1);
+    let epoch = epochs?.[0] as
+      | {
+          epoch_id: string;
+          status: string;
+          required_hours: number;
+          max_gap_hours: number;
+          minimum_observations: number;
+          streak_started_at: string | null;
+          last_observed_at: string | null;
+          healthy_count: number;
+        }
+      | undefined;
+    if (latestEvent?.stage === 'rollback') {
+      if (epoch) {
+        await persist
+          .from('os_snapshot_soak_epochs')
+          .update({
+            status: 'rolled_back',
+            reset_reason: 'Durable rollback event',
+            updated_at: input.observedAt,
+          })
+          .eq('epoch_id', epoch.epoch_id);
+      }
+      epoch = undefined;
+      continuityStatus = 'rolled_back';
+    } else if (input.healthy) {
+      const gapHours = epoch?.last_observed_at
+        ? (Date.parse(input.observedAt) -
+            Date.parse(epoch.last_observed_at)) /
+          3_600_000
+        : 0;
+      if (epoch && gapHours > Number(epoch.max_gap_hours ?? 8)) {
+        await persist
+          .from('os_snapshot_soak_epochs')
+          .update({
+            status: 'broken',
+            reset_reason: `Observation gap ${gapHours.toFixed(1)}h exceeded ${epoch.max_gap_hours}h`,
+            updated_at: input.observedAt,
+          })
+          .eq('epoch_id', epoch.epoch_id);
+        epoch = undefined;
+      }
+      if (!epoch) {
+        const { data: created, error } = await persist
+          .from('os_snapshot_soak_epochs')
+          .insert({
+            retired_table_name: retiredTable,
+            rename_event_id: latestEvent?.event_id ?? null,
+            status: 'active',
+            streak_started_at: input.observedAt,
+            last_observed_at: input.observedAt,
+            healthy_count: 1,
+          })
+          .select('*')
+          .single();
+        if (error) return { error: error.message };
+        epoch = created;
+      } else {
+        const nextCount = Number(epoch.healthy_count ?? 0) + 1;
+        const startedAt = epoch.streak_started_at ?? input.observedAt;
+        const durationHours =
+          (Date.parse(input.observedAt) - Date.parse(startedAt)) / 3_600_000;
+        const qualified =
+          durationHours >= Number(epoch.required_hours ?? 168) &&
+          nextCount >= Number(epoch.minimum_observations ?? 21);
+        await persist
+          .from('os_snapshot_soak_epochs')
+          .update({
+            status: qualified ? 'qualified' : 'active',
+            streak_started_at: startedAt,
+            last_observed_at: input.observedAt,
+            healthy_count: nextCount,
+            qualified_at: qualified ? input.observedAt : null,
+            reset_reason: null,
+            updated_at: input.observedAt,
+          })
+          .eq('epoch_id', epoch.epoch_id);
+        epoch = {
+          ...epoch,
+          status: qualified ? 'qualified' : 'active',
+          streak_started_at: startedAt,
+          last_observed_at: input.observedAt,
+          healthy_count: nextCount,
+        };
+      }
+      if (!epoch) return { error: 'Soak epoch could not be established' };
+      epochId = epoch.epoch_id;
+      continuityStatus = epoch.status;
+      streakCount = Number(epoch.healthy_count ?? 0);
+      streakStartedAt = epoch.streak_started_at;
+    } else if (epoch) {
+      epochId = epoch.epoch_id;
+      continuityStatus = 'broken';
+      await persist
+        .from('os_snapshot_soak_epochs')
+        .update({
+          status: 'broken',
+          reset_reason: input.issues.join('; ') || 'Unhealthy observation',
+          last_observed_at: input.observedAt,
+          updated_at: input.observedAt,
+        })
+        .eq('epoch_id', epoch.epoch_id);
+    }
+  }
+  const { error } = await persist.from('os_snapshot_soak_observations').insert({
+    healthy: input.healthy,
+    issues: input.issues,
+    stage: input.stage,
+    sync_failure_count: input.syncFailureCount,
+    fk_orphan_total: input.fkOrphanTotal,
+    stage4_ready: input.stage4Ready,
+    drill_summary: input.drillSummary,
+    source: input.source,
+    retired_table_name: retiredTable,
+    observed_at: input.observedAt,
+    epoch_id: epochId,
+    continuity_status: continuityStatus,
+    healthy_streak_count: streakCount,
+    healthy_streak_started_at: streakStartedAt,
+  });
+  return error
+    ? { error: error.message }
+    : { epochStatus: continuityStatus };
+}
+
 async function runSoak(request: Request) {
   const auth = await authorize(request);
   if (!auth.ok) {
@@ -74,22 +238,20 @@ async function runSoak(request: Request) {
       drill_summary: drills.summary,
       source: auth.source,
     });
-    const persist = await createPersistClient();
-    const { error: observationError } = await persist
-      .from('os_snapshot_soak_observations')
-      .insert({
-        healthy,
-        issues,
-        stage: status.cutover_hints.stage,
-        sync_failure_count: status.sync_failure_count,
-        fk_orphan_total: status.fk_orphan_total,
-        stage4_ready: drills.stage4_ready,
-        drill_summary: drills.summary,
-        source: auth.source,
-        retired_table_name:
-          process.env.SNAPSHOT_RETIRED_TABLE_NAME?.trim() || null,
-        observed_at: fetched_at,
-      });
+    const soakEvidence = await persistSoakEvidence({
+      healthy,
+      issues,
+      stage: status.cutover_hints.stage,
+      syncFailureCount: status.sync_failure_count,
+      fkOrphanTotal: status.fk_orphan_total,
+      stage4Ready: drills.stage4_ready,
+      drillSummary: drills.summary,
+      source: auth.source,
+      observedAt: fetched_at,
+    });
+    const observationError = soakEvidence.error
+      ? { message: soakEvidence.error }
+      : null;
     if (
       observationError &&
       !observationError.message.includes('os_snapshot_soak_observations')
@@ -129,6 +291,7 @@ async function runSoak(request: Request) {
       fk_orphan_total: status.fk_orphan_total,
       stage4_ready: drills.stage4_ready,
       drill_summary: drills.summary,
+      soak_epoch_status: soakEvidence.epochStatus ?? null,
       sentry_configured: status.sentry_configured,
       fetched_at,
     });

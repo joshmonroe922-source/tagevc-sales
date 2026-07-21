@@ -57,6 +57,7 @@ function mapCampaign(row: Record<string, unknown>): MarketingCampaign {
         : null,
     ad_platform: (row.ad_platform as string) ?? null,
     external_campaign_id: (row.external_campaign_id as string) ?? null,
+    ad_account_id: (row.ad_account_id as string) ?? null,
     starts_at: (row.starts_at as string) ?? null,
     ends_at: (row.ends_at as string) ?? null,
     notes: (row.notes as string) ?? null,
@@ -97,6 +98,13 @@ function mapAccount(row: Record<string, unknown>): MarketingSocialAccount {
     display_name: (row.display_name as string) ?? null,
     status: row.status as MarketingSocialAccount['status'],
     external_account_id: (row.external_account_id as string) ?? null,
+    account_type:
+      row.account_type === 'paid_ads' ? 'paid_ads' : 'publisher',
+    currency: (row.currency as string) ?? null,
+    timezone: (row.timezone as string) ?? null,
+    capabilities:
+      (row.capabilities as Record<string, unknown>) ?? {},
+    verified_at: (row.verified_at as string) ?? null,
     last_synced_at: (row.last_synced_at as string) ?? null,
     notes: (row.notes as string) ?? null,
     created_at: String(row.created_at),
@@ -248,6 +256,7 @@ export async function createCampaign(input: {
   attributed_revenue_k?: number | null;
   ad_platform?: string | null;
   external_campaign_id?: string | null;
+  ad_account_id?: string | null;
 }): Promise<{ ok: true; campaign: MarketingCampaign } | { ok: false; error: string }> {
   try {
     const sb = await createPersistClient();
@@ -267,6 +276,7 @@ export async function createCampaign(input: {
         attributed_revenue_k: input.attributed_revenue_k ?? null,
         ad_platform: input.ad_platform || null,
         external_campaign_id: input.external_campaign_id || null,
+        ad_account_id: input.ad_account_id || null,
         notes: input.notes || null,
         updated_at: now,
       })
@@ -324,6 +334,8 @@ export async function registerSocialAccount(input: {
   display_name?: string | null;
   entity_id?: string | null;
   notes?: string | null;
+  account_type?: 'publisher' | 'paid_ads';
+  external_account_id?: string | null;
 }): Promise<
   { ok: true; account: MarketingSocialAccount } | { ok: false; error: string }
 > {
@@ -341,6 +353,8 @@ export async function registerSocialAccount(input: {
         entity_id: input.entity_id || null,
         status: 'pending',
         notes: input.notes || null,
+        account_type: input.account_type ?? 'publisher',
+        external_account_id: input.external_account_id || null,
         updated_at: now,
       })
       .select('*')
@@ -633,6 +647,6 @@ export function getMarketingFoundationStatus() {
       process.env.MARKETING_PAID_ADS_LIVE === '1' ||
       process.env.MARKETING_PAID_ADS_LIVE === 'true',
     tiktok_publish: true,
-    phase: 32,
+    phase: 33,
   };
 }

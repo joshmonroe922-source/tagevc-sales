@@ -81,9 +81,24 @@ Unknown envelopes are acknowledged and still logged to `os_docusign_events`.
 - Template search shows description and cache freshness.
 - Apply through `phase29_paid_media_warranty.sql`.  
 
+## Phase 33
+
+- Live envelopes expose typed total/start/next/previous pagination.
+- Cached templates use database search and paging; API synchronization follows
+  continuation pages with bounded completeness reporting.
+- Hub links preserve unrelated filter state and use independent page keys.
+- Replacement sends support all cached template roles with validated email,
+  unique-role, and capital-permission gates.
+- `os_docusign_envelope_lineage` records intent before send, rejects duplicate
+  active source replacements, and preserves request, source context, actor,
+  role map, failure, and replacement identifiers.
+
+SQL: `phase33_docusign_lineage.sql`.
+
 ## Still deferred
 
-- API continuation pagination and a dedicated recipient detail drawer
-- Multi-role replacement blueprints
+- Dedicated recipient detail drawer
+- Provider-side reconciliation for externally successful sends whose final
+  local audit write fails
 - Retire simulate button in production  
 

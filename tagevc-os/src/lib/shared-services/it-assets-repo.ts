@@ -550,15 +550,27 @@ export async function updateHardwareWarranty(input: {
 export async function bulkUpdateWarranties(input: {
   lines: string;
   actor_id?: string | null;
+  source_name?: string | null;
 }): Promise<{
   ok: true;
+  batch_id: string | null;
+  source_sha256: string;
   updated: number;
   failed: number;
   errors: string[];
 }> {
+  const { createHash } = await import('crypto');
+  const sourceSha256 = createHash('sha256')
+    .update(input.lines, 'utf8')
+    .digest('hex');
   const errors: string[] = [];
-  let updated = 0;
   let failed = 0;
+  const preparedRows: Array<{
+    line_number: number;
+    asset_id: string | null;
+    serial_number: string | null;
+    warranty_ends_at: string;
+  }> = [];
   function parseCsvLine(line: string): string[] {
     const fields: string[] = [];
     let field = '';
@@ -603,6 +615,8 @@ export async function bulkUpdateWarranties(input: {
   ) {
     return {
       ok: true,
+      batch_id: null,
+      source_sha256: sourceSha256,
       updated: 0,
       failed: Math.max(rows.length - 1, 1),
       errors: [
@@ -612,7 +626,7 @@ export async function bulkUpdateWarranties(input: {
   }
   const seen = new Map<string, string>();
 
-  for (const raw of rows.slice(hasHeader ? 1 : 0)) {
+  for (const [index, raw] of rows.slice(hasHeader ? 1 : 0).entries()) {
     const line = raw.trim();
     if (!line || line.startsWith('#')) continue;
     const parts = line.includes(',') ? parseCsvLine(line) : line.split('\t').map((p) => p.trim());
@@ -649,25 +663,86 @@ export async function bulkUpdateWarranties(input: {
       continue;
     }
     seen.set(normalizedKey, date);
-    let res = await updateHardwareWarranty({
+    preparedRows.push({
+      line_number: index + (hasHeader ? 2 : 1),
       asset_id: assetId || (!hasHeader ? key : null),
       serial_number: serial || null,
       warranty_ends_at: date,
-      actor_id: input.actor_id,
     });
-    if (!res.ok && !serial) {
-      res = await updateHardwareWarranty({
-        asset_id: null,
-        serial_number: key,
-        warranty_ends_at: date,
-        actor_id: input.actor_id,
-      });
-    }
-    if (res.ok) updated += 1;
-    else {
-      failed += 1;
-      errors.push(`${key}: ${res.error}`);
-    }
   }
-  return { ok: true, updated, failed, errors: errors.slice(0, 100) };
+  if (errors.length > 0 || preparedRows.length === 0) {
+    return {
+      ok: true,
+      batch_id: null,
+      source_sha256: sourceSha256,
+      updated: 0,
+      failed: failed || 1,
+      errors:
+        errors.length > 0 ? errors.slice(0, 100) : ['No valid data rows'],
+    };
+  }
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc('prepare_it_warranty_import', {
+    p_source_name: input.source_name ?? 'warranty.csv',
+    p_source_sha256: sourceSha256,
+    p_actor_id: input.actor_id ?? null,
+    p_rows: preparedRows,
+  });
+  if (error) {
+    return {
+      ok: true,
+      batch_id: null,
+      source_sha256: sourceSha256,
+      updated: 0,
+      failed: preparedRows.length,
+      errors: [error.message],
+    };
+  }
+  const result = (data ?? {}) as {
+    batch_id?: string;
+    valid?: number;
+    errors?: number;
+    status?: string;
+  };
+  return {
+    ok: true,
+    batch_id: result.batch_id ?? null,
+    source_sha256: sourceSha256,
+    updated: Number(result.valid ?? 0),
+    failed: Number(result.errors ?? 0),
+    errors:
+      result.status === 'ready'
+        ? []
+        : ['Preview contains invalid or ambiguous rows; no assets were changed'],
+  };
+}
+
+export async function commitWarrantyImport(input: {
+  batch_id: string;
+  source_sha256: string;
+  actor_id?: string | null;
+}): Promise<
+  | { ok: true; changed: number; status: string }
+  | { ok: false; error: string }
+> {
+  try {
+    const sb = await createPersistClient();
+    const { data, error } = await sb.rpc('commit_it_warranty_import', {
+      p_batch_id: input.batch_id,
+      p_source_sha256: input.source_sha256,
+      p_actor_id: input.actor_id ?? null,
+    });
+    if (error) return { ok: false, error: error.message };
+    const result = (data ?? {}) as { changed?: number; status?: string };
+    return {
+      ok: true,
+      changed: Number(result.changed ?? 0),
+      status: result.status ?? 'committed',
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'Warranty commit failed',
+    };
+  }
 }

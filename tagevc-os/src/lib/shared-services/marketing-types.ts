@@ -89,6 +89,7 @@ export type MarketingCampaign = {
   attributed_revenue_k: number | null;
   ad_platform: string | null;
   external_campaign_id: string | null;
+  ad_account_id: string | null;
   starts_at: string | null;
   ends_at: string | null;
   notes: string | null;
@@ -128,6 +129,11 @@ export type MarketingSocialAccount = {
   display_name: string | null;
   status: MarketingAccountStatus;
   external_account_id: string | null;
+  account_type: 'publisher' | 'paid_ads';
+  currency: string | null;
+  timezone: string | null;
+  capabilities: Record<string, unknown>;
+  verified_at: string | null;
   last_synced_at: string | null;
   notes: string | null;
   created_at: string;
@@ -171,6 +177,7 @@ export const MARKETING_ENV_KEYS = [
   'LINKEDIN_ADS_API',
   'LINKEDIN_ADS_ACCESS_TOKEN',
   'LINKEDIN_API_VERSION',
+  'META_API_VERSION',
   'LINKEDIN_ORG_URN',
   'X_CLIENT_ID',
   'META_APP_ID',
@@ -186,4 +193,5 @@ export const MARKETING_ENV_KEYS = [
   'MARKETING_SLA_ASSIGNEE',
   'MARKETING_SLA_EMAIL_ASSIGNEES',
   'MARKETING_PAID_ADS_LIVE',
+  'MARKETING_ALLOW_STUB_OAUTH',
 ] as const;

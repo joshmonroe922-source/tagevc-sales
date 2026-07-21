@@ -1,6 +1,11 @@
 'use client';
 
-import { useActionState, useState, useTransition } from 'react';
+import {
+  useActionState,
+  useState,
+  useTransition,
+  type FormEvent,
+} from 'react';
 import {
   approveContentAction,
   createCampaignAction,
@@ -118,6 +123,11 @@ export function MarketingClient({
   );
   const [flash, setFlash] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [tiktokUpload, setTikTokUpload] = useState({
+    busy: false,
+    progress: 0,
+    message: null as string | null,
+  });
   const [pending, startTransition] = useTransition();
 
   function run(fn: () => Promise<MarketingActionResult>) {
@@ -128,6 +138,114 @@ export function MarketingClient({
       if (res.ok) setFlash(res.message ?? 'Done');
       else setErr(res.error);
     });
+  }
+
+  async function uploadTikTokVideo(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const file = form.get('video_file');
+    if (!(file instanceof File) || file.size === 0) return;
+    setTikTokUpload({ busy: true, progress: 0, message: 'Initializing…' });
+    let uploadId: string | null = null;
+    let uploadedBytes = 0;
+    try {
+      const initRes = await fetch('/api/marketing/tiktok/uploads/init', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          account_id: String(form.get('account_id') ?? ''),
+          content_id: String(form.get('content_id') ?? ''),
+          media_name: file.name,
+          media_type: file.type,
+          media_size: file.size,
+          privacy_level: String(form.get('privacy_level') ?? ''),
+          disable_comment: form.get('disable_comment') === 'on',
+          disable_duet: form.get('disable_duet') === 'on',
+          disable_stitch: form.get('disable_stitch') === 'on',
+        }),
+      });
+      const init = (await initRes.json()) as {
+        error?: string;
+        upload_id?: string;
+        upload_url?: string;
+        chunk_size?: number;
+      };
+      if (!initRes.ok || !init.upload_id || !init.upload_url || !init.chunk_size) {
+        throw new Error(init.error || 'TikTok upload initialization failed');
+      }
+      uploadId = init.upload_id;
+      for (let start = 0; start < file.size; start += init.chunk_size) {
+        const endExclusive = Math.min(start + init.chunk_size, file.size);
+        let uploadStatus = 0;
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          const uploadRes = await fetch(init.upload_url, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': file.type,
+              'Content-Range': `bytes ${start}-${endExclusive - 1}/${file.size}`,
+            },
+            body: file.slice(start, endExclusive),
+          });
+          uploadStatus = uploadRes.status;
+          if ([201, 206].includes(uploadStatus)) break;
+          if (uploadStatus < 500 || attempt === 2) break;
+          await new Promise((resolve) =>
+            window.setTimeout(resolve, 500 * 2 ** attempt),
+          );
+        }
+        if (![201, 206].includes(uploadStatus)) {
+          throw new Error(`TikTok chunk upload HTTP ${uploadStatus}`);
+        }
+        uploadedBytes = endExclusive;
+        const final = uploadedBytes === file.size;
+        const progressRes = await fetch(
+          `/api/marketing/tiktok/uploads/${encodeURIComponent(uploadId)}/progress`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              uploaded_bytes: uploadedBytes,
+              status: final ? 'uploaded' : 'uploading',
+            }),
+          },
+        );
+        const progressJson = (await progressRes.json()) as {
+          error?: string;
+          job_id?: string;
+        };
+        if (!progressRes.ok) {
+          throw new Error(progressJson.error || 'Progress persistence failed');
+        }
+        const percent = Math.round((uploadedBytes / file.size) * 100);
+        setTikTokUpload({
+          busy: !final,
+          progress: percent,
+          message: final
+            ? `Uploaded · processing job ${progressJson.job_id ?? 'queued'}`
+            : `Uploaded ${percent}%`,
+        });
+      }
+    } catch (error) {
+      if (uploadId) {
+        await fetch(
+          `/api/marketing/tiktok/uploads/${encodeURIComponent(uploadId)}/progress`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              uploaded_bytes: uploadedBytes,
+              status: 'failed',
+              error: error instanceof Error ? error.message : 'Upload failed',
+            }),
+          },
+        ).catch(() => undefined);
+      }
+      setTikTokUpload({
+        busy: false,
+        progress: 0,
+        message: error instanceof Error ? error.message : 'Upload failed',
+      });
+    }
   }
 
   const pendingJobs = scheduleJobs.filter((j) => j.status === 'pending');
@@ -435,11 +553,34 @@ export function MarketingClient({
             </div>
             <div className="space-y-1">
               <Label htmlFor="camp_ad">Ad platform</Label>
-              <Input
-                id="camp_ad"
-                name="ad_platform"
-                placeholder="meta_ads · linkedin_ads · tiktok_ads"
-              />
+              <select id="camp_ad" name="ad_platform" className={field} defaultValue="">
+                <option value="">Organic / none</option>
+                <option value="linkedin_ads">LinkedIn Ads</option>
+                <option value="meta_ads">Meta Ads</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="camp_ad_account">Connected ad account</Label>
+              <select
+                id="camp_ad_account"
+                name="ad_account_id"
+                className={field}
+                defaultValue=""
+              >
+                <option value="">Select for paid campaigns</option>
+                {accounts
+                  .filter(
+                    (account) =>
+                      account.account_type === 'paid_ads' &&
+                      account.status === 'connected',
+                  )
+                  .map((account) => (
+                    <option value={account.account_id} key={account.account_id}>
+                      {account.display_name ?? account.handle} · {account.platform}{' '}
+                      · {account.entity_id ?? 'firm'}
+                    </option>
+                  ))}
+              </select>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
@@ -547,8 +688,30 @@ export function MarketingClient({
               </div>
             </div>
             <div className="space-y-1">
+              <Label htmlFor="ac_type">Connection type</Label>
+              <select
+                id="ac_type"
+                name="account_type"
+                className={field}
+                defaultValue="publisher"
+              >
+                <option value="publisher">Publisher</option>
+                <option value="paid_ads">Paid advertising</option>
+              </select>
+            </div>
+            <div className="space-y-1">
               <Label htmlFor="ac_entity">Entity id (optional)</Label>
               <Input id="ac_entity" name="entity_id" placeholder="ENT-001" />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="ac_external">
+                Provider account ID (required for paid ads)
+              </Label>
+              <Input
+                id="ac_external"
+                name="external_account_id"
+                placeholder="act_123… or LinkedIn ad account URN"
+              />
             </div>
             <Button type="submit" size="sm" disabled={acctPending}>
               Register
@@ -615,6 +778,85 @@ export function MarketingClient({
             <Msg state={voiceState} />
           </form>
         </div>
+      )}
+
+      {canWrite && (
+        <form
+          onSubmit={uploadTikTokVideo}
+          className="space-y-3 rounded-lg border p-4"
+        >
+          <h2 className="text-sm font-semibold">Resumable TikTok upload</h2>
+          <p className="text-xs text-muted-foreground">
+            Immediate approved-content upload. Each chunk is acknowledged before
+            publish-status polling begins.
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <select name="content_id" className={field} required defaultValue="">
+              <option value="">Approved TikTok content</option>
+              {content
+                .filter(
+                  (item) =>
+                    item.platform === 'tiktok' && item.status === 'approved',
+                )
+                .map((item) => (
+                  <option value={item.content_id} key={item.content_id}>
+                    {item.title} · {item.entity_id ?? 'firm'}
+                  </option>
+                ))}
+            </select>
+            <select name="account_id" className={field} required defaultValue="">
+              <option value="">Connected TikTok publisher</option>
+              {accounts
+                .filter(
+                  (account) =>
+                    account.platform === 'tiktok' &&
+                    account.account_type === 'publisher' &&
+                    account.status === 'connected',
+                )
+                .map((account) => (
+                  <option value={account.account_id} key={account.account_id}>
+                    @{account.handle} · {account.entity_id ?? 'firm'}
+                  </option>
+                ))}
+            </select>
+          </div>
+          <Input
+            type="file"
+            name="video_file"
+            accept="video/mp4,video/quicktime,video/webm"
+            required
+          />
+          <select name="privacy_level" className={field} required defaultValue="">
+            <option value="" disabled>
+              Choose privacy (no default)
+            </option>
+            <option value="SELF_ONLY">Only me</option>
+            <option value="MUTUAL_FOLLOW_FRIENDS">Friends</option>
+            <option value="FOLLOWER_OF_CREATOR">Followers</option>
+            <option value="PUBLIC_TO_EVERYONE">Public</option>
+          </select>
+          <div className="flex flex-wrap gap-3 text-xs">
+            {[
+              ['disable_comment', 'Disable comments'],
+              ['disable_duet', 'Disable duet'],
+              ['disable_stitch', 'Disable stitch'],
+            ].map(([name, label]) => (
+              <label key={name} className="flex items-center gap-1">
+                <input type="checkbox" name={name} /> {label}
+              </label>
+            ))}
+          </div>
+          <Button type="submit" size="sm" disabled={tiktokUpload.busy}>
+            {tiktokUpload.busy
+              ? `Uploading ${tiktokUpload.progress}%`
+              : 'Upload to TikTok'}
+          </Button>
+          {tiktokUpload.message ? (
+            <p className="text-xs text-muted-foreground">
+              {tiktokUpload.message}
+            </p>
+          ) : null}
+        </form>
       )}
 
       {canWrite && (
@@ -703,6 +945,7 @@ export function MarketingClient({
                 {c.channel === 'paid' ? ' · paid' : ''}
                 {c.budget_k != null ? ` · $${c.budget_k}k` : ''}
                 {c.ad_platform ? ` · ${c.ad_platform}` : ''}
+                {c.ad_account_id ? ` · account ${c.ad_account_id}` : ''}
                 {c.entity_id ? ` · ${c.entity_id}` : ' · firm-wide'}
                 {analytics.by_campaign[c.campaign_id] != null ? (
                   <span className="text-xs text-muted-foreground">
@@ -920,7 +1163,10 @@ export function MarketingClient({
                 <span className="font-medium">{a.platform}</span> @{a.handle}
                 {' · '}
                 {a.status}
+                {` · ${a.account_type}`}
                 {a.entity_id ? ` · ${a.entity_id}` : ' · firm'}
+                {a.external_account_id ? ` · ${a.external_account_id}` : ''}
+                {a.currency ? ` · ${a.currency}` : ''}
                 {canWrite &&
                   a.status !== 'connected' &&
                   OAUTH_SET.has(a.platform) && (

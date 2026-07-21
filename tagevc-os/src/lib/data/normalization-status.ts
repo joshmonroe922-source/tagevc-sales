@@ -76,6 +76,22 @@ export type NormalizationStatus = {
   empty_snapshot_drills: EmptySnapshotDrillReport;
   stage4_ready: boolean;
   last_soak: SoakRunRecord | null;
+  soak_epoch: {
+    status: string;
+    healthy_count: number;
+    streak_started_at: string | null;
+    last_observed_at: string | null;
+    required_hours: number;
+    max_gap_hours: number;
+    reset_reason: string | null;
+  } | null;
+  retirement_timeline: Array<{
+    stage: string;
+    retired_table_name: string | null;
+    approved_by: string | null;
+    occurred_at: string;
+    detail: string | null;
+  }>;
   stage4e_checklist: Stage4eChecklist;
   snapshot_retention: ReturnType<typeof getSnapshotRetentionStatus>;
   fetched_at: string;
@@ -149,7 +165,17 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
     .from('os_snapshot_retirement_events')
     .select('stage, retired_table_name, approved_by, occurred_at, detail')
     .order('occurred_at', { ascending: false })
-    .limit(1);
+    .limit(20);
+  const { data: soakEpochRows } = retiredTableName
+    ? await supabase
+        .from('os_snapshot_soak_epochs')
+        .select(
+          'status, healthy_count, streak_started_at, last_observed_at, required_hours, max_gap_hours, reset_reason',
+        )
+        .eq('retired_table_name', retiredTableName)
+        .order('created_at', { ascending: false })
+        .limit(1)
+    : { data: null };
   const { data: durableSoakRows } = await supabase
     .from('os_snapshot_soak_observations')
     .select(
@@ -288,6 +314,9 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
         source: durableSoak.source ?? 'manual',
       }
     : getLastSoakRun();
+  const soakEpoch =
+    (soakEpochRows?.[0] as NormalizationStatus['soak_epoch'] | undefined) ??
+    null;
   const retention = getSnapshotRetentionStatus();
   const stage4e_checklist = buildStage4eChecklist({
     stage4_ready: drills.stage4_ready,
@@ -312,6 +341,7 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
             detail?: string;
           }
         | undefined) ?? null,
+    soak_epoch: soakEpoch,
     retention_confirmed: retention.confirmed,
     retention_days_remaining: retention.days_remaining_before_drop_eligible,
   });
@@ -344,6 +374,14 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
     empty_snapshot_drills: drills,
     stage4_ready: drills.stage4_ready,
     last_soak: lastSoak,
+    soak_epoch: soakEpoch,
+    retirement_timeline: (retirementEvents ?? []).map((event) => ({
+      stage: String(event.stage),
+      retired_table_name: (event.retired_table_name as string) ?? null,
+      approved_by: (event.approved_by as string) ?? null,
+      occurred_at: String(event.occurred_at),
+      detail: (event.detail as string) ?? null,
+    })),
     stage4e_checklist,
     snapshot_retention: retention,
     fetched_at: new Date().toISOString(),
@@ -360,7 +398,7 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
             : stage === 'read_cutover'
               ? 'Enable WRITE_CUTOVER_MATURE=1 when handoffs/audits tables are ready'
               : stage === 'sql_only_hydrate'
-                ? 'Stage 4b active — governed soft rename path; DROP still deferred (Phase 32)'
+                ? 'Stage 4b active — governed soft rename path; DROP still deferred (Phase 33)'
                 : stage === 'stage4_ready'
                   ? 'Drills passed — SQL-only hydrate follows write cutover automatically; see OS_SNAPSHOT_STAGE4.md'
                   : fkOrphanTotal > 0

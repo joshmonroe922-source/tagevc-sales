@@ -233,13 +233,59 @@ export type DocuSignEnvelopeSummary = {
   }>;
 };
 
+export type DocuSignPagination = {
+  resultSetSize: number;
+  totalSetSize: number;
+  startPosition: number;
+  endPosition: number;
+  nextStartPosition: number | null;
+  previousStartPosition: number | null;
+};
+
+function parsePagination(input: {
+  resultSetSize?: string;
+  totalSetSize?: string;
+  startPosition?: string;
+  endPosition?: string;
+  nextUri?: string;
+  previousUri?: string;
+}): DocuSignPagination {
+  const safe = (value?: string) => {
+    const n = Number(value ?? 0);
+    return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
+  };
+  const startFromUri = (uri?: string): number | null => {
+    if (!uri) return null;
+    try {
+      const parsed = new URL(uri, 'https://docusign.invalid');
+      const n = Number(parsed.searchParams.get('start_position'));
+      return Number.isInteger(n) && n >= 0 ? n : null;
+    } catch {
+      return null;
+    }
+  };
+  return {
+    resultSetSize: safe(input.resultSetSize),
+    totalSetSize: safe(input.totalSetSize),
+    startPosition: safe(input.startPosition),
+    endPosition: safe(input.endPosition),
+    nextStartPosition: startFromUri(input.nextUri),
+    previousStartPosition: startFromUri(input.previousUri),
+  };
+}
+
 /** Authoritative recent account envelopes for the management hub (Phase 31). */
 export async function listRecentEnvelopes(opts?: {
   status?: string;
   count?: number;
   days?: number;
+  startPosition?: number;
 }): Promise<
-  | { ok: true; envelopes: DocuSignEnvelopeSummary[] }
+  | {
+      ok: true;
+      envelopes: DocuSignEnvelopeSummary[];
+      pagination: DocuSignPagination;
+    }
   | { ok: false; error: string }
 > {
   const cfg = getDocuSignConfig();
@@ -253,6 +299,9 @@ export async function listRecentEnvelopes(opts?: {
       from_date: from.toISOString(),
       count: String(Math.min(opts?.count ?? 40, 100)),
       include: 'recipients',
+      start_position: String(
+        Math.max(0, Math.floor(opts?.startPosition ?? 0)),
+      ),
     });
     if (opts?.status?.trim()) {
       params.set('status', opts.status.trim().toLowerCase());
@@ -265,6 +314,12 @@ export async function listRecentEnvelopes(opts?: {
       envelopes?: Array<Record<string, unknown>>;
       message?: string;
       errorCode?: string;
+      resultSetSize?: string;
+      totalSetSize?: string;
+      startPosition?: string;
+      endPosition?: string;
+      nextUri?: string;
+      previousUri?: string;
     };
     if (!res.ok) {
       return { ok: false, error: await docusignError('Envelope list', res, json) };
@@ -299,6 +354,7 @@ export async function listRecentEnvelopes(opts?: {
           recipients,
         };
       }),
+      pagination: parsePagination(json),
     };
   } catch (e) {
     return {
@@ -391,6 +447,8 @@ export async function remindEnvelope(
 /** List account templates from DocuSign API. */
 export async function listDocuSignTemplatesFromApi(opts?: {
   count?: number;
+  startPosition?: number;
+  searchText?: string;
 }): Promise<
   | {
       ok: true;
@@ -402,6 +460,7 @@ export async function listDocuSignTemplatesFromApi(opts?: {
         lastModified?: string;
         raw: unknown;
       }>;
+      pagination: DocuSignPagination;
     }
   | { ok: false; error: string }
 > {
@@ -409,10 +468,20 @@ export async function listDocuSignTemplatesFromApi(opts?: {
   if (!cfg) return { ok: false, error: 'DocuSign is not configured' };
 
   try {
-    const count = opts?.count ?? 40;
+    const count = Math.min(Math.max(opts?.count ?? 40, 1), 2000);
+    const params = new URLSearchParams({
+      count: String(count),
+      include: 'recipients',
+      start_position: String(
+        Math.max(0, Math.floor(opts?.startPosition ?? 0)),
+      ),
+    });
+    if (opts?.searchText?.trim()) {
+      params.set('search_text', opts.searchText.trim().slice(0, 48));
+    }
     const res = await docusignFetch(
       cfg,
-      `/templates?count=${count}&include=recipients`,
+      `/templates?${params.toString()}`,
     );
     const json = (await res.json().catch(() => ({}))) as {
       envelopeTemplates?: Array<{
@@ -425,11 +494,18 @@ export async function listDocuSignTemplatesFromApi(opts?: {
         roles?: unknown;
       }>;
       message?: string;
+      errorCode?: string;
+      resultSetSize?: string;
+      totalSetSize?: string;
+      startPosition?: string;
+      endPosition?: string;
+      nextUri?: string;
+      previousUri?: string;
     };
     if (!res.ok) {
       return {
         ok: false,
-        error: json.message || `HTTP ${res.status}`,
+        error: await docusignError('Template list', res, json),
       };
     }
     const templates = (json.envelopeTemplates ?? [])
@@ -442,7 +518,7 @@ export async function listDocuSignTemplatesFromApi(opts?: {
         lastModified: t.lastModified,
         raw: t,
       }));
-    return { ok: true, templates };
+    return { ok: true, templates, pagination: parsePagination(json) };
   } catch (e) {
     return {
       ok: false,

@@ -26,6 +26,10 @@ export type PublishResult = {
   processing?: boolean;
 };
 
+function isTikTokApiError(code?: string): boolean {
+  return Boolean(code && code.toLowerCase() !== 'ok');
+}
+
 export interface SocialPublisher {
   readonly id: string;
   publish(input: PublishInput & { accessToken: string }): Promise<PublishResult>;
@@ -239,7 +243,7 @@ export class TikTokPublisher implements SocialPublisher {
         error?: { code?: string; message?: string };
         data?: { creator_username?: string };
       };
-      if (!creatorRes.ok || creatorJson.error?.code) {
+      if (!creatorRes.ok || isTikTokApiError(creatorJson.error?.code)) {
         return {
           ok: false,
           publisher: this.id,
@@ -288,7 +292,11 @@ export class TikTokPublisher implements SocialPublisher {
           data?: { publish_id?: string };
           error?: { code?: string; message?: string };
         };
-        if (res.ok && !json.error?.code && json.data?.publish_id) {
+        if (
+          res.ok &&
+          !isTikTokApiError(json.error?.code) &&
+          json.data?.publish_id
+        ) {
           return {
             ok: true,
             publisher: this.id,
@@ -339,7 +347,11 @@ export class TikTokPublisher implements SocialPublisher {
           data?: { publish_id?: string };
           error?: { code?: string; message?: string };
         };
-        if (res.ok && !json.error?.code && json.data?.publish_id) {
+        if (
+          res.ok &&
+          !isTikTokApiError(json.error?.code) &&
+          json.data?.publish_id
+        ) {
           return {
             ok: true,
             publisher: this.id,
@@ -429,7 +441,11 @@ export async function getTikTokPublishStatus(
       /"publicaly_available_post_id"\s*:\s*\[\s*"?(\d+)"?/,
     )?.[1];
     const status = json.data?.status || 'UNKNOWN';
-    if (!res.ok || json.error?.code || status === 'FAILED') {
+    if (
+      !res.ok ||
+      isTikTokApiError(json.error?.code) ||
+      status === 'FAILED'
+    ) {
       return {
         ok: false,
         status,

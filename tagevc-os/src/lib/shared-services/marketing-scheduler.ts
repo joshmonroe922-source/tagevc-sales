@@ -125,6 +125,27 @@ export async function processDueScheduleJobs(opts?: {
     }
 
     const content = contentRow as Record<string, unknown>;
+    if (
+      String(content.status) !== 'scheduled' ||
+      ((job.entity_id as string) ?? null) !==
+        ((content.entity_id as string) ?? null)
+    ) {
+      const reason =
+        String(content.status) !== 'scheduled'
+          ? `Content status ${String(content.status)} is not publishable`
+          : 'Job/content entity mismatch';
+      await sb
+        .from('os_marketing_schedule_jobs')
+        .update({ status: 'failed', last_error: reason, updated_at: nowIso })
+        .eq('job_id', jobId);
+      results.push({
+        job_id: jobId,
+        ok: false,
+        status: 'failed',
+        error: reason,
+      });
+      continue;
+    }
     let platform = (content.platform as string) || 'linkedin';
     let handle = 'tagevc';
     let resolvedAccountId = accountId;
@@ -135,15 +156,26 @@ export async function processDueScheduleJobs(opts?: {
         .select('*')
         .eq('account_id', resolvedAccountId)
         .maybeSingle();
-      if (acct) {
+      if (
+        acct &&
+        (acct as { status?: string }).status === 'connected' &&
+        ((acct as { entity_id?: string | null }).entity_id ?? null) ===
+          ((content.entity_id as string) ?? null) &&
+        (acct as { account_type?: string }).account_type !== 'paid_ads' &&
+        (!(content.platform as string | null) ||
+          (acct as { platform: string }).platform === content.platform)
+      ) {
         platform = String((acct as { platform: string }).platform);
         handle = String((acct as { handle: string }).handle);
+      } else {
+        resolvedAccountId = null;
       }
     } else {
       let accountQuery = sb
         .from('os_marketing_social_accounts')
         .select('*')
         .eq('status', 'connected')
+        .eq('account_type', 'publisher')
         .eq('platform', platform);
       accountQuery = content.entity_id
         ? accountQuery.eq('entity_id', content.entity_id)
@@ -157,9 +189,27 @@ export async function processDueScheduleJobs(opts?: {
       }
     }
 
-    if (!resolvedAccountId) {
-      // Allow stub publish without account for firm demos
+    if (
+      !resolvedAccountId &&
+      (process.env.MARKETING_ALLOW_STUB_PUBLISH === '1' ||
+        process.env.MARKETING_ALLOW_STUB_PUBLISH === 'true')
+    ) {
       resolvedAccountId = 'MSA-STUB';
+    }
+    if (!resolvedAccountId) {
+      const reason =
+        'No connected same-entity publisher account; stub publishing is disabled';
+      await sb
+        .from('os_marketing_schedule_jobs')
+        .update({ status: 'failed', last_error: reason, updated_at: nowIso })
+        .eq('job_id', jobId);
+      results.push({
+        job_id: jobId,
+        ok: false,
+        status: 'failed',
+        error: reason,
+      });
+      continue;
     }
 
     const priorResult = (job.result as Record<string, unknown> | null) ?? {};

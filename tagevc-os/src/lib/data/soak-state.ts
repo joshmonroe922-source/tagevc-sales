@@ -52,6 +52,15 @@ export function buildStage4eChecklist(input: {
     occurred_at?: string;
     detail?: string;
   } | null;
+  soak_epoch?: {
+    status: string;
+    healthy_count: number;
+    streak_started_at: string | null;
+    last_observed_at: string | null;
+    required_hours: number;
+    max_gap_hours: number;
+    reset_reason: string | null;
+  } | null;
   /** Days remaining until ≥90d retention from ARCHIVE_EXPORT_CONFIRMED_AT. */
   retention_days_remaining?: number | null;
   retention_confirmed?: boolean;
@@ -102,11 +111,7 @@ export function buildStage4eChecklist(input: {
   const renameSoakOk =
     softRenameDateValid &&
     retirementAuditValid &&
-    renameSoakDays >=
-      Math.max(
-        1,
-        Number(process.env.SNAPSHOT_SOFT_RENAME_SOAK_DAYS?.trim() || 7),
-      );
+    input.soak_epoch?.status === 'qualified';
   const softRename = {
     env_set: Boolean(softRenamedAt),
     confirmed:
@@ -168,11 +173,23 @@ export function buildStage4eChecklist(input: {
     },
     {
       id: 'soak',
-      label: 'Recent soak run healthy',
-      ok: Boolean(input.last_soak?.healthy),
-      detail: input.last_soak
-        ? `${input.last_soak.fetched_at} · ${input.last_soak.healthy ? 'healthy' : 'degraded'}`
-        : 'No soak run in this process yet — wait for cron or trigger soak-health',
+      label: softRenamedAt
+        ? 'Continuous healthy soft-rename soak qualified'
+        : 'Recent soak run healthy',
+      ok: softRenamedAt
+        ? input.soak_epoch?.status === 'qualified'
+        : Boolean(input.last_soak?.healthy),
+      detail: softRenamedAt
+        ? input.soak_epoch
+          ? `${input.soak_epoch.status} · ${input.soak_epoch.healthy_count} observations · started ${input.soak_epoch.streak_started_at ?? 'pending'}${
+              input.soak_epoch.reset_reason
+                ? ` · reset: ${input.soak_epoch.reset_reason}`
+                : ''
+            }`
+          : 'No durable soak epoch for the active retired relation'
+        : input.last_soak
+          ? `${input.last_soak.fetched_at} · ${input.last_soak.healthy ? 'healthy' : 'degraded'}`
+          : 'No soak run yet — wait for cron or trigger soak-health',
     },
     {
       id: 'export',
@@ -210,7 +227,7 @@ export function buildStage4eChecklist(input: {
             : `Unverified live table query error: ${input.snapshots_table_error}`
           : snapCount == null
           ? 'Row count unavailable'
-          : `rows=${snapCount} — Phase 32 does not drop this table from the app. Prefer soft rename via phase32_stage4e_soft_rename.sql`,
+          : `rows=${snapCount} — Phase 33 does not drop this table from the app. Use reviewed offline soft rename only`,
     },
     {
       id: 'soft_rename_path',
@@ -223,12 +240,11 @@ export function buildStage4eChecklist(input: {
       label: 'Soft-rename soak window complete',
       ok: renameSoakOk,
       detail: softRenameDateValid
-        ? `${renameSoakDays}d elapsed · require ${Math.max(
-            1,
-            Number(
-              process.env.SNAPSHOT_SOFT_RENAME_SOAK_DAYS?.trim() || 7,
-            ),
-          )}d`
+        ? `${renameSoakDays}d wall time · durable epoch ${
+            input.soak_epoch?.status ?? 'missing'
+          } · require ${input.soak_epoch?.required_hours ?? 168} healthy hours with ≤${
+            input.soak_epoch?.max_gap_hours ?? 8
+          }h gaps`
         : 'Rename not confirmed',
     },
     {

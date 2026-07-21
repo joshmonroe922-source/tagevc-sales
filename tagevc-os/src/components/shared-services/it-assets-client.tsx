@@ -20,6 +20,7 @@ import {
   scanActiveOnboardingAction,
   scanLicenseRenewalsAction,
   bulkUpdateWarrantyAction,
+  commitWarrantyImportAction,
   type ItAssetActionResult,
 } from '@/app/(app)/shared-services/it/assets/actions';
 import { Button } from '@/components/ui/button';
@@ -104,6 +105,11 @@ export function ItAssetsClient({
     bulkUpdateWarrantyAction,
     null as ItAssetActionResult | null,
   );
+  const [warrantyCommitState, warrantyCommitAction, warrantyCommitPending] =
+    useActionState(
+      commitWarrantyImportAction,
+      null as ItAssetActionResult | null,
+    );
   const [licState, licAction, licPending] = useActionState(
     createLicenseAction,
     null as ItAssetActionResult | null,
@@ -236,7 +242,7 @@ export function ItAssetsClient({
           <p className="text-xs text-muted-foreground">
             Header: <code>asset_id,warranty_ends_at</code> or{' '}
             <code>serial_number,warranty_ends_at</code>. Quoted CSV supported,
-            max 500 KB.
+            max 500 KB. Preview validates every row without changing assets.
           </p>
           <Input
             name="csv_file"
@@ -255,9 +261,36 @@ export function ItAssetsClient({
             }
           />
           <Button type="submit" size="sm" disabled={warrantyPending}>
-            Import warranties
+            Preview warranties
           </Button>
           <ActionMessage state={warrantyState} />
+        </form>
+      )}
+
+      {canWrite && (
+        <form
+          action={warrantyCommitAction}
+          className="space-y-3 rounded-lg border p-4"
+        >
+          <h2 className="text-sm font-semibold">Commit warranty preview</h2>
+          <p className="text-xs text-muted-foreground">
+            Copy the batch ID and SHA-256 hash from a successful preview.
+            Commit locks and revalidates every target, then updates all assets
+            and audit events in one transaction.
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Input name="batch_id" required placeholder="Batch UUID" />
+            <Input
+              name="source_sha256"
+              required
+              pattern="[a-f0-9]{64}"
+              placeholder="Source SHA-256"
+            />
+          </div>
+          <Button type="submit" size="sm" disabled={warrantyCommitPending}>
+            Commit atomically
+          </Button>
+          <ActionMessage state={warrantyCommitState} />
         </form>
       )}
 

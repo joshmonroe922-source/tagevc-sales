@@ -5,6 +5,7 @@
 
 import { createPersistClient } from '@/lib/supabase/persist-client';
 import type { MarketingCampaign } from '@/lib/shared-services/marketing-types';
+import { ensureFreshAccessToken } from '@/lib/shared-services/marketing-token-refresh';
 
 export type PaidAdsSyncResult = {
   campaign_id: string;
@@ -88,12 +89,65 @@ export async function syncPaidCampaignStatus(
       };
     }
 
-    // Live connectors (Phase 30 foundation): Meta/LinkedIn Ads via env tokens
-    if (adPlatform.includes('meta') || adPlatform.includes('facebook')) {
-      return syncMetaAdsStub(id, externalId, data as Record<string, unknown>);
+    const adAccountId = (data.ad_account_id as string) || null;
+    const { data: account } = adAccountId
+      ? await sb
+          .from('os_marketing_social_accounts')
+          .select(
+            'account_id, entity_id, platform, account_type, status, currency, external_account_id',
+          )
+          .eq('account_id', adAccountId)
+          .maybeSingle()
+      : { data: null };
+    const expectedPlatform =
+      adPlatform === 'linkedin_ads'
+        ? 'linkedin'
+        : adPlatform === 'meta_ads'
+          ? 'facebook'
+          : null;
+    if (
+      !adAccountId ||
+      !account ||
+      account.account_type !== 'paid_ads' ||
+      account.status !== 'connected' ||
+      account.platform !== expectedPlatform ||
+      ((account.entity_id as string) ?? null) !==
+        ((data.entity_id as string) ?? null)
+    ) {
+      return {
+        campaign_id: id,
+        ok: false,
+        detail:
+          'Paid sync requires a connected, provider-compatible ad account scoped to the campaign entity',
+      };
     }
-    if (adPlatform.includes('linkedin')) {
-      return syncLinkedInAdsStub(id, externalId, data as Record<string, unknown>);
+    const fresh = await ensureFreshAccessToken(adAccountId);
+    if (!fresh.token) {
+      return {
+        campaign_id: id,
+        ok: false,
+        detail: fresh.error || 'Ad account token unavailable; reconnect OAuth',
+      };
+    }
+    if (adPlatform === 'meta_ads') {
+      return syncMetaAdsStub(
+        id,
+        externalId,
+        data as Record<string, unknown>,
+        fresh.token,
+        (account.currency as string) || 'USD',
+        adAccountId,
+      );
+    }
+    if (adPlatform === 'linkedin_ads') {
+      return syncLinkedInAdsStub(
+        id,
+        externalId,
+        data as Record<string, unknown>,
+        fresh.token,
+        (account.currency as string) || 'USD',
+        adAccountId,
+      );
     }
 
     return {
@@ -114,18 +168,31 @@ async function syncMetaAdsStub(
   campaignId: string,
   externalId: string | null,
   row: Record<string, unknown>,
+  token: string,
+  currency: string,
+  adAccountId: string,
 ): Promise<PaidAdsSyncResult> {
-  const token = process.env.META_ADS_ACCESS_TOKEN?.trim();
-  if (!token || !externalId) {
+  if (!externalId) {
     return {
       campaign_id: campaignId,
       ok: false,
-      detail: 'META_ADS_ACCESS_TOKEN + external_campaign_id required',
+      detail: 'external_campaign_id required',
     };
   }
   try {
+    const version = process.env.META_API_VERSION?.trim() || 'v25.0';
+    const end = new Date().toISOString().slice(0, 10);
+    const start = new Date(Date.now() - 29 * 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+    const params = new URLSearchParams({
+      fields: 'impressions,clicks,spend,actions',
+      time_range: JSON.stringify({ since: start, until: end }),
+      time_increment: '1',
+    });
     const res = await fetch(
-      `https://graph.facebook.com/v19.0/${encodeURIComponent(externalId)}/insights?fields=impressions,clicks,spend&access_token=${encodeURIComponent(token)}`,
+      `https://graph.facebook.com/${version}/${encodeURIComponent(externalId)}/insights?${params.toString()}`,
+      { headers: { Authorization: `Bearer ${token}` } },
     );
     const json = (await res.json().catch(() => ({}))) as {
       data?: Array<{
@@ -142,12 +209,16 @@ async function syncMetaAdsStub(
         detail: json.error?.message || `Meta Ads HTTP ${res.status}`,
       };
     }
-    const row0 = json.data?.[0];
-    const impressions = Number(row0?.impressions ?? 0);
-    const clicks = Number(row0?.clicks ?? 0);
-    const spend = Number(row0?.spend ?? 0);
+    const totals = (json.data ?? []).reduce(
+      (sum, insight) => ({
+        impressions: sum.impressions + Number(insight.impressions ?? 0),
+        clicks: sum.clicks + Number(insight.clicks ?? 0),
+        spend: sum.spend + Number(insight.spend ?? 0),
+      }),
+      { impressions: 0, clicks: 0, spend: 0 },
+    );
+    const { impressions, clicks, spend } = totals;
     const budgetK = Number(row.budget_k ?? 0);
-    const currency = process.env.META_ADS_CURRENCY?.trim() || 'USD';
     const sb = await createPersistClient();
     const eventId = `PAD-META-${campaignId}-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}`;
     await sb.from('os_marketing_analytics_events').upsert({
@@ -160,6 +231,7 @@ async function syncMetaAdsStub(
         source: 'paid_api',
         impression_source: 'meta_ads',
         external_campaign_id: externalId,
+        ad_account_id: adAccountId,
         impressions,
         clicks,
         spend,
@@ -169,8 +241,8 @@ async function syncMetaAdsStub(
         budget_utilization:
           budgetK > 0 ? spend / 1000 / budgetK : null,
         revenue_k: Number(row.attributed_revenue_k ?? 0),
-        reporting_start: 'account_default',
-        reporting_end: new Date().toISOString().slice(0, 10),
+        reporting_start: start,
+        reporting_end: end,
       },
       occurred_at: new Date().toISOString(),
     }, { onConflict: 'event_id' });
@@ -195,13 +267,15 @@ async function syncLinkedInAdsStub(
   campaignId: string,
   externalId: string | null,
   row: Record<string, unknown>,
+  token: string,
+  currency: string,
+  adAccountId: string,
 ): Promise<PaidAdsSyncResult> {
-  const token = process.env.LINKEDIN_ADS_ACCESS_TOKEN?.trim();
-  if (!token || !externalId) {
+  if (!externalId) {
     return {
       campaign_id: campaignId,
       ok: false,
-      detail: 'LINKEDIN_ADS_ACCESS_TOKEN + external_campaign_id required',
+      detail: 'external_campaign_id required',
     };
   }
   try {
@@ -228,7 +302,7 @@ async function syncLinkedInAdsStub(
         headers: {
           Authorization: `Bearer ${token}`,
           'LinkedIn-Version':
-            process.env.LINKEDIN_API_VERSION?.trim() || '202506',
+            process.env.LINKEDIN_API_VERSION?.trim() || '202607',
           'X-Restli-Protocol-Version': '2.0.0',
         },
       },
@@ -273,7 +347,6 @@ async function syncLinkedInAdsStub(
     const { impressions, clicks, spend, conversions } = totals;
     const revenueK = Number(row.attributed_revenue_k ?? 0);
     const budgetK = Number(row.budget_k ?? 0);
-    const currency = process.env.LINKEDIN_ADS_CURRENCY?.trim() || 'USD';
     const now = new Date();
     const eventId = `PAD-LI-${campaignId}-${now.toISOString().slice(0, 10).replaceAll('-', '')}`;
     const sb = await createPersistClient();
@@ -288,6 +361,7 @@ async function syncLinkedInAdsStub(
           source: 'paid_api',
           impression_source: 'linkedin_ads',
           external_campaign_id: externalId,
+          ad_account_id: adAccountId,
           impressions,
           clicks,
           conversions,

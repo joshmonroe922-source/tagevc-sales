@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import {
   exchangeOAuthCode,
+  consumeOAuthState,
   isOAuthPlatform,
   persistOAuthTokens,
+  verifyOAuthConnection,
 } from '@/lib/shared-services/marketing-oauth';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 import { captureException } from '@/lib/observability';
@@ -38,17 +40,13 @@ export async function GET(
   }
 
   try {
-    let accountId = '';
-    try {
-      const parsed = JSON.parse(
-        Buffer.from(state, 'base64url').toString('utf8'),
-      ) as { account_id?: string };
-      accountId = parsed.account_id ?? '';
-    } catch {
+    const stateResult = await consumeOAuthState(state, raw);
+    if (!stateResult.ok) {
       dest.searchParams.set('oauth', 'error');
-      dest.searchParams.set('detail', 'bad_state');
+      dest.searchParams.set('detail', stateResult.error);
       return NextResponse.redirect(dest.toString());
     }
+    const accountId = stateResult.account_id;
 
     const token = await exchangeOAuthCode(raw, code);
     if (!token.ok) {
@@ -60,17 +58,49 @@ export async function GET(
     const sb = await createPersistClient();
     const { data: acct } = await sb
       .from('os_marketing_social_accounts')
-      .select('entity_id')
+      .select('entity_id, platform, account_type, external_account_id')
       .eq('account_id', accountId)
       .maybeSingle();
+    if (
+      !acct ||
+      acct.platform !== raw ||
+      (acct.account_type === 'paid_ads' ? 'paid_ads' : 'publisher') !==
+        stateResult.purpose ||
+      ((acct.entity_id as string) ?? null) !== stateResult.entity_id
+    ) {
+      dest.searchParams.set('oauth', 'error');
+      dest.searchParams.set('detail', 'account_binding_changed');
+      return NextResponse.redirect(dest.toString());
+    }
+    const verified = await verifyOAuthConnection({
+      platform: raw,
+      purpose: stateResult.purpose,
+      accessToken: token.accessToken,
+      requestedExternalId:
+        (acct.external_account_id as string | null) ?? null,
+    });
+    if (!verified.ok) {
+      dest.searchParams.set('oauth', 'error');
+      dest.searchParams.set('detail', verified.error);
+      return NextResponse.redirect(dest.toString());
+    }
 
     const saved = await persistOAuthTokens({
       account_id: accountId,
       platform: raw,
-      entity_id: (acct as { entity_id?: string } | null)?.entity_id ?? null,
+      entity_id: stateResult.entity_id,
       accessToken: token.accessToken,
       refreshToken: token.refreshToken,
       expiresIn: token.expiresIn,
+      externalAccountId: verified.externalAccountId,
+      currency: verified.currency,
+      timezone: verified.timezone,
+      capabilities: {
+        ...verified.capabilities,
+        purpose: stateResult.purpose,
+        connected_by: stateResult.actor_id,
+        provider: raw,
+      },
     });
 
     if (!saved.ok) {

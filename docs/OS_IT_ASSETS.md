@@ -65,11 +65,26 @@ os_it_assignment_events (append-only)
 
 SQL: through `phase32_operational_evidence.sql`.
 
-## Phase 33+
+## Phase 33
 
-1. Signed Exchange hold callback + deleted-user restore
-2. Warranty import preview / downloadable failures
-3. Local asset serial ↔ Intune device correlation
+1. Warranty CSV is previewed into an immutable batch. Commit locks and
+   revalidates every target, updates all assets, writes per-asset lifecycle
+   events, and marks the batch committed in one PostgreSQL transaction.
+2. Duplicate/ambiguous serials, duplicate target assets, invalid dates, and
+   stale previews reject the whole batch.
+3. Intune retire creates one idempotent per-device action before Graph POST.
+   HTTP acceptance is stored as `submitted`; only a later provider state/404
+   verification becomes `verified`.
+4. Structured request metadata, Graph request ID, HTTP evidence, polling
+   evidence, attempts, and status transitions replace human-only audit text.
+
+SQL: `phase33_it_warranty_intune_soak.sql`.
+
+## Phase 34+
+
+1. Dedicated Intune polling worker with explicit operator approval UI
+2. Signed Exchange hold callback + deleted-user restore
+3. Downloadable warranty preview failure reports and serial/device correlation
 
 ## Out of scope
 

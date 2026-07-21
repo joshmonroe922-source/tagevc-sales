@@ -50,15 +50,17 @@ Unset cutover env vars and redeploy. Snapshot upserts resume. Restore from archi
 
 ### Governed soft rename
 
-1. Apply `phase31_marketing_it_governance.sql` and
-   `phase32_operational_evidence.sql`.
+1. Apply `phase31_marketing_it_governance.sql`,
+   `phase32_operational_evidence.sql`, and
+   `phase33_it_warranty_intune_soak.sql`.
 2. Complete production drills, retention, export, and written approval gates.
-3. Review the commented transaction in `phase32_stage4e_soft_rename.sql`.
+3. Review `phase33_stage4e_soft_rename.sql`; it contains guidance only.
 4. Perform the rename offline and record `os_snapshot_retirement_events`.
 5. Set the four `SNAPSHOT_SOFT_RENAME*` / retired-table environment values.
-6. Observe the rename soak; rollback by renaming the table back if needed.
+6. Observe the durable rename epoch. Any unhealthy result, observation gap
+   over eight hours, or rollback breaks qualification.
 
-The Phase 32 soft-rename guide contains no destructive statement.
+The Phase 33 application and guide contain no rename or DROP execution path.
 
 ## Exit criteria before drop
 
@@ -70,7 +72,7 @@ The Phase 32 soft-rename guide contains no destructive statement.
 - [ ] Archive backup retained (use `/api/admin/archive-export`)  
 - [ ] App hydrate paths no longer require snapshot payloads for pipeline domains  
 - [ ] Written soft-rename approval and durable audit evidence recorded
-- [ ] Retired table verified and rename soak completed
+- [ ] Retired table verified and continuous healthy soak epoch qualified
 
 ## Blockers for fully retiring `os_store_snapshots`
 
