@@ -476,6 +476,44 @@ export async function stubConnectAccountAction(
   return { ok: true, message: `Stub-connected ${accountId}` };
 }
 
+export async function queuePaidMetricsBackfillAction(
+  accountId: string,
+): Promise<MarketingActionResult> {
+  const gate = await guardPermission('write:marketing');
+  if (!gate.ok) return gate;
+  const accounts = await listSocialAccounts(200);
+  const account = accounts.rows.find(
+    (candidate) => candidate.account_id === accountId,
+  );
+  if (!account || account.account_type !== 'paid_ads') {
+    return { ok: false, error: 'Paid ad account not found' };
+  }
+  if (
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      account.entity_id,
+    )
+  ) {
+    return {
+      ok: false,
+      error: entityScopeDeniedMessage(account.entity_id || 'firm-wide'),
+    };
+  }
+  const { enqueueScheduledPaidWindows } = await import(
+    '@/lib/shared-services/marketing-paid-backfill'
+  );
+  const result = await enqueueScheduledPaidWindows({
+    source: 'manual',
+    requestedBy: gate.profile.id,
+    accountId,
+  });
+  revalidateMarketing();
+  return result.errors.length > 0
+    ? { ok: false, error: result.errors.join('; ') }
+    : { ok: true, message: `Queued ${result.queued} paid metric window(s)` };
+}
+
 export async function runScheduleWorkerAction(): Promise<MarketingActionResult> {
   const gate = await guardPermission('write:marketing');
   if (!gate.ok) return gate;

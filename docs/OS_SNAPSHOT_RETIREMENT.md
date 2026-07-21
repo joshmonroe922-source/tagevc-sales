@@ -95,6 +95,24 @@ Phase 34 adds no application relation-rename or destructive execution path.
 2. Need confirmed production drill pass + soak window.  
 3. Stage 4e DROP still deferred.  
 
+## Phase 35 two-actor rollback evidence
+
+- An operator records a hashed manifest from an isolated offline rollback
+  rehearsal plus the external artifact and reviewed procedure hashes.
+- The manifest must explicitly prove no production relation mutation and passed
+  restore/application validation.
+- A distinct reviewer must attest the exact manifest hash before the evidence
+  becomes valid.
+- Actor reuse, hash drift, stale row version, epoch/config mismatch, and expiry
+  fail closed.
+- Accepted evidence is valid for 90 days and is required by the Stage 4e
+  checklist for the active epoch.
+- The application accepts evidence only; it cannot run rollback SQL or mutate
+  `os_store_snapshots`.
+
+SQL: `phase35_intune_rollback_attestations.sql`. Read-only evidence inspection:
+`phase35_stage4e_attestation_guide.sql`.
+
 ## Non-goals
 
 - Dropping the table in Phase 16–19  

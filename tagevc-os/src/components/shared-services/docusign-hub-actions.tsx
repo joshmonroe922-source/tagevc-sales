@@ -55,9 +55,15 @@ export function DocuSignHubActions({ canWrite }: { canWrite: boolean }) {
               window.prompt('Email subject:', 'Please sign') || 'Please sign';
             const role =
               window.prompt('Template role name:', 'Signer') || 'Signer';
+            const entityId = window.prompt(
+              'Entity ID (blank only for firm-wide send):',
+              '',
+            );
             run(() =>
               sendFromTemplateAction({
+                requestId: crypto.randomUUID(),
                 templateId: templateId.trim(),
+                entityId: entityId?.trim() || null,
                 emailSubject: subject,
                 signerEmail: email.trim(),
                 signerName: name.trim(),

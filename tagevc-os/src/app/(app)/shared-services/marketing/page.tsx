@@ -13,6 +13,8 @@ import {
 } from '@/lib/shared-services/marketing-repo';
 import { roleHasPermission } from '@/lib/types/roles';
 import { getSessionContext, requirePermission } from '@/lib/rbac/session';
+import { isFirmWideAccess } from '@/lib/rbac/entity-scope';
+import { listPaidMetricOperations } from '@/lib/shared-services/marketing-paid-backfill';
 
 export default async function MarketingModulePage({
   searchParams,
@@ -39,6 +41,9 @@ export default async function MarketingModulePage({
   const paidDays: 7 | 30 | 90 =
     paidDaysRaw === 7 || paidDaysRaw === 90 ? paidDaysRaw : 30;
   const ctx = await getSessionContext();
+  const firmWide = ctx
+    ? isFirmWideAccess(ctx.profile.role, ctx.profile.entity_id)
+    : false;
 
   const [
     campaigns,
@@ -48,20 +53,31 @@ export default async function MarketingModulePage({
     generationJobs,
     voices,
     analytics,
+    paidOperations,
   ] = await Promise.all([
-    listCampaigns(),
+    listCampaigns(
+      50,
+      firmWide ? null : (ctx?.profile.entity_id ?? null),
+    ),
     listContent(),
-    listSocialAccounts(),
+    listSocialAccounts(
+      50,
+      firmWide ? null : (ctx?.profile.entity_id ?? null),
+    ),
     listScheduleJobs(),
     listGenerationJobs(),
     listBrandVoices(),
     getMarketingAnalyticsSummary({
       limit: 200,
       paidDays,
+      entityId: firmWide ? null : (ctx?.profile.entity_id ?? null),
+    }),
+    listPaidMetricOperations({
       entityId: ctx?.profile.entity_id ?? null,
+      firmWide,
     }),
   ]);
-  if (ctx?.profile.entity_id) {
+  if (!firmWide && ctx?.profile.entity_id) {
     const entityId = ctx.profile.entity_id;
     campaigns.rows = campaigns.rows.filter(
       (row) => row.entity_id === entityId,
@@ -101,7 +117,7 @@ export default async function MarketingModulePage({
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">Marketing</Badge>
-          <Badge variant="secondary">Phase 34</Badge>
+          <Badge variant="secondary">Phase 35</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Multichannel Marketing
@@ -124,6 +140,7 @@ export default async function MarketingModulePage({
         generationJobs={generationJobs.rows}
         brandVoices={voices.rows}
         analytics={analytics.summary}
+        paidOperations={paidOperations}
         analyticsError={analytics.error}
         canWrite={canWrite}
         tableError={tableError}

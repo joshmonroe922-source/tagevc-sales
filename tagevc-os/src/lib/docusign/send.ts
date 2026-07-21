@@ -7,9 +7,12 @@ import {
   sendDocument,
 } from '@/lib/data/document-store';
 import { createEnvelope } from './envelopes';
-import { insertDocuSignEvent } from './events-repo';
 import { getDocuSignMode, isDocuSignConfigured } from './config';
 import type { DocumentRecord } from '@/lib/types';
+import {
+  dispatchPreparedDocuSignSend,
+  prepareDocuSignSendIntent,
+} from '@/lib/docusign/send-intents-repo';
 
 export type SendViaDocuSignResult = {
   doc: DocumentRecord;
@@ -19,18 +22,6 @@ export type SendViaDocuSignResult = {
   event_persist_error?: string;
 };
 
-function inferDealOrTicket(doc: DocumentRecord): {
-  deal_id: string | null;
-  ticket_id: string | null;
-} {
-  const ref = doc.deal_or_task_id?.trim() || null;
-  if (!ref) return { deal_id: null, ticket_id: null };
-  if (/^TKT-/i.test(ref) || /^ticket/i.test(ref)) {
-    return { deal_id: null, ticket_id: ref };
-  }
-  return { deal_id: ref, ticket_id: null };
-}
-
 /**
  * Creates a real envelope when JWT env is configured; otherwise mock ENV- id.
  * Always updates DocumentRecord and attempts to write os_docusign_events.
@@ -39,13 +30,24 @@ export async function sendDocumentViaDocuSign(args: {
   doc_id: string;
   sent_by: string;
   explicit_human_send: boolean;
+  actor_id: string;
+  request_id?: string;
 }): Promise<SendViaDocuSignResult> {
   const existing = getDocument(args.doc_id);
   if (!existing) throw new Error('Document not found');
 
   const mode = getDocuSignMode();
+  const intent = await prepareDocuSignSendIntent({
+    requestId: args.request_id,
+    operationKind: 'document_send',
+    docId: existing.doc_id,
+    entityId: existing.entity_id,
+    emailSubject: existing.title || `Document ${existing.doc_id}`,
+    content: existing.merged_body || existing.title,
+    explicitHumanApproval: args.explicit_human_send,
+    actorId: args.actor_id,
+  });
   let envelopeId: string;
-  let rawPayload: Record<string, unknown> = { mode };
 
   if (isDocuSignConfigured()) {
     const signers = existing.signers
@@ -58,23 +60,35 @@ export async function sendDocumentViaDocuSign(args: {
       );
     }
 
-    const result = await createEnvelope({
-      emailSubject: existing.title || `Document ${existing.doc_id}`,
-      documentName: `${existing.doc_id}.txt`,
-      documentText:
-        existing.merged_body ||
-        `${existing.title}\n\n${existing.doc_type}\n${existing.doc_id}`,
-      signers,
-      status: 'sent',
+    const result = await dispatchPreparedDocuSignSend({
+      intent,
+      dispatch: (leased) =>
+        createEnvelope({
+          emailSubject: existing.title || `Document ${existing.doc_id}`,
+          documentName: `${existing.doc_id}.txt`,
+          documentText:
+            existing.merged_body ||
+            `${existing.title}\n\n${existing.doc_type}\n${existing.doc_id}`,
+          signers,
+          status: 'sent',
+          transactionId: leased.provider_transaction_id,
+          intentId: leased.intent_id,
+          entityId: existing.entity_id,
+          operationKind: 'document_send',
+          docId: existing.doc_id,
+        }),
     });
     envelopeId = result.envelopeId;
-    rawPayload = {
-      mode: 'live',
-      create_response: result.raw as Record<string, unknown>,
-    };
   } else {
-    envelopeId = `ENV-${existing.doc_id}-${Date.now().toString(36)}`;
-    rawPayload = { mode: 'mock', note: 'DOCUSIGN_* env not configured' };
+    const result = await dispatchPreparedDocuSignSend({
+      intent,
+      dispatch: async (leased) => ({
+        envelopeId: `ENV-${existing.doc_id}-${leased.request_id.slice(0, 8)}`,
+        status: 'sent',
+        raw: { mode: 'mock', transactionId: leased.provider_transaction_id },
+      }),
+    });
+    envelopeId = result.envelopeId;
   }
 
   const doc = sendDocument({
@@ -84,23 +98,13 @@ export async function sendDocumentViaDocuSign(args: {
     envelope_id: envelopeId,
   });
 
-  const links = inferDealOrTicket(doc);
-  const persist = await insertDocuSignEvent({
-    envelope_id: envelopeId,
-    status: 'sent',
-    event_type: 'envelope-sent',
-    doc_id: doc.doc_id,
-    entity_id: doc.entity_id,
-    deal_id: links.deal_id,
-    ticket_id: links.ticket_id,
-    raw_payload: rawPayload,
-  });
+  const persist = { ok: true as const };
 
   return {
     doc,
     mode,
     envelope_id: envelopeId,
     event_persist_ok: persist.ok,
-    event_persist_error: persist.ok ? undefined : persist.error,
+    event_persist_error: undefined,
   };
 }

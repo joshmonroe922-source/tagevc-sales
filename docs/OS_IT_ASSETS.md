@@ -95,9 +95,23 @@ SQL: `phase33_it_warranty_intune_soak.sql`.
 
 SQL: `phase34_intune_drill_governance.sql`.
 
-## Phase 35+
+## Phase 35
 
-1. Cancel/retry controls with fresh approval and explicit local-asset matching
+1. Intune actions require an exact, unique provider/local serial match before
+   approval.
+2. Approval is bound to the match hash, expires in one hour, and uses a
+   break-glass-protected retirement permission.
+3. Requested/approved actions can be cancelled; failed/cancelled actions create
+   bounded child retries that require fresh matching and approval.
+4. The worker performs live identity preflight and does not treat absence after
+   an ambiguous submission as verified.
+5. Terminal action rows are immutable.
+
+SQL: `phase35_intune_rollback_attestations.sql`.
+
+## Phase 36+
+
+1. Dedicated action transition timeline and policy-based retry eligibility
 2. Signed Exchange hold callback + deleted-user restore
 3. Downloadable warranty preview failure reports
 

@@ -12,6 +12,10 @@ import {
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import type { NormalizationStatus } from '@/lib/data/normalization-status';
+import {
+  createRollbackRehearsalAction,
+  reviewRollbackRehearsalAction,
+} from '@/app/(app)/admin/normalization/actions';
 
 export function NormalizationHealthPanel({
   status,
@@ -56,6 +60,93 @@ export function NormalizationHealthPanel({
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Archive failed');
       }
+    });
+  }
+
+  function createRollbackRehearsal() {
+    if (
+      !status.soak_epoch?.epoch_id ||
+      !status.soak_epoch.config_fingerprint
+    ) {
+      setError('An active correlated soak epoch is required');
+      return;
+    }
+    const retiredTable = window.prompt(
+      'Retired relation name from the offline rehearsal:',
+      '',
+    );
+    const artifactUri = window.prompt(
+      'External evidence artifact URI (https://, s3://, or gs://):',
+      '',
+    );
+    const artifactSha = window.prompt('Artifact SHA-256:', '');
+    const procedureSha = window.prompt('Reviewed procedure SHA-256:', '');
+    const manifestText = window.prompt(
+      'Paste the offline rehearsal manifest JSON. It must include production_relation_mutated=false, restore_validation_result="passed", application_smoke_result="passed", and code_revision.',
+      JSON.stringify({
+        isolated_environment: 'required',
+        production_access_disabled: true,
+        production_relation_mutated: false,
+        restore_validation_result: 'passed',
+        application_smoke_result: 'passed',
+        before_row_count: 0,
+        after_row_count: 0,
+        before_schema_sha256: '',
+        after_schema_sha256: '',
+        code_revision: '',
+      }),
+    );
+    if (!retiredTable || !artifactUri || !artifactSha || !procedureSha || !manifestText) {
+      return;
+    }
+    setMessage(null);
+    setError(null);
+    startTransition(async () => {
+      try {
+        const manifest = JSON.parse(manifestText) as Record<string, unknown>;
+        const result = await createRollbackRehearsalAction({
+          epoch_id: status.soak_epoch!.epoch_id,
+          retired_table_name: retiredTable.trim(),
+          config_fingerprint: status.soak_epoch!.config_fingerprint!,
+          artifact_uri: artifactUri.trim(),
+          artifact_sha256: artifactSha.trim().toLowerCase(),
+          procedure_sha256: procedureSha.trim().toLowerCase(),
+          manifest,
+        });
+        if (result.ok) {
+          setMessage(result.message);
+          router.refresh();
+        } else setError(result.error);
+      } catch {
+        setError('Manifest must be valid JSON');
+      }
+    });
+  }
+
+  function reviewRollbackRehearsal(decision: 'attest' | 'reject') {
+    const rehearsal = status.rollback_rehearsal;
+    if (!rehearsal) return;
+    const statement = window.prompt(
+      decision === 'attest'
+        ? 'Independent reviewer statement (minimum 20 characters):'
+        : 'Rejection reason (minimum 20 characters):',
+      '',
+    );
+    if (!statement) return;
+    setMessage(null);
+    setError(null);
+    startTransition(async () => {
+      const result = await reviewRollbackRehearsalAction({
+        drill_run_id: rehearsal.drill_run_id,
+        manifest_sha256: rehearsal.manifest_sha256,
+        decision,
+        statement,
+        expected_row_version: rehearsal.row_version,
+      });
+      if (result.ok) {
+        setMessage(result.message);
+        router.refresh();
+      } else setError(result.error);
     });
   }
 
@@ -200,7 +291,7 @@ export function NormalizationHealthPanel({
                 Verified soft rename and soak gates are complete. The app has no
                 destructive execution path. Offline rename/rollback guidance:{' '}
                 <code className="text-[10px]">
-                  phase34_stage4e_drill_governance.sql
+                  phase35_stage4e_attestation_guide.sql
                 </code>
                 .
               </div>
@@ -266,6 +357,57 @@ export function NormalizationHealthPanel({
                 </p>
               </div>
             ) : null}
+            <div className="mt-3 space-y-2 rounded-md border border-border/60 p-3 text-xs">
+              <p className="font-medium">Offline rollback rehearsal evidence</p>
+              <p className="text-muted-foreground">
+                Evidence capture only—this application cannot execute rollback
+                or mutate snapshot relations.
+              </p>
+              {status.rollback_rehearsal ? (
+                <>
+                  <p>
+                    {status.rollback_rehearsal.status} · operator{' '}
+                    {status.rollback_rehearsal.operator_id} · reviewer{' '}
+                    {status.rollback_rehearsal.reviewer_id ?? 'pending'}
+                  </p>
+                  <p className="break-all font-mono text-[10px] text-muted-foreground">
+                    manifest {status.rollback_rehearsal.manifest_sha256} ·
+                    artifact {status.rollback_rehearsal.artifact_sha256}
+                  </p>
+                  {status.rollback_rehearsal.status === 'awaiting_review' ? (
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={pending}
+                        onClick={() => reviewRollbackRehearsal('attest')}
+                      >
+                        Reviewer attest
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={pending}
+                        onClick={() => reviewRollbackRehearsal('reject')}
+                      >
+                        Reject evidence
+                      </Button>
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={pending || !status.soak_epoch?.config_fingerprint}
+                  onClick={createRollbackRehearsal}
+                >
+                  Record operator attestation
+                </Button>
+              )}
+            </div>
             {status.retirement_timeline.length > 0 ? (
               <div className="mt-3 space-y-1">
                 <p className="text-xs font-medium">Retirement evidence timeline</p>

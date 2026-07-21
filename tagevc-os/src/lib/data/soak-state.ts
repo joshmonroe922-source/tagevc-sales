@@ -53,6 +53,7 @@ export function buildStage4eChecklist(input: {
     detail?: string;
   } | null;
   soak_epoch?: {
+    epoch_id: string;
     status: string;
     healthy_count: number;
     streak_started_at: string | null;
@@ -60,6 +61,15 @@ export function buildStage4eChecklist(input: {
     required_hours: number;
     max_gap_hours: number;
     reset_reason: string | null;
+    config_fingerprint: string | null;
+  } | null;
+  rollback_rehearsal?: {
+    status: string;
+    epoch_id: string;
+    valid_until: string | null;
+    operator_id: string;
+    reviewer_id: string | null;
+    manifest_sha256: string;
   } | null;
   /** Days remaining until ≥90d retention from ARCHIVE_EXPORT_CONFIRMED_AT. */
   retention_days_remaining?: number | null;
@@ -112,6 +122,15 @@ export function buildStage4eChecklist(input: {
     softRenameDateValid &&
     retirementAuditValid &&
     input.soak_epoch?.status === 'qualified';
+  const rollbackRehearsalValid = Boolean(
+    input.rollback_rehearsal?.status === 'attested' &&
+      input.rollback_rehearsal.epoch_id === input.soak_epoch?.epoch_id &&
+      input.rollback_rehearsal.reviewer_id &&
+      input.rollback_rehearsal.reviewer_id !==
+        input.rollback_rehearsal.operator_id &&
+      input.rollback_rehearsal.valid_until &&
+      Date.parse(input.rollback_rehearsal.valid_until) > Date.now(),
+  );
   const softRename = {
     env_set: Boolean(softRenamedAt),
     confirmed:
@@ -227,7 +246,7 @@ export function buildStage4eChecklist(input: {
             : `Unverified live table query error: ${input.snapshots_table_error}`
           : snapCount == null
           ? 'Row count unavailable'
-          : `rows=${snapCount} — Phase 34 does not drop this table from the app. Use reviewed offline soft rename only`,
+          : `rows=${snapCount} — Phase 35 does not drop this table from the app. Use reviewed offline soft rename only`,
     },
     {
       id: 'soft_rename_path',
@@ -256,6 +275,18 @@ export function buildStage4eChecklist(input: {
             input.latest_retirement_event.retired_table_name ?? 'no table'
           } · ${input.latest_retirement_event.approved_by ?? 'unknown approver'}`
         : 'Record a correlated renamed/rename_verified event for the exact table and approver',
+    },
+    {
+      id: 'rollback_rehearsal',
+      label: 'Two-actor offline rollback rehearsal attested',
+      ok: rollbackRehearsalValid,
+      detail: input.rollback_rehearsal
+        ? `${input.rollback_rehearsal.status} · operator ${input.rollback_rehearsal.operator_id} · reviewer ${
+            input.rollback_rehearsal.reviewer_id ?? 'pending'
+          } · manifest ${input.rollback_rehearsal.manifest_sha256.slice(0, 12)}… · valid until ${
+            input.rollback_rehearsal.valid_until ?? 'pending'
+          }`
+        : 'No offline rehearsal evidence for the active epoch/configuration',
     },
   ];
 

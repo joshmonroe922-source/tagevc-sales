@@ -38,6 +38,9 @@ export default async function ItAssetsModulePage() {
   const canWrite = ctx
     ? roleHasPermission(ctx.profile.role, 'write:it_assets')
     : false;
+  const canIntuneRetire = ctx
+    ? roleHasPermission(ctx.profile.role, 'action:intune_retire')
+    : false;
   if (ctx?.profile.entity_id) {
     intune.rows = intune.rows.filter(
       (action) => action.entity_id === ctx.profile.entity_id,
@@ -59,7 +62,7 @@ export default async function ItAssetsModulePage() {
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">IT</Badge>
-          <Badge variant="secondary">Phase 34</Badge>
+          <Badge variant="secondary">Phase 35</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Hardware &amp; licensing
@@ -81,6 +84,7 @@ export default async function ItAssetsModulePage() {
         onboardingTickets={onboardingTickets}
         intuneActions={intune.rows}
         canWrite={canWrite}
+        canIntuneRetire={canIntuneRetire}
         tableError={tableError || intune.error}
       />
     </div>

@@ -26,6 +26,8 @@ import {
 import { DOCUSIGN_ENV_KEYS } from '@/lib/docusign/types';
 import { roleHasPermission } from '@/lib/types/roles';
 import { getSessionContext, requirePermission } from '@/lib/rbac/session';
+import { isFirmWideAccess } from '@/lib/rbac/entity-scope';
+import { listDocuSignSendIntents } from '@/lib/docusign/send-intents-repo';
 
 function formatBytes(n: number | null | undefined): string {
   if (n == null || n <= 0) return '—';
@@ -92,6 +94,9 @@ export default async function DocuSignModulePage({
   const canWrite = ctx
     ? roleHasPermission(ctx.profile.role, 'write:documents')
     : false;
+  const firmWide = ctx
+    ? isFirmWideAccess(ctx.profile.role, ctx.profile.entity_id)
+    : false;
   const [
     events,
     auditEvents,
@@ -102,6 +107,7 @@ export default async function DocuSignModulePage({
     liveEnvelopes,
     reconciliation,
     reconciliationRuns,
+    sendIntents,
   ] = await Promise.all([
     listDocuSignEvents({
       limit: 40,
@@ -141,11 +147,15 @@ export default async function DocuSignModulePage({
     listDocuSignReconciliation({
       limit: 50,
       entityId: ctx?.profile.entity_id ?? null,
-      firmWide: !ctx?.profile.entity_id,
+      firmWide,
     }),
-    !ctx?.profile.entity_id
+    firmWide
       ? listDocuSignReconciliationRuns(8)
       : Promise.resolve([]),
+    listDocuSignSendIntents({
+      entityId: ctx?.profile.entity_id ?? null,
+      firmWide,
+    }),
   ]);
 
   const voidPolicy = process.env.DOCUSIGN_VOID_POLICY?.trim() || 'allow';
@@ -157,7 +167,7 @@ export default async function DocuSignModulePage({
     return !process.env[k]?.trim();
   });
 
-  if (ctx?.profile.entity_id) {
+  if (!firmWide && ctx?.profile.entity_id) {
     signed.rows = signed.rows.filter(
       (row) => row.entity_id === ctx.profile.entity_id,
     );
@@ -165,10 +175,10 @@ export default async function DocuSignModulePage({
   const storageOk = signed.rows.filter((r) => r.storage_path).length;
   const storageErr = signed.rows.filter((r) => r.storage_error).length;
   const cocCount = signed.rows.filter((r) => r.file_kind === 'certificate').length;
-  const scopedEvents = ctx?.profile.entity_id
+  const scopedEvents = !firmWide && ctx?.profile.entity_id
     ? events.filter((event) => event.entity_id === ctx.profile.entity_id)
     : events;
-  const scopedAuditEvents = ctx?.profile.entity_id
+  const scopedAuditEvents = !firmWide && ctx?.profile.entity_id
     ? auditEvents.filter((event) => event.entity_id === ctx.profile.entity_id)
     : auditEvents;
   const voidEvents = scopedAuditEvents.filter(
@@ -179,7 +189,7 @@ export default async function DocuSignModulePage({
   const templateRows = templates.rows;
   const liveRows = liveEnvelopes.ok
     ? liveEnvelopes.envelopes.filter((envelope) => {
-        if (ctx?.profile.entity_id) {
+        if (!firmWide && ctx?.profile.entity_id) {
           const mapped = reconciliation.find(
             (row) => row.envelope_id === envelope.envelopeId,
           );
@@ -216,7 +226,7 @@ export default async function DocuSignModulePage({
           <Badge variant={mode === 'live' ? 'default' : 'secondary'}>
             {mode === 'live' ? 'Live JWT' : 'Mock envelopes'}
           </Badge>
-          <Badge variant="secondary">Phase 34</Badge>
+          <Badge variant="secondary">Phase 35</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">DocuSign</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
@@ -287,6 +297,40 @@ export default async function DocuSignModulePage({
                 {String(reconciliationRuns[0].manual_review)} review
               </p>
             ) : null}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Transactional send intents</CardTitle>
+            <CardDescription>
+              Provider transaction IDs make retries and timeout recovery
+              idempotent before an envelope ID exists.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-1 text-xs">
+            {sendIntents.length === 0 ? (
+              <p className="text-muted-foreground">No transactional sends yet.</p>
+            ) : (
+              sendIntents.slice(0, 12).map((intent) => (
+                <div
+                  className="flex flex-wrap justify-between gap-2 border-b py-1"
+                  key={String(intent.intent_id)}
+                >
+                  <span>
+                    {String(intent.operation_kind)} ·{' '}
+                    {String(intent.doc_id ?? intent.template_id ?? 'template')}
+                  </span>
+                  <span>
+                    {String(intent.state)} · dispatch{' '}
+                    {String(intent.dispatch_attempts)} · recovery{' '}
+                    {String(intent.recovery_attempts)}
+                    {intent.last_error_code
+                      ? ` · ${String(intent.last_error_code)}`
+                      : ''}
+                  </span>
+                </div>
+              ))
+            )}
           </CardContent>
         </Card>
       </div>

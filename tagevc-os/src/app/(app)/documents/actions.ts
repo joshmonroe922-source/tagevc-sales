@@ -14,6 +14,10 @@ import { sendDocumentViaDocuSign } from '@/lib/docusign/send';
 import { insertDocuSignEvent } from '@/lib/docusign/events-repo';
 import { isCapitalDocument } from '@/lib/documents/capital-gate';
 import { guardPermission } from '@/lib/rbac/session';
+import {
+  canAccessEntityId,
+  entityScopeDeniedMessage,
+} from '@/lib/rbac/entity-scope';
 import { DOC_TYPES, ENTITY_DOC_FOLDERS } from '@/lib/types/enums';
 
 export type DocActionResult =
@@ -118,6 +122,18 @@ export async function sendDocumentAction(
   try {
     const existing = getDocument(docId);
     if (!existing) return { ok: false, error: 'Document not found' };
+    if (
+      !canAccessEntityId(
+        gate.profile.role,
+        gate.profile.entity_id,
+        existing.entity_id,
+      )
+    ) {
+      return {
+        ok: false,
+        error: entityScopeDeniedMessage(existing.entity_id || 'firm-wide'),
+      };
+    }
     if (isCapitalDocument(existing.doc_type)) {
       const capitalGate = await guardPermission('action:docusign_capital');
       if (!capitalGate.ok) return capitalGate;
@@ -126,6 +142,7 @@ export async function sendDocumentAction(
       doc_id: docId,
       sent_by: sentBy,
       explicit_human_send: true,
+      actor_id: gate.profile.id,
     });
     revalidateDocs(result.doc.entity_id, result.doc.doc_id);
     revalidatePath('/shared-services/legal/docusign');

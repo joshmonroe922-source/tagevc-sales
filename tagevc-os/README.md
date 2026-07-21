@@ -620,12 +620,27 @@ Docs: `docs/OS_PHASE33.md`
 
 Docs: `docs/OS_PHASE34.md`
 
-### Phase 35+ backlog
+### Phase 35 scope (backfills · transactional sends · dual control)
 
-- Paid-account scheduled backfill and provider fixture contract tests
-- DocuSign projection-backed send finalization and idempotent signed archives
-- Intune cancel/retry controls and explicit local-asset correlation
-- Two-actor offline rollback rehearsal attestations; no app rename/DROP
+- Leased seven-day paid-metrics windows, rolling refresh, 90-day bootstrap, and
+  coverage evidence
+- Transactional DocuSign document/template send intents and exact transaction
+  recovery
+- Intune asset matching, expiring match-bound approval, cancel, and bounded
+  fresh-child retry
+- Two-actor offline rollback rehearsal manifests and external artifact hashes
+- SQL: apply `phase35_marketing_paid_backfill.sql`,
+  `phase35_docusign_transactional_send.sql`, and
+  `phase35_intune_rollback_attestations.sql`
+
+Docs: `docs/OS_PHASE35.md`
+
+### Phase 36+ backlog
+
+- Provider contract fixtures, currency-safe analytics, and coverage alerts
+- Transactional DocuSign replacement sends and hash-idempotent archives
+- Rich Intune transition history and policy-based retry eligibility
+- Atomic drill/epoch evidence RPCs and rehearsal expiry automation
 - Push · user admin
 
 ## Run locally

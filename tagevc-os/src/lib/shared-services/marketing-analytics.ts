@@ -70,6 +70,8 @@ export type MarketingAnalyticsSummary = {
   paid_reporting_days: 7 | 30 | 90;
   paid_data_through: string | null;
   paid_typed: boolean;
+  paid_coverage_days: number;
+  paid_coverage_status: 'complete' | 'partial' | 'unavailable';
   paid_daily_trend: Array<{
     day: string;
     spend: number;
@@ -229,17 +231,22 @@ export async function getMarketingAnalyticsSummary(opts?: {
     paid_reporting_days: opts?.paidDays ?? 30,
     paid_data_through: null,
     paid_typed: false,
+    paid_coverage_days: 0,
+    paid_coverage_status: 'unavailable',
     paid_daily_trend: [],
     paid_campaigns: [],
   };
 
   try {
     const sb = await createPersistClient();
-    const { data, error } = await sb
+    let eventQuery = sb
       .from('os_marketing_analytics_events')
       .select('*')
-      .order('occurred_at', { ascending: false })
-      .limit(opts?.limit ?? 300);
+      .order('occurred_at', { ascending: false });
+    if (opts?.entityId) {
+      eventQuery = eventQuery.eq('entity_id', opts.entityId);
+    }
+    const { data, error } = await eventQuery.limit(opts?.limit ?? 300);
 
     if (error) return { summary: empty, error: error.message };
 
@@ -405,6 +412,23 @@ export async function getMarketingAnalyticsSummary(opts?: {
       .order('metric_date', { ascending: true });
     if (opts?.entityId) paidQuery = paidQuery.eq('entity_id', opts.entityId);
     const { data: typedPaidRows } = await paidQuery;
+    let coverageQuery = sb
+      .from('os_marketing_paid_sync_days')
+      .select('metric_date')
+      .gte('metric_date', paidStart.toISOString().slice(0, 10));
+    if (opts?.entityId) {
+      coverageQuery = coverageQuery.eq('entity_id', opts.entityId);
+    }
+    const { data: coverageRows } = await coverageQuery;
+    summary.paid_coverage_days = new Set(
+      (coverageRows ?? []).map((row) => String(row.metric_date)),
+    ).size;
+    summary.paid_coverage_status =
+      summary.paid_coverage_days >= paidDays
+        ? 'complete'
+        : summary.paid_coverage_days > 0
+          ? 'partial'
+          : 'unavailable';
     if (typedPaidRows && typedPaidRows.length > 0) {
       summary.paid_typed = true;
       summary.paid_reporting_days = paidDays;

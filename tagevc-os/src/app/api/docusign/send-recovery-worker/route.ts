@@ -1,17 +1,16 @@
 import { NextResponse } from 'next/server';
 import { guardPermission } from '@/lib/rbac/session';
-import { processIntuneActions } from '@/lib/shared-services/it-intune-worker';
+import { recoverDocuSignSendIntents } from '@/lib/docusign/send-intents-repo';
 
 async function authorize(request: Request) {
-  const secret = process.env.CRON_SECRET || process.env.DIGEST_SECRET || '';
+  const secret = process.env.CRON_SECRET || '';
   if (
     secret &&
-    (request.headers.get('authorization') === `Bearer ${secret}` ||
-      request.headers.get('x-tagevc-digest-secret') === secret)
+    request.headers.get('authorization') === `Bearer ${secret}`
   ) {
     return true;
   }
-  const gate = await guardPermission('action:intune_retire');
+  const gate = await guardPermission('write:documents');
   return gate.ok;
 }
 
@@ -19,8 +18,8 @@ async function run(request: Request) {
   if (!(await authorize(request))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
   }
-  const result = await processIntuneActions(10);
-  return NextResponse.json(result, { status: result.ok ? 200 : 500 });
+  const result = await recoverDocuSignSendIntents(20);
+  return NextResponse.json(result, { status: 'error' in result ? 500 : 200 });
 }
 
 export async function GET(request: Request) {

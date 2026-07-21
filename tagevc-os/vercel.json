@@ -17,6 +17,10 @@
       "schedule": "0 6 * * *"
     },
     {
+      "path": "/api/marketing/paid-metrics-worker",
+      "schedule": "17 */6 * * *"
+    },
+    {
       "path": "/api/marketing/approval-sla-digest",
       "schedule": "0 14 * * *"
     },
@@ -39,6 +43,10 @@
     {
       "path": "/api/docusign/reconciliation-worker",
       "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/docusign/send-recovery-worker",
+      "schedule": "*/5 * * * *"
     },
     {
       "path": "/api/it/intune-action-worker",

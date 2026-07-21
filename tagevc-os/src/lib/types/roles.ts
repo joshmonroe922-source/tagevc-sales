@@ -72,7 +72,9 @@ export type Permission =
   | 'admin:enums'
   | 'action:ic_vote'
   | 'action:wire'
-  | 'action:docusign_capital';
+  | 'action:docusign_capital'
+  | 'action:intune_retire'
+  | 'action:snapshot_rollback_attest';
 
 const ALL_READ: Permission[] = [
   'read:command_center',
@@ -105,6 +107,8 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     'action:ic_vote',
     'action:wire',
     'action:docusign_capital',
+    'action:intune_retire',
+    'action:snapshot_rollback_attest',
     'admin:users',
     'admin:enums',
   ],
@@ -158,6 +162,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     'write:it_assets',
     'read:marketing',
     'write:marketing',
+    'action:intune_retire',
   ],
   sub_lead: [
     'read:command_center',
@@ -209,6 +214,8 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     'write:marketing',
     'admin:users',
     'admin:enums',
+    'action:intune_retire',
+    'action:snapshot_rollback_attest',
   ],
 };
 

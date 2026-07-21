@@ -13,6 +13,11 @@ import { syncDocuSignTemplates } from '@/lib/docusign/templates';
 import { logActivity } from '@/lib/data/activity';
 import { guardPermission } from '@/lib/rbac/session';
 import { createPersistClient } from '@/lib/supabase/persist-client';
+import {
+  canAccessEntityId,
+  entityScopeDeniedMessage,
+  isFirmWideAccess,
+} from '@/lib/rbac/entity-scope';
 import { z } from 'zod';
 
 export type DocuSignActionResult =
@@ -545,7 +550,9 @@ export async function backfillSignedStorageAction(): Promise<DocuSignActionResul
 }
 
 export async function sendFromTemplateAction(input: {
+  requestId?: string;
   templateId: string;
+  entityId?: string | null;
   emailSubject: string;
   signerEmail: string;
   signerName: string;
@@ -554,6 +561,8 @@ export async function sendFromTemplateAction(input: {
 }): Promise<DocuSignActionResult> {
   return sendFromTemplateRolesAction({
     templateId: input.templateId,
+    requestId: input.requestId,
+    entityId: input.entityId,
     emailSubject: input.emailSubject,
     roles: [
       {
@@ -567,7 +576,9 @@ export async function sendFromTemplateAction(input: {
 }
 
 export async function sendFromTemplateRolesAction(input: {
+  requestId?: string;
   templateId: string;
+  entityId?: string | null;
   emailSubject: string;
   roles: Array<{ email: string; name?: string; roleName: string }>;
   scheduleReminders?: boolean;
@@ -576,34 +587,61 @@ export async function sendFromTemplateRolesAction(input: {
   if (!gate.ok) return gate;
 
   const templateId = input.templateId.trim();
+  const entityId = input.entityId?.trim() || null;
   const signers = (input.roles ?? []).filter((r) => r.email?.trim());
   if (!templateId || signers.length === 0) {
     return { ok: false, error: 'templateId and at least one role email required' };
+  }
+  if (
+    (!entityId &&
+      !isFirmWideAccess(gate.profile.role, gate.profile.entity_id)) ||
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      entityId,
+    )
+  ) {
+    return {
+      ok: false,
+      error: entityScopeDeniedMessage(entityId || 'firm-wide'),
+    };
   }
 
   try {
     const { createEnvelopeFromTemplate } = await import(
       '@/lib/docusign/envelopes'
     );
-    const created = await createEnvelopeFromTemplate({
+    const {
+      prepareDocuSignSendIntent,
+      dispatchPreparedDocuSignSend,
+    } = await import('@/lib/docusign/send-intents-repo');
+    const normalizedRoles = signers.map((s) => ({
+      email: s.email.trim(),
+      name: (s.name || s.email).trim(),
+      roleName: s.roleName?.trim() || 'Signer',
+    }));
+    const intent = await prepareDocuSignSendIntent({
+      requestId: input.requestId,
+      operationKind: 'template_send',
+      entityId,
       templateId,
       emailSubject: input.emailSubject || 'Please sign',
-      signers: signers.map((s) => ({
-        email: s.email.trim(),
-        name: (s.name || s.email).trim(),
-        roleName: s.roleName?.trim() || 'Signer',
-      })),
+      roles: normalizedRoles,
+      explicitHumanApproval: true,
+      actorId: gate.profile.id,
     });
-
-    await insertDocuSignEvent({
-      envelope_id: created.envelopeId,
-      status: created.status,
-      event_type: 'envelope-sent-from-template',
-      raw_payload: {
-        templateId,
-        source: 'hub',
-        roles: signers.map((s) => s.roleName),
-      },
+    const created = await dispatchPreparedDocuSignSend({
+      intent,
+      dispatch: (leased) =>
+        createEnvelopeFromTemplate({
+          templateId,
+          emailSubject: input.emailSubject || 'Please sign',
+          signers: normalizedRoles,
+          transactionId: leased.provider_transaction_id,
+          intentId: leased.intent_id,
+          entityId,
+          operationKind: 'template_send',
+        }),
     });
 
     if (input.scheduleReminders !== false) {

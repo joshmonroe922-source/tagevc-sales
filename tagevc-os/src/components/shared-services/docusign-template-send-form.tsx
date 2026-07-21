@@ -21,6 +21,8 @@ export function DocuSignTemplateSendForm({
 }) {
   const [templateId, setTemplateId] = useState(templates[0]?.template_id ?? '');
   const [subject, setSubject] = useState('Please sign');
+  const [entityId, setEntityId] = useState('');
+  const [requestId, setRequestId] = useState(() => crypto.randomUUID());
   const [flash, setFlash] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -99,6 +101,15 @@ export function DocuSignTemplateSendForm({
             onChange={(e) => setSubject(e.target.value)}
           />
         </div>
+      </div>
+      <div className="space-y-1">
+        <Label htmlFor="ds-entity">Entity ID (blank only for firm-wide send)</Label>
+        <Input
+          id="ds-entity"
+          value={entityId}
+          onChange={(event) => setEntityId(event.target.value)}
+          placeholder="ENT-001"
+        />
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -191,7 +202,9 @@ export function DocuSignTemplateSendForm({
           setErr(null);
           startTransition(async () => {
             const res = await sendFromTemplateRolesAction({
+              requestId,
               templateId,
+              entityId: entityId.trim() || null,
               emailSubject: subject,
               roles: roles.map((r) => ({
                 roleName: r.roleName,
@@ -200,7 +213,10 @@ export function DocuSignTemplateSendForm({
               })),
               scheduleReminders: true,
             });
-            if (res.ok) setFlash(res.message ?? 'Sent');
+            if (res.ok) {
+              setFlash(res.message ?? 'Sent');
+              setRequestId(crypto.randomUUID());
+            }
             else setErr(res.error);
           });
         }}

@@ -475,8 +475,10 @@ export async function commitWarrantyImportAction(
 export async function approveIntuneActionAction(
   actionId: string,
   reason: string,
+  expectedRowVersion: number,
+  expectedMatchSha256: string,
 ): Promise<ItAssetActionResult> {
-  const gate = await guardPermission('write:it_assets');
+  const gate = await guardPermission('action:intune_retire');
   if (!gate.ok) return gate;
   if (!actionId.trim() || reason.trim().length < 5) {
     return { ok: false, error: 'Action and approval reason are required' };
@@ -488,6 +490,8 @@ export async function approveIntuneActionAction(
     action_id: actionId,
     actor_id: gate.profile.id,
     reason: reason.trim(),
+    expected_row_version: expectedRowVersion,
+    expected_match_sha256: expectedMatchSha256,
   });
   if (!result.ok) return result;
   revalidateAssets();
@@ -495,7 +499,7 @@ export async function approveIntuneActionAction(
 }
 
 export async function runIntuneWorkerAction(): Promise<ItAssetActionResult> {
-  const gate = await guardPermission('write:it_assets');
+  const gate = await guardPermission('action:intune_retire');
   if (!gate.ok) return gate;
   const { processIntuneActions } = await import(
     '@/lib/shared-services/it-intune-worker'
@@ -513,4 +517,67 @@ export async function runIntuneWorkerAction(): Promise<ItAssetActionResult> {
           result.error ||
           `Intune worker completed with ${result.processed.filter((item) => item.status === 'failed').length} failure(s)`,
       };
+}
+
+export async function matchIntuneActionAction(
+  actionId: string,
+  assetId: string,
+  expectedRowVersion: number,
+): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('action:intune_retire');
+  if (!gate.ok) return gate;
+  const { matchIntuneAction } = await import(
+    '@/lib/shared-services/it-assets-repo'
+  );
+  const result = await matchIntuneAction({
+    action_id: actionId,
+    asset_id: assetId,
+    actor_id: gate.profile.id,
+    expected_row_version: expectedRowVersion,
+  });
+  if (!result.ok) return result;
+  revalidateAssets();
+  return { ok: true, message: `Matched ${actionId} to ${assetId}` };
+}
+
+export async function cancelIntuneActionAction(
+  actionId: string,
+  reason: string,
+  expectedRowVersion: number,
+): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('action:intune_retire');
+  if (!gate.ok) return gate;
+  const { cancelIntuneAction } = await import(
+    '@/lib/shared-services/it-assets-repo'
+  );
+  const result = await cancelIntuneAction({
+    action_id: actionId,
+    actor_id: gate.profile.id,
+    reason,
+    expected_row_version: expectedRowVersion,
+  });
+  if (!result.ok) return result;
+  revalidateAssets();
+  return { ok: true, message: `Cancelled Intune action ${actionId}` };
+}
+
+export async function retryIntuneActionAction(
+  actionId: string,
+  reason: string,
+  expectedRowVersion: number,
+): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('action:intune_retire');
+  if (!gate.ok) return gate;
+  const { retryIntuneAction } = await import(
+    '@/lib/shared-services/it-assets-repo'
+  );
+  const result = await retryIntuneAction({
+    action_id: actionId,
+    actor_id: gate.profile.id,
+    reason,
+    expected_row_version: expectedRowVersion,
+  });
+  if (!result.ok) return result;
+  revalidateAssets();
+  return { ok: true, message: `Created governed retry for ${actionId}` };
 }

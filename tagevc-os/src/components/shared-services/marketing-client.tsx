@@ -12,6 +12,7 @@ import {
   createContentAction,
   generateDraftAction,
   pullEngagementAction,
+  queuePaidMetricsBackfillAction,
   recordEngagementAction,
   refreshTokensAction,
   registerAccountAction,
@@ -66,6 +67,7 @@ export function MarketingClient({
   generationJobs,
   brandVoices,
   analytics,
+  paidOperations,
   analyticsError,
   canWrite,
   tableError,
@@ -78,6 +80,22 @@ export function MarketingClient({
   generationJobs: MarketingGenerationJob[];
   brandVoices: BrandVoice[];
   analytics: MarketingAnalyticsSummary;
+  paidOperations: {
+    runs: Array<{
+      run_id: string;
+      ad_account_id: string;
+      provider: string;
+      window_start: string;
+      window_end: string;
+      purpose: string;
+      status: string;
+      attempts: number;
+      rows_written: number;
+      error_code: string | null;
+      error_detail: string | null;
+    }>;
+    coverage: Array<{ ad_account_id: string; metric_date: string }>;
+  };
   analyticsError?: string;
   canWrite: boolean;
   tableError?: string;
@@ -438,7 +456,9 @@ export function MarketingClient({
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
           <span>
             {analytics.paid_typed ? 'Typed daily metrics' : 'Legacy snapshots'} ·{' '}
-            data through {analytics.paid_data_through ?? 'pending'}
+            data through {analytics.paid_data_through ?? 'pending'} · coverage{' '}
+            {analytics.paid_coverage_status} ({analytics.paid_coverage_days}/
+            {analytics.paid_reporting_days})
           </span>
           <span className="flex gap-2">
             {[7, 30, 90].map((days) => (
@@ -473,6 +493,36 @@ export function MarketingClient({
                 </div>
               ))}
             </div>
+          </div>
+        ) : null}
+        {paidOperations.runs.length > 0 ? (
+          <div className="space-y-1 rounded-md border p-3 text-xs">
+            <p className="font-medium">Paid metrics operations</p>
+            {paidOperations.runs.slice(0, 8).map((syncRun) => {
+              const covered = new Set(
+                paidOperations.coverage
+                  .filter(
+                    (day) => day.ad_account_id === syncRun.ad_account_id,
+                  )
+                  .map((day) => day.metric_date),
+              ).size;
+              return (
+                <div
+                  className="flex flex-wrap justify-between gap-2 border-t pt-1"
+                  key={syncRun.run_id}
+                >
+                  <span>
+                    {syncRun.provider} · {syncRun.window_start}–
+                    {syncRun.window_end} · {syncRun.purpose}
+                  </span>
+                  <span>
+                    {syncRun.status} · attempt {syncRun.attempts} ·{' '}
+                    {syncRun.rows_written} rows · {covered}/90 covered
+                    {syncRun.error_code ? ` · ${syncRun.error_code}` : ''}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         ) : null}
         {analytics.paid_campaigns.length > 0 ? (
@@ -1272,6 +1322,13 @@ export function MarketingClient({
                 {a.account_type === 'paid_ads'
                   ? ` · scopes ${a.scope_status}`
                   : ''}
+                {a.account_type === 'paid_ads'
+                  ? ` · metrics ${a.paid_metrics_status}${
+                      a.paid_metrics_data_through
+                        ? ` through ${a.paid_metrics_data_through}`
+                        : ''
+                    }`
+                  : ''}
                 {canWrite &&
                   a.status !== 'connected' &&
                   OAUTH_SET.has(a.platform) && (
@@ -1292,6 +1349,22 @@ export function MarketingClient({
                     Discover / select
                   </button>
                 )}
+                {canWrite &&
+                  a.account_type === 'paid_ads' &&
+                  a.status === 'connected' && (
+                    <button
+                      type="button"
+                      className="ml-2 text-xs font-medium underline-offset-4 hover:underline"
+                      disabled={pending}
+                      onClick={() =>
+                        run(() =>
+                          queuePaidMetricsBackfillAction(a.account_id),
+                        )
+                      }
+                    >
+                      Queue 90d / refresh
+                    </button>
+                  )}
                 {canWrite &&
                   a.account_type === 'publisher' &&
                   a.status !== 'connected' && (

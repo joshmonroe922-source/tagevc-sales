@@ -22,6 +22,9 @@ import {
   bulkUpdateWarrantyAction,
   commitWarrantyImportAction,
   approveIntuneActionAction,
+  matchIntuneActionAction,
+  cancelIntuneActionAction,
+  retryIntuneActionAction,
   runIntuneWorkerAction,
   type ItAssetActionResult,
 } from '@/app/(app)/shared-services/it/assets/actions';
@@ -79,6 +82,7 @@ export function ItAssetsClient({
   candidateTickets,
   onboardingTickets = [],
   intuneActions = [],
+  canIntuneRetire = false,
   canWrite,
   tableError,
 }: {
@@ -101,6 +105,7 @@ export function ItAssetsClient({
     status: string;
   }>;
   intuneActions?: ItIntuneAction[];
+  canIntuneRetire?: boolean;
   canWrite: boolean;
   tableError?: string;
 }) {
@@ -310,7 +315,7 @@ export function ItAssetsClient({
               approval, leased worker submission, and provider verification.
             </p>
           </div>
-          {canWrite ? (
+          {canIntuneRetire ? (
             <Button
               type="button"
               size="sm"
@@ -328,6 +333,16 @@ export function ItAssetsClient({
           <div className="space-y-2 text-xs">
             {intuneActions.map((action) => {
               const metadata = action.request_metadata;
+              const providerSerial = String(metadata.serial_number ?? '')
+                .replace(/[^a-z0-9]/gi, '')
+                .toUpperCase();
+              const matchingAssets = hardware.filter(
+                (asset) =>
+                  Boolean(providerSerial) &&
+                  String(asset.serial_number ?? '')
+                    .replace(/[^a-z0-9]/gi, '')
+                    .toUpperCase() === providerSerial,
+              );
               return (
                 <div
                   className="rounded border p-2"
@@ -338,7 +353,9 @@ export function ItAssetsClient({
                       <strong>{String(metadata.device_name ?? action.managed_device_id)}</strong>{' '}
                       · {action.status} · {action.entity_id ?? 'firm'}
                     </span>
-                    {canWrite && action.status === 'requested' ? (
+                    {canIntuneRetire &&
+                    action.status === 'requested' &&
+                    action.local_asset_id ? (
                       <Button
                         type="button"
                         size="sm"
@@ -357,6 +374,8 @@ export function ItAssetsClient({
                             approveIntuneActionAction(
                               action.action_id,
                               reason.trim(),
+                              action.row_version,
+                              action.match_sha256 || '',
                             ),
                           );
                         }}
@@ -364,11 +383,91 @@ export function ItAssetsClient({
                         Approve retire
                       </Button>
                     ) : null}
+                    {canIntuneRetire &&
+                    action.status === 'requested' &&
+                    !action.local_asset_id
+                      ? matchingAssets.map((asset) => (
+                          <Button
+                            key={asset.asset_id}
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={pending}
+                            onClick={() =>
+                              run(() =>
+                                matchIntuneActionAction(
+                                  action.action_id,
+                                  asset.asset_id,
+                                  action.row_version,
+                                ),
+                              )
+                            }
+                          >
+                            Match {asset.asset_id}
+                          </Button>
+                        ))
+                      : null}
+                    {canIntuneRetire &&
+                    ['requested', 'approved'].includes(action.status) ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={pending}
+                        onClick={() => {
+                          const reason = window.prompt(
+                            'Cancellation reason (this does not reverse a submitted provider action):',
+                          );
+                          if (!reason?.trim()) return;
+                          run(() =>
+                            cancelIntuneActionAction(
+                              action.action_id,
+                              reason.trim(),
+                              action.row_version,
+                            ),
+                          );
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    ) : null}
+                    {canIntuneRetire &&
+                    ['failed', 'cancelled'].includes(action.status) &&
+                    action.retry_generation < 2 ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={pending}
+                        onClick={() => {
+                          const reason = window.prompt(
+                            'Retry reason (fresh match and approval will be required):',
+                          );
+                          if (!reason?.trim()) return;
+                          run(() =>
+                            retryIntuneActionAction(
+                              action.action_id,
+                              reason.trim(),
+                              action.row_version,
+                            ),
+                          );
+                        }}
+                      >
+                        Governed retry
+                      </Button>
+                    ) : null}
                   </div>
                   <p className="text-muted-foreground">
                     device {action.managed_device_id} · serial{' '}
                     {String(metadata.serial_number ?? 'unknown')} · attempts{' '}
                     {action.attempt_count} · polls {action.poll_count}
+                  </p>
+                  <p className="text-muted-foreground">
+                    asset {action.local_asset_id ?? 'unmatched'} · generation{' '}
+                    {action.retry_generation} · version {action.row_version}
+                    {action.match_sha256
+                      ? ` · match ${action.match_sha256.slice(0, 12)}…`
+                      : ''}
                   </p>
                   <p className="text-muted-foreground">
                     Graph {action.graph_request_id ?? 'not submitted'} · provider{' '}

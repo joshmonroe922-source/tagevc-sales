@@ -77,6 +77,7 @@ export type NormalizationStatus = {
   stage4_ready: boolean;
   last_soak: SoakRunRecord | null;
   soak_epoch: {
+    epoch_id: string;
     status: string;
     healthy_count: number;
     streak_started_at: string | null;
@@ -84,6 +85,21 @@ export type NormalizationStatus = {
     required_hours: number;
     max_gap_hours: number;
     reset_reason: string | null;
+    config_fingerprint: string | null;
+  } | null;
+  rollback_rehearsal: {
+    drill_run_id: string;
+    epoch_id: string;
+    status: string;
+    manifest_sha256: string;
+    artifact_uri: string;
+    artifact_sha256: string;
+    procedure_sha256: string;
+    operator_id: string;
+    reviewer_id: string | null;
+    expires_at: string;
+    valid_until: string | null;
+    row_version: number;
   } | null;
   latest_drill_evidence: {
     drill_run_id: string;
@@ -180,7 +196,7 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
     ? await supabase
         .from('os_snapshot_soak_epochs')
         .select(
-          'status, healthy_count, streak_started_at, last_observed_at, required_hours, max_gap_hours, reset_reason',
+          'epoch_id, status, healthy_count, streak_started_at, last_observed_at, required_hours, max_gap_hours, reset_reason, config_fingerprint',
         )
         .eq('retired_table_name', retiredTableName)
         .order('created_at', { ascending: false })
@@ -199,6 +215,13 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
       'drill_run_id, status, trigger_source, config_fingerprint, code_revision, evidence_sha256, completed_at, summary',
     )
     .order('started_at', { ascending: false })
+    .limit(1);
+  const { data: rollbackRehearsalRows } = await supabase
+    .from('os_snapshot_rollback_rehearsals')
+    .select(
+      'drill_run_id, epoch_id, status, manifest_sha256, artifact_uri, artifact_sha256, procedure_sha256, operator_id, reviewer_id, expires_at, valid_until, row_version',
+    )
+    .order('created_at', { ascending: false })
     .limit(1);
 
   const domains: StoreCollection[] = [
@@ -359,6 +382,10 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
           }
         | undefined) ?? null,
     soak_epoch: soakEpoch,
+    rollback_rehearsal:
+      (rollbackRehearsalRows?.[0] as
+        | NormalizationStatus['rollback_rehearsal']
+        | undefined) ?? null,
     retention_confirmed: retention.confirmed,
     retention_days_remaining: retention.days_remaining_before_drop_eligible,
   });
@@ -396,6 +423,10 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
       (drillEvidenceRows?.[0] as
         | NormalizationStatus['latest_drill_evidence']
         | undefined) ?? null,
+    rollback_rehearsal:
+      (rollbackRehearsalRows?.[0] as
+        | NormalizationStatus['rollback_rehearsal']
+        | undefined) ?? null,
     retirement_timeline: (retirementEvents ?? []).map((event) => ({
       stage: String(event.stage),
       retired_table_name: (event.retired_table_name as string) ?? null,
@@ -419,7 +450,7 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
             : stage === 'read_cutover'
               ? 'Enable WRITE_CUTOVER_MATURE=1 when handoffs/audits tables are ready'
               : stage === 'sql_only_hydrate'
-                ? 'Stage 4b active — governed soft rename path; DROP still deferred (Phase 34)'
+                ? 'Stage 4b active — governed soft rename path; destructive retirement still deferred (Phase 35)'
                 : stage === 'stage4_ready'
                   ? 'Drills passed — SQL-only hydrate follows write cutover automatically; see OS_SNAPSHOT_STAGE4.md'
                   : fkOrphanTotal > 0

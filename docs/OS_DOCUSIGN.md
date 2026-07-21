@@ -110,10 +110,25 @@ SQL: `phase33_docusign_lineage.sql`.
 
 SQL: `phase34_docusign_reconciliation.sql`.
 
+## Phase 35
+
+- Document and template sends now persist a durable request intent before the
+  provider call.
+- Stable DocuSign transaction IDs and hidden intent/entity fields prevent blind
+  resends after timeouts.
+- Envelope projection, document state, send audit, and intent finalization commit
+  atomically.
+- A five-minute worker reconciles unknown outcomes by exact transaction ID and
+  never creates an envelope.
+- The hub exposes send state, dispatch/recovery attempts, and safe errors under
+  entity scope.
+
+SQL: `phase35_docusign_transactional_send.sql`.
+
 ## Still deferred
 
 - Dedicated recipient detail drawer
-- Transactional send-intent/finalization projection and timeout recovery
+- Transactional replacement-envelope send cutover
 - Idempotent signed-archive metadata with content hashes
 - Retire simulate button in production  
 

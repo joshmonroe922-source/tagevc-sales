@@ -114,6 +114,18 @@ function mapAccount(row: Record<string, unknown>): MarketingSocialAccount {
         : 'unknown',
     scope_checked_at: (row.scope_checked_at as string) ?? null,
     scope_error: (row.scope_error as string) ?? null,
+    paid_metrics_status:
+      row.paid_metrics_status === 'backfilling' ||
+      row.paid_metrics_status === 'healthy' ||
+      row.paid_metrics_status === 'degraded' ||
+      row.paid_metrics_status === 'error'
+        ? row.paid_metrics_status
+        : 'unknown',
+    paid_metrics_data_through:
+      (row.paid_metrics_data_through as string) ?? null,
+    paid_metrics_last_complete_at:
+      (row.paid_metrics_last_complete_at as string) ?? null,
+    paid_metrics_error: (row.paid_metrics_error as string) ?? null,
     last_synced_at: (row.last_synced_at as string) ?? null,
     notes: (row.notes as string) ?? null,
     created_at: String(row.created_at),
@@ -154,17 +166,21 @@ function mapGen(row: Record<string, unknown>): MarketingGenerationJob {
   };
 }
 
-export async function listCampaigns(limit = 50): Promise<{
+export async function listCampaigns(
+  limit = 50,
+  entityId?: string | null,
+): Promise<{
   rows: MarketingCampaign[];
   error?: string;
 }> {
   try {
     const sb = await createPersistClient();
-    const { data, error } = await sb
+    let query = sb
       .from('os_marketing_campaigns')
       .select('*')
-      .order('updated_at', { ascending: false })
-      .limit(limit);
+      .order('updated_at', { ascending: false });
+    if (entityId) query = query.eq('entity_id', entityId);
+    const { data, error } = await query.limit(limit);
     if (error) return { rows: [], error: error.message };
     return {
       rows: (data ?? []).map((r) => mapCampaign(r as Record<string, unknown>)),
@@ -194,17 +210,21 @@ export async function listContent(limit = 50): Promise<{
   }
 }
 
-export async function listSocialAccounts(limit = 50): Promise<{
+export async function listSocialAccounts(
+  limit = 50,
+  entityId?: string | null,
+): Promise<{
   rows: MarketingSocialAccount[];
   error?: string;
 }> {
   try {
     const sb = await createPersistClient();
-    const { data, error } = await sb
+    let query = sb
       .from('os_marketing_social_accounts')
       .select('*')
-      .order('updated_at', { ascending: false })
-      .limit(limit);
+      .order('updated_at', { ascending: false });
+    if (entityId) query = query.eq('entity_id', entityId);
+    const { data, error } = await query.limit(limit);
     if (error) return { rows: [], error: error.message };
     return {
       rows: (data ?? []).map((r) => mapAccount(r as Record<string, unknown>)),
@@ -658,6 +678,6 @@ export function getMarketingFoundationStatus() {
       process.env.MARKETING_PAID_ADS_LIVE === '1' ||
       process.env.MARKETING_PAID_ADS_LIVE === 'true',
     tiktok_publish: true,
-    phase: 34,
+    phase: 35,
   };
 }

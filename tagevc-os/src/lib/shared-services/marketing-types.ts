@@ -138,6 +138,10 @@ export type MarketingSocialAccount = {
   scope_status: 'unknown' | 'healthy' | 'missing' | 'error';
   scope_checked_at: string | null;
   scope_error: string | null;
+  paid_metrics_status: 'unknown' | 'backfilling' | 'healthy' | 'degraded' | 'error';
+  paid_metrics_data_through: string | null;
+  paid_metrics_last_complete_at: string | null;
+  paid_metrics_error: string | null;
   last_synced_at: string | null;
   notes: string | null;
   created_at: string;

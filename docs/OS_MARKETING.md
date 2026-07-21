@@ -73,8 +73,22 @@ SQL: `phase33_marketing_connections.sql`.
 
 SQL: `phase34_marketing_analytics.sql`.
 
-## Phase 35+
+## Phase 35
 
-1. Scheduled account-level 90-day backfill and rolling attribution refresh
-2. Provider response fixtures, throttling contracts, and complete-window leases
+1. Six-hour scheduled paid sync queues deterministic seven-day windows covering
+   the rolling 28 complete provider days and missing 90-day bootstrap history.
+2. Database leases, complete-window replacement, response hashes, retry state,
+   and independent coverage days prevent partial responses from appearing
+   complete.
+3. Meta uses bounded cursor pagination and campaign-specific conversion actions;
+   LinkedIn uses bounded campaign batches and explicit daily dates.
+4. Hub operations show account health, coverage, windows, attempts, rows, and
+   errors under entity scope.
+
+SQL: `phase35_marketing_paid_backfill.sql`.
+
+## Phase 36+
+
+1. Provider fixture contract tests and complete-window alerting
+2. Currency-grouped reporting and period-aligned attributed revenue
 3. TikTok upload cancellation/reinitialization

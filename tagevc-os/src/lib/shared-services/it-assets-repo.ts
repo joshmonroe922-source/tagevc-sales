@@ -766,6 +766,17 @@ export type ItIntuneAction = {
   last_error: string | null;
   request_metadata: Record<string, unknown>;
   verification_evidence: Record<string, unknown>;
+  local_asset_id: string | null;
+  matched_by: string | null;
+  matched_at: string | null;
+  match_sha256: string | null;
+  approval_expires_at: string | null;
+  retry_of_action_id: string | null;
+  retry_generation: number;
+  cancelled_at: string | null;
+  cancel_reason: string | null;
+  failure_code: string | null;
+  row_version: number;
 };
 
 export async function listIntuneActions(
@@ -776,7 +787,7 @@ export async function listIntuneActions(
     const { data, error } = await sb
       .from('os_it_intune_actions')
       .select(
-        'action_id, run_id, managed_device_id, user_id, entity_id, status, requested_at, approved_at, submitted_at, verified_at, graph_request_id, attempt_count, poll_count, provider_state, verification_code, last_error, request_metadata, verification_evidence',
+        'action_id, run_id, managed_device_id, user_id, entity_id, status, requested_at, approved_at, submitted_at, verified_at, graph_request_id, attempt_count, poll_count, provider_state, verification_code, last_error, request_metadata, verification_evidence, local_asset_id, matched_by, matched_at, match_sha256, approval_expires_at, retry_of_action_id, retry_generation, cancelled_at, cancel_reason, failure_code, row_version',
       )
       .order('requested_at', { ascending: false })
       .limit(limit);
@@ -794,12 +805,64 @@ export async function approveIntuneAction(input: {
   action_id: string;
   actor_id: string;
   reason: string;
+  expected_row_version: number;
+  expected_match_sha256: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const sb = await createPersistClient();
-  const { error } = await sb.rpc('approve_it_intune_action', {
+  const { error } = await sb.rpc('approve_it_intune_action_v2', {
     p_action_id: input.action_id,
     p_actor_id: input.actor_id,
     p_reason: input.reason,
+    p_expected_row_version: input.expected_row_version,
+    p_expected_match_sha256: input.expected_match_sha256,
   });
   return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+export async function matchIntuneAction(input: {
+  action_id: string;
+  asset_id: string;
+  actor_id: string;
+  expected_row_version: number;
+}) {
+  const sb = await createPersistClient();
+  const { error } = await sb.rpc('match_it_intune_action', {
+    p_action_id: input.action_id,
+    p_asset_id: input.asset_id,
+    p_actor_id: input.actor_id,
+    p_expected_row_version: input.expected_row_version,
+  });
+  return error ? { ok: false as const, error: error.message } : { ok: true as const };
+}
+
+export async function cancelIntuneAction(input: {
+  action_id: string;
+  actor_id: string;
+  reason: string;
+  expected_row_version: number;
+}) {
+  const sb = await createPersistClient();
+  const { error } = await sb.rpc('cancel_it_intune_action', {
+    p_action_id: input.action_id,
+    p_actor_id: input.actor_id,
+    p_reason: input.reason,
+    p_expected_row_version: input.expected_row_version,
+  });
+  return error ? { ok: false as const, error: error.message } : { ok: true as const };
+}
+
+export async function retryIntuneAction(input: {
+  action_id: string;
+  actor_id: string;
+  reason: string;
+  expected_row_version: number;
+}) {
+  const sb = await createPersistClient();
+  const { error } = await sb.rpc('retry_it_intune_action', {
+    p_action_id: input.action_id,
+    p_actor_id: input.actor_id,
+    p_reason: input.reason,
+    p_expected_row_version: input.expected_row_version,
+  });
+  return error ? { ok: false as const, error: error.message } : { ok: true as const };
 }

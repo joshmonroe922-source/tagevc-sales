@@ -15,6 +15,10 @@ type ClaimedAction = {
   requested_at: string;
   submitted_at: string | null;
   dispatch_started_at: string | null;
+  local_asset_id: string | null;
+  match_snapshot: { normalized_serial?: string } | null;
+  approval_match_sha256: string | null;
+  match_sha256: string | null;
 };
 
 export async function processIntuneActions(limit = 10): Promise<{
@@ -64,6 +68,59 @@ export async function processIntuneActions(limit = 10): Promise<{
     let errorMessage: string | null = null;
     try {
       if (action.status === 'dispatching') {
+        const preflight = await fetch(
+          `https://graph.microsoft.com/v1.0/deviceManagement/managedDevices/${encodeURIComponent(action.managed_device_id)}?$select=id,serialNumber,managementState,deviceName,model`,
+          { headers },
+        );
+        const device = (await preflight.json().catch(() => ({}))) as {
+          id?: string;
+          serialNumber?: string;
+          managementState?: string;
+          deviceName?: string;
+          model?: string;
+        };
+        const liveSerial = String(device.serialNumber ?? '')
+          .replace(/[^a-z0-9]/gi, '')
+          .toUpperCase();
+        const approvedSerial = String(
+          action.match_snapshot?.normalized_serial ?? '',
+        );
+        if (
+          !preflight.ok ||
+          device.id !== action.managed_device_id ||
+          !approvedSerial ||
+          liveSerial !== approvedSerial ||
+          action.approval_match_sha256 !== action.match_sha256
+        ) {
+          nextStatus = 'failed';
+          verificationCode =
+            preflight.status === 404
+              ? 'provider_missing_before_dispatch'
+              : 'asset_provider_mismatch';
+          errorMessage =
+            preflight.status === 404
+              ? 'Managed device disappeared before dispatch'
+              : 'Live provider identity no longer matches approved asset';
+          evidence = {
+            http_status: preflight.status,
+            provider_state: device.managementState ?? null,
+            failure_code: verificationCode,
+            live_serial_suffix: liveSerial.slice(-4),
+            approved_serial_suffix: approvedSerial.slice(-4),
+          };
+          detail = errorMessage;
+        } else if (
+          String(device.managementState ?? '').toLowerCase() === 'retired'
+        ) {
+          nextStatus = 'verified';
+          verificationCode = 'management_state_retired';
+          evidence = {
+            http_status: preflight.status,
+            provider_state: 'retired',
+            identity_preflight: true,
+          };
+          detail = 'Provider already reports matching device retired';
+        } else {
         const res = await fetch(
           `https://graph.microsoft.com/v1.0/deviceManagement/managedDevices/${encodeURIComponent(action.managed_device_id)}/retire`,
           {
@@ -99,6 +156,7 @@ export async function processIntuneActions(limit = 10): Promise<{
           verificationCode = 'provider_rejected';
           detail = errorMessage;
         }
+        }
       } else {
         const res = await fetch(
           `https://graph.microsoft.com/v1.0/deviceManagement/managedDevices/${encodeURIComponent(action.managed_device_id)}?$select=id,managementState,lastSyncDateTime`,
@@ -121,12 +179,10 @@ export async function processIntuneActions(limit = 10): Promise<{
           detail = 'Provider reports managementState=retired';
         } else if (
           res.status === 404 &&
-          (action.submitted_at || action.dispatch_started_at)
+          action.submitted_at
         ) {
           nextStatus = 'verified';
-          verificationCode = action.submitted_at
-            ? 'resource_absent_after_accepted_submission'
-            : 'resource_absent_after_ambiguous_submission';
+          verificationCode = 'resource_absent_after_accepted_submission';
           detail = 'Managed device absent after retirement dispatch';
         } else {
           const ageHours =

@@ -12,6 +12,11 @@ export type CreateEnvelopeInput = {
   documentText: string;
   signers: Array<{ name: string; email: string; recipientId?: string }>;
   status?: 'sent' | 'created';
+  transactionId?: string;
+  intentId?: string;
+  entityId?: string | null;
+  operationKind?: 'document_send' | 'template_send' | 'replacement';
+  docId?: string | null;
 };
 
 export type CreateEnvelopeResult = {
@@ -100,6 +105,39 @@ export async function createEnvelope(
     ],
     recipients: { signers },
     status: input.status ?? 'sent',
+    ...(input.transactionId ? { transactionId: input.transactionId } : {}),
+    ...(input.intentId
+      ? {
+          customFields: {
+            textCustomFields: [
+              {
+                name: 'tagevc_send_intent_id',
+                value: input.intentId,
+                show: 'false',
+              },
+              {
+                name: 'tagevc_entity_id',
+                value: input.entityId ?? 'firm',
+                show: 'false',
+              },
+              {
+                name: 'tagevc_operation_kind',
+                value: input.operationKind ?? 'document_send',
+                show: 'false',
+              },
+              ...(input.docId
+                ? [
+                    {
+                      name: 'tagevc_doc_id',
+                      value: input.docId,
+                      show: 'false',
+                    },
+                  ]
+                : []),
+            ],
+          },
+        }
+      : {}),
   };
 
   const res = await docusignFetch(cfg, '/envelopes', {
@@ -134,6 +172,11 @@ export type CreateFromTemplateInput = {
     roleName?: string;
   }>;
   status?: 'sent' | 'created';
+  transactionId?: string;
+  intentId?: string;
+  entityId?: string | null;
+  operationKind?: 'template_send' | 'replacement';
+  docId?: string | null;
 };
 
 /** Send an envelope from a DocuSign template (Phase 27). */
@@ -160,6 +203,30 @@ export async function createEnvelopeFromTemplate(
     templateId: input.templateId,
     templateRoles: roles,
     status: input.status ?? 'sent',
+    ...(input.transactionId ? { transactionId: input.transactionId } : {}),
+    ...(input.intentId
+      ? {
+          customFields: {
+            textCustomFields: [
+              {
+                name: 'tagevc_send_intent_id',
+                value: input.intentId,
+                show: 'false',
+              },
+              {
+                name: 'tagevc_entity_id',
+                value: input.entityId ?? 'firm',
+                show: 'false',
+              },
+              {
+                name: 'tagevc_operation_kind',
+                value: input.operationKind ?? 'template_send',
+                show: 'false',
+              },
+            ],
+          },
+        }
+      : {}),
   };
 
   const res = await docusignFetch(cfg, '/envelopes', {
@@ -183,6 +250,47 @@ export async function createEnvelopeFromTemplate(
     status: json.status ?? 'sent',
     raw: json,
   };
+}
+
+export async function listEnvelopeStatusesByTransactionIds(
+  transactionIds: string[],
+): Promise<
+  Array<{ transactionId: string; envelopeId: string; status: string }>
+> {
+  const cfg = getDocuSignConfig();
+  if (!cfg) throw new Error('DocuSign is not configured');
+  if (transactionIds.length === 0) return [];
+  const res = await docusignFetch(cfg, '/envelopes/status', {
+    method: 'POST',
+    body: JSON.stringify({ transactionIds: transactionIds.slice(0, 20) }),
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    envelopes?: Array<{
+      transactionId?: string;
+      envelopeId?: string;
+      status?: string;
+    }>;
+    message?: string;
+    errorCode?: string;
+  };
+  if (!res.ok) {
+    throw new Error(await docusignError('Transaction recovery', res, json));
+  }
+  return (json.envelopes ?? [])
+    .filter(
+      (
+        envelope,
+      ): envelope is {
+        transactionId: string;
+        envelopeId: string;
+        status?: string;
+      } => Boolean(envelope.transactionId && envelope.envelopeId),
+    )
+    .map((envelope) => ({
+      transactionId: envelope.transactionId,
+      envelopeId: envelope.envelopeId,
+      status: envelope.status ?? 'sent',
+    }));
 }
 
 export async function getEnvelopeStatus(envelopeId: string): Promise<{
