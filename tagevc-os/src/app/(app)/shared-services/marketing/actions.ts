@@ -1,5 +1,6 @@
 'use server';
 
+import { createHash } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import {
@@ -22,6 +23,7 @@ import {
   entityScopeDeniedMessage,
 } from '@/lib/rbac/entity-scope';
 import { createPersistClient } from '@/lib/supabase/persist-client';
+import { recordPaidRevenueEvidence } from '@/lib/shared-services/marketing-attribution';
 
 export type MarketingActionResult =
   | { ok: true; message?: string }
@@ -557,6 +559,141 @@ export async function retryPaidMetricsRunAction(
   if (error) return { ok: false, error: error.message };
   revalidateMarketing();
   return { ok: true, message: 'Paid sync run queued for governed retry' };
+}
+
+export async function recordPaidRevenueEvidenceAction(
+  _prev: MarketingActionResult | null,
+  formData: FormData,
+): Promise<MarketingActionResult> {
+  const gate = await guardPermission('write:marketing');
+  if (!gate.ok) return gate;
+  const parsed = z.object({
+    campaign_id: z.string().min(1).max(200),
+    revenue_event_id: z.string().min(1).max(200),
+    revenue_occurred_at: z.string().datetime({ offset: true }),
+    attributed_amount: z.string().regex(/^\d{1,12}(?:\.\d{1,6})?$/),
+    settled_amount: z.string().regex(/^\d{1,12}(?:\.\d{1,6})?$/),
+    settlement_status: z.enum(['pending', 'partial', 'settled', 'reversed']),
+    expected_settlement_at: z.string().datetime({ offset: true }).nullable(),
+    settled_at: z.string().datetime({ offset: true }).nullable(),
+    attribution_window_days: z.coerce.number().int().min(1).max(90),
+    attribution_model: z.enum([
+      'first_touch',
+      'last_touch',
+      'linear',
+      'position_based',
+      'provider_reported',
+    ]),
+    attribution_model_version: z.string().min(1).max(100),
+    source_system: z.string().min(1).max(100),
+    source_record_id: z.string().min(1).max(200),
+    source_recorded_at: z.string().datetime({ offset: true }),
+    source_payload_json: z.string().min(2).max(16_384),
+    revision: z.coerce.number().int().min(1).max(10_000),
+    supersedes_evidence_id: z.string().uuid().nullable(),
+  }).safeParse({
+    campaign_id: formData.get('campaign_id'),
+    revenue_event_id: formData.get('revenue_event_id'),
+    revenue_occurred_at: formData.get('revenue_occurred_at'),
+    attributed_amount: formData.get('attributed_amount'),
+    settled_amount: formData.get('settled_amount') || '0',
+    settlement_status: formData.get('settlement_status'),
+    expected_settlement_at:
+      formData.get('expected_settlement_at') || null,
+    settled_at: formData.get('settled_at') || null,
+    attribution_window_days: formData.get('attribution_window_days'),
+    attribution_model: formData.get('attribution_model'),
+    attribution_model_version: formData.get('attribution_model_version'),
+    source_system: formData.get('source_system'),
+    source_record_id: formData.get('source_record_id'),
+    source_recorded_at: formData.get('source_recorded_at'),
+    source_payload_json: formData.get('source_payload_json'),
+    revision: formData.get('revision') || '1',
+    supersedes_evidence_id: formData.get('supersedes_evidence_id') || null,
+  });
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? 'Invalid revenue evidence',
+    };
+  }
+  const sb = await createPersistClient();
+  const { data: campaign, error: campaignError } = await sb
+    .from('os_marketing_campaigns')
+    .select(
+      'campaign_id, entity_id, ad_account_id, ad_platform, external_campaign_id, channel',
+    )
+    .eq('campaign_id', parsed.data.campaign_id)
+    .single();
+  if (
+    campaignError ||
+    !campaign ||
+    campaign.channel !== 'paid' ||
+    !campaign.entity_id ||
+    !campaign.ad_account_id ||
+    !campaign.ad_platform ||
+    !campaign.external_campaign_id
+  ) {
+    return { ok: false, error: 'Complete paid campaign binding not found' };
+  }
+  if (
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      campaign.entity_id,
+    )
+  ) {
+    return {
+      ok: false,
+      error: entityScopeDeniedMessage(campaign.entity_id),
+    };
+  }
+  const { data: account, error: accountError } = await sb
+    .from('os_marketing_social_accounts')
+    .select('account_id, entity_id, external_account_id, currency')
+    .eq('account_id', campaign.ad_account_id)
+    .single();
+  if (
+    accountError ||
+    !account ||
+    account.entity_id !== campaign.entity_id ||
+    !account.external_account_id ||
+    !account.currency
+  ) {
+    return { ok: false, error: 'Paid account binding is incomplete' };
+  }
+  const idempotencyKey = `phase39:${createHash('sha256')
+    .update(
+      JSON.stringify([
+        campaign.ad_platform,
+        account.external_account_id,
+        campaign.external_campaign_id,
+        parsed.data.source_system,
+        parsed.data.source_record_id,
+        parsed.data.revenue_event_id,
+        parsed.data.revision,
+      ]),
+    )
+    .digest('hex')}`;
+  const result = await recordPaidRevenueEvidence(
+    {
+      ...parsed.data,
+      idempotency_key: idempotencyKey,
+      entity_id: campaign.entity_id,
+      provider: campaign.ad_platform as 'meta_ads' | 'linkedin_ads',
+      ad_account_id: account.account_id,
+      external_account_id: account.external_account_id,
+      external_campaign_id: campaign.external_campaign_id,
+      currency: account.currency,
+    },
+    gate.profile.id,
+  );
+  if (!result.ok) return result;
+  revalidateMarketing();
+  return {
+    ok: true,
+    message: `${result.created ? 'Recorded' : 'Replayed'} revenue evidence ${result.evidenceId}`,
+  };
 }
 
 export async function runScheduleWorkerAction(): Promise<MarketingActionResult> {

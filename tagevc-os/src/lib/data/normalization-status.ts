@@ -126,6 +126,40 @@ export type NormalizationStatus = {
     epoch_id: string | null;
   } | null;
   evidence_cycle_events: Array<Record<string, unknown>>;
+  latest_export_manifest: {
+    manifest_id: string;
+    entity_id: string | null;
+    manifest_version: number;
+    manifest_sha256: string;
+    lifecycle_status: string;
+    valid_from: string;
+    valid_until: string;
+    created_at: string;
+  } | null;
+  latest_snapshot_canaries: Array<{
+    run_id: string;
+    definition_id: string;
+    status: string;
+    requested_duration_seconds: number;
+    requested_concurrency: number;
+    started_at: string;
+    completed_at: string | null;
+    evidence_sha256: string | null;
+    qualification_eligible: boolean;
+    attestation_eligible: boolean;
+  }>;
+  snapshot_canary_slo: Array<{
+    definition_id: string;
+    canary_kind: string;
+    evidence_class: string;
+    qualification_eligible: boolean;
+    runs_30d: number;
+    passed_30d: number;
+    integrity_failures_30d: number;
+    last_passed_at: string | null;
+    last_unhealthy_at: string | null;
+    duration_p95_seconds: number | null;
+  }>;
   latest_drill_evidence: {
     drill_run_id: string;
     status: string;
@@ -260,6 +294,28 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
         .order('occurred_at', { ascending: false })
         .limit(12)
     : { data: [] };
+  const [{ data: exportManifestRows }, { data: canaryRows }, { data: canarySloRows }] =
+    await Promise.all([
+      supabase
+        .from('os_snapshot_export_manifest_status')
+        .select(
+          'manifest_id, entity_id, manifest_version, manifest_sha256, lifecycle_status, valid_from, valid_until, created_at',
+        )
+        .order('created_at', { ascending: false })
+        .limit(1),
+      supabase
+        .from('os_snapshot_canary_runs')
+        .select(
+          'run_id, definition_id, status, requested_duration_seconds, requested_concurrency, started_at, completed_at, evidence_sha256, qualification_eligible, attestation_eligible',
+        )
+        .order('started_at', { ascending: false })
+        .limit(8),
+      supabase
+        .from('os_snapshot_phase39_slo')
+        .select(
+          'definition_id, canary_kind, evidence_class, qualification_eligible, runs_30d, passed_30d, integrity_failures_30d, last_passed_at, last_unhealthy_at, duration_p95_seconds',
+        ),
+    ]);
   const activeEpochId = soakEpochRows?.[0]?.epoch_id
     ? String(soakEpochRows[0].epoch_id)
     : null;
@@ -489,6 +545,15 @@ export async function getNormalizationStatus(): Promise<NormalizationStatus> {
         | NormalizationStatus['latest_evidence_cycle']
         | undefined) ?? null,
     evidence_cycle_events: evidenceCycleEvents ?? [],
+    latest_export_manifest:
+      (exportManifestRows?.[0] as
+        | NormalizationStatus['latest_export_manifest']
+        | undefined) ?? null,
+    latest_snapshot_canaries:
+      (canaryRows as NormalizationStatus['latest_snapshot_canaries'] | null) ??
+      [],
+    snapshot_canary_slo:
+      (canarySloRows as NormalizationStatus['snapshot_canary_slo'] | null) ?? [],
     retirement_timeline: (retirementEvents ?? []).map((event) => ({
       stage: String(event.stage),
       retired_table_name: (event.retired_table_name as string) ?? null,

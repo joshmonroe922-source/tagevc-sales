@@ -1,6 +1,10 @@
-import { createHmac, timingSafeEqual } from 'crypto';
+import { createHash, createHmac, timingSafeEqual } from 'crypto';
 import { NextResponse } from 'next/server';
-import { applyDocuSignWebhook, annotateSignedArchive } from '@/lib/data/document-store';
+import {
+  annotateSignedArchive,
+  applyDocuSignWebhook,
+  listDocuments,
+} from '@/lib/data/document-store';
 import { createBroadcastNotification, logActivity } from '@/lib/data/activity';
 import { parseConnectPayload } from '@/lib/docusign/connect';
 import { insertDocuSignEvent } from '@/lib/docusign/events-repo';
@@ -84,27 +88,79 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
 
-  try {
-    const doc = applyDocuSignWebhook({
+  const matched = listDocuments().find(
+    (candidate) => candidate.envelope_id === parsed.envelope_id,
+  );
+  if (!matched) {
+    const eventPersist = await insertDocuSignEvent({
+      event_id: parsed.event_id ?? undefined,
       envelope_id: parsed.envelope_id,
-      status: parsed.status as
-        | 'sent'
-        | 'delivered'
-        | 'signed'
-        | 'completed'
-        | 'declined'
-        | 'voided',
+      status: parsed.status,
+      event_type: parsed.event_type,
+      raw_payload: parsed.raw,
     });
-
-    let dealId: string | null = null;
-    let ticketId: string | null = null;
-    const ref = doc.deal_or_task_id;
-    if (ref) {
-      if (/^TKT-/i.test(ref)) ticketId = ref;
-      else dealId = ref;
+    if (!eventPersist.ok) {
+      return NextResponse.json(
+        { error: eventPersist.error, event_persist_ok: false },
+        { status: 503 },
+      );
     }
+    return NextResponse.json({
+      ok: true,
+      acknowledged: true,
+      document_matched: false,
+      event_persist_ok: true,
+    });
+  }
 
-    if (parsed.status === 'signed' || parsed.status === 'completed') {
+  const ref = matched.deal_or_task_id;
+  const ticketId = ref && /^TKT-/i.test(ref) ? ref : null;
+  const dealId = ref && !ticketId ? ref : null;
+  const eventPersist = await insertDocuSignEvent({
+    event_id: parsed.event_id ?? undefined,
+    envelope_id: parsed.envelope_id,
+    status: parsed.status,
+    event_type: parsed.event_type,
+    doc_id: matched.doc_id,
+    entity_id: matched.entity_id,
+    deal_id: dealId,
+    ticket_id: ticketId,
+    raw_payload: parsed.raw,
+  });
+  if (!eventPersist.ok) {
+    return NextResponse.json(
+      { error: eventPersist.error, event_persist_ok: false },
+      { status: 503 },
+    );
+  }
+  const projectionAlreadyApplied =
+    matched.status.toLowerCase() ===
+    (parsed.status === 'completed'
+      ? 'completed'
+      : parsed.status === 'signed'
+        ? 'signed'
+        : parsed.status);
+  const suppressReplayEffects =
+    eventPersist.replayed && projectionAlreadyApplied;
+
+  try {
+    const doc = projectionAlreadyApplied
+      ? matched
+      : applyDocuSignWebhook({
+          envelope_id: parsed.envelope_id,
+          status: parsed.status as
+            | 'sent'
+            | 'delivered'
+            | 'signed'
+            | 'completed'
+            | 'declined'
+            | 'voided',
+        });
+
+    if (
+      !suppressReplayEffects &&
+      (parsed.status === 'signed' || parsed.status === 'completed')
+    ) {
       void logActivity({
         module: 'documents',
         action: `docusign_${parsed.status}`,
@@ -121,7 +177,7 @@ export async function POST(request: Request) {
       });
     }
 
-    if (parsed.status === 'voided') {
+    if (!suppressReplayEffects && parsed.status === 'voided') {
       void logActivity({
         module: 'documents',
         action: 'docusign_voided',
@@ -138,22 +194,15 @@ export async function POST(request: Request) {
       });
     }
 
-    const eventPersist = await insertDocuSignEvent({
-      event_id: parsed.event_id ?? undefined,
-      envelope_id: parsed.envelope_id,
-      status: parsed.status,
-      event_type: parsed.event_type,
-      doc_id: doc.doc_id,
-      entity_id: doc.entity_id,
-      deal_id: dealId,
-      ticket_id: ticketId,
-      raw_payload: parsed.raw,
-    });
-
     let signedArchive: Awaited<ReturnType<typeof archiveSignedDocument>> | null =
       null;
     if (parsed.status === 'completed') {
-      signedArchive = await archiveSignedDocument(doc);
+      signedArchive = await archiveSignedDocument(doc, {
+        providerStatus: parsed.status,
+        sourceRequestId:
+          parsed.event_id ??
+          `connect:${createHash('sha256').update(rawBody).digest('hex')}`,
+      });
       if (
         signedArchive.ok &&
         signedArchive.library_path &&
@@ -169,7 +218,10 @@ export async function POST(request: Request) {
       }
 
       // Phase 28: email CoC when archived (best-effort)
-      if (signedArchive?.coc?.ok || signedArchive?.ok) {
+      if (
+        (signedArchive?.coc?.ok && !signedArchive.coc.replayed) ||
+        (signedArchive?.ok && !signedArchive.replayed)
+      ) {
         try {
           const { emailCertificateOfCompletion } = await import(
             '@/lib/docusign/coc-email'
@@ -194,37 +246,14 @@ export async function POST(request: Request) {
       status: doc.status,
       library_path: doc.library_path,
       event_persist_ok: eventPersist.ok,
-      event_persist_error: eventPersist.ok ? undefined : eventPersist.error,
+      event_replayed: eventPersist.replayed,
       signed_archive: signedArchive,
     });
   } catch (e) {
-    // Document not in local store — still record the Connect event
-    const eventPersist = await insertDocuSignEvent({
-      event_id: parsed.event_id ?? undefined,
-      envelope_id: parsed.envelope_id,
-      status: parsed.status,
-      event_type: parsed.event_type,
-      raw_payload: parsed.raw,
-    });
-
     const msg = e instanceof Error ? e.message : 'Failed';
-    if (msg === 'Envelope not found') {
-      console.warn(
-        '[docusign] Connect event for unknown envelope',
-        parsed.envelope_id,
-      );
-      return NextResponse.json({
-        ok: true,
-        acknowledged: true,
-        document_matched: false,
-        event_persist_ok: eventPersist.ok,
-        event_persist_error: eventPersist.ok ? undefined : eventPersist.error,
-      });
-    }
-
     captureException(e, { route: 'docusign/webhook' });
     return NextResponse.json(
-      { error: msg, event_persist_ok: eventPersist.ok },
+      { error: msg, event_persist_ok: true },
       { status: 500 },
     );
   }

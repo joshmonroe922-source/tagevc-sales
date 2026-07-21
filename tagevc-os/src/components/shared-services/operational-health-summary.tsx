@@ -24,6 +24,7 @@ export function OperationalHealthSummary({
     alerts: Array<Record<string, unknown>>;
     workerRuns: Array<Record<string, unknown>>;
     owners: Array<Record<string, unknown>>;
+    ownerProfiles: Array<Record<string, unknown>>;
     workerDefinitions: Array<Record<string, unknown>>;
     deliveryJobs: Array<Record<string, unknown>>;
     error?: string;
@@ -32,6 +33,7 @@ export function OperationalHealthSummary({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
+  const [ownerSelections, setOwnerSelections] = useState<Record<string, string>>({});
   const services = ['marketing', 'docusign', 'intune', 'snapshot'];
   function acknowledge(alert: Record<string, unknown>) {
     startTransition(async () => {
@@ -45,7 +47,8 @@ export function OperationalHealthSummary({
     });
   }
   function reassign(alert: Record<string, unknown>) {
-    const ownerId = window.prompt('New owner UUID:', String(alert.owner_id ?? ''));
+    const alertId = String(alert.alert_id);
+    const ownerId = ownerSelections[alertId] ?? String(alert.owner_id ?? '');
     if (!ownerId) return;
     startTransition(async () => {
       const result = await reassignSloAlertAction({
@@ -129,7 +132,19 @@ export function OperationalHealthSummary({
                   <div key={String(alert.alert_id)} className="space-y-1">
                     <p>
                       {String(alert.metric_key).replaceAll('_', ' ')} ·{' '}
-                      {alert.owner_id ? `owner ${String(alert.owner_id).slice(0, 8)}` : 'unowned'}
+                      {alert.owner_id
+                        ? `owner ${
+                            String(
+                              health.ownerProfiles.find(
+                                (owner) => owner.id === alert.owner_id,
+                              )?.full_name ??
+                                health.ownerProfiles.find(
+                                  (owner) => owner.id === alert.owner_id,
+                                )?.email ??
+                                alert.owner_id,
+                            )
+                          }`
+                        : 'unowned'}
                     </p>
                     <div className="flex gap-1">
                       <Button
@@ -140,6 +155,27 @@ export function OperationalHealthSummary({
                       >
                         {alert.acknowledged_at ? 'Acknowledged' : 'Acknowledge'}
                       </Button>
+                      <select
+                        aria-label="Named alert owner"
+                        value={
+                          ownerSelections[String(alert.alert_id)] ??
+                          String(alert.owner_id ?? '')
+                        }
+                        onChange={(event) =>
+                          setOwnerSelections((current) => ({
+                            ...current,
+                            [String(alert.alert_id)]: event.target.value,
+                          }))
+                        }
+                        className="h-8 min-w-0 rounded-md border bg-background px-1 text-xs"
+                      >
+                        <option value="">Select owner</option>
+                        {health.ownerProfiles.map((owner) => (
+                          <option key={String(owner.id)} value={String(owner.id)}>
+                            {String(owner.full_name ?? owner.email)}
+                          </option>
+                        ))}
+                      </select>
                       <Button
                         size="sm"
                         variant="outline"

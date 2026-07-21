@@ -139,7 +139,21 @@ SQL: `phase37_marketing_paid_contracts.sql`.
 
 SQL: `phase38_marketing_paid_reconciliation.sql`.
 
-## Phase 39+
+## Phase 39
 
-1. Period-aligned attributed revenue
-2. TikTok upload cancellation/reinitialization
+1. Paid revenue evidence is append-only and revision-linked, with strict
+   entity, account, campaign, provider, attribution-model, and source binding.
+2. Integer micro-units preserve exact values and reporting remains grouped by
+   currency.
+3. Settlement state, expected and actual settlement times, overdue/late counts,
+   revision lineage, and completeness are visible in the Marketing hub.
+4. Exact replays are idempotent; conflicting evidence and broken revision
+   lineage fail closed.
+
+SQL: `phase39_marketing_attribution_settlement.sql`.
+
+## Phase 40+
+
+1. Automated authoritative revenue-source ingestion and correction
+2. Attribution-model comparison and settlement-lag SLOs
+3. TikTok upload cancellation/reinitialization

@@ -149,6 +149,7 @@ export async function listOperationalHealth(input: {
         alerts: [],
         workerRuns: [],
         owners: [],
+        ownerProfiles: [],
         workerDefinitions: [],
         deliveryJobs: [],
       };
@@ -165,6 +166,7 @@ export async function listOperationalHealth(input: {
     { data: owners, error: ownerError },
     { data: workerDefinitions, error: definitionError },
     { data: deliveryJobs, error: deliveryError },
+    { data: ownerProfiles, error: ownerProfileError },
   ] = await Promise.all([
     evaluationQuery,
     alertQuery,
@@ -172,6 +174,12 @@ export async function listOperationalHealth(input: {
     ownerQuery,
     sb.from('os_operational_worker_health').select('*'),
     firmWideDeliveryQuery(sb, input.firmWide),
+    sb
+      .from('profiles')
+      .select('id,full_name,email,role,entity_id')
+      .eq('active', true)
+      .in('role', ['visionary', 'admin', 'service_lead', 'coo'])
+      .order('full_name'),
   ]);
   const latestByMetric = new Map<string, NonNullable<typeof evaluations>[number]>();
   for (const evaluation of evaluations ?? []) {
@@ -183,6 +191,12 @@ export async function listOperationalHealth(input: {
     alerts: alerts ?? [],
     workerRuns: workerRuns ?? [],
     owners: owners ?? [],
+    ownerProfiles: (ownerProfiles ?? []).filter(
+      (profile) =>
+        input.firmWide ||
+        profile.entity_id === input.entityId ||
+        ['visionary', 'admin', 'service_lead'].includes(profile.role),
+    ),
     workerDefinitions: workerDefinitions ?? [],
     deliveryJobs: deliveryJobs ?? [],
     error:
@@ -191,7 +205,8 @@ export async function listOperationalHealth(input: {
       workerError?.message ||
       ownerError?.message ||
       definitionError?.message ||
-      deliveryError?.message,
+      deliveryError?.message ||
+      ownerProfileError?.message,
   };
 }
 

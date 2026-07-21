@@ -153,9 +153,25 @@ SQL: `phase37_intune_dispatch_boundary.sql`.
 
 SQL: `phase38_intune_ambiguity_governance.sql`.
 
-## Phase 39+
+## Phase 39
 
-1. Provider-outage dispatch circuit breaker and read-only canary reset
+1. A durable provider circuit breaker is scoped by entity, provider, and
+   operation and uses deterministic bounded outcome samples.
+2. Open breakers block new Graph POST authorization while preserving read-only
+   verification and recovery.
+3. A different authorized reviewer approves recovery evidence before one
+   lease/token-fenced half-open canary may run.
+4. Failed or stale canaries reopen the breaker; successful canaries close it
+   only after the configured recovery threshold.
+5. Breaker events are append-only, service-role mutations are fenced, and the
+   IT hub exposes state, age, blocked work, evidence, and canary status.
+6. Existing dispatch tombstones and ambiguity quarantine remain authoritative.
+
+SQL: `phase39_intune_provider_circuit_breaker.sql`.
+
+## Phase 40+
+
+1. Breaker tuning history, outage correlation, and canary health alerts
 2. Signed Exchange hold callback + deleted-user restore
 3. Downloadable warranty preview failure reports
 

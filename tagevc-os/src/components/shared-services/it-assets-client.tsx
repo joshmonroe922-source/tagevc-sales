@@ -26,7 +26,9 @@ import {
   cancelIntuneActionAction,
   retryIntuneActionAction,
   proposeIntuneAmbiguityResolutionAction,
+  proposeIntuneBreakerResetAction,
   reviewIntuneAmbiguityResolutionAction,
+  reviewIntuneBreakerResetAction,
   runIntuneWorkerAction,
   type ItAssetActionResult,
 } from '@/app/(app)/shared-services/it/assets/actions';
@@ -43,6 +45,8 @@ import type {
 import type {
   ItIntuneAction,
   ItIntuneAmbiguityResolution,
+  ItIntuneBreakerHealth,
+  ItIntuneBreakerResetProposal,
   ItLifecycleEvent,
 } from '@/lib/shared-services/it-assets-repo';
 
@@ -90,6 +94,8 @@ export function ItAssetsClient({
   intuneWorkerRuns = [],
   intuneAmbiguityResolutions = [],
   intuneManualReviewSlo = [],
+  intuneBreakerHealth = [],
+  intuneBreakerResetProposals = [],
   canIntuneRetire = false,
   canIntuneManualReview = false,
   currentActorId = null,
@@ -120,6 +126,8 @@ export function ItAssetsClient({
   intuneWorkerRuns?: Array<Record<string, unknown>>;
   intuneAmbiguityResolutions?: ItIntuneAmbiguityResolution[];
   intuneManualReviewSlo?: Array<Record<string, unknown>>;
+  intuneBreakerHealth?: ItIntuneBreakerHealth[];
+  intuneBreakerResetProposals?: ItIntuneBreakerResetProposal[];
   canIntuneRetire?: boolean;
   canIntuneManualReview?: boolean;
   currentActorId?: string | null;
@@ -344,6 +352,115 @@ export function ItAssetsClient({
             </Button>
           ) : null}
         </div>
+        {intuneBreakerHealth.length > 0 ? (
+          <div className="space-y-2 rounded border p-3 text-xs">
+            <p className="font-medium">Provider dispatch circuit health</p>
+            {intuneBreakerHealth.map((breaker) => {
+              const pendingReset = intuneBreakerResetProposals.find(
+                (proposal) =>
+                  proposal.breaker_id === breaker.breaker_id &&
+                  proposal.status === 'awaiting_review',
+              );
+              return (
+                <div
+                  key={breaker.breaker_id}
+                  className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 pb-2"
+                >
+                  <span>
+                    {breaker.entity_id ?? 'firm'} · {breaker.provider}/
+                    {breaker.operation} ·{' '}
+                    <strong
+                      className={
+                        breaker.state === 'closed'
+                          ? 'text-emerald-700'
+                          : 'text-amber-700'
+                      }
+                    >
+                      {breaker.state}
+                    </strong>
+                    {' · '}age {Math.round(Number(breaker.state_age_minutes))}m
+                    {' · '}blocked {Number(breaker.blocked_action_count)}
+                    {' · '}failures {Number(breaker.failure_count)}/
+                    {Number(breaker.sample_count)}
+                    {breaker.canary_action_id
+                      ? ` · canary ${breaker.canary_action_id.slice(0, 8)}…`
+                      : ''}
+                    {breaker.canary_post_accepted_at
+                      ? ' · POST accepted, verification pending'
+                      : ''}
+                  </span>
+                  {canIntuneManualReview &&
+                  breaker.state === 'open' &&
+                  !pendingReset ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={pending}
+                      onClick={() => {
+                        const reason = window.prompt(
+                          'Reset proposal reason (20+ characters). Cooldown and durable read recovery thresholds are enforced:',
+                        );
+                        if (!reason?.trim()) return;
+                        run(() =>
+                          proposeIntuneBreakerResetAction({
+                            breakerId: breaker.breaker_id,
+                            reason: reason.trim(),
+                            expectedBreakerVersion: breaker.row_version,
+                          }),
+                        );
+                      }}
+                    >
+                      Propose canary reset
+                    </Button>
+                  ) : null}
+                  {canIntuneManualReview &&
+                  breaker.state === 'open' &&
+                  pendingReset ? (
+                    pendingReset.proposed_by === currentActorId ? (
+                      <span>A different authorized actor must review reset</span>
+                    ) : (
+                      <>
+                        <span>
+                          Reset awaiting review · expires {pendingReset.expires_at}
+                        </span>
+                        {(['approve', 'reject'] as const).map((decision) => (
+                          <Button
+                            key={decision}
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={pending}
+                            onClick={() => {
+                              const statement = window.prompt(
+                                `${decision === 'approve' ? 'Independent approval' : 'Rejection'} statement (20+ characters):`,
+                              );
+                              if (!statement?.trim()) return;
+                              run(() =>
+                                reviewIntuneBreakerResetAction({
+                                  proposalId: pendingReset.proposal_id,
+                                  decision,
+                                  statement: statement.trim(),
+                                  expectedProposalVersion:
+                                    pendingReset.row_version,
+                                  expectedBreakerVersion: breaker.row_version,
+                                }),
+                              );
+                            }}
+                          >
+                            {decision === 'approve'
+                              ? 'Approve one canary'
+                              : 'Reject reset'}
+                          </Button>
+                        ))}
+                      </>
+                    )
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
         {intuneActions.length === 0 ? (
           <p className="text-sm text-muted-foreground">No Intune actions.</p>
         ) : (

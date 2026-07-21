@@ -816,6 +816,43 @@ export type ItIntuneAmbiguityResolution = {
   row_version: number;
 };
 
+export type ItIntuneBreakerHealth = {
+  breaker_id: string;
+  entity_id: string | null;
+  provider: string;
+  operation: string;
+  state: 'closed' | 'open' | 'half_open';
+  opened_at: string | null;
+  cooldown_until: string | null;
+  last_failure_at: string | null;
+  last_success_at: string | null;
+  opened_reason: string | null;
+  canary_action_id: string | null;
+  canary_expires_at: string | null;
+  canary_post_accepted_at: string | null;
+  row_version: number;
+  state_age_minutes: number;
+  blocked_action_count: number;
+  sample_count: number;
+  failure_count: number;
+};
+
+export type ItIntuneBreakerResetProposal = {
+  proposal_id: string;
+  breaker_id: string;
+  entity_id: string | null;
+  status: 'awaiting_review' | 'approved' | 'rejected' | 'expired';
+  proposed_by: string;
+  proposed_reason: string;
+  evidence_sha256: string;
+  proposed_at: string;
+  expires_at: string;
+  reviewed_by: string | null;
+  reviewer_statement: string | null;
+  reviewed_at: string | null;
+  row_version: number;
+};
+
 export async function listIntuneActions(
   limit = 50,
 ): Promise<{ rows: ItIntuneAction[]; error?: string }> {
@@ -906,6 +943,39 @@ export async function listIntuneWorkerRuns(limit = 12) {
     .order('started_at', { ascending: false })
     .limit(limit);
   return data ?? [];
+}
+
+export async function listIntuneBreakerHealth(): Promise<{
+  rows: ItIntuneBreakerHealth[];
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb
+    .from('os_it_intune_breaker_health')
+    .select(
+      'breaker_id, entity_id, provider, operation, state, opened_at, cooldown_until, last_failure_at, last_success_at, opened_reason, canary_action_id, canary_expires_at, canary_post_accepted_at, row_version, state_age_minutes, blocked_action_count, sample_count, failure_count',
+    )
+    .order('state_age_minutes', { ascending: false });
+  return error
+    ? { rows: [], error: error.message }
+    : { rows: (data ?? []) as ItIntuneBreakerHealth[] };
+}
+
+export async function listIntuneBreakerResetProposals(limit = 30): Promise<{
+  rows: ItIntuneBreakerResetProposal[];
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb
+    .from('os_it_intune_breaker_reset_proposals')
+    .select(
+      'proposal_id, breaker_id, entity_id, status, proposed_by, proposed_reason, evidence_sha256, proposed_at, expires_at, reviewed_by, reviewer_statement, reviewed_at, row_version',
+    )
+    .order('proposed_at', { ascending: false })
+    .limit(limit);
+  return error
+    ? { rows: [], error: error.message }
+    : { rows: (data ?? []) as ItIntuneBreakerResetProposal[] };
 }
 
 export async function approveIntuneAction(input: {
@@ -1012,6 +1082,44 @@ export async function reviewIntuneAmbiguityResolution(input: {
     p_statement: input.statement,
     p_expected_resolution_version: input.expected_resolution_version,
     p_expected_action_version: input.expected_action_version,
+  });
+  return error ? { ok: false as const, error: error.message } : { ok: true as const };
+}
+
+export async function proposeIntuneBreakerReset(input: {
+  breaker_id: string;
+  actor_id: string;
+  reason: string;
+  evidence: Record<string, unknown>;
+  expected_breaker_version: number;
+}) {
+  const sb = await createPersistClient();
+  const { error } = await sb.rpc('propose_it_intune_breaker_reset', {
+    p_breaker_id: input.breaker_id,
+    p_actor_id: input.actor_id,
+    p_reason: input.reason,
+    p_evidence: input.evidence,
+    p_expected_breaker_version: input.expected_breaker_version,
+  });
+  return error ? { ok: false as const, error: error.message } : { ok: true as const };
+}
+
+export async function reviewIntuneBreakerReset(input: {
+  proposal_id: string;
+  actor_id: string;
+  decision: 'approve' | 'reject';
+  statement: string;
+  expected_proposal_version: number;
+  expected_breaker_version: number;
+}) {
+  const sb = await createPersistClient();
+  const { error } = await sb.rpc('review_it_intune_breaker_reset', {
+    p_proposal_id: input.proposal_id,
+    p_actor_id: input.actor_id,
+    p_decision: input.decision,
+    p_statement: input.statement,
+    p_expected_proposal_version: input.expected_proposal_version,
+    p_expected_breaker_version: input.expected_breaker_version,
   });
   return error ? { ok: false as const, error: error.message } : { ok: true as const };
 }

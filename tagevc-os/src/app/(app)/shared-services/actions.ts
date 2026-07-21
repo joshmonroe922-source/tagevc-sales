@@ -13,6 +13,11 @@ import {
   acknowledgeSloAlert,
   reassignSloAlert,
 } from '@/lib/shared-services/operational-health';
+import {
+  requestSloRouteTest,
+  saveSloPolicyDraft,
+  transitionSloPolicyDraft,
+} from '@/lib/shared-services/slo-policy';
 
 export type TicketActionResult =
   | { ok: true; ticketId?: string; message?: string }
@@ -167,6 +172,101 @@ export async function reassignSloAlertAction(input: {
     });
     revalidatePath('/shared-services');
     return { ok: true, message: 'Alert reassigned' };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Failed' };
+  }
+}
+
+const policyDraftSchema = z.object({
+  sourcePolicyId: z.string().uuid(),
+  draftPolicyId: z.string().uuid().nullable().optional(),
+  policyVersion: z.string().trim().min(1).max(80).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/),
+  comparator: z.enum(['higher_bad', 'lower_bad']),
+  warningThreshold: z.number().finite(),
+  criticalThreshold: z.number().finite(),
+  windowSeconds: z.number().int().min(60).max(2_592_000),
+  evaluationIntervalSeconds: z.number().int().min(60).max(86_400),
+  warningBreachBuckets: z.number().int().min(1).max(24),
+  recoveryBuckets: z.number().int().min(1).max(24),
+  webhookDestinationKeys: z.array(
+    z.string().regex(/^[a-z][a-z0-9_]{0,62}$/),
+  ).max(10),
+  ownerId: z.string().uuid(),
+  ownerEntityId: z.string().trim().max(100).nullable().optional(),
+  expectedRowVersion: z.number().int().nonnegative(),
+});
+
+export async function saveSloPolicyDraftAction(
+  input: z.infer<typeof policyDraftSchema>,
+): Promise<TicketActionResult> {
+  const gate = await guardPermission('write:shared_services');
+  if (!gate.ok) return gate;
+  const parsed = policyDraftSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid policy' };
+  }
+  try {
+    await saveSloPolicyDraft({ ...parsed.data, actorId: gate.profile.id });
+    revalidatePath('/shared-services');
+    return { ok: true, message: 'Policy draft saved' };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Failed' };
+  }
+}
+
+export async function transitionSloPolicyDraftAction(input: {
+  policyId: string;
+  rowVersion: number;
+  transition: 'validate' | 'publish';
+}): Promise<TicketActionResult> {
+  const gate = await guardPermission('write:shared_services');
+  if (!gate.ok) return gate;
+  const parsed = z.object({
+    policyId: z.string().uuid(),
+    rowVersion: z.number().int().nonnegative(),
+    transition: z.enum(['validate', 'publish']),
+  }).safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'Invalid policy transition' };
+  try {
+    await transitionSloPolicyDraft({
+      policyId: parsed.data.policyId,
+      expectedRowVersion: parsed.data.rowVersion,
+      transition: parsed.data.transition,
+      actorId: gate.profile.id,
+    });
+    revalidatePath('/shared-services');
+    return {
+      ok: true,
+      message: parsed.data.transition === 'validate'
+        ? 'Draft validated; a different publisher must approve it'
+        : 'Policy published',
+    };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Failed' };
+  }
+}
+
+export async function requestSloRouteTestAction(input: {
+  idempotencyKey: string;
+  entityId?: string | null;
+  adapter: 'in_app_owner' | 'webhook';
+  destinationKey: string;
+  ownerId?: string | null;
+}): Promise<TicketActionResult> {
+  const gate = await guardPermission('write:shared_services');
+  if (!gate.ok) return gate;
+  const parsed = z.object({
+    idempotencyKey: z.string().min(8).max(120).regex(/^[A-Za-z0-9._:-]+$/),
+    entityId: z.string().trim().max(100).nullable().optional(),
+    adapter: z.enum(['in_app_owner', 'webhook']),
+    destinationKey: z.string().regex(/^[a-z][a-z0-9_]{0,62}$/),
+    ownerId: z.string().uuid().nullable().optional(),
+  }).safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'Invalid route test' };
+  try {
+    await requestSloRouteTest({ ...parsed.data, actorId: gate.profile.id });
+    revalidatePath('/shared-services');
+    return { ok: true, message: 'TEST route job queued; no incident was created' };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : 'Failed' };
   }

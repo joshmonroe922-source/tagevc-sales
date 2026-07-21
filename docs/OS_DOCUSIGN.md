@@ -172,10 +172,25 @@ SQL: `phase37_docusign_manual_review.sql`.
 
 SQL: `phase38_docusign_reconciliation_batches.sql`.
 
+## Phase 39
+
+- Mapping-review resolution is separate from send-intent resolution and cannot
+  authorize a resend.
+- Ambiguous identity changes use immutable evidence, optimistic row versions,
+  and independent two-actor approval before atomic projection repair.
+- Signed-archive manifests bind content SHA-256 and byte length to the
+  envelope, document, entity, provider state, request evidence, and retrieval
+  time.
+- Archive evidence stores no PDF or certificate content. Repeated observations
+  retain manifest history and identify content drift.
+- The DocuSign hub shows mapping proposals, reviewer state, identity claims,
+  archive hashes, and drift outcomes.
+
+SQL: `phase39_docusign_mapping_archive.sql`.
+
 ## Still deferred
 
 - Dedicated recipient detail drawer
-- Mapping-review resolution distinct from ambiguous-send resolution
-- Idempotent signed-archive metadata with content hashes
+- Legacy archive hash backfill and scheduled integrity scans
 - Retire simulate button in production  
 

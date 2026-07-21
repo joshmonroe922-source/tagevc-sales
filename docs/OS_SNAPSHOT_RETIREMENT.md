@@ -165,6 +165,20 @@ SQL: `phase37_snapshot_evidence_transaction.sql` and
 SQL: `phase38_snapshot_cycle_lifecycle.sql` and
 `phase38_slo_ownership_delivery.sql`.
 
+## Phase 39 export manifests and canaries
+
+- Immutable export manifests bind cycle, drill, observation, epoch, rehearsal,
+  lifecycle validity, hashes, and bounded metadata under one manifest digest.
+- Manifests are replay-safe and contain no raw snapshot payloads or secrets.
+- Replay and concurrency canaries use bounded definitions, leases, steps,
+  expected outcomes, expiry, abort handling, and durable evidence.
+- Canary evidence is explicitly ineligible for soak qualification or rollback
+  attestation.
+- Phase 39 code and SQL contain no insert, update, delete, rename, alter,
+  truncate, or drop operation against `os_store_snapshots`.
+
+SQL: `phase39_snapshot_retirement.sql`.
+
 ## Non-goals
 
 - Dropping the table in Phase 16–19  

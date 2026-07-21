@@ -15,6 +15,7 @@ import { roleHasPermission } from '@/lib/types/roles';
 import { getSessionContext, requirePermission } from '@/lib/rbac/session';
 import { isFirmWideAccess } from '@/lib/rbac/entity-scope';
 import { listPaidMetricOperations } from '@/lib/shared-services/marketing-paid-backfill';
+import { getPaidAttributionReport } from '@/lib/shared-services/marketing-attribution';
 
 export default async function MarketingModulePage({
   searchParams,
@@ -54,6 +55,7 @@ export default async function MarketingModulePage({
     voices,
     analytics,
     paidOperations,
+    attribution,
   ] = await Promise.all([
     listCampaigns(
       50,
@@ -75,6 +77,11 @@ export default async function MarketingModulePage({
     listPaidMetricOperations({
       entityId: ctx?.profile.entity_id ?? null,
       firmWide,
+    }),
+    getPaidAttributionReport({
+      entityId: firmWide ? null : (ctx?.profile.entity_id ?? null),
+      firmWide,
+      days: paidDays,
     }),
   ]);
   if (!firmWide && ctx?.profile.entity_id) {
@@ -117,15 +124,15 @@ export default async function MarketingModulePage({
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">Marketing</Badge>
-          <Badge variant="secondary">Phase 38</Badge>
+          <Badge variant="secondary">Phase 39</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Multichannel Marketing
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          One-time entity-bound ad OAuth, account-bound paid sync, and
-          resumable TikTok video uploads with explicit privacy and durable
-          provider processing.
+          Entity-bound paid delivery and revenue reconciliation, append-only
+          settlement evidence, and visibility into attribution coverage and
+          reporting lag.
         </p>
         {oauthFlash && (
           <p className="text-sm text-emerald-700">{oauthFlash}</p>
@@ -141,7 +148,8 @@ export default async function MarketingModulePage({
         brandVoices={voices.rows}
         analytics={analytics.summary}
         paidOperations={paidOperations}
-        analyticsError={analytics.error}
+        attribution={attribution.report}
+        analyticsError={analytics.error || attribution.error}
         canWrite={canWrite}
         tableError={tableError}
         foundation={getMarketingFoundationStatus()}

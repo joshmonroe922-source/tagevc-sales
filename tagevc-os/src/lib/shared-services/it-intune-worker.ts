@@ -23,6 +23,25 @@ type ClaimedAction = {
   last_error_code: string | null;
 };
 
+export type IntuneProviderOutcome =
+  | 'success'
+  | 'failure'
+  | 'ambiguous'
+  | 'ignored';
+
+export function classifyIntuneProviderOutcome(
+  status: number,
+  requestKind: 'preflight_read' | 'verification_read' | 'dispatch_post',
+): IntuneProviderOutcome {
+  if ([408, 425, 429].includes(status) || status >= 500) {
+    return requestKind === 'dispatch_post' ? 'ambiguous' : 'failure';
+  }
+  if (status === 401 || status === 403) return 'ignored';
+  if (status >= 200 && status <= 299) return 'success';
+  if (requestKind !== 'dispatch_post' && status === 404) return 'success';
+  return 'ignored';
+}
+
 export async function processIntuneActions(): Promise<{
   ok: boolean;
   claimed: number;
@@ -73,6 +92,25 @@ export async function processIntuneActions(): Promise<{
         workerRunError?.message || 'Could not persist Intune worker run',
     };
   }
+  const { error: canaryRecoveryError } = await sb.rpc(
+    'recover_stale_it_intune_breaker_canaries',
+  );
+  if (canaryRecoveryError) {
+    await sb
+      .from('os_it_intune_worker_runs')
+      .update({
+        status: 'failed',
+        platform_error: `Canary recovery failed: ${canaryRecoveryError.message}`,
+        completed_at: new Date().toISOString(),
+      })
+      .eq('worker_run_id', workerRun.worker_run_id);
+    return {
+      ok: false,
+      claimed: 0,
+      processed: [],
+      error: `Canary recovery failed: ${canaryRecoveryError.message}`,
+    };
+  }
   if (!graphConfigured()) {
     if (workerRun) {
       await sb.from('os_it_intune_worker_runs').update({
@@ -99,7 +137,7 @@ export async function processIntuneActions(): Promise<{
     }
     return { ok: false, claimed: 0, processed: [], error: token.detail };
   }
-  const { data, error } = await sb.rpc('claim_it_intune_action_v3', {
+  const { data, error } = await sb.rpc('claim_it_intune_action_v4', {
     p_worker_id: workerId,
     p_lease_seconds: 120,
   });
@@ -148,10 +186,52 @@ export async function processIntuneActions(): Promise<{
     let dispatchAuthorized = false;
     let dispatchAttemptId: string | null = null;
     let authorizationToken: string | null = null;
+    let canaryToken: string | null = null;
     let finishRowVersion = action.row_version;
+    let activeRequestKind:
+      | 'preflight_read'
+      | 'verification_read'
+      | 'dispatch_post'
+      | null = null;
+    let activeObservationKey: string | null = null;
+    const recordObservation = async (input: {
+      requestKind: 'preflight_read' | 'verification_read' | 'dispatch_post';
+      observationKey: string;
+      httpStatus?: number | null;
+      observationErrorCode?: string | null;
+      requestId?: string | null;
+      observationEvidence?: Record<string, unknown>;
+    }) => {
+      let observationError: { message: string } | null = null;
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const response = await sb.rpc(
+          'record_it_intune_provider_observation',
+          {
+            p_action_id: action.action_id,
+            p_worker_id: workerId,
+            p_observation_key: input.observationKey,
+            p_request_kind: input.requestKind,
+            p_http_status: input.httpStatus ?? null,
+            p_error_code: input.observationErrorCode ?? null,
+            p_graph_request_id: input.requestId ?? null,
+            p_dispatch_attempt_id: dispatchAttemptId,
+            p_evidence: input.observationEvidence ?? {},
+          },
+        );
+        observationError = response.error;
+        if (!observationError) return;
+      }
+      if (observationError) {
+        throw new Error(
+          `Provider outcome persistence failed: ${observationError.message}`,
+        );
+      }
+    };
     try {
       if (action.status === 'preflighting') {
         preflighted += 1;
+        activeRequestKind = 'preflight_read';
+        activeObservationKey = randomUUID();
         const preflight = await fetch(
           `https://graph.microsoft.com/v1.0/deviceManagement/managedDevices/${encodeURIComponent(action.managed_device_id)}?$select=id,serialNumber,managementState,deviceName,model`,
           { headers, signal: AbortSignal.timeout(20_000) },
@@ -169,6 +249,25 @@ export async function processIntuneActions(): Promise<{
         const approvedSerial = String(
           action.match_snapshot?.normalized_serial ?? '',
         );
+        await recordObservation({
+          requestKind: 'preflight_read',
+          observationKey: activeObservationKey,
+          httpStatus: preflight.status,
+          observationErrorCode:
+            preflight.status === 429
+              ? 'provider_throttled'
+              : preflight.status >= 500
+                ? 'provider_5xx'
+                : [401, 403].includes(preflight.status)
+                  ? 'permission_denied'
+                  : null,
+          requestId:
+            preflight.headers.get('request-id') ||
+            preflight.headers.get('client-request-id'),
+          observationEvidence: { provider_post_started: false },
+        });
+        activeRequestKind = null;
+        activeObservationKey = null;
         if (
           !preflight.ok ||
           device.id !== action.managed_device_id ||
@@ -268,7 +367,7 @@ export async function processIntuneActions(): Promise<{
         let authorizationError: { message: string } | null = null;
         for (let attempt = 0; attempt < 2 && !authorization; attempt += 1) {
           const response = await sb.rpc(
-            'authorize_it_intune_dispatch_v3',
+            'authorize_it_intune_dispatch_v4',
             authorizationArgs,
           );
           authorization = response.data;
@@ -287,13 +386,17 @@ export async function processIntuneActions(): Promise<{
           dispatch_attempt_id: string;
           authorization_token: string;
           row_version: number;
+          canary_token?: string | null;
         };
         dispatchAuthorized = true;
         authorizedCount += 1;
         dispatchAttemptId = authorized.dispatch_attempt_id;
         authorizationToken = authorized.authorization_token;
+        canaryToken = authorized.canary_token ?? null;
         finishRowVersion = authorized.row_version;
         providerPostStarted = true;
+        activeRequestKind = 'dispatch_post';
+        activeObservationKey = randomUUID();
         const res = await fetch(
           `https://graph.microsoft.com/v1.0/deviceManagement/managedDevices/${encodeURIComponent(action.managed_device_id)}/retire`,
           {
@@ -308,6 +411,23 @@ export async function processIntuneActions(): Promise<{
         graphRequestId =
           res.headers.get('request-id') ||
           res.headers.get('client-request-id');
+        await recordObservation({
+          requestKind: 'dispatch_post',
+          observationKey: activeObservationKey,
+          httpStatus: res.status,
+          observationErrorCode:
+            res.status === 429
+              ? 'provider_throttled_ambiguous'
+              : res.status >= 500 || [408, 425].includes(res.status)
+                ? 'provider_response_ambiguous'
+                : [401, 403].includes(res.status)
+                  ? 'permission_denied'
+                  : null,
+          requestId: graphRequestId,
+          observationEvidence: { provider_post_started: true },
+        });
+        activeRequestKind = null;
+        activeObservationKey = null;
         evidence = {
           http_status: res.status,
           graph_request_id: graphRequestId,
@@ -344,6 +464,8 @@ export async function processIntuneActions(): Promise<{
         }
         }
       } else {
+        activeRequestKind = 'verification_read';
+        activeObservationKey = randomUUID();
         const res = await fetch(
           `https://graph.microsoft.com/v1.0/deviceManagement/managedDevices/${encodeURIComponent(action.managed_device_id)}?$select=id,managementState,lastSyncDateTime`,
           { headers, signal: AbortSignal.timeout(20_000) },
@@ -353,6 +475,24 @@ export async function processIntuneActions(): Promise<{
           lastSyncDateTime?: string;
         };
         const providerState = json.managementState?.toLowerCase() ?? null;
+        await recordObservation({
+          requestKind: 'verification_read',
+          observationKey: activeObservationKey,
+          httpStatus: res.status,
+          observationErrorCode:
+            res.status === 429
+              ? 'provider_throttled'
+              : res.status >= 500
+                ? 'provider_5xx'
+                : [401, 403].includes(res.status)
+                  ? 'permission_denied'
+                  : null,
+          requestId:
+            res.headers.get('request-id') ||
+            res.headers.get('client-request-id'),
+        });
+        activeRequestKind = null;
+        activeObservationKey = null;
         evidence = {
           http_status: res.status,
           provider_state: providerState,
@@ -363,13 +503,12 @@ export async function processIntuneActions(): Promise<{
           nextStatus = 'verified';
           verificationCode = 'management_state_retired';
           detail = 'Provider reports managementState=retired';
-        } else if (
-          res.status === 404 &&
-          action.submitted_at
-        ) {
-          nextStatus = 'verified';
-          verificationCode = 'resource_absent_after_accepted_submission';
-          detail = 'Managed device absent after retirement dispatch';
+        } else if (res.status === 404 && action.submitted_at) {
+          nextStatus = 'manual_review';
+          verificationCode = 'provider_absent_requires_bound_review';
+          errorMessage =
+            'Managed device is absent; Phase 38 requires bound audit evidence';
+          detail = errorMessage;
         } else {
           const ageHours =
             (Date.now() - Date.parse(action.requested_at)) / 3_600_000;
@@ -398,11 +537,15 @@ export async function processIntuneActions(): Promise<{
         }
       }
     } catch (caught) {
+      const caughtMessage =
+        caught instanceof Error ? caught.message : 'Graph transport failure';
+      const circuitBlocked = caughtMessage.includes(
+        'Intune provider circuit',
+      );
       nextStatus = dispatchAuthorized || providerPostStarted
         ? 'verifying'
         : 'approved';
-      errorMessage =
-        caught instanceof Error ? caught.message : 'Graph transport failure';
+      errorMessage = caughtMessage;
       evidence = {
         provider_state: 'transport_ambiguous',
         checked_at: new Date().toISOString(),
@@ -410,13 +553,39 @@ export async function processIntuneActions(): Promise<{
       };
       errorCode = providerPostStarted
         ? 'transport_ambiguous'
-        : 'preflight_transport';
+        : circuitBlocked
+          ? 'provider_circuit_open'
+          : activeRequestKind
+            ? 'provider_transport'
+            : 'preflight_transport';
       errorClass = providerPostStarted ? 'ambiguous' : 'transient';
       detail = dispatchAuthorized || providerPostStarted
         ? `${errorMessage}; polling before retry`
         : `${errorMessage}; dispatch was not attempted`;
+      if (
+        activeRequestKind &&
+        activeObservationKey &&
+        !errorMessage.startsWith('Provider outcome persistence failed')
+      ) {
+        try {
+          await recordObservation({
+            requestKind: activeRequestKind,
+            observationKey: activeObservationKey,
+            observationErrorCode:
+              activeRequestKind === 'dispatch_post'
+                ? 'transport_ambiguous'
+                : 'provider_transport',
+            observationEvidence: {
+              provider_post_started: providerPostStarted,
+              transport_failure: true,
+            },
+          });
+        } catch {
+          // The finish fence still records the action ambiguity. Never retry POST.
+        }
+      }
     }
-    const { error: finishError } = await sb.rpc('finish_it_intune_action_v3', {
+    const { error: finishError } = await sb.rpc('finish_it_intune_action_v4', {
       p_action_id: action.action_id,
       p_lease_token: action.lease_token,
       p_worker_id: workerId,
@@ -431,6 +600,7 @@ export async function processIntuneActions(): Promise<{
       p_retry_after_seconds: retryAfterSeconds,
       p_dispatch_attempt_id: dispatchAttemptId,
       p_authorization_token: authorizationToken,
+      p_canary_token: canaryToken,
     });
     if (nextStatus === 'verifying' && (dispatchAuthorized || providerPostStarted)) {
       ambiguousCount += 1;

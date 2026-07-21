@@ -692,12 +692,33 @@ Docs: `docs/OS_PHASE37.md`
 
 Docs: `docs/OS_PHASE38.md`
 
-### Phase 39+ backlog
+### Phase 39 scope (attribution · recovery · governed operations)
 
-- Paid attributed-revenue reconciliation and settlement-lag monitoring
-- DocuSign mapping-review resolution and signed-archive content hashes
-- Intune provider-outage circuit breaker and canary reset
-- Named SLO policy/route management and delivery contract tests
+- Append-only paid-attribution revenue revisions with exact micro-unit
+  arithmetic and settlement-lag visibility
+- Dedicated two-actor DocuSign mapping review and content-bound signed-archive
+  manifests with drift detection
+- Entity/provider/operation-scoped Intune circuit breaker with governed,
+  token-fenced half-open canaries
+- Draft/validate/maker-checker SLO policy editing, named owners, and isolated
+  delivery-route tests
+- Immutable snapshot evidence export manifests and bounded replay/concurrency
+  canaries that cannot qualify retirement evidence
+- SQL: apply `phase39_marketing_attribution_settlement.sql`,
+  `phase39_docusign_mapping_archive.sql`,
+  `phase39_intune_provider_circuit_breaker.sql`,
+  `phase39_slo_policy_editing_route_tests.sql`, and
+  `phase39_snapshot_retirement.sql`
+
+Docs: `docs/OS_PHASE39.md`
+
+### Phase 40+ backlog
+
+- Automated authoritative revenue ingestion and attribution-model comparison
+- Legacy signed-archive backfill and scheduled integrity scans
+- Intune breaker tuning, outage correlation, and canary health alerts
+- Historical SLO policy simulation and owner coverage expiry
+- Signed snapshot export packages and multi-hour canary orchestration
 - Continue Stage 4e evidence and attestation soak; do not drop snapshots
 - Push · user admin
 
@@ -733,8 +754,8 @@ Set `DEV_BYPASS_AUTH=1` in `.env.local` to preview the shell as Visionary (local
 
 ## Next phases (from Cursor Brief)
 
-Phase 38 adds provider-total paid reconciliation, leased DocuSign batches,
-two-actor Intune ambiguity governance, configurable SLO ownership/delivery, and
-canonical snapshot evidence lifecycle. Remaining: continued Stage 4e soak and
-separately approved offline retirement, paid attribution reconciliation,
-provider outage controls, push, and user admin.
+Phase 39 adds paid-revenue settlement reconciliation, DocuSign mapping/archive
+integrity, Intune outage circuit breaking, governed SLO editing/testing, and
+snapshot manifests/canaries. Remaining: continued Stage 4e soak and separately
+approved offline retirement, authoritative integration backfills, push, and
+user admin.

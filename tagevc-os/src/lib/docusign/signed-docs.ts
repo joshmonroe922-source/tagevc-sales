@@ -12,6 +12,14 @@ import { createPersistClient } from '@/lib/supabase/persist-client';
 import { entityFolderPath } from '@/lib/documents/library';
 import { captureException } from '@/lib/observability';
 import type { DocumentRecord } from '@/lib/types';
+import { randomUUID } from 'crypto';
+import {
+  assertPdfPayload,
+  describeArchiveBytes,
+  DOCUSIGN_COMBINED_ARCHIVE_MAX_BYTES,
+  DOCUSIGN_CERTIFICATE_MAX_BYTES,
+  readBoundedResponseBuffer,
+} from '@/lib/docusign/archive-contracts';
 
 const BUCKET = 'docusign-signed';
 const INLINE_MAX_BYTES = 200_000;
@@ -24,6 +32,9 @@ export type SignedFileResult = {
   file_name?: string;
   storage_path?: string | null;
   size_bytes?: number;
+  content_sha256?: string;
+  archive_manifest_id?: string;
+  replayed?: boolean;
   file_kind?: SignedFileKind;
   source: 'docusign' | 'local_copy' | 'skipped';
   error?: string;
@@ -32,6 +43,7 @@ export type SignedFileResult = {
 
 export async function archiveSignedDocument(
   doc: DocumentRecord,
+  options?: { providerStatus?: string; sourceRequestId?: string },
 ): Promise<SignedFileResult> {
   if (!doc.envelope_id) {
     return { ok: false, source: 'skipped', error: 'No envelope_id' };
@@ -56,14 +68,29 @@ export async function archiveSignedDocument(
         },
       });
       if (!res.ok) {
-        const text = await res.text().catch(() => '');
+        const text = (
+          await readBoundedResponseBuffer(
+            res,
+            4096,
+            'DocuSign download error',
+          ).catch(() => Buffer.alloc(0))
+        ).toString('utf8');
         return {
           ok: false,
           source: 'docusign',
           error: `Download failed HTTP ${res.status}: ${text.slice(0, 200)}`,
         };
       }
-      const buf = Buffer.from(await res.arrayBuffer());
+      const buf = await readBoundedResponseBuffer(
+        res,
+        DOCUSIGN_COMBINED_ARCHIVE_MAX_BYTES,
+        'DocuSign combined archive',
+      );
+      assertPdfPayload(
+        buf,
+        res.headers.get('content-type'),
+        'DocuSign combined archive',
+      );
       combined = await persistSignedPayload({
         envelope_id: doc.envelope_id,
         doc_id: doc.doc_id,
@@ -74,6 +101,8 @@ export async function archiveSignedDocument(
         library_path: libraryPath,
         source: 'docusign',
         file_kind: 'combined',
+        provider_status: options?.providerStatus ?? doc.status,
+        source_request_id: options?.sourceRequestId ?? randomUUID(),
       });
     } else {
       const text =
@@ -91,6 +120,8 @@ export async function archiveSignedDocument(
         library_path: textPath,
         source: 'local_copy',
         file_kind: 'combined',
+        provider_status: options?.providerStatus ?? doc.status,
+        source_request_id: options?.sourceRequestId ?? randomUUID(),
       });
     }
 
@@ -116,6 +147,8 @@ export async function archiveSignedDocument(
         library_path: cocPath,
         source: combined.source,
         file_kind: 'certificate',
+        provider_status: options?.providerStatus ?? doc.status,
+        source_request_id: `${options?.sourceRequestId ?? randomUUID()}:certificate`,
       });
     } else {
       coc = {
@@ -146,7 +179,7 @@ async function uploadToStorage(
     const sb = await createPersistClient();
     const { error } = await sb.storage.from(BUCKET).upload(path, buffer, {
       contentType,
-      upsert: true,
+      upsert: false,
     });
     if (error) {
       return {
@@ -165,6 +198,22 @@ async function uploadToStorage(
   }
 }
 
+async function storedPayloadMatches(
+  path: string,
+  expectedLength: number,
+  expectedSha256: string,
+): Promise<boolean> {
+  try {
+    const sb = await createPersistClient();
+    const { data, error } = await sb.storage.from(BUCKET).download(path);
+    if (error || !data || data.size !== expectedLength) return false;
+    const buffer = Buffer.from(await data.arrayBuffer());
+    return describeArchiveBytes(buffer).contentSha256 === expectedSha256;
+  } catch {
+    return false;
+  }
+}
+
 async function persistSignedPayload(input: {
   envelope_id: string;
   doc_id: string;
@@ -175,22 +224,127 @@ async function persistSignedPayload(input: {
   library_path: string;
   source: string;
   file_kind?: SignedFileKind;
+  provider_status: string;
+  source_request_id: string;
 }): Promise<SignedFileResult> {
   const size = input.buffer.byteLength;
   const kind = input.file_kind ?? 'combined';
+  const maxBytes =
+    kind === 'combined'
+      ? DOCUSIGN_COMBINED_ARCHIVE_MAX_BYTES
+      : DOCUSIGN_CERTIFICATE_MAX_BYTES;
+  if (size < 1 || size > maxBytes) {
+    return {
+      ok: false,
+      source: input.source as SignedFileResult['source'],
+      error: `${kind} archive exceeds allowed byte bounds`,
+      size_bytes: size,
+      file_kind: kind,
+    };
+  }
+  const { contentLength, contentSha256 } = describeArchiveBytes(input.buffer);
+  const downloadedAt = new Date().toISOString();
+  const sb = await createPersistClient();
+  const { data: manifestData, error: manifestError } = await sb.rpc(
+    'register_docusign_archive_manifest',
+    {
+      p_envelope_id: input.envelope_id,
+      p_document_id: input.doc_id,
+      p_entity_id: input.entity_id,
+      p_file_kind: kind,
+      p_provider_status: input.provider_status,
+      p_content_length: contentLength,
+      p_content_sha256: contentSha256,
+      p_downloaded_at: downloadedAt,
+      p_source_request_id: input.source_request_id,
+      p_source: input.source,
+    },
+  );
+  const manifest = manifestData as {
+    manifest_id?: string;
+    disposition?: string;
+    accepted?: boolean;
+  } | null;
+  if (manifestError || !manifest?.manifest_id || manifest.accepted !== true) {
+    return {
+      ok: false,
+      source: input.source as SignedFileResult['source'],
+      error:
+        manifestError?.message ||
+        `Archive blocked: ${manifest?.disposition ?? 'manifest rejected'}`,
+      size_bytes: size,
+      content_sha256: contentSha256,
+      file_kind: kind,
+    };
+  }
+  if (manifest.disposition === 'replay') {
+    const { data: existing } = await sb
+      .from('os_docusign_signed_files')
+      .select(
+        'file_name, library_path, storage_path, size_bytes, content_base64',
+      )
+      .eq('archive_manifest_id', manifest.manifest_id)
+      .maybeSingle();
+    if (existing) {
+      const inlineMatches =
+        typeof existing.content_base64 === 'string' &&
+        describeArchiveBytes(
+          Buffer.from(existing.content_base64, 'base64'),
+        ).contentSha256 === contentSha256;
+      const storageMatches =
+        typeof existing.storage_path === 'string' &&
+        (await storedPayloadMatches(
+          existing.storage_path,
+          contentLength,
+          contentSha256,
+        ));
+      const persistedMatches = existing.storage_path
+        ? storageMatches
+        : inlineMatches;
+      if (!persistedMatches) {
+        return {
+          ok: false,
+          source: input.source as SignedFileResult['source'],
+          error: 'Stored archive bytes drift from immutable manifest',
+          size_bytes: size,
+          content_sha256: contentSha256,
+          archive_manifest_id: manifest.manifest_id,
+          file_kind: kind,
+        };
+      }
+      return {
+        ok: true,
+        file_name: existing.file_name,
+        library_path: existing.library_path,
+        storage_path: existing.storage_path,
+        size_bytes: existing.size_bytes,
+        source: input.source as SignedFileResult['source'],
+        content_sha256: contentSha256,
+        archive_manifest_id: manifest.manifest_id,
+        replayed: true,
+        file_kind: kind,
+      };
+    }
+  }
   const storageKey = `${input.entity_id ?? 'firm'}/${input.envelope_id}/${kind}/${input.file_name}`;
-  const uploaded = await uploadToStorage(
+  const uploadResult = await uploadToStorage(
     storageKey,
     input.buffer,
     input.content_type,
   );
+  const uploaded =
+    !uploadResult.ok &&
+    manifest.disposition === 'replay' &&
+    /already exists|duplicate/i.test(uploadResult.error) &&
+    (await storedPayloadMatches(storageKey, contentLength, contentSha256))
+      ? ({ ok: true, path: storageKey } as const)
+      : uploadResult;
 
   const contentBase64 =
     !uploaded.ok || size <= INLINE_MAX_BYTES
       ? input.buffer.toString('base64')
       : null;
 
-  const sb = await createPersistClient();
   const { error } = await sb.from('os_docusign_signed_files').insert({
     envelope_id: input.envelope_id,
     doc_id: input.doc_id,
@@ -204,6 +358,8 @@ async function persistSignedPayload(input: {
     size_bytes: size,
     storage_error: uploaded.ok ? null : uploaded.error,
     file_kind: kind,
+    archive_manifest_id: manifest.manifest_id,
+    replayed: false,
   });
 
   if (error) {
@@ -213,6 +369,8 @@ async function persistSignedPayload(input: {
       source: input.source as SignedFileResult['source'],
       error: error.message,
       size_bytes: size,
+      content_sha256: contentSha256,
+      archive_manifest_id: manifest.manifest_id,
       file_kind: kind,
     };
   }
@@ -223,6 +381,8 @@ async function persistSignedPayload(input: {
     file_name: input.file_name,
     storage_path: uploaded.ok ? uploaded.path : null,
     size_bytes: size,
+    content_sha256: contentSha256,
+    archive_manifest_id: manifest.manifest_id,
     source: input.source as SignedFileResult['source'],
     error: uploaded.ok ? undefined : uploaded.error,
     file_kind: kind,
@@ -258,6 +418,11 @@ export type SignedFileRow = {
   size_bytes: number | null;
   storage_error: string | null;
   file_kind?: string | null;
+  archive_manifest_id?: string | null;
+  content_sha256?: string | null;
+  provider_status?: string | null;
+  downloaded_at?: string | null;
+  source_request_id?: string | null;
   received_at: string;
   download_url?: string | null;
 };
@@ -272,7 +437,7 @@ export async function listSignedFiles(opts?: {
     let q = sb
       .from('os_docusign_signed_files')
       .select(
-        'id, envelope_id, doc_id, entity_id, file_name, content_type, library_path, source, storage_path, size_bytes, storage_error, file_kind, received_at',
+        'id, envelope_id, doc_id, entity_id, file_name, content_type, library_path, source, storage_path, size_bytes, storage_error, file_kind, archive_manifest_id, received_at',
       )
       .order('received_at', { ascending: false })
       .limit(opts?.limit ?? 20);
@@ -280,7 +445,31 @@ export async function listSignedFiles(opts?: {
     const { data, error } = await q;
     if (error) return { rows: [], error: error.message };
 
-    const rows = (data ?? []) as SignedFileRow[];
+    const baseRows = (data ?? []) as SignedFileRow[];
+    const manifestIds = baseRows
+      .map((row) => row.archive_manifest_id)
+      .filter((id): id is string => Boolean(id));
+    const { data: manifests } =
+      manifestIds.length === 0
+        ? { data: [] }
+        : await sb
+            .from('os_docusign_archive_manifests')
+            .select(
+              'manifest_id, content_sha256, provider_status, downloaded_at, source_request_id',
+            )
+            .in('manifest_id', manifestIds);
+    const manifestById = new Map(
+      (manifests ?? []).map((manifest) => [
+        String(manifest.manifest_id),
+        manifest,
+      ]),
+    );
+    const rows = baseRows.map((row) => ({
+      ...row,
+      ...(row.archive_manifest_id
+        ? manifestById.get(row.archive_manifest_id)
+        : undefined),
+    }));
     if (!opts?.withDownloadUrls) return { rows };
 
     const enriched = await Promise.all(

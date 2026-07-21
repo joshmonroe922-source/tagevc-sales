@@ -160,6 +160,62 @@ export function NormalizationHealthPanel({
     });
   }
 
+  function runPhase39Action(action: 'manifest' | 'replay' | 'concurrency') {
+    const warning =
+      action === 'manifest'
+        ? 'Create an immutable Phase 39 evidence manifest? This does not approve retirement or alter snapshot data.'
+        : `Run the bounded ${action} canary? Its evidence is non-qualifying and cannot satisfy soak or attestation gates.`;
+    if (!window.confirm(warning)) return;
+    setMessage(null);
+    setError(null);
+    startTransition(async () => {
+      const now = Date.now();
+      const body =
+        action === 'manifest'
+          ? {
+              action: 'create_manifest',
+              idempotency_key: `phase39-ui-manifest-${now}`,
+              valid_until: new Date(now + 30 * 86_400_000).toISOString(),
+              metadata: {
+                requested_from: 'normalization_admin',
+                code_revision: 'current_deployment',
+              },
+            }
+          : {
+              action: 'run_canary',
+              kind: action,
+              idempotency_key: `phase39-ui-${action}-${now}`,
+              duration_seconds: 120,
+              concurrency: action === 'replay' ? 2 : 8,
+            };
+      try {
+        const response = await fetch('/api/admin/snapshot-retirement', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const result = (await response.json()) as {
+          ok?: boolean;
+          error?: string;
+          manifest?: { manifest_sha256?: string };
+          run?: { status?: string };
+        };
+        if (!response.ok || !result.ok) {
+          setError(result.error ?? `Phase 39 ${action} failed`);
+          return;
+        }
+        setMessage(
+          action === 'manifest'
+            ? `Immutable manifest created: ${result.manifest?.manifest_sha256 ?? 'hash recorded'}`
+            : `${action} canary ${result.run?.status ?? 'completed'}`,
+        );
+        router.refresh();
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : `Phase 39 ${action} failed`);
+      }
+    });
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-2">
@@ -199,7 +255,7 @@ export function NormalizationHealthPanel({
         >
           Stage 4 drills · {status.stage4_ready ? 'pass' : 'pending'}
         </Badge>
-        <Badge variant="outline">Evidence contract · Phase 38</Badge>
+        <Badge variant="outline">Evidence contract · Phase 39</Badge>
         <Badge variant={status.sentry_configured ? 'secondary' : 'outline'}>
           Sentry · {status.sentry_configured ? 'on' : 'off'}
         </Badge>
@@ -410,6 +466,74 @@ export function NormalizationHealthPanel({
                 ) : null}
               </div>
             ) : null}
+            <div className="mt-3 space-y-2 rounded-md border border-border/60 p-3 text-xs">
+              <p className="font-medium">Phase 39 retirement evidence</p>
+              <p className="text-muted-foreground">
+                Immutable metadata-only exports and bounded replay/concurrency
+                canaries. These records never qualify soak, attestations, or
+                destructive retirement.
+              </p>
+              {status.latest_export_manifest ? (
+                <div>
+                  <p>
+                    Manifest v{status.latest_export_manifest.manifest_version} ·{' '}
+                    {status.latest_export_manifest.lifecycle_status} · valid until{' '}
+                    {status.latest_export_manifest.valid_until}
+                  </p>
+                  <p className="break-all font-mono text-[10px] text-muted-foreground">
+                    {status.latest_export_manifest.manifest_sha256}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-muted-foreground">No Phase 39 manifest recorded.</p>
+              )}
+              {status.snapshot_canary_slo.map((slo) => (
+                <p key={slo.definition_id} className="text-muted-foreground">
+                  {slo.canary_kind}: {slo.passed_30d}/{slo.runs_30d} passed (30d)
+                  · p95 {slo.duration_p95_seconds ?? '—'}s · last pass{' '}
+                  {slo.last_passed_at ?? 'never'} · integrity failures{' '}
+                  {slo.integrity_failures_30d} · {slo.evidence_class}
+                </p>
+              ))}
+              {status.latest_snapshot_canaries.slice(0, 4).map((canary) => (
+                <p
+                  key={canary.run_id}
+                  className="font-mono text-[10px] text-muted-foreground"
+                >
+                  {canary.started_at} · {canary.definition_id} · {canary.status} ·
+                  qualifying={String(canary.qualification_eligible)}
+                </p>
+              ))}
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={pending}
+                  onClick={() => runPhase39Action('manifest')}
+                >
+                  Export evidence manifest
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={pending}
+                  onClick={() => runPhase39Action('replay')}
+                >
+                  Run replay canary
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={pending}
+                  onClick={() => runPhase39Action('concurrency')}
+                >
+                  Run concurrency canary
+                </Button>
+              </div>
+            </div>
             <div className="mt-3 space-y-2 rounded-md border border-border/60 p-3 text-xs">
               <p className="font-medium">Offline rollback rehearsal evidence</p>
               <p className="text-muted-foreground">

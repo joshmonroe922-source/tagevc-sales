@@ -13,6 +13,7 @@ import {
   generateDraftAction,
   pullEngagementAction,
   queuePaidMetricsBackfillAction,
+  recordPaidRevenueEvidenceAction,
   retryPaidMetricsRunAction,
   recordEngagementAction,
   refreshTokensAction,
@@ -31,6 +32,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { BrandVoice } from '@/lib/shared-services/marketing-brand';
 import type { MarketingAnalyticsSummary } from '@/lib/shared-services/marketing-analytics';
+import type { PaidAttributionReport } from '@/lib/shared-services/marketing-attribution';
 import type {
   MarketingCampaign,
   MarketingContent,
@@ -49,6 +51,14 @@ function Msg({ state }: { state: MarketingActionResult | null }) {
 
 const field =
   'flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm';
+
+function formatMicros(value: string, currency: string): string {
+  const scale = BigInt(1_000_000);
+  const micros = BigInt(value);
+  const whole = micros / scale;
+  const fraction = (micros % scale).toString().padStart(6, '0');
+  return `${currency} ${whole.toLocaleString()}.${fraction.slice(0, 2)}`;
+}
 
 /** Platforms with OAuth routes (keep in sync with marketing-oauth OAUTH_PLATFORMS). */
 const OAUTH_SET = new Set([
@@ -69,6 +79,7 @@ export function MarketingClient({
   brandVoices,
   analytics,
   paidOperations,
+  attribution,
   analyticsError,
   canWrite,
   tableError,
@@ -81,6 +92,7 @@ export function MarketingClient({
   generationJobs: MarketingGenerationJob[];
   brandVoices: BrandVoice[];
   analytics: MarketingAnalyticsSummary;
+  attribution: PaidAttributionReport;
   paidOperations: {
     runs: Array<{
       run_id: string;
@@ -160,6 +172,10 @@ export function MarketingClient({
   );
   const [voiceState, voiceAction, voicePending] = useActionState(
     upsertBrandVoiceAction,
+    null as MarketingActionResult | null,
+  );
+  const [revenueState, revenueAction, revenuePending] = useActionState(
+    recordPaidRevenueEvidenceAction,
     null as MarketingActionResult | null,
   );
   const [flash, setFlash] = useState<string | null>(null);
@@ -580,6 +596,236 @@ export function MarketingClient({
               ))}
             </div>
           </div>
+        ) : null}
+        <div className="space-y-2 rounded-md border p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-medium">
+              Revenue reconciliation · settlement lag
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {attribution.coverage_status} · {attribution.current_evidence_count}{' '}
+              current · {attribution.late_revision_count} revision
+              {attribution.late_revision_count === 1 ? '' : 's'}
+              {attribution.unverified_current_count > 0
+                ? ` · ${attribution.unverified_current_count} legacy/unverified excluded`
+                : ''}
+              {attribution.currency_groups_truncated ||
+              attribution.campaign_groups_truncated
+                ? ` · detail capped (${attribution.currency_group_count} currencies / ${attribution.campaign_group_count} campaign groups)`
+                : ''}
+            </p>
+          </div>
+          {attribution.currencies.length > 0 ? (
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {attribution.currencies.map((currency) => (
+                <div
+                  className="rounded border p-2 text-xs"
+                  key={currency.currency}
+                >
+                  <p className="font-medium">{currency.currency}</p>
+                  <p>
+                    attributed{' '}
+                    {formatMicros(
+                      currency.attributed_amount_micros,
+                      currency.currency,
+                    )}
+                  </p>
+                  <p>
+                    settled{' '}
+                    {formatMicros(
+                      currency.settled_amount_micros,
+                      currency.currency,
+                    )}
+                  </p>
+                  <p className="text-muted-foreground">
+                    {currency.overdue_count} overdue ·{' '}
+                    {currency.settled_late_count} settled late
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              No authoritative revenue evidence in this reporting window.
+            </p>
+          )}
+          {attribution.lag.length > 0 ? (
+            <p className="text-xs text-muted-foreground">
+              Lag status:{' '}
+              {attribution.lag
+                .map(
+                  (lag) =>
+                    `${lag.lag_status} ${lag.evidence_count}${
+                      lag.max_lag_days == null
+                        ? ''
+                        : ` (max ${lag.max_lag_days}d)`
+                    }`,
+                )
+                .join(' · ')}
+            </p>
+          ) : null}
+          {attribution.campaigns.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="text-muted-foreground">
+                  <tr className="border-b">
+                    <th className="py-1 pr-2">Campaign / provider</th>
+                    <th className="py-1 pr-2">Attribution contract</th>
+                    <th className="py-1 pr-2">Revenue / settled</th>
+                    <th className="py-1">Lag impact</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {attribution.campaigns.map((campaign) => (
+                    <tr
+                      className="border-b border-border/40"
+                      key={`${campaign.campaign_id}:${campaign.currency}:${campaign.attribution_model}:${campaign.attribution_model_version}:${campaign.attribution_window_days}`}
+                    >
+                      <td className="py-1 pr-2">
+                        {campaign.campaign_id} · {campaign.provider}
+                      </td>
+                      <td className="py-1 pr-2">
+                        {campaign.attribution_model} /{' '}
+                        {campaign.attribution_model_version} ·{' '}
+                        {campaign.attribution_window_days}d
+                      </td>
+                      <td className="py-1 pr-2">
+                        {formatMicros(
+                          campaign.attributed_amount_micros,
+                          campaign.currency,
+                        )}{' '}
+                        /{' '}
+                        {formatMicros(
+                          campaign.settled_amount_micros,
+                          campaign.currency,
+                        )}
+                      </td>
+                      <td className="py-1">
+                        {campaign.overdue_count} overdue
+                        {campaign.max_lag_days == null
+                          ? ''
+                          : ` · max ${campaign.max_lag_days}d`}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </div>
+        {canWrite ? (
+          <form action={revenueAction} className="space-y-2 rounded-md border p-3">
+            <p className="text-xs font-medium">
+              Record authoritative revenue evidence
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Append-only. Corrections require the prior evidence UUID and next
+              revision number.
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <select name="campaign_id" className={field} required defaultValue="">
+                <option value="">Paid campaign</option>
+                {campaigns
+                  .filter(
+                    (campaign) =>
+                      campaign.channel === 'paid' &&
+                      Boolean(campaign.entity_id) &&
+                      Boolean(campaign.ad_account_id) &&
+                      Boolean(campaign.external_campaign_id),
+                  )
+                  .map((campaign) => (
+                    <option value={campaign.campaign_id} key={campaign.campaign_id}>
+                      {campaign.name} · {campaign.entity_id}
+                    </option>
+                  ))}
+              </select>
+              <Input
+                name="revenue_event_id"
+                required
+                placeholder="Revenue event ID"
+              />
+              <Input
+                name="revenue_occurred_at"
+                required
+                placeholder="Revenue ISO timestamp"
+              />
+              <Input name="attributed_amount" required placeholder="Amount 0.000000" />
+              <Input name="settled_amount" required defaultValue="0" />
+              <select
+                name="settlement_status"
+                className={field}
+                required
+                defaultValue="pending"
+              >
+                <option value="pending">Pending</option>
+                <option value="partial">Partial</option>
+                <option value="settled">Settled</option>
+                <option value="reversed">Reversed</option>
+              </select>
+              <Input
+                name="expected_settlement_at"
+                required
+                placeholder="Expected settlement ISO"
+              />
+              <Input name="settled_at" placeholder="Settled ISO (if settled)" />
+              <select
+                name="attribution_model"
+                className={field}
+                required
+                defaultValue="last_touch"
+              >
+                <option value="first_touch">First touch</option>
+                <option value="last_touch">Last touch</option>
+                <option value="linear">Linear</option>
+                <option value="position_based">Position based</option>
+                <option value="provider_reported">Provider reported</option>
+              </select>
+              <Input
+                name="attribution_window_days"
+                type="number"
+                min={1}
+                max={90}
+                required
+                defaultValue={30}
+              />
+              <Input
+                name="attribution_model_version"
+                required
+                placeholder="Model version"
+              />
+              <Input name="source_system" required placeholder="Ledger / processor" />
+              <Input name="source_record_id" required placeholder="Source record ID" />
+              <Input
+                name="source_recorded_at"
+                required
+                placeholder="Source recorded ISO"
+              />
+              <textarea
+                name="source_payload_json"
+                required
+                maxLength={16384}
+                rows={2}
+                className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                placeholder='Canonical source JSON, e.g. {"invoice_id":"inv_1"}'
+              />
+              <Input
+                name="revision"
+                type="number"
+                min={1}
+                max={10000}
+                required
+                defaultValue={1}
+              />
+              <Input
+                name="supersedes_evidence_id"
+                placeholder="Prior evidence UUID (revision > 1)"
+              />
+            </div>
+            <Button type="submit" size="sm" disabled={revenuePending}>
+              Record evidence
+            </Button>
+            <Msg state={revenueState} />
+          </form>
         ) : null}
         {paidOperations.runs.length > 0 ? (
           <div className="space-y-1 rounded-md border p-3 text-xs">

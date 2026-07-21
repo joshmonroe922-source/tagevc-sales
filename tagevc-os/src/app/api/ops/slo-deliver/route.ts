@@ -17,10 +17,15 @@ async function run(source: 'cron' | 'admin') {
     const result = await deliverSloAlerts();
     await finishOperationalWorker({
       workerRunId: worker.workerRunId,
-      status: result.failed ? 'partial' : 'completed',
+      status: result.failed || result.routeTestsFailed ? 'partial' : 'completed',
       claimed: result.claimed,
       succeeded: result.delivered,
       failed: result.failed,
+      details: {
+        route_test_claimed: result.routeTestsClaimed,
+        route_test_delivered: result.routeTestsDelivered,
+        route_test_failed: result.routeTestsFailed,
+      },
     });
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {

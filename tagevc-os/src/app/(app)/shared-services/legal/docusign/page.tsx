@@ -3,6 +3,7 @@ import { DocuSignHubActions } from '@/components/shared-services/docusign-hub-ac
 import { DocuSignTemplateSendForm } from '@/components/shared-services/docusign-template-send-form';
 import { DocuSignReplacementForm } from '@/components/shared-services/docusign-replacement-form';
 import { DocuSignManualReview } from '@/components/shared-services/docusign-manual-review';
+import { DocuSignMappingReview } from '@/components/shared-services/docusign-mapping-review';
 import { Badge } from '@/components/ui/badge';
 import {
   Card,
@@ -32,6 +33,7 @@ import {
   listDocuSignManualReviewResolutions,
   listDocuSignSendIntents,
 } from '@/lib/docusign/send-intents-repo';
+import { listDocuSignMappingReviews } from '@/lib/docusign/mapping-review-repo';
 
 function formatBytes(n: number | null | undefined): string {
   if (n == null || n <= 0) return '—';
@@ -116,6 +118,7 @@ export default async function DocuSignModulePage({
     reconciliationRuns,
     sendIntents,
     manualReview,
+    mappingReview,
   ] = await Promise.all([
     listDocuSignEvents({
       limit: 40,
@@ -165,6 +168,10 @@ export default async function DocuSignModulePage({
       firmWide,
     }),
     listDocuSignManualReviewResolutions({
+      entityId: ctx?.profile.entity_id ?? null,
+      firmWide,
+    }),
+    listDocuSignMappingReviews({
       entityId: ctx?.profile.entity_id ?? null,
       firmWide,
     }),
@@ -238,13 +245,14 @@ export default async function DocuSignModulePage({
           <Badge variant={mode === 'live' ? 'default' : 'secondary'}>
             {mode === 'live' ? 'Live JWT' : 'Mock envelopes'}
           </Badge>
-          <Badge variant="secondary">Phase 38</Badge>
+          <Badge variant="secondary">Phase 39</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">DocuSign</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
           Replay-safe transactional sends, leased page-by-page reconciliation,
-          evidence-verified timeout recovery, two-actor manual-review
-          resolution, and entity-scoped audit visibility.
+          evidence-verified timeout recovery, independent two-actor send and
+          mapping reviews, content-bound archives, and entity-scoped audit
+          visibility.
           Void policy: {voidPolicy}. Capital sends still require{' '}
           <code className="text-xs">action:docusign_capital</code>.
         </p>
@@ -278,13 +286,26 @@ export default async function DocuSignModulePage({
               : false
           }
         />
+        <DocuSignMappingReview
+          conflicts={mappingReview.conflicts}
+          resolutions={mappingReview.resolutions}
+          profileId={ctx?.profile.id ?? null}
+          canResolve={
+            ctx
+              ? roleHasPermission(
+                  ctx.profile.role,
+                  'action:docusign_manual_review',
+                )
+              : false
+          }
+        />
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Envelope reconciliation</CardTitle>
             <CardDescription>
               Leased, resumable provider pages are committed atomically with
-              immutable evidence. Identity ambiguities remain quarantined and
-              are never auto-assigned.
+              immutable evidence. Identity claims are shown separately and
+              ambiguities remain quarantined until independent mapping review.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-xs">
@@ -980,6 +1001,11 @@ export default async function DocuSignModulePage({
                           {row.source} · {row.library_path ?? '—'} ·{' '}
                           {row.envelope_id.slice(0, 16)}…
                         </span>
+                        {row.content_sha256 ? (
+                          <span className="block font-mono text-xs text-muted-foreground">
+                            SHA-256 {row.content_sha256.slice(0, 16)}…
+                          </span>
+                        ) : null}
                       </td>
                       <td className="py-2 pr-3 text-xs">
                         {row.file_kind ?? 'combined'}

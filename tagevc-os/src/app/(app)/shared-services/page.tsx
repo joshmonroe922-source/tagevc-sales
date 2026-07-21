@@ -36,18 +36,21 @@ import { OperationalHealthSummary } from '@/components/shared-services/operation
 import { listOperationalHealth } from '@/lib/shared-services/operational-health';
 import { getSessionContext } from '@/lib/rbac/session';
 import { isFirmWideAccess } from '@/lib/rbac/entity-scope';
+import { SloPolicyAdmin } from '@/components/shared-services/slo-policy-admin';
+import { listSloPolicyAdministration } from '@/lib/shared-services/slo-policy';
 
 export default async function SharedServicesPage() {
   const ctx = await getSessionContext();
   const firmWide = ctx
     ? isFirmWideAccess(ctx.profile.role, ctx.profile.entity_id)
     : false;
-  const [tickets, operationalHealth] = await Promise.all([
+  const [tickets, operationalHealth, policyAdministration] = await Promise.all([
     listScopedTickets(),
     listOperationalHealth({
       firmWide,
       entityId: ctx?.profile.entity_id ?? null,
     }),
+    firmWide ? listSloPolicyAdministration() : Promise.resolve(null),
   ]);
   const bands: Record<AutonomyBand, number> = {
     AUTO: 0,
@@ -87,6 +90,10 @@ export default async function SharedServicesPage() {
       </header>
 
       <OperationalHealthSummary health={operationalHealth} />
+
+      {policyAdministration ? (
+        <SloPolicyAdmin {...policyAdministration} />
+      ) : null}
 
       <section className="space-y-4">
         <div className="space-y-1">

@@ -750,3 +750,132 @@ export async function reviewIntuneAmbiguityResolutionAction(input: {
     };
   }
 }
+
+export async function proposeIntuneBreakerResetAction(input: {
+  breakerId: string;
+  reason: string;
+  expectedBreakerVersion: number;
+}): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('action:intune_manual_review');
+  if (!gate.ok) return gate;
+  const parsed = z
+    .object({
+      breakerId: z.string().uuid(),
+      reason: z.string().trim().min(20).max(1000),
+      expectedBreakerVersion: z.number().int().nonnegative(),
+    })
+    .safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid reset' };
+  }
+  const service = await createPersistClient();
+  const { data: breaker, error } = await service
+    .from('os_it_intune_provider_breakers')
+    .select('entity_id, state, cooldown_until')
+    .eq('breaker_id', parsed.data.breakerId)
+    .single();
+  if (error || !breaker || breaker.state !== 'open') {
+    return { ok: false, error: error?.message ?? 'Breaker is not open' };
+  }
+  if (
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      breaker.entity_id,
+    )
+  ) {
+    return {
+      ok: false,
+      error: entityScopeDeniedMessage(breaker.entity_id ?? 'firm-wide'),
+    };
+  }
+  const { proposeIntuneBreakerReset } = await import(
+    '@/lib/shared-services/it-assets-repo'
+  );
+  const result = await proposeIntuneBreakerReset({
+    breaker_id: parsed.data.breakerId,
+    actor_id: gate.profile.id,
+    reason: parsed.data.reason,
+    expected_breaker_version: parsed.data.expectedBreakerVersion,
+    evidence: {
+      evidence_version: 'phase39-v1',
+      requested_at: new Date().toISOString(),
+      cooldown_until: breaker.cooldown_until,
+      acknowledgement:
+        'Durable read-only provider recovery samples reviewed before canary',
+    },
+  });
+  if (!result.ok) return result;
+  revalidateAssets();
+  return {
+    ok: true,
+    message: 'Breaker reset proposed for independent review',
+  };
+}
+
+export async function reviewIntuneBreakerResetAction(input: {
+  proposalId: string;
+  decision: 'approve' | 'reject';
+  statement: string;
+  expectedProposalVersion: number;
+  expectedBreakerVersion: number;
+}): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('action:intune_manual_review');
+  if (!gate.ok) return gate;
+  const parsed = z
+    .object({
+      proposalId: z.string().uuid(),
+      decision: z.enum(['approve', 'reject']),
+      statement: z.string().trim().min(20).max(1000),
+      expectedProposalVersion: z.number().int().nonnegative(),
+      expectedBreakerVersion: z.number().int().nonnegative(),
+    })
+    .safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid review' };
+  }
+  const service = await createPersistClient();
+  const { data: proposal, error } = await service
+    .from('os_it_intune_breaker_reset_proposals')
+    .select('entity_id, proposed_by')
+    .eq('proposal_id', parsed.data.proposalId)
+    .single();
+  if (error || !proposal) {
+    return { ok: false, error: error?.message ?? 'Reset proposal not found' };
+  }
+  if (proposal.proposed_by === gate.profile.id) {
+    return { ok: false, error: 'The proposer cannot review this reset' };
+  }
+  if (
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      proposal.entity_id,
+    )
+  ) {
+    return {
+      ok: false,
+      error: entityScopeDeniedMessage(proposal.entity_id ?? 'firm-wide'),
+    };
+  }
+  const { reviewIntuneBreakerReset } = await import(
+    '@/lib/shared-services/it-assets-repo'
+  );
+  const result = await reviewIntuneBreakerReset({
+    proposal_id: parsed.data.proposalId,
+    actor_id: gate.profile.id,
+    decision: parsed.data.decision,
+    statement: parsed.data.statement,
+    expected_proposal_version: parsed.data.expectedProposalVersion,
+    expected_breaker_version: parsed.data.expectedBreakerVersion,
+  });
+  if (!result.ok) return result;
+  revalidateAssets();
+  return {
+    ok: true,
+    message:
+      parsed.data.decision === 'approve'
+        ? 'Breaker is half-open; one fenced canary may dispatch'
+        : 'Breaker reset rejected; POST authorization remains blocked',
+  };
+}

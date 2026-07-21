@@ -4,6 +4,11 @@
 
 import { getDocuSignConfig, type DocuSignConfig } from './config';
 import { getDocuSignAccessToken } from './jwt';
+import {
+  assertPdfPayload,
+  DOCUSIGN_CERTIFICATE_MAX_BYTES,
+  readBoundedResponseBuffer,
+} from './archive-contracts';
 
 export type CreateEnvelopeInput = {
   emailSubject: string;
@@ -825,13 +830,29 @@ export async function downloadCertificateOfCompletion(
       },
     });
     if (!res.ok) {
-      const text = await res.text().catch(() => '');
+      const text = (
+        await readBoundedResponseBuffer(
+          res,
+          4096,
+          'DocuSign certificate error',
+        ).catch(() => Buffer.alloc(0))
+      ).toString('utf8');
       return {
         ok: false,
         error: `CoC download HTTP ${res.status}: ${text.slice(0, 200)}`,
       };
     }
-    return { ok: true, buffer: Buffer.from(await res.arrayBuffer()) };
+    const buffer = await readBoundedResponseBuffer(
+      res,
+      DOCUSIGN_CERTIFICATE_MAX_BYTES,
+      'DocuSign certificate',
+    );
+    assertPdfPayload(
+      buffer,
+      res.headers.get('content-type'),
+      'DocuSign certificate',
+    );
+    return { ok: true, buffer };
   } catch (e) {
     return {
       ok: false,

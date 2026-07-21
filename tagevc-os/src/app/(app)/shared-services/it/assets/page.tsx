@@ -8,6 +8,8 @@ import {
   listIntuneActions,
   listIntuneActionEvents,
   listIntuneAmbiguityResolutions,
+  listIntuneBreakerHealth,
+  listIntuneBreakerResetProposals,
   listIntuneDispatchAttempts,
   listIntuneManualReviewSlo,
   listIntuneWorkerRuns,
@@ -41,6 +43,8 @@ export default async function ItAssetsModulePage() {
     workerRuns,
     ambiguity,
     manualReviewSlo,
+    breakerHealth,
+    breakerResetProposals,
   ] = await Promise.all([
     listHardwareAssets(),
     listSoftwareLicenses(),
@@ -54,6 +58,8 @@ export default async function ItAssetsModulePage() {
     listIntuneWorkerRuns(),
     listIntuneAmbiguityResolutions(),
     listIntuneManualReviewSlo(),
+    listIntuneBreakerHealth(),
+    listIntuneBreakerResetProposals(),
   ]);
   const candidateTickets = listOffboardingCandidateTickets();
   const onboardingTickets = listOnboardingCandidateTickets();
@@ -98,14 +104,14 @@ export default async function ItAssetsModulePage() {
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">IT</Badge>
-          <Badge variant="secondary">Phase 38</Badge>
+          <Badge variant="secondary">Phase 39</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Hardware &amp; licensing
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Atomic warranty preview/commit, final pre-dispatch authorization,
-          quarantined ambiguity review, worker timelines, and asset lifecycle.
+          Governed provider circuit breaking, fenced canary recovery, final
+          pre-dispatch authorization, ambiguity quarantine, and asset lifecycle.
         </p>
       </div>
 
@@ -130,11 +136,25 @@ export default async function ItAssetsModulePage() {
         intuneManualReviewSlo={manualReviewSlo.filter((row) =>
           visibleActionIds.has(String(row.action_id)),
         )}
+        intuneBreakerHealth={breakerHealth.rows.filter(
+          (breaker) =>
+            firmWide || breaker.entity_id === ctx?.profile.entity_id,
+        )}
+        intuneBreakerResetProposals={breakerResetProposals.rows.filter(
+          (proposal) =>
+            firmWide || proposal.entity_id === ctx?.profile.entity_id,
+        )}
         canWrite={canWrite}
         canIntuneRetire={canIntuneRetire}
         canIntuneManualReview={canIntuneManualReview}
         currentActorId={ctx?.profile.id ?? null}
-        tableError={tableError || intune.error || ambiguity.error}
+        tableError={
+          tableError ||
+          intune.error ||
+          ambiguity.error ||
+          breakerHealth.error ||
+          breakerResetProposals.error
+        }
       />
     </div>
   );

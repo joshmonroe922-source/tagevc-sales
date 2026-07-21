@@ -1,0 +1,253 @@
+'use client';
+
+import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import {
+  requestSloRouteTestAction,
+  saveSloPolicyDraftAction,
+  transitionSloPolicyDraftAction,
+} from '@/app/(app)/shared-services/actions';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import type { SloOwnerOption, SloPolicyRow } from '@/lib/shared-services/slo-policy';
+
+type EntityOption = { entity_id: string; canonical_name: string };
+
+function ownerLabel(owner: SloOwnerOption | undefined) {
+  return owner ? owner.full_name?.trim() || owner.email : 'Unassigned';
+}
+
+function PolicyEditor({
+  active,
+  draft,
+  owners,
+  entities,
+  onMessage,
+}: {
+  active: SloPolicyRow;
+  draft?: SloPolicyRow;
+  owners: SloOwnerOption[];
+  entities: EntityOption[];
+  onMessage: (message: string) => void;
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const value = draft ?? active;
+  const [version, setVersion] = useState(
+    draft?.policy_version ?? `${active.policy_version}.next`,
+  );
+  const [ownerId, setOwnerId] = useState(
+    value.owner_id ?? owners[0]?.id ?? '',
+  );
+  const [ownerEntityId, setOwnerEntityId] = useState(value.owner_entity_id ?? '');
+  const [webhooks, setWebhooks] = useState(
+    Object.keys(value.config?.webhook_destinations ?? {}).join(', '),
+  );
+
+  function save(formData: FormData) {
+    const keys = webhooks.split(',').map((key) => key.trim()).filter(Boolean);
+    startTransition(async () => {
+      const result = await saveSloPolicyDraftAction({
+        sourcePolicyId: active.policy_id,
+        draftPolicyId: draft?.policy_id ?? null,
+        policyVersion: version,
+        comparator: String(formData.get('comparator')) as 'higher_bad' | 'lower_bad',
+        warningThreshold: Number(formData.get('warning')),
+        criticalThreshold: Number(formData.get('critical')),
+        windowSeconds: Number(formData.get('window')),
+        evaluationIntervalSeconds: Number(formData.get('interval')),
+        warningBreachBuckets: Number(formData.get('warningBuckets')),
+        recoveryBuckets: Number(formData.get('recoveryBuckets')),
+        webhookDestinationKeys: keys,
+        ownerId,
+        ownerEntityId: ownerEntityId || null,
+        expectedRowVersion: draft?.row_version ?? active.row_version,
+      });
+      onMessage(result.ok ? result.message ?? 'Saved' : result.error);
+      if (result.ok) router.refresh();
+    });
+  }
+
+  function transition(kind: 'validate' | 'publish') {
+    if (!draft) return;
+    startTransition(async () => {
+      const result = await transitionSloPolicyDraftAction({
+        policyId: draft.policy_id,
+        rowVersion: draft.row_version,
+        transition: kind,
+      });
+      onMessage(result.ok ? result.message ?? kind : result.error);
+      if (result.ok) router.refresh();
+    });
+  }
+
+  const eligibleOwners = owners.filter(
+    (owner) => {
+      if (!ownerEntityId) {
+        return (
+          owner.entity_id === null ||
+          ['visionary', 'admin'].includes(owner.role)
+        );
+      }
+      return (
+        owner.entity_id === ownerEntityId ||
+        ['visionary', 'admin', 'service_lead'].includes(owner.role)
+      );
+    },
+  );
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardTitle className="text-sm">
+            {active.service} / {active.metric_key.replaceAll('_', ' ')}
+          </CardTitle>
+          <div className="flex gap-1">
+            <Badge variant="secondary">active {active.policy_version}</Badge>
+            <Badge variant={draft ? 'outline' : 'secondary'}>
+              {draft ? `${draft.lifecycle_status} v${draft.row_version}` : 'no draft'}
+            </Badge>
+          </div>
+        </div>
+        <CardDescription>
+          Owner: {ownerLabel(owners.find((owner) => owner.id === value.owner_id))}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <details>
+          <summary className="cursor-pointer text-sm font-medium">Edit governed policy</summary>
+          <form action={save} className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="space-y-1">
+              <Label>Version</Label>
+              <Input value={version} onChange={(event) => setVersion(event.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>Comparator</Label>
+              <select name="comparator" defaultValue={value.comparator} className="h-9 w-full rounded-md border bg-background px-2 text-sm">
+                <option value="higher_bad">Higher is bad</option>
+                <option value="lower_bad">Lower is bad</option>
+              </select>
+            </div>
+            <div className="space-y-1"><Label>Warning</Label><Input name="warning" type="number" step="any" defaultValue={value.warning_threshold} /></div>
+            <div className="space-y-1"><Label>Critical</Label><Input name="critical" type="number" step="any" defaultValue={value.critical_threshold} /></div>
+            <div className="space-y-1"><Label>Window seconds</Label><Input name="window" type="number" defaultValue={value.window_seconds} /></div>
+            <div className="space-y-1"><Label>Evaluation seconds</Label><Input name="interval" type="number" defaultValue={value.evaluation_interval_seconds} /></div>
+            <div className="space-y-1"><Label>Warning buckets</Label><Input name="warningBuckets" type="number" defaultValue={value.warning_breach_buckets} /></div>
+            <div className="space-y-1"><Label>Recovery buckets</Label><Input name="recoveryBuckets" type="number" defaultValue={value.recovery_buckets} /></div>
+            {active.scope === 'entity' ? (
+              <div className="space-y-1">
+                <Label>Owner entity</Label>
+                <select value={ownerEntityId} onChange={(event) => setOwnerEntityId(event.target.value)} className="h-9 w-full rounded-md border bg-background px-2 text-sm">
+                  <option value="">Firm fallback</option>
+                  {entities.map((entity) => <option key={entity.entity_id} value={entity.entity_id}>{entity.canonical_name}</option>)}
+                </select>
+              </div>
+            ) : null}
+            <div className="space-y-1">
+              <Label>Named active owner</Label>
+              <select value={ownerId} onChange={(event) => setOwnerId(event.target.value)} className="h-9 w-full rounded-md border bg-background px-2 text-sm">
+                {eligibleOwners.map((owner) => <option key={owner.id} value={owner.id}>{ownerLabel(owner)} · {owner.role}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1 sm:col-span-2">
+              <Label>Webhook destination keys (comma separated)</Label>
+              <Input value={webhooks} onChange={(event) => setWebhooks(event.target.value)} placeholder="ops_alerts, security" />
+              <p className="text-xs text-muted-foreground">Keys resolve through SLO_WEBHOOK_* environment variables. URLs are rejected.</p>
+            </div>
+            <div className="flex items-end gap-2 sm:col-span-2">
+              <Button type="submit" disabled={pending || !ownerId}>Save draft</Button>
+              {draft?.lifecycle_status === 'draft' ? <Button type="button" variant="outline" disabled={pending} onClick={() => transition('validate')}>Validate</Button> : null}
+              {draft?.lifecycle_status === 'validated' ? <Button type="button" variant="outline" disabled={pending} onClick={() => transition('publish')}>Publish as checker</Button> : null}
+            </div>
+          </form>
+        </details>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function SloPolicyAdmin({
+  activePolicies,
+  drafts,
+  owners,
+  entities,
+  routeTests,
+}: {
+  activePolicies: SloPolicyRow[];
+  drafts: SloPolicyRow[];
+  owners: SloOwnerOption[];
+  entities: EntityOption[];
+  routeTests: Array<Record<string, unknown>>;
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [message, setMessage] = useState('');
+  const [adapter, setAdapter] = useState<'in_app_owner' | 'webhook'>('in_app_owner');
+  const [ownerId, setOwnerId] = useState(owners[0]?.id ?? '');
+  const [entityId, setEntityId] = useState('');
+  const [destinationKey, setDestinationKey] = useState('owner');
+
+  function requestTest() {
+    startTransition(async () => {
+      const result = await requestSloRouteTestAction({
+        idempotencyKey: `ui:${crypto.randomUUID()}`,
+        entityId: entityId || null,
+        adapter,
+        destinationKey: adapter === 'in_app_owner' ? 'owner' : destinationKey,
+        ownerId: adapter === 'in_app_owner' ? ownerId : null,
+      });
+      setMessage(result.ok ? result.message ?? 'Queued' : result.error);
+      if (result.ok) router.refresh();
+    });
+  }
+
+  return (
+    <section className="space-y-3">
+      <div>
+        <h2 className="font-heading text-lg font-semibold text-[#3a414f]">SLO policy administration</h2>
+        <p className="text-sm text-muted-foreground">Draft, validate, then publish with a different maker/checker. Every transition is versioned and audited.</p>
+      </div>
+      <div className="grid gap-3">{activePolicies.map((active) => (
+        <PolicyEditor key={active.policy_id} active={active} draft={drafts.find((item) => item.draft_of_policy_id === active.policy_id)} owners={owners} entities={entities} onMessage={setMessage} />
+      ))}</div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Delivery route test</CardTitle>
+          <CardDescription>Creates an isolated, leased TEST job. It never opens, closes, or changes an incident.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-4">
+            <select value={adapter} onChange={(event) => { const next = event.target.value as typeof adapter; setAdapter(next); setDestinationKey(next === 'in_app_owner' ? 'owner' : ''); }} className="h-9 rounded-md border bg-background px-2 text-sm">
+              <option value="in_app_owner">In-app owner</option><option value="webhook">Webhook</option>
+            </select>
+            <select value={entityId} onChange={(event) => setEntityId(event.target.value)} className="h-9 rounded-md border bg-background px-2 text-sm">
+              <option value="">Firm-wide</option>{entities.map((entity) => <option key={entity.entity_id} value={entity.entity_id}>{entity.canonical_name}</option>)}
+            </select>
+            {adapter === 'in_app_owner' ? (
+              <select value={ownerId} onChange={(event) => setOwnerId(event.target.value)} className="h-9 rounded-md border bg-background px-2 text-sm">
+                {owners.filter((owner) =>
+                  entityId
+                    ? owner.entity_id === entityId ||
+                      ['visionary', 'admin', 'service_lead'].includes(owner.role)
+                    : owner.entity_id === null ||
+                      ['visionary', 'admin'].includes(owner.role),
+                ).map((owner) => <option key={owner.id} value={owner.id}>{ownerLabel(owner)}</option>)}
+              </select>
+            ) : <Input value={destinationKey} onChange={(event) => setDestinationKey(event.target.value)} placeholder="env destination key" />}
+            <Button disabled={pending || (adapter === 'in_app_owner' ? !ownerId : !destinationKey)} onClick={requestTest}>Queue TEST</Button>
+          </div>
+          <div className="space-y-1 text-xs">
+            {routeTests.map((test) => <p key={String(test.route_test_id)}>
+              TEST · {String(test.adapter)} / {String(test.destination_key)} · {String(test.status)}
+              {test.last_result ? ` · ${JSON.stringify(test.last_result)}` : ''}
+            </p>)}
+          </div>
+        </CardContent>
+      </Card>
+      {message ? <p className="text-xs text-muted-foreground">{message}</p> : null}
+    </section>
+  );
+}

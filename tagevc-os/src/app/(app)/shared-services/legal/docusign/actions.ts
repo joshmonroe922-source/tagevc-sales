@@ -206,6 +206,199 @@ export async function reviewDocuSignManualReviewAction(input: {
   }
 }
 
+export async function proposeDocuSignMappingReviewAction(input: {
+  requestId: string;
+  sourceItemId: string;
+  decision: 'assign_identity' | 'retain_quarantine';
+  targetEntityId?: string | null;
+  targetDocId?: string | null;
+  targetSendIntentId?: string | null;
+  targetLineageId?: string | null;
+  reason: string;
+  expectedEnvelopeVersion: number;
+}): Promise<DocuSignActionResult> {
+  const gate = await guardPermission('action:docusign_manual_review');
+  if (!gate.ok) return gate;
+  const optionalUuid = z.string().uuid().nullable().optional();
+  const parsed = z
+    .object({
+      requestId: z.string().uuid(),
+      sourceItemId: z.string().uuid(),
+      decision: z.enum(['assign_identity', 'retain_quarantine']),
+      targetEntityId: z.string().trim().min(1).max(100).nullable().optional(),
+      targetDocId: z.string().trim().min(1).max(200).nullable().optional(),
+      targetSendIntentId: optionalUuid,
+      targetLineageId: optionalUuid,
+      reason: z.string().trim().min(20).max(1000),
+      expectedEnvelopeVersion: z.number().int().nonnegative(),
+    })
+    .safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message || 'Invalid mapping-review proposal',
+    };
+  }
+  const service = await createPersistClient();
+  const { data: item, error: itemError } = await service
+    .from('os_docusign_reconciliation_items')
+    .select('envelope_id')
+    .eq('item_id', parsed.data.sourceItemId)
+    .single();
+  if (itemError || !item) {
+    return {
+      ok: false,
+      error: itemError?.message || 'Mapping evidence is unavailable',
+    };
+  }
+  const { data: envelope, error: envelopeError } = await service
+    .from('os_docusign_envelopes')
+    .select('entity_id')
+    .eq('envelope_id', item.envelope_id)
+    .single();
+  if (envelopeError || !envelope) {
+    return {
+      ok: false,
+      error: envelopeError?.message || 'Mapping projection is unavailable',
+    };
+  }
+  const targetEntityId = parsed.data.targetEntityId ?? null;
+  const currentEntityId = (envelope.entity_id as string | null) ?? null;
+  if (
+    (!currentEntityId &&
+      !targetEntityId &&
+      !isFirmWideAccess(gate.profile.role, gate.profile.entity_id)) ||
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      currentEntityId ?? targetEntityId,
+    ) ||
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      targetEntityId,
+    )
+  ) {
+    return {
+      ok: false,
+      error: entityScopeDeniedMessage(
+        currentEntityId ?? targetEntityId ?? 'unmapped',
+      ),
+    };
+  }
+  const { data, error } = await service.rpc(
+    'propose_docusign_mapping_review_resolution',
+    {
+      p_request_id: parsed.data.requestId,
+      p_source_item_id: parsed.data.sourceItemId,
+      p_actor_id: gate.profile.id,
+      p_decision: parsed.data.decision,
+      p_target_entity_id: targetEntityId,
+      p_target_doc_id: parsed.data.targetDocId ?? null,
+      p_target_send_intent_id: parsed.data.targetSendIntentId ?? null,
+      p_target_lineage_id: parsed.data.targetLineageId ?? null,
+      p_reason: parsed.data.reason,
+      p_expected_envelope_version: parsed.data.expectedEnvelopeVersion,
+    },
+  );
+  if (error) return { ok: false, error: error.message };
+  revalidateDocuSign();
+  const replayed = Boolean((data as { replayed?: boolean } | null)?.replayed);
+  return {
+    ok: true,
+    message: replayed
+      ? 'Mapping-review proposal replayed without duplicate effects'
+      : 'Mapping-review proposal frozen. A different authorized actor must review it.',
+  };
+}
+
+export async function reviewDocuSignMappingReviewAction(input: {
+  reviewRequestId: string;
+  resolutionId: string;
+  reviewDecision: 'approve' | 'reject';
+  statement: string;
+  expectedResolutionVersion: number;
+  expectedEnvelopeVersion: number;
+}): Promise<DocuSignActionResult> {
+  const gate = await guardPermission('action:docusign_manual_review');
+  if (!gate.ok) return gate;
+  const parsed = z
+    .object({
+      reviewRequestId: z.string().uuid(),
+      resolutionId: z.string().uuid(),
+      reviewDecision: z.enum(['approve', 'reject']),
+      statement: z.string().trim().min(20).max(1000),
+      expectedResolutionVersion: z.number().int().nonnegative(),
+      expectedEnvelopeVersion: z.number().int().nonnegative(),
+    })
+    .safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message || 'Invalid mapping review',
+    };
+  }
+  const service = await createPersistClient();
+  const { data: resolution, error: resolutionError } = await service
+    .from('os_docusign_mapping_review_resolutions')
+    .select('entity_id')
+    .eq('resolution_id', parsed.data.resolutionId)
+    .single();
+  if (resolutionError || !resolution) {
+    return {
+      ok: false,
+      error: resolutionError?.message || 'Mapping-review proposal not found',
+    };
+  }
+  if (
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      resolution.entity_id,
+    )
+  ) {
+    return {
+      ok: false,
+      error: entityScopeDeniedMessage(resolution.entity_id || 'unmapped'),
+    };
+  }
+  const { data, error } = await service.rpc(
+    'review_docusign_mapping_review_resolution',
+    {
+      p_review_request_id: parsed.data.reviewRequestId,
+      p_resolution_id: parsed.data.resolutionId,
+      p_actor_id: gate.profile.id,
+      p_review_decision: parsed.data.reviewDecision,
+      p_statement: parsed.data.statement,
+      p_expected_resolution_version: parsed.data.expectedResolutionVersion,
+      p_expected_envelope_version: parsed.data.expectedEnvelopeVersion,
+    },
+  );
+  if (error) return { ok: false, error: error.message };
+  revalidateDocuSign();
+  const outcome = data as {
+    status?: string;
+    replayed?: boolean;
+    error?: string;
+  } | null;
+  if (outcome?.status === 'projection_conflict') {
+    return {
+      ok: false,
+      error:
+        outcome.error ||
+        'Projection changed; conflict remains quarantined for a new proposal',
+    };
+  }
+  return {
+    ok: true,
+    message: outcome?.replayed
+      ? 'Mapping review replayed without duplicate effects'
+      : parsed.data.reviewDecision === 'approve'
+        ? 'Mapping decision committed atomically; send authorization was unchanged'
+        : 'Mapping proposal rejected; conflict remains quarantined',
+  };
+}
+
 async function envelopeScopeError(
   role: AppRole,
   profileEntityId: string | null | undefined,
