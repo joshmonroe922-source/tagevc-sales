@@ -213,6 +213,16 @@ async function runReadOnlyHealthCanaryWithToken(token: string): Promise<{
       error: phase47.error,
     };
   }
+  // Phase 48: template suggestions → waive lifecycle → expired paging.
+  // Observe-only; never close or reset breakers; never auto-publish.
+  const phase48 = await runIntunePhase48TemplateLifecycleOpsTick(sb);
+  if (!phase48.ok) {
+    return {
+      ok: false,
+      status: 'phase48_template_lifecycle_ops_failed',
+      error: phase48.error,
+    };
+  }
   return {
     ok: true,
     status: String((finished as { status?: string } | null)?.status ?? 'done'),
@@ -891,6 +901,169 @@ export async function processIntunePhase47ExpiryMttrOps(): Promise<{
       skipped: result.skipped,
       failed: result.failed,
       closes_or_resets_breaker: false,
+    },
+  };
+}
+
+type Phase48CriticalWindow = {
+  alert_kind: string;
+  window_key: string;
+  severity?: string;
+  recommendation_id?: string | null;
+  waive_proposal_id?: string | null;
+  postmortem_id?: string | null;
+  suggestion_id?: string | null;
+  snapshot_id?: string | null;
+};
+
+async function runIntunePhase48TemplateLifecycleOpsTick(
+  sb: Awaited<ReturnType<typeof createPersistClient>>,
+): Promise<
+  | {
+      ok: true;
+      suggestionsRecorded: number;
+      lifecycleInserted: boolean;
+      alertsRecorded: number;
+      delivered: number;
+      skipped: number;
+      failed: number;
+      pagesDelivered: number;
+    }
+  | { ok: false; error: string }
+> {
+  const { data: suggestData, error: suggestError } = await sb.rpc(
+    'suggest_it_intune_postmortem_template_phase48',
+  );
+  if (suggestError) {
+    return { ok: false, error: suggestError.message };
+  }
+
+  const { data: lifeData, error: lifeError } = await sb.rpc(
+    'record_it_intune_waive_lifecycle_snapshot_phase48',
+  );
+  if (lifeError) {
+    return { ok: false, error: lifeError.message };
+  }
+
+  const { data: windows, error: windowError } = await sb.rpc(
+    'list_it_intune_phase48_critical_windows',
+    { p_window_hours: 24 },
+  );
+  if (windowError) {
+    return { ok: false, error: windowError.message };
+  }
+
+  const pending = ((windows as { pending?: Phase48CriticalWindow[] } | null)
+    ?.pending ?? []) as Phase48CriticalWindow[];
+  let alertsRecorded = 0;
+  let delivered = 0;
+  let skipped = 0;
+  let failed = 0;
+  let pagesDelivered = 0;
+
+  for (const window of pending.slice(0, 50)) {
+    const delivery = await deliverIntuneOpsWebhook({
+      kind: 'it_intune_phase48_ops_alert',
+      version: 'phase48-v1',
+      alert_kind: window.alert_kind,
+      window_key: window.window_key,
+      severity: window.severity ?? 'warning',
+      recommendation_id: window.recommendation_id ?? null,
+      waive_proposal_id: window.waive_proposal_id ?? null,
+      postmortem_id: window.postmortem_id ?? null,
+      suggestion_id: window.suggestion_id ?? null,
+      snapshot_id: window.snapshot_id ?? null,
+      destination_key: INTUNE_OPS_DESTINATION_KEY,
+      entity_identifiers_included: false,
+      closes_or_resets_breaker: false,
+      auto_publish: false,
+    });
+
+    const { data: recorded, error: recordError } = await sb.rpc(
+      'record_it_intune_phase48_ops_alert',
+      {
+        p_alert: {
+          alert_kind: window.alert_kind,
+          window_key: window.window_key,
+          severity: window.severity ?? 'warning',
+          recommendation_id: window.recommendation_id ?? null,
+          waive_proposal_id: window.waive_proposal_id ?? null,
+          postmortem_id: window.postmortem_id ?? null,
+          suggestion_id: window.suggestion_id ?? null,
+          snapshot_id: window.snapshot_id ?? null,
+          destination_key: INTUNE_OPS_DESTINATION_KEY,
+          delivery_status: delivery.delivery_status,
+          response_code: delivery.response_code,
+          aggregate_evidence: {
+            evidence_version: 'phase48-v1',
+            entity_identifiers_included: false,
+            closes_or_resets_breaker: false,
+            auto_publish: false,
+          },
+        },
+      },
+    );
+    if (recordError) {
+      return { ok: false, error: recordError.message };
+    }
+    if ((recorded as { inserted?: boolean } | null)?.inserted) {
+      alertsRecorded += 1;
+      if (delivery.delivery_status === 'delivered') {
+        delivered += 1;
+        if (window.alert_kind === 'waive_expired_page') pagesDelivered += 1;
+      } else if (delivery.delivery_status === 'skipped_no_webhook') {
+        skipped += 1;
+      } else {
+        failed += 1;
+      }
+    }
+  }
+
+  return {
+    ok: true,
+    suggestionsRecorded: Number(
+      (suggestData as { suggestions_recorded?: number } | null)
+        ?.suggestions_recorded ?? 0,
+    ),
+    lifecycleInserted: Boolean(
+      (lifeData as { inserted?: boolean } | null)?.inserted,
+    ),
+    alertsRecorded,
+    delivered,
+    skipped,
+    failed,
+    pagesDelivered,
+  };
+}
+
+export async function processIntunePhase48TemplateLifecycleOps(): Promise<{
+  ok: boolean;
+  status: string;
+  detail?: Record<string, unknown>;
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const result = await runIntunePhase48TemplateLifecycleOpsTick(sb);
+  if (!result.ok) {
+    return {
+      ok: false,
+      status: 'phase48_template_lifecycle_ops_failed',
+      error: result.error,
+    };
+  }
+  return {
+    ok: true,
+    status: 'done',
+    detail: {
+      suggestions_recorded: result.suggestionsRecorded,
+      lifecycle_inserted: result.lifecycleInserted,
+      alerts_recorded: result.alertsRecorded,
+      delivered: result.delivered,
+      skipped: result.skipped,
+      failed: result.failed,
+      pages_delivered: result.pagesDelivered,
+      closes_or_resets_breaker: false,
+      auto_publish: false,
     },
   };
 }

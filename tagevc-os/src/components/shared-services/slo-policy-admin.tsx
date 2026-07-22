@@ -17,6 +17,8 @@ import {
   publishSloOwnerHandoffDigestAction,
   notifySloHandoffDigestOwnersAction,
   scanSloOwnershipChangeVisibilityAction,
+  deliverSloOwnerDigestWebhooksAction,
+  scanSloDigestNotificationDeliverySloAction,
   saveSloPolicyDraftAction,
   suggestSloOwnerHandoffsAction,
   transitionSloPolicyDraftAction,
@@ -257,6 +259,9 @@ export function SloPolicyAdmin({
   digestNotifications = [],
   ownershipVisibility = [],
   phase47Report = null,
+  digestDeliveries = [],
+  digestDeliverySlos = [],
+  phase48Report = null,
 }: {
   activePolicies: SloPolicyRow[];
   drafts: SloPolicyRow[];
@@ -284,6 +289,9 @@ export function SloPolicyAdmin({
   digestNotifications?: Array<Record<string, unknown>>;
   ownershipVisibility?: Array<Record<string, unknown>>;
   phase47Report?: Record<string, unknown> | null;
+  digestDeliveries?: Array<Record<string, unknown>>;
+  digestDeliverySlos?: Array<Record<string, unknown>>;
+  phase48Report?: Record<string, unknown> | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -457,6 +465,22 @@ export function SloPolicyAdmin({
     startTransition(async () => {
       const result = await scanSloOwnershipChangeVisibilityAction();
       setMessage(result.ok ? result.message ?? 'Visibility scanned' : result.error);
+      if (result.ok) router.refresh();
+    });
+  }
+
+  function deliverOwnerDigestWebhooks() {
+    startTransition(async () => {
+      const result = await deliverSloOwnerDigestWebhooksAction();
+      setMessage(result.ok ? result.message ?? 'Digest webhooks delivered' : result.error);
+      if (result.ok) router.refresh();
+    });
+  }
+
+  function scanDigestDeliverySlo() {
+    startTransition(async () => {
+      const result = await scanSloDigestNotificationDeliverySloAction();
+      setMessage(result.ok ? result.message ?? 'Delivery SLO scanned' : result.error);
       if (result.ok) router.refresh();
     });
   }
@@ -727,6 +751,24 @@ export function SloPolicyAdmin({
               >
                 Scan ownership visibility
               </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={pending}
+                onClick={deliverOwnerDigestWebhooks}
+              >
+                Deliver owner digest webhooks
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={pending}
+                onClick={scanDigestDeliverySlo}
+              >
+                Scan digest delivery SLO
+              </Button>
             </div>
             {nightlyReplayRuns.slice(0, 4).map((run) => (
               <p
@@ -823,6 +865,36 @@ export function SloPolicyAdmin({
                 {String(phase47Report.upcoming_handoff_window_count ?? 0)} · expiry without
                 handoff{' '}
                 {String(phase47Report.ownership_expiry_without_handoff_count ?? 0)}
+              </p>
+            ) : null}
+            {digestDeliveries.slice(0, 3).map((delivery) => (
+              <p
+                key={String(delivery.delivery_id)}
+                className="font-mono text-[10px] text-muted-foreground"
+              >
+                DIGEST DEL · {String(delivery.delivery_status)} · dest{' '}
+                {String(delivery.destination_key)} · code{' '}
+                {String(delivery.response_code ?? '')}
+              </p>
+            ))}
+            {digestDeliverySlos.slice(0, 3).map((snapshot) => (
+              <p
+                key={String(snapshot.snapshot_id)}
+                className="font-mono text-[10px] text-muted-foreground"
+              >
+                DIGEST SLO · {String(snapshot.severity)} · dest{' '}
+                {String(snapshot.destination_key)} · rate{' '}
+                {String(snapshot.success_rate ?? 'n/a')} · ok{' '}
+                {String(snapshot.delivered_count)} / fail {String(snapshot.failed_count)}
+              </p>
+            ))}
+            {phase48Report ? (
+              <p className="text-muted-foreground">
+                Phase 48 · allowlist{' '}
+                {String(phase48Report.owner_digest_allowlist_active ?? 0)} · deliveries 30d{' '}
+                {String(phase48Report.digest_deliveries_30d ?? 0)} · failed{' '}
+                {String(phase48Report.digest_deliveries_failed_30d ?? 0)} · critical SLO{' '}
+                {String(phase48Report.delivery_slo_critical_30d ?? 0)}
               </p>
             ) : null}
           </CardContent>

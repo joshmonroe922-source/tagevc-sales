@@ -112,10 +112,16 @@ describe('Phase 47 snapshot cutover ops', () => {
     expect(lib).toContain(PHASE47_SNAPSHOT_CONTRACT_VERSION);
     expect(lib).toContain('SNAPSHOT_ONCALL_ACK_SLO_MINUTES');
     expect(lib).not.toMatch(/PRIVATE_KEY(?!S)/);
-    expect(route).toContain('completeSnapshotEd25519CutoverPhase47');
-    expect(route).toContain('getSnapshotPhase47OpsDashboard');
+    expect(route).toMatch(
+      /completeSnapshotEd25519CutoverPhase47|completeSnapshotEd25519CutoverPhase48/,
+    );
+    expect(route).toMatch(
+      /getSnapshotPhase47OpsDashboard|getSnapshotPhase48OpsDashboard/,
+    );
     expect(route).toContain('offline_script');
-    expect(worker).toContain('runSnapshotPhase47OpsWorker');
+    expect(worker).toMatch(
+      /runSnapshotPhase47OpsWorker|runSnapshotPhase48OpsWorker/,
+    );
     expect(ui).toContain('offline_script');
     expect(ui).toContain('phase47Slo');
     expect(ui).not.toMatch(/-----BEGIN/);

@@ -84,7 +84,7 @@ describe('Phase 42 production revenue SLOs', () => {
       'utf8',
     );
     expect(page).toMatch(/getPhase42RevenueSloReport/);
-    expect(page).toMatch(/Phase 4[2-7]/);
+    expect(page).toMatch(/Phase 4[2-8]/);
     expect(page).toMatch(/sloReport=\{productionSlos\.report\}/);
     expect(ui).toMatch(/Production SLOs/);
     expect(ui).toMatch(/authenticity_severity/);
@@ -92,7 +92,7 @@ describe('Phase 42 production revenue SLOs', () => {
     expect(worker).toMatch(/record_marketing_revenue_phase42_slo_snapshots/);
     expect(worker).toMatch(/production_v1/);
     expect(worker).toMatch(/ledger_profile/);
-    expect(route).toMatch(/phase4[3-7]-v1/);
+    expect(route).toMatch(/phase4[3-8]-v1/);
     expect(route).toMatch(/production_slo_ticks/);
   });
 });

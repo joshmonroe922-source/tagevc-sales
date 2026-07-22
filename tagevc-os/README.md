@@ -866,13 +866,25 @@ Docs: `docs/OS_PHASE47.md`
 
 Optional env: `SNAPSHOT_ONCALL_ACK_SLO_MINUTES` (default 60).
 
-### Phase 48+ backlog
+### Phase 48
 
-- Autopilot healthy cohort promotions; archive closed conflict cohorts
-- Schedule subsequent DocuSign recurring quarterlies; tighten on drift breaches
-- Feed MTTR↔scorecard into postmortem templates; page on waive_expired
-- Allowlisted owner digest webhooks + notification delivery SLOs (not full push)
-- CI offline_script dual acceptance; on-call ack SLO dashboards
+Allowlisted owner digest webhooks with notification delivery SLOs (not full
+push), CI-integrated offline_script dual acceptance, and on-call ack SLO
+dashboards tied to paging rotations. Stage 4e non-qualifying flags remain
+false; no snapshot relation mutations.
+
+Apply after Phase 47:
+
+1. `phase48_marketing_revenue_ops.sql`
+2. `phase48_docusign_archive_ops.sql`
+3. `phase48_intune_resilience_ops.sql`
+4. `phase48_slo_governance_ops.sql`
+5. `phase48_snapshot_cutover_ops.sql`
+
+Optional env: `SLO_OWNER_DIGEST_WEBHOOKS`, `SNAPSHOT_CI_CUTOVER_ENABLED`.
+
+### Phase 49+ backlog
+
 - Continue Stage 4e soak; do not drop snapshots
 - Push · user admin
 

@@ -150,6 +150,10 @@ type Dashboard = {
   oncallAckSnapshots?: Array<Record<string, unknown>>;
   oncallAckAlerts?: Array<Record<string, unknown>>;
   phase47Slo?: Record<string, unknown> | null;
+  ciCutoverAcceptances?: Array<Record<string, unknown>>;
+  oncallAckDashboards?: Array<Record<string, unknown>>;
+  phase48Slo?: Record<string, unknown> | null;
+  snapshotCiCutoverEnabled?: boolean;
 };
 
 type ApiResult = {
@@ -165,6 +169,7 @@ type ApiResult = {
   skipped?: boolean;
   rotation?: Record<string, unknown>;
   acceptance?: Record<string, unknown>;
+  scan?: Record<string, unknown>;
 };
 
 function downloadSignedPackage(value: Record<string, unknown>) {
@@ -553,6 +558,15 @@ export function SnapshotRetirementPhase40Admin() {
       );
       return;
     }
+    const hasCi = (dashboard?.ciCutoverAcceptances ?? []).some(
+      (row) => row.rotation_id === open.rotation_id,
+    );
+    if (!hasCi) {
+      setError(
+        'Cutover requires CI offline_script dual acceptance evidence (record CI cutover acceptance or run ci-snapshot-cutover-accept.mjs).',
+      );
+      return;
+    }
     setMessage(null);
     setError(null);
     startTransition(async () => {
@@ -603,6 +617,62 @@ export function SnapshotRetirementPhase40Admin() {
       } catch (cause) {
         setError(
           cause instanceof Error ? cause.message : 'Cutover acceptance failed',
+        );
+      }
+    });
+  }
+
+  function recordCiCutoverAcceptance() {
+    const open = (dashboard?.ed25519Rotations ?? []).find(
+      (row) => row.status === 'dual_active' || row.status === 'cutover_complete',
+    );
+    if (!open) {
+      setError('Announce and activate a dual-key rotation before recording CI acceptance.');
+      return;
+    }
+    setMessage(null);
+    setError(null);
+    startTransition(async () => {
+      try {
+        const result = await post({
+          action: 'record_ci_cutover_acceptance',
+          rotation_id: open.rotation_id,
+          previous_key_id: open.previous_key_id,
+          next_key_id: open.next_key_id,
+          ci_run_key: `admin:${Date.now()}`,
+        });
+        setMessage(
+          result.acceptance
+            ? `CI cutover acceptance recorded · dual_ready=${String(result.acceptance.ci_dual_acceptance_ready ?? false)} (offline_script; non-qualifying).`
+            : 'CI cutover acceptance recorded (non-qualifying).',
+        );
+        await refresh();
+      } catch (cause) {
+        setError(
+          cause instanceof Error ? cause.message : 'CI cutover acceptance failed',
+        );
+      }
+    });
+  }
+
+  function scanOncallAckDashboards() {
+    setMessage(null);
+    setError(null);
+    startTransition(async () => {
+      try {
+        const result = await post({
+          action: 'scan_oncall_ack_dashboards',
+          days: 30,
+        });
+        setMessage(
+          result.scan
+            ? `On-call ack dashboards · recorded ${String(result.scan.dashboards_recorded ?? 0)} (paging rotations; non-qualifying).`
+            : 'On-call ack dashboards scanned (non-qualifying).',
+        );
+        await refresh();
+      } catch (cause) {
+        setError(
+          cause instanceof Error ? cause.message : 'Ack dashboard scan failed',
         );
       }
     });
@@ -877,6 +947,35 @@ export function SnapshotRetirementPhase40Admin() {
           {String(dashboard.phase47Slo.consecutive_ack_overdue_alerts_30d ?? 0)}
         </p>
       ) : null}
+      {(dashboard?.ciCutoverAcceptances ?? []).slice(0, 2).map((row) => (
+        <p
+          key={String(row.ci_acceptance_id)}
+          className="font-mono text-[10px] text-muted-foreground"
+        >
+          CI ACCEPT · run {String(row.ci_run_key)} · rotation{' '}
+          {String(row.rotation_id)}
+        </p>
+      ))}
+      {(dashboard?.oncallAckDashboards ?? []).slice(0, 3).map((row) => (
+        <p
+          key={String(row.dashboard_id)}
+          className="font-mono text-[10px] text-muted-foreground"
+        >
+          ACK DASH · {String(row.destination_key)} · {String(row.severity)} · rate{' '}
+          {String(row.ack_within_slo_rate ?? 'n/a')} · overdue{' '}
+          {String(row.overdue_count)} · pending {String(row.pending_ack_count)}
+        </p>
+      ))}
+      {dashboard?.phase48Slo ? (
+        <p className="text-muted-foreground">
+          Phase 48 CI dual ready ·{' '}
+          {String(dashboard.phase48Slo.ci_offline_script_dual_ready ?? 0)} · ack
+          dashboards 30d {String(dashboard.phase48Slo.oncall_ack_dashboards_30d ?? 0)} ·
+          critical{' '}
+          {String(dashboard.phase48Slo.oncall_ack_dashboard_critical_30d ?? 0)}
+          {dashboard.snapshotCiCutoverEnabled ? ' · CI cutover enabled' : ''}
+        </p>
+      ) : null}
       {dashboard?.checks.slice(0, 4).map((check) => (
         <p key={check.check_id} className="font-mono text-[10px] text-muted-foreground">
           {check.checked_at} · retention {check.status}
@@ -947,6 +1046,12 @@ export function SnapshotRetirementPhase40Admin() {
         </Button>
         <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => recordCutoverAcceptance('admin')}>
           Record admin acceptance
+        </Button>
+        <Button type="button" size="sm" variant="outline" disabled={pending} onClick={recordCiCutoverAcceptance}>
+          Record CI cutover acceptance
+        </Button>
+        <Button type="button" size="sm" variant="outline" disabled={pending} onClick={scanOncallAckDashboards}>
+          Scan on-call ack dashboards
         </Button>
         <Button type="button" size="sm" variant="outline" disabled={pending} onClick={completeEd25519Cutover}>
           Complete cutover

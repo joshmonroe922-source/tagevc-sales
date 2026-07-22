@@ -105,7 +105,7 @@ describe('Phase 43 marketing credential binding and critical ops alerts', () => 
       'utf8',
     );
     expect(page).toMatch(/getPhase43RevenueOpsReport/);
-    expect(page).toMatch(/Phase 4[3-7]/);
+    expect(page).toMatch(/Phase 4[3-8]/);
     expect(page).toMatch(/opsReport=\{opsReport\.report\}/);
     expect(ui).toMatch(/critical alerts/);
     expect(ui).toMatch(/credential binding/);
@@ -123,7 +123,7 @@ describe('Phase 43 marketing credential binding and critical ops alerts', () => 
     expect(lib).toMatch(/record_marketing_revenue_phase43_ops_alert/);
     expect(lib).toMatch(/credential_env_present/);
     expect(lib).not.toMatch(/process\.env\[source\.credential_env_name\]/);
-    expect(route).toMatch(/phase4[3-7]-v1/);
+    expect(route).toMatch(/phase4[3-8]-v1/);
     expect(route).toMatch(/critical_ops_alerts/);
   });
 

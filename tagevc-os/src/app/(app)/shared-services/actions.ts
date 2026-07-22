@@ -31,6 +31,8 @@ import {
   publishSloOwnerHandoffDigestPhase46,
   notifySloHandoffDigestOwnersPhase47,
   scanSloOwnershipChangeVisibilityPhase47,
+  scanSloDigestNotificationDeliverySloPhase48,
+  deliverSloOwnerDigestWebhooksPhase48,
   saveSloPolicyDraft,
   transitionSloPolicyDraft,
 } from '@/lib/shared-services/slo-policy';
@@ -759,6 +761,45 @@ export async function scanSloOwnershipChangeVisibilityAction(): Promise<TicketAc
     return {
       ok: true,
       message: `Ownership visibility · expiry ${result.expiry_visibility_recorded ?? 0} · handoff windows ${result.handoff_windows_recorded ?? 0} · ahead ${result.days_ahead ?? 60}d`,
+    };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Failed' };
+  }
+}
+
+export async function deliverSloOwnerDigestWebhooksAction(): Promise<TicketActionResult> {
+  const gate = await guardPermission('write:shared_services');
+  if (!gate.ok) return gate;
+  try {
+    const result = await deliverSloOwnerDigestWebhooksPhase48({
+      actorId: gate.profile.id,
+    });
+    revalidatePath('/shared-services');
+    return {
+      ok: true,
+      message: `Owner digest webhooks · delivered ${result.delivered} · failed ${result.failed} · skipped ${result.skipped} · not full push`,
+    };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Failed' };
+  }
+}
+
+export async function scanSloDigestNotificationDeliverySloAction(): Promise<TicketActionResult> {
+  const gate = await guardPermission('write:shared_services');
+  if (!gate.ok) return gate;
+  try {
+    const result = (await scanSloDigestNotificationDeliverySloPhase48({
+      actorId: gate.profile.id,
+    })) as {
+      slo_snapshots_recorded?: number;
+      visibility_alerts_recorded?: number;
+      active_allowlist_count?: number;
+      window_days?: number;
+    };
+    revalidatePath('/shared-services');
+    return {
+      ok: true,
+      message: `Digest delivery SLO · snapshots ${result.slo_snapshots_recorded ?? 0} · alerts ${result.visibility_alerts_recorded ?? 0} · allowlist ${result.active_allowlist_count ?? 0} · ${result.window_days ?? 30}d`,
     };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : 'Failed' };

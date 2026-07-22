@@ -1579,6 +1579,29 @@ export async function refreshIntunePhase47ExpiryMttrOpsAction(): Promise<ItAsset
   };
 }
 
+export async function refreshIntunePhase48TemplateLifecycleOpsAction(): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('action:intune_manual_review');
+  if (!gate.ok) return gate;
+  const { runIntunePhase48TemplateLifecycleOps } = await import(
+    '@/lib/shared-services/it-assets-repo'
+  );
+  const result = await runIntunePhase48TemplateLifecycleOps();
+  if (!result.ok) {
+    return {
+      ok: false,
+      error: result.error ?? 'Phase 48 template/lifecycle ops failed',
+    };
+  }
+  revalidateAssets();
+  const suggestions = Number(result.detail?.suggestions_recorded ?? 0);
+  const alerts = Number(result.detail?.alerts_recorded ?? 0);
+  const pages = Number(result.detail?.pages_delivered ?? 0);
+  return {
+    ok: true,
+    message: `Phase 48 templates/lifecycle: ${suggestions} suggestion(s), ${alerts} alert(s), ${pages} waive_expired page(s) — never auto-publish; breakers never closed or reset`,
+  };
+}
+
 export async function proposeIntunePromoteWaiveExpiryAction(input: {
   waiveProposalId: string;
   action: 'extend' | 'expire';

@@ -41,6 +41,7 @@ import {
   refreshIntunePhase45QualityGateOpsAction,
   refreshIntunePhase46QualityWaiveOpsAction,
   refreshIntunePhase47ExpiryMttrOpsAction,
+  refreshIntunePhase48TemplateLifecycleOpsAction,
   proposeIntunePromoteWaiveAction,
   reviewIntunePromoteWaiveAction,
   proposeIntunePromoteWaiveExpiryAction,
@@ -72,11 +73,14 @@ import type {
   ItIntunePhase45Health,
   ItIntunePhase46Health,
   ItIntunePhase47Health,
+  ItIntunePhase48Health,
   ItIntunePostmortemQualityStatus,
   ItIntunePostmortemQualityScorecardStatus,
   ItIntunePromoteWaiveStatus,
   ItIntunePromoteWaiveExpiryStatus,
   ItIntuneScorecardMttrCorrelationStatus,
+  ItIntunePostmortemTemplateSuggestionStatus,
+  ItIntuneWaiveLifecycleStatus,
   ItIntuneTuningPromoteGateStatus,
   ItIntuneResilienceCorrelationEvent,
   ItIntuneSoakCycleTimeline,
@@ -140,6 +144,7 @@ export function ItAssetsClient({
   intunePhase45Health = null,
   intunePhase46Health = null,
   intunePhase47Health = null,
+  intunePhase48Health = null,
   intuneOutagePostmortems = [],
   intuneThresholdRecommendations = [],
   intuneSoakCycleTimeline = [],
@@ -149,6 +154,8 @@ export function ItAssetsClient({
   intunePromoteWaives = [],
   intunePromoteWaiveExpiries = [],
   intuneScorecardMttrCorrelations = [],
+  intunePostmortemTemplateSuggestions = [],
+  intuneWaiveLifecycle = null,
   intunePromoteGates = [],
   canIntuneRetire = false,
   canIntuneManualReview = false,
@@ -191,6 +198,7 @@ export function ItAssetsClient({
   intunePhase45Health?: ItIntunePhase45Health | null;
   intunePhase46Health?: ItIntunePhase46Health | null;
   intunePhase47Health?: ItIntunePhase47Health | null;
+  intunePhase48Health?: ItIntunePhase48Health | null;
   intuneOutagePostmortems?: ItIntuneOutagePostmortem[];
   intuneThresholdRecommendations?: ItIntuneThresholdRecommendation[];
   intuneSoakCycleTimeline?: ItIntuneSoakCycleTimeline[];
@@ -200,6 +208,8 @@ export function ItAssetsClient({
   intunePromoteWaives?: ItIntunePromoteWaiveStatus[];
   intunePromoteWaiveExpiries?: ItIntunePromoteWaiveExpiryStatus[];
   intuneScorecardMttrCorrelations?: ItIntuneScorecardMttrCorrelationStatus[];
+  intunePostmortemTemplateSuggestions?: ItIntunePostmortemTemplateSuggestionStatus[];
+  intuneWaiveLifecycle?: ItIntuneWaiveLifecycleStatus | null;
   intunePromoteGates?: ItIntuneTuningPromoteGateStatus[];
   canIntuneRetire?: boolean;
   canIntuneManualReview?: boolean;
@@ -258,6 +268,9 @@ export function ItAssetsClient({
   );
   const mttrByPostmortem = new Map(
     intuneScorecardMttrCorrelations.map((row) => [row.postmortem_id, row]),
+  );
+  const templateByPostmortem = new Map(
+    intunePostmortemTemplateSuggestions.map((row) => [row.postmortem_id, row]),
   );
 
   return (
@@ -386,6 +399,24 @@ export function ItAssetsClient({
                 : ''}
             </>
           ) : null}
+          {intunePhase48Health ? (
+            <>
+              {' · '}templates{' '}
+              {Number(intunePhase48Health.template_suggestion_count)}
+              {Number(intunePhase48Health.template_mismatch_suggestions_7d) > 0
+                ? ` · template mismatch 7d ${Number(intunePhase48Health.template_mismatch_suggestions_7d)}`
+                : ''}
+              {Number(intunePhase48Health.waive_expired_page_count) > 0
+                ? ` · expired pages ${Number(intunePhase48Health.waive_expired_page_count)}`
+                : ''}
+              {Number(intunePhase48Health.waive_expired_pages_delivered) > 0
+                ? ` · pages delivered ${Number(intunePhase48Health.waive_expired_pages_delivered)}`
+                : ''}
+              {intuneWaiveLifecycle
+                ? ` · waive life P${Number(intuneWaiveLifecycle.proposed_count)}/A${Number(intuneWaiveLifecycle.approved_count)}/X${Number(intuneWaiveLifecycle.expired_count)}/E${Number(intuneWaiveLifecycle.extended_count)}`
+                : ''}
+            </>
+          ) : null}
         </div>
       ) : null}
 
@@ -398,6 +429,8 @@ export function ItAssetsClient({
         intunePromoteWaives.length > 0 ||
         intunePromoteWaiveExpiries.length > 0 ||
         intuneScorecardMttrCorrelations.length > 0 ||
+        intunePostmortemTemplateSuggestions.length > 0 ||
+        intuneWaiveLifecycle != null ||
         intunePromoteGates.length > 0) && (
         <section className="space-y-3 rounded-lg border p-4">
           <div>
@@ -413,7 +446,9 @@ export function ItAssetsClient({
               Phase 45 quality-gates promote behind multi-cycle healthy trends. Phase 46
               deepens scorecards and requires dual-approver waive for promote exceptions.
               Phase 47 dual-approves waive expiry (extend/expire) and correlates scorecards
-              with soak-cycle MTTR.
+              with soak-cycle MTTR. Phase 48 feeds MTTR↔scorecard into append-only
+              postmortem template suggestions (never auto-publish), pages on expired
+              waives via SLO_WEBHOOK_OPS_ALERTS, and surfaces waive lifecycle counts.
             </p>
             {canIntuneManualReview && intunePhase42Health ? (
               <div className="flex flex-wrap gap-2 pt-1">
@@ -467,6 +502,17 @@ export function ItAssetsClient({
                   }
                 >
                   Refresh expiry / MTTR
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={pending}
+                  onClick={() =>
+                    run(() => refreshIntunePhase48TemplateLifecycleOpsAction())
+                  }
+                >
+                  Refresh templates / lifecycle
                 </Button>
               </div>
             ) : null}
@@ -522,6 +568,7 @@ export function ItAssetsClient({
                   postmortem.postmortem_id,
                 );
                 const mttr = mttrByPostmortem.get(postmortem.postmortem_id);
+                const template = templateByPostmortem.get(postmortem.postmortem_id);
                 return (
                 <div
                   key={postmortem.postmortem_id}
@@ -610,6 +657,22 @@ export function ItAssetsClient({
                           {Math.abs(Number(mttr.correlation_delta)) >= 0.25
                             ? ' · mismatch'
                             : ' · aligned'}
+                        </span>
+                      </>
+                    ) : null}
+                    {template ? (
+                      <>
+                        {' · '}
+                        <span className="rounded bg-sky-100 px-1.5 py-0.5 text-sky-950">
+                          template{' '}
+                          {String(
+                            template.suggested_fields.suggested_root_cause_hint ??
+                              'suggested',
+                          )}
+                          {' · '}MTTR {Number(template.mttr_minutes)}m
+                          {' · '}score{' '}
+                          {Math.round(Number(template.composite_score) * 100)}%
+                          {' · '}never auto-publish
                         </span>
                       </>
                     ) : null}
@@ -717,6 +780,62 @@ export function ItAssetsClient({
                 </div>
                 );
               })}
+            </div>
+          ) : null}
+          {intunePostmortemTemplateSuggestions.length > 0 ? (
+            <div className="space-y-2 text-xs">
+              <p className="font-medium">
+                Postmortem template suggestions (append-only · never auto-publish)
+              </p>
+              {intunePostmortemTemplateSuggestions.map((suggestion) => (
+                <div
+                  key={suggestion.suggestion_id}
+                  className="border-b border-border/40 pb-2"
+                >
+                  <strong>{suggestion.status}</strong>
+                  {' · '}
+                  {String(
+                    suggestion.suggested_fields.suggested_root_cause_hint ??
+                      'hint',
+                  )}
+                  {' · '}MTTR {Number(suggestion.mttr_minutes)}m · score{' '}
+                  {Math.round(Number(suggestion.composite_score) * 100)}% · pm{' '}
+                  {suggestion.postmortem_status}
+                  {suggestion.suggested_fields.suggested_notes_fragment
+                    ? ` · ${String(suggestion.suggested_fields.suggested_notes_fragment).slice(0, 120)}${
+                        String(
+                          suggestion.suggested_fields.suggested_notes_fragment,
+                        ).length > 120
+                          ? '…'
+                          : ''
+                      }`
+                    : ''}
+                  {' · '}sha {suggestion.evidence_sha256.slice(0, 12)}
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {intuneWaiveLifecycle ? (
+            <div className="space-y-2 text-xs">
+              <p className="font-medium">Waive lifecycle visibility</p>
+              <div className="border-b border-border/40 pb-2">
+                proposed {Number(intuneWaiveLifecycle.proposed_count)}
+                {' · '}approved {Number(intuneWaiveLifecycle.approved_count)}
+                {' · '}rejected {Number(intuneWaiveLifecycle.rejected_count)}
+                {' · '}expired 7d {Number(intuneWaiveLifecycle.expired_count)}
+                {' · '}extended {Number(intuneWaiveLifecycle.extended_count)}
+                {' · '}expiry pending{' '}
+                {Number(intuneWaiveLifecycle.expiry_pending_count)}
+                {' · '}expire-action approved{' '}
+                {Number(intuneWaiveLifecycle.expire_action_approved_count)}
+                {intunePhase48Health &&
+                Number(intunePhase48Health.waive_expired_page_count) > 0
+                  ? ` · expired pages ${Number(intunePhase48Health.waive_expired_page_count)} (${Number(intunePhase48Health.waive_expired_pages_delivered)} delivered)`
+                  : ''}
+                {' · '}bucket {intuneWaiveLifecycle.bucket_key}
+                {' · '}recorded{' '}
+                {new Date(intuneWaiveLifecycle.recorded_at).toLocaleString()}
+              </div>
             </div>
           ) : null}
           {intuneThresholdRecommendations.length > 0 ? (

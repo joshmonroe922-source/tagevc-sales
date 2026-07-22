@@ -35,6 +35,8 @@ export function DocuSignHubActions({
   phase46CadenceHealth,
   phase47RecurringRunStatus,
   phase47DriftPerformance,
+  phase48SubsequentRunStatus,
+  phase48DriftPerformance,
 }: {
   canWrite: boolean;
   canReconcile: boolean;
@@ -51,6 +53,8 @@ export function DocuSignHubActions({
   phase46CadenceHealth?: string;
   phase47RecurringRunStatus?: string;
   phase47DriftPerformance?: string;
+  phase48SubsequentRunStatus?: string;
+  phase48DriftPerformance?: string;
 }) {
   const [flash, setFlash] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -70,12 +74,15 @@ export function DocuSignHubActions({
     phase46CadenceHealth != null;
   const showPhase47Badges =
     phase47RecurringRunStatus != null || phase47DriftPerformance != null;
+  const showPhase48Badges =
+    phase48SubsequentRunStatus != null || phase48DriftPerformance != null;
 
   const badges =
     showPhase44Badges ||
     showPhase45Badges ||
     showPhase46Badges ||
-    showPhase47Badges ? (
+    showPhase47Badges ||
+    showPhase48Badges ? (
       <div className="flex flex-wrap gap-2 text-[11px]">
         {phase44DriftHealth ? (
           <span className="rounded border border-border/70 px-2 py-0.5 text-muted-foreground">
@@ -130,6 +137,16 @@ export function DocuSignHubActions({
         {phase47DriftPerformance ? (
           <span className="rounded border border-border/70 px-2 py-0.5 text-muted-foreground">
             Phase 47 drift {phase47DriftPerformance}
+          </span>
+        ) : null}
+        {phase48SubsequentRunStatus ? (
+          <span className="rounded border border-border/70 px-2 py-0.5 text-muted-foreground">
+            Phase 48 subsequent run {phase48SubsequentRunStatus}
+          </span>
+        ) : null}
+        {phase48DriftPerformance ? (
+          <span className="rounded border border-border/70 px-2 py-0.5 text-muted-foreground">
+            Phase 48 drift {phase48DriftPerformance}
           </span>
         ) : null}
       </div>

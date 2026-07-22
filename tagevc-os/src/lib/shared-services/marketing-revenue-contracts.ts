@@ -10,6 +10,7 @@ export const REVENUE_REPORT_VERSION_PHASE44 = 'phase44-v1';
 export const REVENUE_REPORT_VERSION_PHASE45 = 'phase45-v1';
 export const REVENUE_REPORT_VERSION_PHASE46 = 'phase46-v1';
 export const REVENUE_REPORT_VERSION_PHASE47 = 'phase47-v1';
+export const REVENUE_REPORT_VERSION_PHASE48 = 'phase48-v1';
 export const REVENUE_SLO_SEVERITIES = [
   'healthy',
   'warning',
@@ -688,6 +689,111 @@ export type Phase47RevenueOpsReport = {
   conflict_closures: Phase47AttributionConflictClosure[];
   aging_conflicts: Phase47AgingConflict[];
   alerts: Phase47OpsAlert[];
+  destination_key: string;
+};
+
+export const REVENUE_PHASE48_ALERT_KINDS = [
+  'autopilot_promoted',
+  'autopilot_blocked',
+  'conflict_cohort_archived',
+  'cohort_performance_degraded',
+] as const;
+export type RevenuePhase48AlertKind =
+  (typeof REVENUE_PHASE48_ALERT_KINDS)[number];
+
+export const REVENUE_AUTOPILOT_RUN_STATUSES = [
+  'waiting',
+  'promoted',
+  'blocked',
+  'skipped',
+] as const;
+export type RevenueAutopilotRunStatus =
+  (typeof REVENUE_AUTOPILOT_RUN_STATUSES)[number];
+
+export type Phase48CohortAutopilotRun = {
+  run_id: string;
+  cohort_id: string;
+  promotion_id: string | null;
+  gate_passed: boolean;
+  consecutive_healthy_windows: number;
+  windows_required: number;
+  run_status: RevenueAutopilotRunStatus | string;
+  block_reason: string | null;
+  metrics_sha256: string;
+  created_at: string;
+  actor_id: string | null;
+  cohort_key?: string | null;
+};
+
+export type Phase48ConflictCohortArchive = {
+  archive_id: string;
+  archive_key: string;
+  entity_id: string;
+  conflict_kind: string;
+  conflict_ids: string[];
+  conflict_count: number;
+  closed_count: number;
+  metrics_sha256: string;
+  created_at: string;
+  archived_by: string | null;
+};
+
+export type Phase48CohortPerformanceSnapshot = {
+  snapshot_id: string;
+  cohort_id: string | null;
+  entity_id: string | null;
+  promotions_total: number;
+  promotions_promoted: number;
+  promotions_blocked: number;
+  autopilot_runs: number;
+  autopilot_promoted: number;
+  open_conflicts: number;
+  closed_conflicts: number;
+  archived_conflicts: number;
+  pending_closures: number;
+  promote_rate: number | null;
+  close_rate: number | null;
+  severity: RevenueSloSeverity | string;
+  metrics_sha256: string;
+  created_at: string;
+};
+
+export type Phase48OpsAlert = {
+  alert_id: string;
+  entity_id: string;
+  source_id: string | null;
+  cohort_id?: string | null;
+  archive_id?: string | null;
+  alert_kind: RevenuePhase48AlertKind | string;
+  window_key: string;
+  severity: 'critical' | string;
+  destination_key: string;
+  delivery_status: RevenueOpsAlertDelivery | string;
+  response_code: number | null;
+  metrics_sha256: string;
+  created_at: string;
+};
+
+export type Phase48RevenueOpsReport = {
+  version: typeof REVENUE_REPORT_VERSION_PHASE48 | string;
+  window_days: number;
+  autopilot_health: RevenueSloSeverity | string;
+  archive_health: RevenueSloSeverity | string;
+  cohort_performance_health: RevenueSloSeverity | string;
+  conflict_resolution_health: RevenueSloSeverity | string;
+  alert_delivery: RevenueOpsAlertDelivery | string;
+  autopilot_waiting_count: number;
+  autopilot_promoted_count: number;
+  autopilot_blocked_count: number;
+  archives_count: number;
+  open_aging_count: number;
+  pending_closure_count: number;
+  thresholds: Record<string, unknown>;
+  autopilot_runs: Phase48CohortAutopilotRun[];
+  conflict_archives: Phase48ConflictCohortArchive[];
+  performance_snapshots: Phase48CohortPerformanceSnapshot[];
+  aging_conflicts: Phase47AgingConflict[];
+  alerts: Phase48OpsAlert[];
   destination_key: string;
 };
 

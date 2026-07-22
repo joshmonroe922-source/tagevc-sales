@@ -31,10 +31,14 @@ import {
   announceSnapshotEd25519RotationPhase45,
 } from '@/lib/data/snapshot-retirement-phase45';
 import {
-  completeSnapshotEd25519CutoverPhase47,
-  getSnapshotPhase47OpsDashboard,
   recordSnapshotOncallAckPhase47,
 } from '@/lib/data/snapshot-retirement-phase47';
+import {
+  completeSnapshotEd25519CutoverPhase48,
+  getSnapshotPhase48OpsDashboard,
+  recordSnapshotCiCutoverAcceptancePhase48,
+  scanSnapshotOncallAckSloDashboardsPhase48,
+} from '@/lib/data/snapshot-retirement-phase48';
 import {
   recordSnapshotCutoverAcceptancePhase46,
 } from '@/lib/data/snapshot-retirement-phase46';
@@ -195,6 +199,32 @@ const requestSchema = z.discriminatedUnion('action', [
     ack_within_minutes: z.number().int().min(1).max(10080).optional(),
   }),
   z.object({
+    action: z.literal('record_ci_cutover_acceptance'),
+    rotation_id: z.uuid(),
+    previous_key_id: z
+      .string()
+      .trim()
+      .min(3)
+      .max(64)
+      .regex(/^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$/),
+    next_key_id: z
+      .string()
+      .trim()
+      .min(3)
+      .max(64)
+      .regex(/^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$/),
+    ci_run_key: z
+      .string()
+      .trim()
+      .min(3)
+      .max(200)
+      .regex(/^[A-Za-z0-9][A-Za-z0-9:._/-]{2,199}$/),
+  }),
+  z.object({
+    action: z.literal('scan_oncall_ack_dashboards'),
+    days: z.number().int().min(1).max(90).optional(),
+  }),
+  z.object({
     action: z.literal('schedule_phase40_canary'),
     entity_id: z.string().trim().min(1).max(100).nullable().optional(),
     package_id: z.uuid(),
@@ -220,36 +250,40 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: gate.error }, { status: 403 });
   }
   try {
-    const [phase40, phase47] = await Promise.all([
+    const [phase40, phase48] = await Promise.all([
       getSnapshotPhase40Dashboard(),
-      getSnapshotPhase47OpsDashboard(),
+      getSnapshotPhase48OpsDashboard(),
     ]);
     if (!phase40.ok) {
       return NextResponse.json(phase40, { status: 503 });
     }
     return NextResponse.json({
       ...phase40,
-      verifyMaterial: phase47.verifyMaterial,
-      coldRuns: phase47.coldRuns,
-      phase42Slo: phase47.phase42Slo,
-      firmWideVerifyMaterial: phase47.firmWideVerifyMaterial,
-      productionColdSchedules: phase47.productionColdSchedules,
-      phase43Slo: phase47.phase43Slo,
-      integrityChecks: phase47.integrityChecks,
-      retentionAlerts: phase47.retentionAlerts,
-      phase44CanarySchedules: phase47.phase44CanarySchedules,
-      phase44Slo: phase47.phase44Slo,
-      ed25519Rotations: phase47.ed25519Rotations,
-      consecutiveFailureCounters: phase47.consecutiveFailureCounters,
-      phase45OpsAlerts: phase47.phase45OpsAlerts,
-      phase45Slo: phase47.phase45Slo,
-      cutoverAcceptances: phase47.cutoverAcceptances,
-      oncallRoutes: phase47.oncallRoutes,
-      oncallDeliveries: phase47.oncallDeliveries,
-      phase46Slo: phase47.phase46Slo,
-      oncallAckSnapshots: phase47.oncallAckSnapshots,
-      oncallAckAlerts: phase47.oncallAckAlerts,
-      phase47Slo: phase47.phase47Slo,
+      verifyMaterial: phase48.verifyMaterial,
+      coldRuns: phase48.coldRuns,
+      phase42Slo: phase48.phase42Slo,
+      firmWideVerifyMaterial: phase48.firmWideVerifyMaterial,
+      productionColdSchedules: phase48.productionColdSchedules,
+      phase43Slo: phase48.phase43Slo,
+      integrityChecks: phase48.integrityChecks,
+      retentionAlerts: phase48.retentionAlerts,
+      phase44CanarySchedules: phase48.phase44CanarySchedules,
+      phase44Slo: phase48.phase44Slo,
+      ed25519Rotations: phase48.ed25519Rotations,
+      consecutiveFailureCounters: phase48.consecutiveFailureCounters,
+      phase45OpsAlerts: phase48.phase45OpsAlerts,
+      phase45Slo: phase48.phase45Slo,
+      cutoverAcceptances: phase48.cutoverAcceptances,
+      oncallRoutes: phase48.oncallRoutes,
+      oncallDeliveries: phase48.oncallDeliveries,
+      phase46Slo: phase48.phase46Slo,
+      oncallAckSnapshots: phase48.oncallAckSnapshots,
+      oncallAckAlerts: phase48.oncallAckAlerts,
+      phase47Slo: phase48.phase47Slo,
+      ciCutoverAcceptances: phase48.ciCutoverAcceptances,
+      oncallAckDashboards: phase48.oncallAckDashboards,
+      phase48Slo: phase48.phase48Slo,
+      snapshotCiCutoverEnabled: phase48.snapshotCiCutoverEnabled,
     });
   } catch (error) {
     captureException(error, { route: 'snapshot-retirement-phase40-dashboard' });
@@ -398,7 +432,7 @@ export async function POST(request: Request) {
         });
         break;
       case 'complete_ed25519_cutover':
-        result = await completeSnapshotEd25519CutoverPhase47({
+        result = await completeSnapshotEd25519CutoverPhase48({
           actorId: gate.profile.id,
           rotationId: parsed.data.rotation_id,
         });
@@ -417,6 +451,21 @@ export async function POST(request: Request) {
           actorId: gate.profile.id,
           deliveryId: parsed.data.delivery_id,
           ackWithinMinutes: parsed.data.ack_within_minutes,
+        });
+        break;
+      case 'record_ci_cutover_acceptance':
+        result = await recordSnapshotCiCutoverAcceptancePhase48({
+          actorId: gate.profile.id,
+          rotationId: parsed.data.rotation_id,
+          previousKeyId: parsed.data.previous_key_id,
+          nextKeyId: parsed.data.next_key_id,
+          ciRunKey: parsed.data.ci_run_key,
+        });
+        break;
+      case 'scan_oncall_ack_dashboards':
+        result = await scanSnapshotOncallAckSloDashboardsPhase48({
+          actorId: gate.profile.id,
+          days: parsed.data.days,
         });
         break;
       case 'schedule_phase40_canary':

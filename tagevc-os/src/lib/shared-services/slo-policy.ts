@@ -98,6 +98,9 @@ export async function listSloPolicyAdministration() {
     { data: digestNotifications, error: digestNotificationError },
     { data: ownershipVisibility, error: ownershipVisibilityError },
     { data: phase47Report, error: phase47ReportError },
+    { data: digestDeliveries, error: digestDeliveryError },
+    { data: digestDeliverySlos, error: digestDeliverySloError },
+    { data: phase48Report, error: phase48ReportError },
   ] = await Promise.all([
     sb
       .from('os_slo_policies')
@@ -227,6 +230,21 @@ export async function listSloPolicyAdministration() {
       .order('created_at', { ascending: false })
       .limit(12),
     sb.rpc('get_slo_phase47_governance_report'),
+    sb
+      .from('os_slo_digest_notification_deliveries')
+      .select(
+        'delivery_id,notification_id,destination_key,delivery_status,response_code,window_key,created_at',
+      )
+      .order('created_at', { ascending: false })
+      .limit(12),
+    sb
+      .from('os_slo_digest_notification_delivery_slo')
+      .select(
+        'snapshot_id,destination_key,window_days,delivered_count,failed_count,skipped_count,success_rate,severity,created_at',
+      )
+      .order('created_at', { ascending: false })
+      .limit(12),
+    sb.rpc('get_slo_phase48_governance_report'),
   ]);
   errorMessage(policyError);
   errorMessage(ownerError);
@@ -304,6 +322,21 @@ export async function listSloPolicyAdministration() {
   if (phase47ReportError) {
     console.error('slo phase47 governance report unavailable', phase47ReportError.message);
   }
+  if (digestDeliveryError) {
+    console.error(
+      'slo digest notification deliveries unavailable',
+      digestDeliveryError.message,
+    );
+  }
+  if (digestDeliverySloError) {
+    console.error(
+      'slo digest notification delivery SLOs unavailable',
+      digestDeliverySloError.message,
+    );
+  }
+  if (phase48ReportError) {
+    console.error('slo phase48 governance report unavailable', phase48ReportError.message);
+  }
   const archivedExportIds = new Set(
     (archivalError ? [] : (archivalReceipts ?? [])).map(
       (row: { export_id: string }) => row.export_id,
@@ -375,6 +408,9 @@ export async function listSloPolicyAdministration() {
       ? []
       : (ownershipVisibility ?? []),
     phase47Report: phase47ReportError ? null : (phase47Report ?? null),
+    digestDeliveries: digestDeliveryError ? [] : (digestDeliveries ?? []),
+    digestDeliverySlos: digestDeliverySloError ? [] : (digestDeliverySlos ?? []),
+    phase48Report: phase48ReportError ? null : (phase48Report ?? null),
   };
 }
 
@@ -1181,3 +1217,13 @@ export async function processSloGovernancePhase47(input?: { actorId?: string }) 
     visibility,
   };
 }
+
+export {
+  PHASE48_SLO_CONTRACT_VERSION,
+  parseOwnerDigestWebhooks,
+  registerOwnerDigestWebhookAllowlistPhase48,
+  deliverSloOwnerDigestWebhooksPhase48,
+  scanSloDigestNotificationDeliverySloPhase48,
+  getSloPhase48GovernanceReport,
+  processSloGovernancePhase48,
+} from '@/lib/shared-services/slo-phase48';

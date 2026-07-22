@@ -122,7 +122,7 @@ describe('Phase 47 marketing revenue ops', () => {
       'utf8',
     );
     expect(page).toMatch(/getPhase47RevenueOpsReport/);
-    expect(page).toMatch(/Phase 47/);
+    expect(page).toMatch(/Phase 48/);
     expect(page).toMatch(/phase47OpsReport=\{phase47OpsReport\.report\}/);
     expect(ui).toMatch(/cohort gate/);
     expect(ui).toMatch(/conflict aging/);
@@ -137,7 +137,7 @@ describe('Phase 47 marketing revenue ops', () => {
     expect(lib).toMatch(/detect_marketing_attribution_conflicts_aging_phase47/);
     expect(lib).toMatch(/list_marketing_revenue_phase47_critical_windows/);
     expect(lib).toMatch(/record_marketing_revenue_phase47_ops_alert/);
-    expect(route).toMatch(/phase47-v1/);
+    expect(route).toMatch(/phase48-v1/);
     expect(route).toMatch(/cohort_promotion_gates/);
     expect(route).toMatch(/attribution_conflict_closures/);
     expect(route).toMatch(/conflict_aging_visibility/);

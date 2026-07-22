@@ -24,6 +24,7 @@ import { getPhase44RevenueOpsReport } from '@/lib/shared-services/marketing-phas
 import { getPhase45RevenueOpsReport } from '@/lib/shared-services/marketing-phase45';
 import { getPhase46RevenueOpsReport } from '@/lib/shared-services/marketing-phase46';
 import { getPhase47RevenueOpsReport } from '@/lib/shared-services/marketing-phase47';
+import { getPhase48RevenueOpsReport } from '@/lib/shared-services/marketing-phase48';
 
 export default async function MarketingModulePage({
   searchParams,
@@ -71,6 +72,7 @@ export default async function MarketingModulePage({
     phase45OpsReport,
     phase46OpsReport,
     phase47OpsReport,
+    phase48OpsReport,
   ] = await Promise.all([
     listCampaigns(
       50,
@@ -133,6 +135,11 @@ export default async function MarketingModulePage({
       firmWide,
       days: paidDays,
     }),
+    getPhase48RevenueOpsReport({
+      entityId: firmWide ? null : (ctx?.profile.entity_id ?? null),
+      firmWide,
+      days: paidDays,
+    }),
   ]);
   if (!firmWide && ctx?.profile.entity_id) {
     const entityId = ctx.profile.entity_id;
@@ -174,16 +181,16 @@ export default async function MarketingModulePage({
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">Marketing</Badge>
-          <Badge variant="secondary">Phase 47</Badge>
+          <Badge variant="secondary">Phase 48</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Multichannel Marketing
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Entity-bound paid delivery, production ledger authenticity, multi-entity
-          cohort auto-reject promotion gates, attribution conflict closure
-          workflows, aging conflict visibility, and correction monitoring over
-          authoritative evidence.
+          Entity-bound paid delivery, production ledger authenticity, gated
+          cohort autopilot promotion, closed conflict-cohort archives, cohort
+          performance and conflict-resolution visibility, and correction
+          monitoring over authoritative evidence.
         </p>
         {oauthFlash && (
           <p className="text-sm text-emerald-700">{oauthFlash}</p>
@@ -206,6 +213,8 @@ export default async function MarketingModulePage({
         phase46OpsError={phase46OpsReport.error}
         phase47OpsReport={phase47OpsReport.report}
         phase47OpsError={phase47OpsReport.error}
+        phase48OpsReport={phase48OpsReport.report}
+        phase48OpsError={phase48OpsReport.error}
       />
 
       <MarketingClient

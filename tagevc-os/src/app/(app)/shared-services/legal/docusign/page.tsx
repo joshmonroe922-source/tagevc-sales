@@ -43,6 +43,7 @@ import { getArchivePhase44OpsReport } from '@/lib/docusign/archive-phase44';
 import { getArchivePhase45OpsReport } from '@/lib/docusign/archive-phase45';
 import { getArchivePhase46OpsReport } from '@/lib/docusign/archive-phase46';
 import { getArchivePhase47OpsReport } from '@/lib/docusign/archive-phase47';
+import { getArchivePhase48OpsReport } from '@/lib/docusign/archive-phase48';
 import { listArchiveGovernance } from '@/lib/docusign/archive-governance';
 
 function formatBytes(n: number | null | undefined): string {
@@ -140,6 +141,7 @@ export default async function DocuSignModulePage({
     phase45Ops,
     phase46Ops,
     phase47Ops,
+    phase48Ops,
   ] = await Promise.all([
     listDocuSignEvents({
       limit: 40,
@@ -207,6 +209,7 @@ export default async function DocuSignModulePage({
     getArchivePhase45OpsReport({ firmWide }),
     getArchivePhase46OpsReport({ firmWide }),
     getArchivePhase47OpsReport({ firmWide }),
+    getArchivePhase48OpsReport({ firmWide }),
   ]);
 
   const voidPolicy = process.env.DOCUSIGN_VOID_POLICY?.trim() || 'allow';
@@ -283,6 +286,7 @@ export default async function DocuSignModulePage({
           <Badge variant="secondary">Phase 45</Badge>
           <Badge variant="secondary">Phase 46</Badge>
           <Badge variant="secondary">Phase 47</Badge>
+          <Badge variant="secondary">Phase 48</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">DocuSign</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
@@ -332,6 +336,12 @@ export default async function DocuSignModulePage({
           }
           phase47DriftPerformance={
             firmWide ? phase47Ops.report.drift_performance : undefined
+          }
+          phase48SubsequentRunStatus={
+            firmWide ? phase48Ops.report.subsequent_run_status : undefined
+          }
+          phase48DriftPerformance={
+            firmWide ? phase48Ops.report.drift_performance : undefined
           }
         />
         <DocuSignTemplateSendForm
@@ -448,7 +458,9 @@ export default async function DocuSignModulePage({
               quarterlies, tightens drift budgets from baselines, and improves
               cadence visibility. Phase 47 runs the first armed recurring
               quarterly under tightened drift budgets and reports drift
-              performance.
+              performance. Phase 48 schedules subsequent recurring quarterlies,
+              tightens budgets on drift breaches, and improves execution
+              performance reporting.
               {archiveGovernance.error ? ` · ${archiveGovernance.error}` : ''}
               {archiveCampaigns.error ? ` · ${archiveCampaigns.error}` : ''}
               {archiveCampaignOps.error ? ` · ${archiveCampaignOps.error}` : ''}
@@ -457,6 +469,7 @@ export default async function DocuSignModulePage({
               {phase45Ops.error ? ` · ${phase45Ops.error}` : ''}
               {phase46Ops.error ? ` · ${phase46Ops.error}` : ''}
               {phase47Ops.error ? ` · ${phase47Ops.error}` : ''}
+              {phase48Ops.error ? ` · ${phase48Ops.error}` : ''}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-xs">
@@ -569,6 +582,22 @@ export default async function DocuSignModulePage({
                     : ''}
                   {phase47Ops.report.latest_run?.content_drift_count != null
                     ? ` · drift ${String(phase47Ops.report.latest_run.content_drift_count)}/${String(phase47Ops.report.latest_run.max_content_drift_per_window ?? '?')}`
+                    : ''}
+                </p>
+                <p className="text-muted-foreground">
+                  Phase 48 subsequent:{' '}
+                  {phase48Ops.report.subsequent_run_status} · schedule{' '}
+                  {phase48Ops.report.schedule_status} · drift{' '}
+                  {phase48Ops.report.drift_performance} · breach tighten{' '}
+                  {phase48Ops.report.breach_tighten_status}
+                  {phase48Ops.report.completed_subsequent_count > 0
+                    ? ` · completed ${phase48Ops.report.completed_subsequent_count}`
+                    : ''}
+                  {phase48Ops.report.breach_count_30d > 0
+                    ? ` · breaches 30d ${phase48Ops.report.breach_count_30d}`
+                    : ''}
+                  {phase48Ops.report.latest_schedule?.due_at
+                    ? ` · next due ${new Date(String(phase48Ops.report.latest_schedule.due_at)).toLocaleString()}`
                     : ''}
                 </p>
               </div>

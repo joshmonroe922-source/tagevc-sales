@@ -19,6 +19,7 @@ import { runPhase44RevenueOpsTick } from '@/lib/shared-services/marketing-phase4
 import { runPhase45RevenueOpsTick } from '@/lib/shared-services/marketing-phase45';
 import { runPhase46RevenueOpsTick } from '@/lib/shared-services/marketing-phase46';
 import { runPhase47RevenueOpsTick } from '@/lib/shared-services/marketing-phase47';
+import { runPhase48RevenueOpsTick } from '@/lib/shared-services/marketing-phase48';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 
 type PullRun = {
@@ -511,6 +512,19 @@ export async function processMarketingRevenuePulls(limit = 1): Promise<{
     } else {
       details.push(
         `phase47-ops:${entityId}: aging=${phase47.agingDetected} alerts=${phase47.alertsRecorded}`,
+      );
+    }
+
+    // Phase 48: cohort autopilot, conflict archives, performance visibility.
+    const phase48 = await runPhase48RevenueOpsTick({
+      entityId,
+      days: 30,
+    });
+    if (!phase48.ok) {
+      details.push(`phase48-ops:${entityId}: ${phase48.error}`);
+    } else {
+      details.push(
+        `phase48-ops:${entityId}: perf=${phase48.performanceSnapshots} archives=${phase48.archivesRecorded} autopilot=${phase48.autopilotRuns}/${phase48.autopilotPromoted} alerts=${phase48.alertsRecorded}`,
       );
     }
   }

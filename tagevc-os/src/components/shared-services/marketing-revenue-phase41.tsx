@@ -9,6 +9,7 @@ import type {
   Phase45RevenueOpsReport,
   Phase46RevenueOpsReport,
   Phase47RevenueOpsReport,
+  Phase48RevenueOpsReport,
 } from '@/lib/shared-services/marketing-revenue-contracts';
 import {
   reviewMarketingRevenueCorrectionAction,
@@ -59,6 +60,8 @@ export function MarketingRevenuePhase41({
   phase46OpsError,
   phase47OpsReport,
   phase47OpsError,
+  phase48OpsReport,
+  phase48OpsError,
 }: {
   report: Phase41RevenueReport;
   error?: string;
@@ -75,6 +78,8 @@ export function MarketingRevenuePhase41({
   phase46OpsError?: string;
   phase47OpsReport?: Phase47RevenueOpsReport;
   phase47OpsError?: string;
+  phase48OpsReport?: Phase48RevenueOpsReport;
+  phase48OpsError?: string;
 }) {
   const [pending, startTransition] = useTransition();
   const [actionError, setActionError] = useState<string | null>(null);
@@ -313,6 +318,35 @@ export function MarketingRevenuePhase41({
                 </span>
               </>
             ) : null}
+            {phase48OpsReport ? (
+              <>
+                <span
+                  className={`rounded border px-2 py-0.5 text-[11px] ${severityClass(phase48OpsReport.autopilot_health)}`}
+                >
+                  cohort autopilot {phase48OpsReport.autopilot_health}
+                  {phase48OpsReport.autopilot_waiting_count
+                    ? ` (${phase48OpsReport.autopilot_waiting_count} waiting)`
+                    : phase48OpsReport.autopilot_promoted_count
+                      ? ` (${phase48OpsReport.autopilot_promoted_count} promoted)`
+                      : ''}
+                </span>
+                <span
+                  className={`rounded border px-2 py-0.5 text-[11px] ${severityClass(phase48OpsReport.cohort_performance_health)}`}
+                >
+                  cohort performance{' '}
+                  {phase48OpsReport.cohort_performance_health}
+                </span>
+                <span
+                  className={`rounded border px-2 py-0.5 text-[11px] ${severityClass(phase48OpsReport.conflict_resolution_health)}`}
+                >
+                  conflict resolution{' '}
+                  {phase48OpsReport.conflict_resolution_health}
+                  {phase48OpsReport.archives_count
+                    ? ` (${phase48OpsReport.archives_count} archived)`
+                    : ''}
+                </span>
+              </>
+            ) : null}
           </div>
           {sloError ? (
             <p className="text-xs text-destructive">{sloError}</p>
@@ -331,6 +365,9 @@ export function MarketingRevenuePhase41({
           ) : null}
           {phase47OpsError ? (
             <p className="text-xs text-destructive">{phase47OpsError}</p>
+          ) : null}
+          {phase48OpsError ? (
+            <p className="text-xs text-destructive">{phase48OpsError}</p>
           ) : null}
           <div className="grid gap-2 md:grid-cols-2">
             <div className="rounded border p-2 text-xs">

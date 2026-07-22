@@ -121,7 +121,7 @@ describe('Phase 46 marketing revenue ops', () => {
       'utf8',
     );
     expect(page).toMatch(/getPhase46RevenueOpsReport/);
-    expect(page).toMatch(/Phase 4[67]/);
+    expect(page).toMatch(/Phase 4[678]/);
     expect(page).toMatch(/phase46OpsReport=\{phase46OpsReport\.report\}/);
     expect(ui).toMatch(/promotion gate/);
     expect(ui).toMatch(/webhook reliability/);
@@ -141,7 +141,7 @@ describe('Phase 46 marketing revenue ops', () => {
     );
     expect(lib).toMatch(/list_marketing_revenue_phase46_critical_windows/);
     expect(lib).toMatch(/record_marketing_revenue_phase46_ops_alert/);
-    expect(route).toMatch(/phase4[67]-v1/);
+    expect(route).toMatch(/phase4[678]-v1/);
     expect(route).toMatch(/auto_reject_promotion_gates/);
     expect(route).toMatch(/webhook_reliability_trends/);
     expect(route).toMatch(/rule_performance_snapshots/);

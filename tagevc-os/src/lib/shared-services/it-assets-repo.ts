@@ -1088,6 +1088,21 @@ export type ItIntunePhase47Health = {
   alerts_undelivered_count: number;
 };
 
+export type ItIntunePhase48Health = {
+  template_suggestion_count: number;
+  template_mismatch_suggestions_7d: number;
+  lifecycle_snapshot_count: number;
+  lifecycle_expired_latest: number;
+  lifecycle_extended_latest: number;
+  lifecycle_proposed_latest: number;
+  lifecycle_approved_latest: number;
+  waive_expired_page_count: number;
+  waive_expired_pages_delivered: number;
+  ops_alert_count: number;
+  alerts_delivered_count: number;
+  alerts_undelivered_count: number;
+};
+
 export type ItIntunePostmortemQualityStatus = {
   review_id: string;
   postmortem_id: string;
@@ -1171,6 +1186,36 @@ export type ItIntuneScorecardMttrCorrelationStatus = {
   recorded_at: string;
   ready_for_tuning_promote: boolean;
   postmortem_status: string;
+};
+
+export type ItIntunePostmortemTemplateSuggestionStatus = {
+  suggestion_id: string;
+  postmortem_id: string;
+  scorecard_id: string;
+  correlation_id: string;
+  suggested_fields: Record<string, unknown>;
+  mttr_minutes: number;
+  composite_score: number;
+  status: 'suggested';
+  evidence_sha256: string;
+  recorded_at: string;
+  postmortem_status: string;
+  root_cause_class: string;
+};
+
+export type ItIntuneWaiveLifecycleStatus = {
+  snapshot_id: string;
+  proposed_count: number;
+  approved_count: number;
+  rejected_count: number;
+  expired_count: number;
+  extended_count: number;
+  expiry_pending_count: number;
+  expire_action_approved_count: number;
+  aggregate_evidence: Record<string, unknown>;
+  evidence_sha256: string;
+  bucket_key: string;
+  recorded_at: string;
 };
 
 export type ItIntuneTuningPromoteGateStatus = {
@@ -1586,6 +1631,22 @@ export async function getIntunePhase47Health(): Promise<{
     : { row: (data as ItIntunePhase47Health | null) ?? null };
 }
 
+export async function getIntunePhase48Health(): Promise<{
+  row: ItIntunePhase48Health | null;
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb
+    .from('os_it_intune_phase48_health')
+    .select(
+      'template_suggestion_count, template_mismatch_suggestions_7d, lifecycle_snapshot_count, lifecycle_expired_latest, lifecycle_extended_latest, lifecycle_proposed_latest, lifecycle_approved_latest, waive_expired_page_count, waive_expired_pages_delivered, ops_alert_count, alerts_delivered_count, alerts_undelivered_count',
+    )
+    .maybeSingle();
+  return error
+    ? { row: null, error: error.message }
+    : { row: (data as ItIntunePhase48Health | null) ?? null };
+}
+
 export async function listIntunePostmortemQualityStatus(limit = 50): Promise<{
   rows: ItIntunePostmortemQualityStatus[];
   error?: string;
@@ -1673,6 +1734,41 @@ export async function listIntuneScorecardMttrCorrelations(
   return error
     ? { rows: [], error: error.message }
     : { rows: (data ?? []) as ItIntuneScorecardMttrCorrelationStatus[] };
+}
+
+export async function listIntunePostmortemTemplateSuggestions(
+  limit = 50,
+): Promise<{
+  rows: ItIntunePostmortemTemplateSuggestionStatus[];
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb
+    .from('os_it_intune_postmortem_template_suggestion_status')
+    .select(
+      'suggestion_id, postmortem_id, scorecard_id, correlation_id, suggested_fields, mttr_minutes, composite_score, status, evidence_sha256, recorded_at, postmortem_status, root_cause_class',
+    )
+    .order('recorded_at', { ascending: false })
+    .limit(limit);
+  return error
+    ? { rows: [], error: error.message }
+    : { rows: (data ?? []) as ItIntunePostmortemTemplateSuggestionStatus[] };
+}
+
+export async function getIntuneWaiveLifecycleStatus(): Promise<{
+  row: ItIntuneWaiveLifecycleStatus | null;
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb
+    .from('os_it_intune_waive_lifecycle_status')
+    .select(
+      'snapshot_id, proposed_count, approved_count, rejected_count, expired_count, extended_count, expiry_pending_count, expire_action_approved_count, aggregate_evidence, evidence_sha256, bucket_key, recorded_at',
+    )
+    .maybeSingle();
+  return error
+    ? { row: null, error: error.message }
+    : { row: (data as ItIntuneWaiveLifecycleStatus | null) ?? null };
 }
 
 export async function listIntuneTuningPromoteGateStatus(limit = 50): Promise<{
@@ -1792,6 +1888,17 @@ export async function getIntunePhase47OpsReport(): Promise<{
     : { report: (data as Record<string, unknown> | null) ?? null };
 }
 
+export async function getIntunePhase48OpsReport(): Promise<{
+  report: Record<string, unknown> | null;
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc('get_it_intune_phase48_ops_report');
+  return error
+    ? { report: null, error: error.message }
+    : { report: (data as Record<string, unknown> | null) ?? null };
+}
+
 export async function getIntuneTuningPromoteGate(input: {
   recommendation_id?: string;
   proposal_id?: string;
@@ -1887,6 +1994,13 @@ export async function runIntunePhase47ExpiryMttrOps() {
     '@/lib/shared-services/it-intune-worker'
   );
   return processIntunePhase47ExpiryMttrOps();
+}
+
+export async function runIntunePhase48TemplateLifecycleOps() {
+  const { processIntunePhase48TemplateLifecycleOps } = await import(
+    '@/lib/shared-services/it-intune-worker'
+  );
+  return processIntunePhase48TemplateLifecycleOps();
 }
 
 export async function proposeIntunePromoteWaive(input: {
