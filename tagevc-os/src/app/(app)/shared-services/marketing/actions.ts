@@ -31,6 +31,10 @@ import {
 } from '@/lib/shared-services/marketing-phase41';
 import { proposeResolveAttributionConflict } from '@/lib/shared-services/marketing-phase44';
 import {
+  approveMarketingDryRunPromotePhase50,
+  proposeMarketingDryRunPromotePhase50,
+} from '@/lib/shared-services/marketing-phase50';
+import {
   REVENUE_AUTHENTICITY_MODES,
   REVENUE_LEDGER_KINDS,
   REVENUE_LEDGER_PROFILES,
@@ -932,6 +936,65 @@ export async function resolveMarketingAttributionConflictAction(
   return {
     ok: true,
     message: `Attribution conflict ${resolution}`,
+  };
+}
+
+// Phase 50: propose (NEVER auto-approve) a dual-approve promotion from an
+// existing Phase 49 dry-run snapshot that predicted 'would_promote'.
+export async function proposeMarketingDryRunPromoteAction(
+  dryRunId: string,
+): Promise<MarketingActionResult> {
+  const gate = await guardPermission('write:marketing');
+  if (!gate.ok) return gate;
+  const parsed = z.object({ dryRunId: z.string().uuid() }).safeParse({
+    dryRunId,
+  });
+  if (!parsed.success) {
+    return { ok: false, error: 'Invalid dry-run snapshot id' };
+  }
+  const result = await proposeMarketingDryRunPromotePhase50({
+    dryRunId: parsed.data.dryRunId,
+    proposedBy: gate.profile.id,
+  });
+  if (!result.ok) return result;
+  revalidateMarketing();
+  return {
+    ok: true,
+    message: `Promotion proposal ${
+      (result.data.proposal_id as string | undefined) ?? ''
+    } recorded — requires 2 distinct human approvers`,
+  };
+}
+
+// Phase 50: dual-approve gate. ALWAYS requires human approval for
+// money-related promotions — never auto-approves. Only calls the existing
+// Phase 47 cohort auto-reject promote RPC after 2 distinct approvers.
+export async function approveMarketingDryRunPromoteAction(
+  proposalId: string,
+  decision: 'approve' | 'reject',
+): Promise<MarketingActionResult> {
+  const gate = await guardPermission('write:marketing');
+  if (!gate.ok) return gate;
+  const parsed = z
+    .object({
+      proposalId: z.string().uuid(),
+      decision: z.enum(['approve', 'reject']),
+    })
+    .safeParse({ proposalId, decision });
+  if (!parsed.success) {
+    return { ok: false, error: 'Invalid dual-approve decision' };
+  }
+  const result = await approveMarketingDryRunPromotePhase50({
+    proposalId: parsed.data.proposalId,
+    actorId: gate.profile.id,
+    decision: parsed.data.decision,
+  });
+  if (!result.ok) return result;
+  revalidateMarketing();
+  const disposition = result.data.disposition as string | undefined;
+  return {
+    ok: true,
+    message: `Dual-approve promotion: ${disposition ?? 'recorded'}`,
   };
 }
 

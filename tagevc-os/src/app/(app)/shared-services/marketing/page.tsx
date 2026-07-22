@@ -26,6 +26,7 @@ import { getPhase46RevenueOpsReport } from '@/lib/shared-services/marketing-phas
 import { getPhase47RevenueOpsReport } from '@/lib/shared-services/marketing-phase47';
 import { getPhase48RevenueOpsReport } from '@/lib/shared-services/marketing-phase48';
 import { getPhase49RevenueOpsReport } from '@/lib/shared-services/marketing-phase49';
+import { getPhase50RevenueOpsReport } from '@/lib/shared-services/marketing-phase50';
 
 export default async function MarketingModulePage({
   searchParams,
@@ -75,6 +76,7 @@ export default async function MarketingModulePage({
     phase47OpsReport,
     phase48OpsReport,
     phase49OpsReport,
+    phase50OpsReport,
   ] = await Promise.all([
     listCampaigns(
       50,
@@ -147,6 +149,11 @@ export default async function MarketingModulePage({
       firmWide,
       days: paidDays,
     }),
+    getPhase50RevenueOpsReport({
+      entityId: firmWide ? null : (ctx?.profile.entity_id ?? null),
+      firmWide,
+      days: paidDays,
+    }),
   ]);
   if (!firmWide && ctx?.profile.entity_id) {
     const entityId = ctx.profile.entity_id;
@@ -190,6 +197,7 @@ export default async function MarketingModulePage({
           <Badge variant="outline">Marketing</Badge>
           <Badge variant="secondary">Phase 48</Badge>
           <Badge variant="secondary">Phase 49</Badge>
+          <Badge variant="secondary">Phase 50</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Multichannel Marketing
@@ -199,7 +207,9 @@ export default async function MarketingModulePage({
           cohort autopilot promotion, closed conflict-cohort archives, cohort
           performance and conflict-resolution visibility, correction
           monitoring over authoritative evidence, autopilot dry-run
-          dashboards, and cohort promotion audit exports.
+          dashboards, cohort promotion audit exports, and gated dual-approved
+          promotion from dry-run into actual promotion for soaked-healthy
+          cohorts.
         </p>
         {oauthFlash && (
           <p className="text-sm text-emerald-700">{oauthFlash}</p>
@@ -226,6 +236,8 @@ export default async function MarketingModulePage({
         phase48OpsError={phase48OpsReport.error}
         phase49OpsReport={phase49OpsReport.report}
         phase49OpsError={phase49OpsReport.error}
+        phase50OpsReport={phase50OpsReport.report}
+        phase50OpsError={phase50OpsReport.error}
       />
 
       <MarketingClient

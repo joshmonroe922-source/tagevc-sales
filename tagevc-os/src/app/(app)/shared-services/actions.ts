@@ -37,6 +37,11 @@ import {
   saveSloPolicyDraft,
   transitionSloPolicyDraft,
 } from '@/lib/shared-services/slo-policy';
+import {
+  recordSloOwnerDigestWowTrendPhase50,
+  setSloOwnerDigestSelfServeOptInPhase50,
+  listSloOwnerDigestSelfServeFailuresPhase50,
+} from '@/lib/shared-services/slo-phase50';
 
 export type TicketActionResult =
   | { ok: true; ticketId?: string; message?: string }
@@ -826,6 +831,62 @@ export async function scanSloOwnerDigestDeliverySuccessAction(): Promise<TicketA
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : 'Failed' };
   }
+}
+
+export async function recordSloOwnerDigestWowTrendAction(): Promise<TicketActionResult> {
+  const gate = await guardPermission('write:shared_services');
+  if (!gate.ok) return gate;
+  try {
+    const result = (await recordSloOwnerDigestWowTrendPhase50({
+      actorId: gate.profile.id,
+    })) as {
+      wow_trend_snapshots_recorded?: number;
+      owners_tracked?: number;
+    };
+    revalidatePath('/shared-services');
+    return {
+      ok: true,
+      message: `Owner digest WoW trend · snapshots ${result.wow_trend_snapshots_recorded ?? 0} · owners tracked ${result.owners_tracked ?? 0} · not full push`,
+    };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Failed' };
+  }
+}
+
+export async function setSloOwnerDigestSelfServeOptInAction(input: {
+  ownerId: string;
+  optedIn: boolean;
+}): Promise<TicketActionResult> {
+  const gate = await guardPermission('write:shared_services');
+  if (!gate.ok) return gate;
+  const result = await setSloOwnerDigestSelfServeOptInPhase50({
+    ownerId: input.ownerId,
+    actorId: gate.profile.id,
+    optedIn: input.optedIn,
+  });
+  if (!result.ok) return { ok: false, error: result.error };
+  revalidatePath('/shared-services');
+  return {
+    ok: true,
+    message: `Owner self-serve digest failure view ${input.optedIn ? 'opted in' : 'opted out'}`,
+  };
+}
+
+export async function listSloOwnerDigestSelfServeFailuresAction(input: {
+  ownerId: string;
+}): Promise<TicketActionResult> {
+  const gate = await guardPermission('write:shared_services');
+  if (!gate.ok) return gate;
+  const result = await listSloOwnerDigestSelfServeFailuresPhase50({
+    ownerId: input.ownerId,
+    actorId: gate.profile.id,
+  });
+  if (!result.ok) return { ok: false, error: result.error };
+  const failures = (result.detail as { failures?: unknown[] } | undefined)?.failures ?? [];
+  return {
+    ok: true,
+    message: `Self-serve digest failures · ${Array.isArray(failures) ? failures.length : 0} row(s) in window`,
+  };
 }
 
 export async function requestSloRouteTestAction(input: {

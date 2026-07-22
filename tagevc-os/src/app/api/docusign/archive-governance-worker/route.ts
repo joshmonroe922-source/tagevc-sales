@@ -12,6 +12,7 @@ import { runArchivePhase46OpsTick } from '@/lib/docusign/archive-phase46';
 import { runArchivePhase47OpsTick } from '@/lib/docusign/archive-phase47';
 import { runArchivePhase48OpsTick } from '@/lib/docusign/archive-phase48';
 import { runArchivePhase49OpsTick } from '@/lib/docusign/archive-phase49';
+import { runArchivePhase50OpsTick } from '@/lib/docusign/archive-phase50';
 import {
   finishOperationalWorker,
   startOperationalWorker,
@@ -107,6 +108,7 @@ async function run(request: Request) {
     const phase47 = await runArchivePhase47OpsTick();
     const phase48 = await runArchivePhase48OpsTick();
     const phase49 = await runArchivePhase49OpsTick();
+    const phase50 = await runArchivePhase50OpsTick();
     await finishOperationalWorker({
       workerRunId: worker.workerRunId,
       status: noop
@@ -187,10 +189,29 @@ async function run(request: Request) {
         phase49_proposal_status: phase49.ok ? phase49.proposalStatus : null,
         phase49_alerts_recorded: phase49.ok ? phase49.alertsRecorded : null,
         phase49_ops_error: phase49.ok ? null : phase49.error,
+        phase50_ops_ok: phase50.ok,
+        phase50_cadence_trend_direction: phase50.ok
+          ? phase50.trendDirection
+          : null,
+        phase50_recurring_process_health: phase50.ok
+          ? phase50.recurringProcessHealth
+          : null,
+        phase50_reminders_sent: phase50.ok ? phase50.remindersSent : null,
+        phase50_alerts_recorded: phase50.ok ? phase50.alertsRecorded : null,
+        phase50_ops_error: phase50.ok ? null : phase50.error,
       },
     });
     return NextResponse.json(
-      { ...result, phase44, phase45, phase46, phase47, phase48, phase49 },
+      {
+        ...result,
+        phase44,
+        phase45,
+        phase46,
+        phase47,
+        phase48,
+        phase49,
+        phase50,
+      },
       {
         status: result.ok || noop || (result.governance?.claimed ?? 0) > 0
           ? 200
@@ -220,6 +241,7 @@ async function run(request: Request) {
   const phase47 = await runArchivePhase47OpsTick();
   const phase48 = await runArchivePhase48OpsTick();
   const phase49 = await runArchivePhase49OpsTick();
+  const phase50 = await runArchivePhase50OpsTick();
   await finishOperationalWorker({
     workerRunId: worker.workerRunId,
     status: result.checkpointed
@@ -279,10 +301,29 @@ async function run(request: Request) {
       phase49_proposal_status: phase49.ok ? phase49.proposalStatus : null,
       phase49_alerts_recorded: phase49.ok ? phase49.alertsRecorded : null,
       phase49_ops_error: phase49.ok ? null : phase49.error,
+      phase50_ops_ok: phase50.ok,
+      phase50_cadence_trend_direction: phase50.ok
+        ? phase50.trendDirection
+        : null,
+      phase50_recurring_process_health: phase50.ok
+        ? phase50.recurringProcessHealth
+        : null,
+      phase50_reminders_sent: phase50.ok ? phase50.remindersSent : null,
+      phase50_alerts_recorded: phase50.ok ? phase50.alertsRecorded : null,
+      phase50_ops_error: phase50.ok ? null : phase50.error,
     },
   });
   return NextResponse.json(
-    { ...result, phase44, phase45, phase46, phase47, phase48, phase49 },
+    {
+      ...result,
+      phase44,
+      phase45,
+      phase46,
+      phase47,
+      phase48,
+      phase49,
+      phase50,
+    },
     {
       status: result.ok || result.claimed > 0 ? 200 : 500,
     },

@@ -21,6 +21,7 @@ import {
   getIntunePhase47Health,
   getIntunePhase48Health,
   getIntunePhase49OpsReport,
+  getIntunePhase50OpsReport,
   listIntuneOutagePostmortems,
   listIntuneThresholdRecommendations,
   listIntuneSoakCycleTimeline,
@@ -79,6 +80,7 @@ export default async function ItAssetsModulePage() {
     phase47Health,
     phase48Health,
     phase49Ops,
+    phase50Ops,
     outagePostmortems,
     thresholdRecommendations,
     soakCycleTimeline,
@@ -117,6 +119,7 @@ export default async function ItAssetsModulePage() {
     getIntunePhase47Health(),
     getIntunePhase48Health(),
     getIntunePhase49OpsReport(),
+    getIntunePhase50OpsReport(),
     listIntuneOutagePostmortems(),
     listIntuneThresholdRecommendations(),
     listIntuneSoakCycleTimeline(),
@@ -176,6 +179,7 @@ export default async function ItAssetsModulePage() {
           <Badge variant="secondary">Phase 43</Badge>
           <Badge variant="secondary">Phase 44</Badge>
           <Badge variant="secondary">Phase 49</Badge>
+          <Badge variant="secondary">Phase 50</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Hardware &amp; licensing
@@ -184,6 +188,10 @@ export default async function ItAssetsModulePage() {
           Phase 43 soak cycle evidence plus Phase 44 breaker performance trends,
           canary/outage ops alerts, and correlation across outages, tuning, and
           recovery. Observe-only — never closes or resets open breakers.
+          Phase 50 extends dual distinct-approver review to breaker tuning
+          and waive promotions, with suggested-vs-applied visibility for
+          both. Never auto-closes or resets breakers; apply/approve remain
+          human actions requiring 2 distinct approvers.
         </p>
       </div>
 
@@ -230,6 +238,7 @@ export default async function ItAssetsModulePage() {
         intunePhase47Health={firmWide ? phase47Health.row : null}
         intunePhase48Health={firmWide ? phase48Health.row : null}
         intunePhase49Ops={firmWide ? phase49Ops.report : null}
+        intunePhase50Ops={firmWide ? phase50Ops.report : null}
         intuneOutagePostmortems={firmWide ? outagePostmortems.rows : []}
         intuneThresholdRecommendations={thresholdRecommendations.rows.filter(
           (recommendation) =>
@@ -282,7 +291,9 @@ export default async function ItAssetsModulePage() {
           scorecardMttrCorrelations.error ||
           postmortemTemplateSuggestions.error ||
           waiveLifecycle.error ||
-          promoteGates.error
+          promoteGates.error ||
+          phase49Ops.error ||
+          phase50Ops.error
         }
       />
     </div>

@@ -11,8 +11,10 @@ import type {
   Phase47RevenueOpsReport,
   Phase48RevenueOpsReport,
   Phase49RevenueOpsReport,
+  Phase50RevenueOpsReport,
 } from '@/lib/shared-services/marketing-revenue-contracts';
 import {
+  approveMarketingDryRunPromoteAction,
   reviewMarketingRevenueCorrectionAction,
   resolveMarketingAttributionConflictAction,
 } from '@/app/(app)/shared-services/marketing/actions';
@@ -65,6 +67,8 @@ export function MarketingRevenuePhase41({
   phase48OpsError,
   phase49OpsReport,
   phase49OpsError,
+  phase50OpsReport,
+  phase50OpsError,
 }: {
   report: Phase41RevenueReport;
   error?: string;
@@ -85,6 +89,8 @@ export function MarketingRevenuePhase41({
   phase48OpsError?: string;
   phase49OpsReport?: Phase49RevenueOpsReport;
   phase49OpsError?: string;
+  phase50OpsReport?: Phase50RevenueOpsReport;
+  phase50OpsError?: string;
 }) {
   const [pending, startTransition] = useTransition();
   const [actionError, setActionError] = useState<string | null>(null);
@@ -156,6 +162,34 @@ export function MarketingRevenuePhase41({
         return;
       }
       setActionMessage(result.message ?? `Conflict ${resolution}`);
+    });
+  }
+
+  function approveDryRunPromotion(
+    proposalId: string,
+    decision: 'approve' | 'reject',
+  ) {
+    if (
+      !window.confirm(
+        decision === 'approve'
+          ? 'Approve this dual-approve promotion? A second distinct human approver is required — this ALWAYS requires human approval and never auto-approves money.'
+          : 'Reject this dual-approve promotion proposal?',
+      )
+    ) {
+      return;
+    }
+    setActionError(null);
+    setActionMessage(null);
+    startTransition(async () => {
+      const result = await approveMarketingDryRunPromoteAction(
+        proposalId,
+        decision,
+      );
+      if (!result.ok) {
+        setActionError(result.error);
+        return;
+      }
+      setActionMessage(result.message ?? `Promotion proposal ${decision}d`);
     });
   }
 
@@ -375,6 +409,20 @@ export function MarketingRevenuePhase41({
                 </span>
               </>
             ) : null}
+            {phase50OpsReport ? (
+              <>
+                <span
+                  className={`rounded border px-2 py-0.5 text-[11px] ${severityClass(phase50OpsReport.promotion_health)}`}
+                >
+                  dual-approve promotion {phase50OpsReport.promotion_health}
+                  {phase50OpsReport.pending_proposal_count
+                    ? ` (${phase50OpsReport.pending_proposal_count} pending)`
+                    : phase50OpsReport.applied_proposal_count
+                      ? ` (${phase50OpsReport.applied_proposal_count} applied)`
+                      : ''}
+                </span>
+              </>
+            ) : null}
           </div>
           {sloError ? (
             <p className="text-xs text-destructive">{sloError}</p>
@@ -399,6 +447,59 @@ export function MarketingRevenuePhase41({
           ) : null}
           {phase49OpsError ? (
             <p className="text-xs text-destructive">{phase49OpsError}</p>
+          ) : null}
+          {phase50OpsError ? (
+            <p className="text-xs text-destructive">{phase50OpsError}</p>
+          ) : null}
+          {phase50OpsReport && phase50OpsReport.proposals.some(
+            (p) => p.status === 'pending',
+          ) ? (
+            <div className="space-y-1 rounded border p-2 text-xs">
+              <p className="font-medium">
+                Dual-approve promotions awaiting approval (2 distinct human
+                approvers required — never auto-approved)
+              </p>
+              <ul className="space-y-1">
+                {phase50OpsReport.proposals
+                  .filter((p) => p.status === 'pending')
+                  .slice(0, 10)
+                  .map((p) => (
+                    <li
+                      key={p.proposal_id}
+                      className="flex flex-wrap items-center gap-2"
+                    >
+                      <span className="text-muted-foreground">
+                        cohort {p.cohort_id.slice(0, 8)} · proposal{' '}
+                        {p.proposal_id.slice(0, 8)}
+                      </span>
+                      {canWrite ? (
+                        <>
+                          <button
+                            type="button"
+                            disabled={pending}
+                            className="rounded border px-2 py-0.5 text-emerald-800 hover:bg-emerald-50 disabled:opacity-50"
+                            onClick={() =>
+                              approveDryRunPromotion(p.proposal_id, 'approve')
+                            }
+                          >
+                            Approve
+                          </button>
+                          <button
+                            type="button"
+                            disabled={pending}
+                            className="rounded border px-2 py-0.5 text-destructive hover:bg-destructive/10 disabled:opacity-50"
+                            onClick={() =>
+                              approveDryRunPromotion(p.proposal_id, 'reject')
+                            }
+                          >
+                            Reject
+                          </button>
+                        </>
+                      ) : null}
+                    </li>
+                  ))}
+              </ul>
+            </div>
           ) : null}
           <div className="grid gap-2 md:grid-cols-2">
             <div className="rounded border p-2 text-xs">

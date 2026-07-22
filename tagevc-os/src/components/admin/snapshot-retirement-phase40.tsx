@@ -159,6 +159,11 @@ type Dashboard = {
   phase49OpsAlerts?: Array<Record<string, unknown>>;
   phase49Slo?: Record<string, unknown> | null;
   snapshotCiProtectedBranchesRequired?: string[];
+  phase50PageReceipts?: Array<Record<string, unknown>>;
+  phase50CiCheckEvents?: Array<Record<string, unknown>>;
+  phase50SoakSnapshots?: Array<Record<string, unknown>>;
+  phase50OpsAlerts?: Array<Record<string, unknown>>;
+  phase50Report?: Record<string, unknown> | null;
 };
 
 type ApiResult = {
@@ -175,6 +180,7 @@ type ApiResult = {
   rotation?: Record<string, unknown>;
   acceptance?: Record<string, unknown>;
   scan?: Record<string, unknown>;
+  soak?: Record<string, unknown>;
 };
 
 function downloadSignedPackage(value: Record<string, unknown>) {
@@ -695,6 +701,56 @@ export function SnapshotRetirementPhase40Admin() {
     });
   }
 
+  function recordPhase50SoakStatus() {
+    setMessage(null);
+    setError(null);
+    startTransition(async () => {
+      try {
+        const result = await post({ action: 'record_soak_status' });
+        setMessage(
+          result.soak
+            ? `Phase 50 soak (Stage 4e) · ${String(result.soak.soak_health ?? 'healthy')} · blocked 7d ${String(result.soak.blocked_7d ?? 0)}/${String(result.soak.enforcement_events_7d ?? 0)}.`
+            : 'Phase 50 soak status recorded.',
+        );
+        await refresh();
+      } catch (cause) {
+        setError(
+          cause instanceof Error ? cause.message : 'Phase 50 soak status recording failed',
+        );
+      }
+    });
+  }
+
+  function pageProtectedBranchCutoverBlocked() {
+    const alert = (dashboard?.phase49OpsAlerts ?? []).find(
+      (row) => row.alert_kind === 'protected_branch_cutover_blocked',
+    );
+    if (!alert) {
+      setError('No protected_branch_cutover_blocked alerts to page.');
+      return;
+    }
+    setMessage(null);
+    setError(null);
+    startTransition(async () => {
+      try {
+        const result = await post({
+          action: 'page_protected_branch_cutover_blocked',
+          alert_id: alert.alert_id,
+        });
+        setMessage(
+          result.receipt
+            ? `Paged protected-branch cutover alert · ${String(result.receipt.delivery_status ?? 'sent')}.`
+            : 'Paged protected-branch cutover alert.',
+        );
+        await refresh();
+      } catch (cause) {
+        setError(
+          cause instanceof Error ? cause.message : 'Paging protected-branch cutover alert failed',
+        );
+      }
+    });
+  }
+
   function scheduleCanary() {
     const packageRow = dashboard?.packages[0];
     if (!packageRow) {
@@ -1014,6 +1070,45 @@ export function SnapshotRetirementPhase40Admin() {
           CI required on every protected-branch cutover
         </p>
       ) : null}
+      {(dashboard?.phase50SoakSnapshots ?? []).slice(0, 3).map((row) => (
+        <p
+          key={String(row.snapshot_id)}
+          className="font-mono text-[10px] text-muted-foreground"
+        >
+          P50 SOAK (4e) · {String(row.soak_health)} · events 7d{' '}
+          {String(row.enforcement_events_7d)} · allowed {String(row.allowed_7d)} ·
+          blocked {String(row.blocked_7d)} · rate {String(row.blocked_rate ?? 'n/a')}
+        </p>
+      ))}
+      {(dashboard?.phase50PageReceipts ?? []).slice(0, 3).map((row) => (
+        <p
+          key={String(row.receipt_id)}
+          className="font-mono text-[10px] text-muted-foreground"
+        >
+          P50 PAGE · alert {String(row.alert_id).slice(0, 8)} · dest{' '}
+          {String(row.destination_key)} · {String(row.delivery_status)}
+        </p>
+      ))}
+      {(dashboard?.phase50CiCheckEvents ?? []).slice(0, 3).map((row) => (
+        <p
+          key={String(row.event_id)}
+          className="font-mono text-[10px] text-muted-foreground"
+        >
+          P50 CI CHECK · run {String(row.run_key)} · cutover-adjacent{' '}
+          {String(row.cutover_adjacent)} · passed {String(row.check_passed)}
+        </p>
+      ))}
+      {dashboard?.phase50Report ? (
+        <p className="text-muted-foreground">
+          Phase 50 · blocked alerts 30d{' '}
+          {String(dashboard.phase50Report.blocked_alerts_30d ?? 0)} · paged{' '}
+          {String(dashboard.phase50Report.paged_receipts_30d ?? 0)} · unpaged now{' '}
+          {String(dashboard.phase50Report.unpaged_blocked_alerts_current ?? 0)} ·
+          CI check missing 30d{' '}
+          {String(dashboard.phase50Report.ci_check_missing_on_cutover_adjacent_30d ?? 0)}{' '}
+          · stage {String(dashboard.phase50Report.stage ?? '4e')}
+        </p>
+      ) : null}
       {dashboard?.checks.slice(0, 4).map((check) => (
         <p key={check.check_id} className="font-mono text-[10px] text-muted-foreground">
           {check.checked_at} · retention {check.status}
@@ -1093,6 +1188,12 @@ export function SnapshotRetirementPhase40Admin() {
         </Button>
         <Button type="button" size="sm" variant="outline" disabled={pending} onClick={completeEd25519Cutover}>
           Complete cutover
+        </Button>
+        <Button type="button" size="sm" variant="outline" disabled={pending} onClick={recordPhase50SoakStatus}>
+          Record Phase 50 soak status (4e)
+        </Button>
+        <Button type="button" size="sm" variant="outline" disabled={pending} onClick={pageProtectedBranchCutoverBlocked}>
+          Page protected-branch cutover blocked
         </Button>
         <Button type="button" size="sm" variant="outline" disabled={pending} onClick={scheduleCanary}>
           Schedule multi-hour canary

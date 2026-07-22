@@ -42,6 +42,11 @@ import {
   getSnapshotPhase49OpsDashboard,
 } from '@/lib/data/snapshot-retirement-phase49';
 import {
+  getSnapshotPhase50OpsDashboard,
+  pageSnapshotProtectedBranchCutoverBlockedPhase50,
+  recordSnapshotPhase50SoakStatus,
+} from '@/lib/data/snapshot-retirement-phase50';
+import {
   recordSnapshotCutoverAcceptancePhase46,
 } from '@/lib/data/snapshot-retirement-phase46';
 import { captureException } from '@/lib/observability';
@@ -252,6 +257,20 @@ const requestSchema = z.discriminatedUnion('action', [
     action: z.literal('tick_phase40_orchestrations'),
     limit: z.number().int().min(1).max(4).default(4),
   }),
+  z.object({
+    action: z.literal('page_protected_branch_cutover_blocked'),
+    alert_id: z.uuid(),
+    destination_key: z
+      .string()
+      .trim()
+      .min(2)
+      .max(64)
+      .regex(/^[a-z0-9][a-z0-9._-]{1,63}$/)
+      .optional(),
+  }),
+  z.object({
+    action: z.literal('record_soak_status'),
+  }),
 ]);
 
 export async function GET() {
@@ -260,9 +279,10 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: gate.error }, { status: 403 });
   }
   try {
-    const [phase40, phase49] = await Promise.all([
+    const [phase40, phase49, phase50] = await Promise.all([
       getSnapshotPhase40Dashboard(),
       getSnapshotPhase49OpsDashboard(),
+      getSnapshotPhase50OpsDashboard(),
     ]);
     if (!phase40.ok) {
       return NextResponse.json(phase40, { status: 503 });
@@ -299,6 +319,11 @@ export async function GET() {
       phase49OpsAlerts: phase49.phase49OpsAlerts,
       phase49Slo: phase49.phase49Slo,
       snapshotCiProtectedBranchesRequired: phase49.snapshotCiProtectedBranchesRequired,
+      phase50PageReceipts: phase50.phase50PageReceipts,
+      phase50CiCheckEvents: phase50.phase50CiCheckEvents,
+      phase50SoakSnapshots: phase50.phase50SoakSnapshots,
+      phase50OpsAlerts: phase50.phase50OpsAlerts,
+      phase50Report: phase50.phase50Report,
     });
   } catch (error) {
     captureException(error, { route: 'snapshot-retirement-phase40-dashboard' });
@@ -500,6 +525,18 @@ export async function POST(request: Request) {
           actorId: gate.profile.id,
           orchestrationId: parsed.data.orchestration_id,
           reason: parsed.data.reason,
+        });
+        break;
+      case 'page_protected_branch_cutover_blocked':
+        result = await pageSnapshotProtectedBranchCutoverBlockedPhase50({
+          actorId: gate.profile.id,
+          alertId: parsed.data.alert_id,
+          destinationKey: parsed.data.destination_key,
+        });
+        break;
+      case 'record_soak_status':
+        result = await recordSnapshotPhase50SoakStatus({
+          actorId: gate.profile.id,
         });
         break;
     }

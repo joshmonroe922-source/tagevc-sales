@@ -40,6 +40,8 @@ export function DocuSignHubActions({
   phase48DriftPerformance,
   phase49CadenceSloSeverity,
   phase49BudgetProposalStatus,
+  phase50CadenceTrendDirection,
+  phase50PendingReminderCount,
 }: {
   canWrite: boolean;
   canReconcile: boolean;
@@ -60,6 +62,8 @@ export function DocuSignHubActions({
   phase48DriftPerformance?: string;
   phase49CadenceSloSeverity?: string;
   phase49BudgetProposalStatus?: string;
+  phase50CadenceTrendDirection?: string;
+  phase50PendingReminderCount?: number;
 }) {
   const [flash, setFlash] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -83,6 +87,8 @@ export function DocuSignHubActions({
     phase48SubsequentRunStatus != null || phase48DriftPerformance != null;
   const showPhase49Badges =
     phase49CadenceSloSeverity != null || phase49BudgetProposalStatus != null;
+  const showPhase50Badges =
+    phase50CadenceTrendDirection != null || phase50PendingReminderCount != null;
 
   const badges =
     showPhase44Badges ||
@@ -90,7 +96,8 @@ export function DocuSignHubActions({
     showPhase46Badges ||
     showPhase47Badges ||
     showPhase48Badges ||
-    showPhase49Badges ? (
+    showPhase49Badges ||
+    showPhase50Badges ? (
       <div className="flex flex-wrap gap-2 text-[11px]">
         {phase44DriftHealth ? (
           <span className="rounded border border-border/70 px-2 py-0.5 text-muted-foreground">
@@ -165,6 +172,16 @@ export function DocuSignHubActions({
         {phase49BudgetProposalStatus ? (
           <span className="rounded border border-border/70 px-2 py-0.5 text-muted-foreground">
             Phase 49 budget proposal {phase49BudgetProposalStatus}
+          </span>
+        ) : null}
+        {phase50CadenceTrendDirection ? (
+          <span className="rounded border border-border/70 px-2 py-0.5 text-muted-foreground">
+            Phase 50 cadence trend {phase50CadenceTrendDirection}
+          </span>
+        ) : null}
+        {phase50PendingReminderCount != null && phase50PendingReminderCount > 0 ? (
+          <span className="rounded border border-border/70 px-2 py-0.5 text-amber-800">
+            Phase 50 awaiting 2nd approver {phase50PendingReminderCount}
           </span>
         ) : null}
       </div>

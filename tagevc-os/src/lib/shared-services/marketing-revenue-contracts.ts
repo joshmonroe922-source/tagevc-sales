@@ -870,6 +870,90 @@ export type Phase49RevenueOpsReport = {
   never_auto_approves_money: boolean;
 };
 
+export const REVENUE_REPORT_VERSION_PHASE50 = 'phase50-v1';
+
+export const REVENUE_PHASE50_ALERT_KINDS = [
+  'promotion_proposal_awaiting_second_approval',
+  'promotion_proposal_applied',
+  'cohort_readiness_blocked',
+] as const;
+export type RevenuePhase50AlertKind =
+  (typeof REVENUE_PHASE50_ALERT_KINDS)[number];
+
+export const REVENUE_PHASE50_PROPOSAL_STATUSES = [
+  'pending',
+  'approved',
+  'rejected',
+  'blocked',
+  'applied',
+] as const;
+export type RevenuePhase50ProposalStatus =
+  (typeof REVENUE_PHASE50_PROPOSAL_STATUSES)[number];
+
+export const REVENUE_PHASE50_READINESS_STATUSES = [
+  'ready',
+  'soaking',
+  'blocked',
+  'pending_dual_approval',
+  'unknown',
+] as const;
+export type RevenuePhase50ReadinessStatus =
+  (typeof REVENUE_PHASE50_READINESS_STATUSES)[number];
+
+export type Phase50PromotionProposal = {
+  proposal_id: string;
+  proposal_key: string;
+  source_proposal_id: string | null;
+  cohort_id: string;
+  proposed_by: string;
+  status: RevenuePhase50ProposalStatus | string;
+  block_reason: string | null;
+  promotion_id: string | null;
+  metrics_sha256: string;
+  created_at: string;
+};
+
+export type Phase50CohortReadiness = {
+  snapshot_id: string;
+  cohort_id: string;
+  readiness_status: RevenuePhase50ReadinessStatus | string;
+  consecutive_healthy_windows: number;
+  windows_required: number;
+  pending_proposal_count: number;
+  applied_proposal_count: number;
+  created_at: string;
+};
+
+export type Phase50OpsAlert = {
+  alert_id: string;
+  cohort_id?: string | null;
+  proposal_id?: string | null;
+  alert_kind: RevenuePhase50AlertKind | string;
+  window_key: string;
+  severity: 'critical' | string;
+  destination_key: string;
+  delivery_status: RevenueOpsAlertDelivery | string;
+  response_code: number | null;
+  metrics_sha256: string;
+  created_at: string;
+};
+
+export type Phase50RevenueOpsReport = {
+  version: typeof REVENUE_REPORT_VERSION_PHASE50 | string;
+  window_days: number;
+  promotion_health: RevenueSloSeverity | string;
+  alert_delivery: RevenueOpsAlertDelivery | string;
+  pending_proposal_count: number;
+  applied_proposal_count: number;
+  blocked_proposal_count: number;
+  rejected_proposal_count: number;
+  proposals: Phase50PromotionProposal[];
+  cohort_readiness: Phase50CohortReadiness[];
+  alerts: Phase50OpsAlert[];
+  destination_key: string;
+  never_auto_approves_money: boolean;
+};
+
 export type AuthenticityProbeEvidence = {
   request_id_sha256: string | null;
   body_sha256: string;

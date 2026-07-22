@@ -21,6 +21,7 @@ import { runPhase46RevenueOpsTick } from '@/lib/shared-services/marketing-phase4
 import { runPhase47RevenueOpsTick } from '@/lib/shared-services/marketing-phase47';
 import { runPhase48RevenueOpsTick } from '@/lib/shared-services/marketing-phase48';
 import { runPhase49RevenueOpsTick } from '@/lib/shared-services/marketing-phase49';
+import { runPhase50RevenueOpsTick } from '@/lib/shared-services/marketing-phase50';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 
 type PullRun = {
@@ -541,6 +542,17 @@ export async function processMarketingRevenuePulls(limit = 1): Promise<{
         `phase49-ops:${entityId}: dryrun=${phase49.dryRunSnapshots} would_promote=${phase49.wouldPromoteCount} would_block=${phase49.wouldBlockCount} audit_exported=${phase49.auditExported} alerts=${phase49.alertsRecorded}`,
       );
     }
+  }
+
+  // Phase 50: firm-wide cohort readiness visibility + dual-approve promotion
+  // alerts. Never proposes or approves promotions itself.
+  const phase50 = await runPhase50RevenueOpsTick();
+  if (!phase50.ok) {
+    details.push(`phase50-ops: ${phase50.error}`);
+  } else {
+    details.push(
+      `phase50-ops: readiness=${phase50.readinessSnapshotsRecorded} alerts=${phase50.alertsRecorded}`,
+    );
   }
 
   return { claimed: runs.length, completed, failed, details };

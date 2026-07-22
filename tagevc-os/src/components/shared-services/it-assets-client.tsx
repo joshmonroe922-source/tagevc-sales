@@ -49,6 +49,9 @@ import {
   reviewIntunePromoteWaiveAction,
   proposeIntunePromoteWaiveExpiryAction,
   reviewIntunePromoteWaiveExpiryAction,
+  refreshIntunePhase50DualApproveGateOpsAction,
+  approveIntuneBreakerTuningPhase50Action,
+  approveIntunePromoteWaivePhase50Action,
   runIntuneWorkerAction,
   type ItAssetActionResult,
 } from '@/app/(app)/shared-services/it/assets/actions';
@@ -149,6 +152,7 @@ export function ItAssetsClient({
   intunePhase47Health = null,
   intunePhase48Health = null,
   intunePhase49Ops = null,
+  intunePhase50Ops = null,
   intuneOutagePostmortems = [],
   intuneThresholdRecommendations = [],
   intuneSoakCycleTimeline = [],
@@ -204,6 +208,7 @@ export function ItAssetsClient({
   intunePhase47Health?: ItIntunePhase47Health | null;
   intunePhase48Health?: ItIntunePhase48Health | null;
   intunePhase49Ops?: Record<string, unknown> | null;
+  intunePhase50Ops?: Record<string, unknown> | null;
   intuneOutagePostmortems?: ItIntuneOutagePostmortem[];
   intuneThresholdRecommendations?: ItIntuneThresholdRecommendation[];
   intuneSoakCycleTimeline?: ItIntuneSoakCycleTimeline[];
@@ -439,6 +444,32 @@ export function ItAssetsClient({
                 : ''}
             </>
           ) : null}
+          {intunePhase50Ops ? (
+            <>
+              {' · '}phase50 tuning suggested{' '}
+              {Number(intunePhase50Ops.breaker_tuning_suggested_count ?? 0)}
+              {Number(
+                intunePhase50Ops.breaker_tuning_awaiting_second_approval_count ??
+                  0,
+              ) > 0
+                ? ` · awaiting 2nd approver ${Number(intunePhase50Ops.breaker_tuning_awaiting_second_approval_count ?? 0)}`
+                : ''}
+              {Number(intunePhase50Ops.breaker_tuning_applied_count ?? 0) > 0
+                ? ` · applied ${Number(intunePhase50Ops.breaker_tuning_applied_count ?? 0)}`
+                : ''}
+              {' · '}waive suggested{' '}
+              {Number(intunePhase50Ops.promote_waive_suggested_count ?? 0)}
+              {Number(
+                intunePhase50Ops.promote_waive_awaiting_second_approval_count ??
+                  0,
+              ) > 0
+                ? ` · awaiting 2nd approver ${Number(intunePhase50Ops.promote_waive_awaiting_second_approval_count ?? 0)}`
+                : ''}
+              {Number(intunePhase50Ops.promote_waive_applied_count ?? 0) > 0
+                ? ` · applied ${Number(intunePhase50Ops.promote_waive_applied_count ?? 0)}`
+                : ''}
+            </>
+          ) : null}
         </div>
       ) : null}
 
@@ -582,6 +613,93 @@ export function ItAssetsClient({
                   }}
                 >
                   Approve/reject publish (dual-approve)
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={pending}
+                  onClick={() =>
+                    run(() => refreshIntunePhase50DualApproveGateOpsAction())
+                  }
+                >
+                  Refresh dual-approve gate
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={pending}
+                  onClick={() => {
+                    const proposalId = window.prompt(
+                      'Breaker tuning proposal ID (Phase 50 — requires 2 distinct approvers before apply):',
+                    );
+                    if (!proposalId?.trim()) return;
+                    const decision =
+                      window.prompt(
+                        'Decision: approve or reject',
+                        'approve',
+                      ) === 'reject'
+                        ? 'reject'
+                        : 'approve';
+                    const statement = window.prompt(
+                      'Statement (at least 20 characters):',
+                    );
+                    if (!statement?.trim()) return;
+                    const versionRaw = window.prompt(
+                      "Expected breaker row_version (from the breaker's health row):",
+                    );
+                    const expectedBreakerVersion = Number(versionRaw);
+                    if (!Number.isFinite(expectedBreakerVersion)) return;
+                    run(() =>
+                      approveIntuneBreakerTuningPhase50Action({
+                        proposalId: proposalId.trim(),
+                        decision,
+                        statement: statement.trim(),
+                        expectedBreakerVersion,
+                      }),
+                    );
+                  }}
+                >
+                  Approve/reject tuning (Phase 50 dual-approve)
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={pending}
+                  onClick={() => {
+                    const proposalId = window.prompt(
+                      'Promote-waive proposal ID (Phase 50 — requires 2 distinct approvers before apply):',
+                    );
+                    if (!proposalId?.trim()) return;
+                    const decision =
+                      window.prompt(
+                        'Decision: approve or reject',
+                        'approve',
+                      ) === 'reject'
+                        ? 'reject'
+                        : 'approve';
+                    const statement = window.prompt(
+                      'Statement (at least 20 characters):',
+                    );
+                    if (!statement?.trim()) return;
+                    const versionRaw = window.prompt(
+                      'Expected waive proposal row_version:',
+                    );
+                    const expectedRowVersion = Number(versionRaw);
+                    if (!Number.isFinite(expectedRowVersion)) return;
+                    run(() =>
+                      approveIntunePromoteWaivePhase50Action({
+                        proposalId: proposalId.trim(),
+                        decision,
+                        statement: statement.trim(),
+                        expectedRowVersion,
+                      }),
+                    );
+                  }}
+                >
+                  Approve/reject waive (Phase 50 dual-approve)
                 </Button>
               </div>
             ) : null}

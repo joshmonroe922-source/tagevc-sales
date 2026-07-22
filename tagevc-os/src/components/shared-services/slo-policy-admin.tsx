@@ -23,6 +23,9 @@ import {
   saveSloPolicyDraftAction,
   suggestSloOwnerHandoffsAction,
   transitionSloPolicyDraftAction,
+  recordSloOwnerDigestWowTrendAction,
+  setSloOwnerDigestSelfServeOptInAction,
+  listSloOwnerDigestSelfServeFailuresAction,
 } from '@/app/(app)/shared-services/actions';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -265,6 +268,9 @@ export function SloPolicyAdmin({
   phase48Report = null,
   ownerDigestSuccessSlos = [],
   phase49Report = null,
+  ownerDigestWowTrendSnapshots = [],
+  ownerDigestSelfServeOptIns = [],
+  phase50Report = null,
 }: {
   activePolicies: SloPolicyRow[];
   drafts: SloPolicyRow[];
@@ -297,6 +303,9 @@ export function SloPolicyAdmin({
   phase48Report?: Record<string, unknown> | null;
   ownerDigestSuccessSlos?: Array<Record<string, unknown>>;
   phase49Report?: Record<string, unknown> | null;
+  ownerDigestWowTrendSnapshots?: Array<Record<string, unknown>>;
+  ownerDigestSelfServeOptIns?: Array<Record<string, unknown>>;
+  phase50Report?: Record<string, unknown> | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -497,6 +506,34 @@ export function SloPolicyAdmin({
         result.ok ? result.message ?? 'Owner digest success SLO scanned' : result.error,
       );
       if (result.ok) router.refresh();
+    });
+  }
+
+  function recordOwnerDigestWowTrend() {
+    startTransition(async () => {
+      const result = await recordSloOwnerDigestWowTrendAction();
+      setMessage(result.ok ? result.message ?? 'Owner digest WoW trend recorded' : result.error);
+      if (result.ok) router.refresh();
+    });
+  }
+
+  function toggleOwnerSelfServeOptIn(targetOwnerId: string, optedIn: boolean) {
+    startTransition(async () => {
+      const result = await setSloOwnerDigestSelfServeOptInAction({
+        ownerId: targetOwnerId,
+        optedIn,
+      });
+      setMessage(result.ok ? result.message ?? 'Self-serve opt-in updated' : result.error);
+      if (result.ok) router.refresh();
+    });
+  }
+
+  function viewOwnerSelfServeFailures(targetOwnerId: string) {
+    startTransition(async () => {
+      const result = await listSloOwnerDigestSelfServeFailuresAction({
+        ownerId: targetOwnerId,
+      });
+      setMessage(result.ok ? result.message ?? 'Self-serve failures listed' : result.error);
     });
   }
 
@@ -793,6 +830,46 @@ export function SloPolicyAdmin({
               >
                 Scan owner digest success SLO
               </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={pending}
+                onClick={recordOwnerDigestWowTrend}
+              >
+                Record owner digest WoW trend
+              </Button>
+              {ownerId ? (
+                <>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={pending}
+                    onClick={() => toggleOwnerSelfServeOptIn(ownerId, true)}
+                  >
+                    Opt owner into self-serve failures
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={pending}
+                    onClick={() => toggleOwnerSelfServeOptIn(ownerId, false)}
+                  >
+                    Opt owner out
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={pending}
+                    onClick={() => viewOwnerSelfServeFailures(ownerId)}
+                  >
+                    View my digest failures (self-serve)
+                  </Button>
+                </>
+              ) : null}
             </div>
             {nightlyReplayRuns.slice(0, 4).map((run) => (
               <p
@@ -940,6 +1017,37 @@ export function SloPolicyAdmin({
                 {String(phase49Report.owners_warning_30d ?? 0)} · critical{' '}
                 {String(phase49Report.owners_critical_30d ?? 0)} · overall rate{' '}
                 {String(phase49Report.overall_success_rate_30d ?? 'n/a')}
+              </p>
+            ) : null}
+            {ownerDigestWowTrendSnapshots.slice(0, 3).map((snapshot) => (
+              <p
+                key={String(snapshot.trend_id)}
+                className="font-mono text-[10px] text-muted-foreground"
+              >
+                WoW TREND · {String(snapshot.trend_direction)} · owner{' '}
+                {String(snapshot.owner_id).slice(0, 8)} · current{' '}
+                {String(snapshot.current_success_rate ?? 'n/a')} · prior{' '}
+                {String(snapshot.prior_success_rate ?? 'n/a')} · delta{' '}
+                {String(snapshot.rate_delta ?? 'n/a')}
+              </p>
+            ))}
+            {ownerDigestSelfServeOptIns.slice(0, 3).map((row) => (
+              <p
+                key={String(row.opt_in_id)}
+                className="font-mono text-[10px] text-muted-foreground"
+              >
+                SELF-SERVE OPT-IN · owner {String(row.owner_id).slice(0, 8)} ·{' '}
+                {row.opted_in ? 'opted in' : 'opted out'}
+              </p>
+            ))}
+            {phase50Report ? (
+              <p className="text-muted-foreground">
+                Phase 50 · improving 30d{' '}
+                {String(phase50Report.owners_improving_30d ?? 0)} · stable{' '}
+                {String(phase50Report.owners_stable_30d ?? 0)} · declining{' '}
+                {String(phase50Report.owners_declining_30d ?? 0)} · opted-in owners{' '}
+                {String(phase50Report.owners_opted_in ?? 0)} · full_push{' '}
+                {String(phase50Report.full_push ?? false)}
               </p>
             ) : null}
           </CardContent>

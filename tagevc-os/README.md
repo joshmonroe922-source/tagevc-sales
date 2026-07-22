@@ -907,7 +907,41 @@ Docs: `docs/OS_PHASE49.md`
 Optional env: `SNAPSHOT_CI_PROTECTED_BRANCH_REQUIRED` (default
 `main,production`).
 
-### Phase 50+ backlog
+### Phase 50
+
+Gated dual-approved promotion from marketing dry-run to actual promote for
+soaked-healthy auto-reject cohorts (money promotions always require two
+distinct human approvers — never auto-approved), DocuSign multi-quarter
+cadence SLO trend dashboards plus second-approver reminders for pending
+budget revisions, Intune dual-approve extended to breaker tuning and waive
+promotions (suggested vs applied visibility; observe-only layers stay
+observe-only), week-over-week owner digest delivery success SLO trends with
+an opt-in self-serve failure view (still not full push), and
+protected-branch cutover-blocked paging/alerting plus CI `--check`
+enforcement evidence for cutover-adjacent PRs. Stage 4e soak continues.
+Stage 4e non-qualifying flags remain false; no snapshot relation mutations.
+
+Apply after Phase 49:
+
+1. `phase50_marketing_revenue_ops.sql`
+2. `phase50_docusign_archive_ops.sql`
+3. `phase50_intune_resilience_ops.sql`
+4. `phase50_slo_governance_ops.sql`
+5. `phase50_snapshot_cutover_ops.sql`
+
+Docs: `docs/OS_PHASE50.md`
+
+Optional env: `SNAPSHOT_PHASE50_PAGE_WEBHOOK_URL`,
+`SNAPSHOT_PHASE50_PAGE_DESTINATION_KEY` (default `oncall`).
+
+CI: `node scripts/ci-snapshot-phase50-path-guard.mjs --check` enforces the
+existing CI offline_script dual-acceptance `--check` gate
+(`scripts/ci-snapshot-cutover-accept.mjs --check`) on PRs that touch
+cutover-adjacent paths (snapshot-cutover SQL, the CI cutover-accept script
+family, or `snapshot-retirement-phaseN.ts` libs); non-adjacent PRs are
+unaffected.
+
+### Phase 51+ backlog
 
 - Continue Stage 4e soak; do not drop snapshots
 - Push · user admin

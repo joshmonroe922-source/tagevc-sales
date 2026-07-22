@@ -1894,3 +1894,184 @@ export async function reviewIntunePromoteWaiveExpiryAction(input: {
         : 'Waive expiry action rejected',
   };
 }
+
+// ---------------------------------------------------------------------------
+// Phase 50: dual distinct-actor approval gate for breaker tuning and
+// promote-waive. Only calls the existing single-reviewer RPCs after 2
+// DISTINCT approvers — never auto-applies, never closes or resets breakers.
+// ---------------------------------------------------------------------------
+export async function refreshIntunePhase50DualApproveGateOpsAction(): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('action:intune_manual_review');
+  if (!gate.ok) return gate;
+  const { runIntunePhase50DualApproveGateOps } = await import(
+    '@/lib/shared-services/it-assets-repo'
+  );
+  const result = await runIntunePhase50DualApproveGateOps();
+  if (!result.ok) {
+    return {
+      ok: false,
+      error: result.error ?? 'Phase 50 dual-approve gate ops failed',
+    };
+  }
+  revalidateAssets();
+  const alerts = Number(result.detail?.alerts_recorded ?? 0);
+  return {
+    ok: true,
+    message: `Phase 50 dual-approve gate: ${alerts} alert(s) — requires 2 distinct approvers; breakers never closed or reset`,
+  };
+}
+
+export async function approveIntuneBreakerTuningPhase50Action(input: {
+  proposalId: string;
+  decision: 'approve' | 'reject';
+  statement: string;
+  expectedBreakerVersion: number;
+}): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('action:intune_manual_review');
+  if (!gate.ok) return gate;
+  const parsed = z
+    .object({
+      proposalId: z.string().uuid(),
+      decision: z.enum(['approve', 'reject']),
+      statement: z.string().trim().min(20).max(1000),
+      expectedBreakerVersion: z.number().int().nonnegative(),
+    })
+    .safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? 'Invalid Phase 50 tuning approval',
+    };
+  }
+  const service = await createPersistClient();
+  const { data: proposal, error } = await service
+    .from('os_it_intune_breaker_tuning_proposals')
+    .select('entity_id, proposed_by')
+    .eq('proposal_id', parsed.data.proposalId)
+    .single();
+  if (error || !proposal) {
+    return { ok: false, error: error?.message ?? 'Tuning proposal not found' };
+  }
+  if (proposal.proposed_by === gate.profile.id) {
+    return { ok: false, error: 'The proposer cannot approve this tuning' };
+  }
+  if (
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      proposal.entity_id,
+    )
+  ) {
+    return {
+      ok: false,
+      error: entityScopeDeniedMessage(proposal.entity_id ?? 'firm-wide'),
+    };
+  }
+  const { approveIntuneBreakerTuningPhase50 } = await import(
+    '@/lib/shared-services/it-assets-repo'
+  );
+  const result = await approveIntuneBreakerTuningPhase50({
+    proposal_id: parsed.data.proposalId,
+    actor_id: gate.profile.id,
+    decision: parsed.data.decision,
+    statement: parsed.data.statement,
+    expected_breaker_version: parsed.data.expectedBreakerVersion,
+  });
+  if (!result.ok) return result;
+  revalidateAssets();
+  const disposition = String(
+    (result.detail as { disposition?: string } | undefined)?.disposition ??
+      'recorded',
+  );
+  return {
+    ok: true,
+    message: `Phase 50 breaker tuning: ${disposition.replaceAll('_', ' ')} — requires 2 distinct approvers; never auto-applied`,
+  };
+}
+
+export async function approveIntunePromoteWaivePhase50Action(input: {
+  proposalId: string;
+  decision: 'approve' | 'reject';
+  statement: string;
+  expectedRowVersion: number;
+}): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('action:intune_manual_review');
+  if (!gate.ok) return gate;
+  const parsed = z
+    .object({
+      proposalId: z.string().uuid(),
+      decision: z.enum(['approve', 'reject']),
+      statement: z.string().trim().min(20).max(1000),
+      expectedRowVersion: z.number().int().nonnegative(),
+    })
+    .safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? 'Invalid Phase 50 waive approval',
+    };
+  }
+  const service = await createPersistClient();
+  const { data: waive, error } = await service
+    .from('os_it_intune_promote_waive_proposals')
+    .select('recommendation_id, proposed_by')
+    .eq('proposal_id', parsed.data.proposalId)
+    .single();
+  if (error || !waive) {
+    return { ok: false, error: error?.message ?? 'Waive proposal not found' };
+  }
+  if (waive.proposed_by === gate.profile.id) {
+    return { ok: false, error: 'The proposer cannot approve this waive' };
+  }
+  const { data: recommendation, error: recoError } = await service
+    .from('os_it_intune_threshold_recommendation_drafts')
+    .select('breaker_id')
+    .eq('recommendation_id', waive.recommendation_id)
+    .single();
+  if (recoError || !recommendation) {
+    return {
+      ok: false,
+      error: recoError?.message ?? 'Recommendation not found',
+    };
+  }
+  const { data: breaker, error: breakerError } = await service
+    .from('os_it_intune_provider_breakers')
+    .select('entity_id')
+    .eq('breaker_id', recommendation.breaker_id)
+    .single();
+  if (breakerError || !breaker) {
+    return { ok: false, error: breakerError?.message ?? 'Breaker not found' };
+  }
+  if (
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      breaker.entity_id,
+    )
+  ) {
+    return {
+      ok: false,
+      error: entityScopeDeniedMessage(breaker.entity_id ?? 'firm-wide'),
+    };
+  }
+  const { approveIntunePromoteWaivePhase50 } = await import(
+    '@/lib/shared-services/it-assets-repo'
+  );
+  const result = await approveIntunePromoteWaivePhase50({
+    proposal_id: parsed.data.proposalId,
+    actor_id: gate.profile.id,
+    decision: parsed.data.decision,
+    statement: parsed.data.statement,
+    expected_row_version: parsed.data.expectedRowVersion,
+  });
+  if (!result.ok) return result;
+  revalidateAssets();
+  const disposition = String(
+    (result.detail as { disposition?: string } | undefined)?.disposition ??
+      'recorded',
+  );
+  return {
+    ok: true,
+    message: `Phase 50 promote-waive: ${disposition.replaceAll('_', ' ')} — requires 2 distinct approvers; never auto-applied`,
+  };
+}

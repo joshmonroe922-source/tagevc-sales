@@ -2454,3 +2454,85 @@ export async function reviewIntuneBreakerTuning(input: {
   });
   return error ? { ok: false as const, error: error.message } : { ok: true as const };
 }
+
+// ---------------------------------------------------------------------------
+// Phase 50: dual distinct-actor approval gate for breaker tuning and
+// promote-waive. Only calls the existing single-reviewer RPCs after 2
+// DISTINCT approving actors — never auto-applies, never closes or resets
+// breakers on its own.
+// ---------------------------------------------------------------------------
+export async function getIntunePhase50OpsReport(): Promise<{
+  report: Record<string, unknown> | null;
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc('get_it_intune_phase50_ops_report');
+  return error
+    ? { report: null, error: error.message }
+    : { report: (data as Record<string, unknown> | null) ?? null };
+}
+
+export async function runIntunePhase50DualApproveGateOps() {
+  const { processIntunePhase50DualApproveGateOps } = await import(
+    '@/lib/shared-services/it-intune-worker'
+  );
+  return processIntunePhase50DualApproveGateOps();
+}
+
+// Dual distinct-actor approval gate for breaker tuning. Only calls the
+// existing single-reviewer review_it_intune_breaker_tuning RPC after 2
+// DISTINCT approvers — never auto-applies, never closes or resets breakers.
+export async function approveIntuneBreakerTuningPhase50(input: {
+  proposal_id: string;
+  actor_id: string;
+  decision: 'approve' | 'reject';
+  statement: string;
+  expected_breaker_version: number;
+}) {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc(
+    'approve_it_intune_breaker_tuning_phase50',
+    {
+      p_proposal_id: input.proposal_id,
+      p_actor_id: input.actor_id,
+      p_decision: input.decision,
+      p_statement: input.statement,
+      p_expected_breaker_version: input.expected_breaker_version,
+    },
+  );
+  return error
+    ? { ok: false as const, error: error.message }
+    : {
+        ok: true as const,
+        detail: (data as Record<string, unknown> | null) ?? undefined,
+      };
+}
+
+// Dual distinct-actor approval gate for promote-waive. Only calls the
+// existing single-reviewer review_it_intune_promote_waive_phase46 RPC after
+// 2 DISTINCT approvers — never auto-applies, never closes or resets breakers.
+export async function approveIntunePromoteWaivePhase50(input: {
+  proposal_id: string;
+  actor_id: string;
+  decision: 'approve' | 'reject';
+  statement: string;
+  expected_row_version: number;
+}) {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc(
+    'approve_it_intune_promote_waive_phase50',
+    {
+      p_proposal_id: input.proposal_id,
+      p_actor_id: input.actor_id,
+      p_decision: input.decision,
+      p_statement: input.statement,
+      p_expected_row_version: input.expected_row_version,
+    },
+  );
+  return error
+    ? { ok: false as const, error: error.message }
+    : {
+        ok: true as const,
+        detail: (data as Record<string, unknown> | null) ?? undefined,
+      };
+}

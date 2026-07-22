@@ -234,6 +234,17 @@ async function runReadOnlyHealthCanaryWithToken(token: string): Promise<{
       error: phase49.error,
     };
   }
+  // Phase 50: dual-approve gate visibility alerts only (breaker tuning +
+  // promote-waive). Never applies on its own — apply/approve remain distinct
+  // human actions collected via the UI, requiring 2 DISTINCT approvers.
+  const phase50 = await runIntunePhase50DualApproveGateOpsTick(sb);
+  if (!phase50.ok) {
+    return {
+      ok: false,
+      status: 'phase50_dual_approve_gate_ops_failed',
+      error: phase50.error,
+    };
+  }
   return {
     ok: true,
     status: String((finished as { status?: string } | null)?.status ?? 'done'),
@@ -1197,6 +1208,120 @@ export async function processIntunePhase49PublishGateOps(): Promise<{
       failed: result.failed,
       closes_or_resets_breaker: false,
       auto_publish: false,
+    },
+  };
+}
+
+type Phase50CriticalWindow = {
+  alert_kind: string;
+  window_key: string;
+  severity?: string;
+  proposal_id?: string | null;
+};
+
+async function runIntunePhase50DualApproveGateOpsTick(
+  sb: Awaited<ReturnType<typeof createPersistClient>>,
+): Promise<
+  | {
+      ok: true;
+      alertsRecorded: number;
+      delivered: number;
+      skipped: number;
+      failed: number;
+    }
+  | { ok: false; error: string }
+> {
+  // Visibility-only tick: never proposes, approves, or applies anything on
+  // its own. Breaker tuning and promote-waive apply remain gated behind 2
+  // DISTINCT human approvers acting through the dual-approve RPCs.
+  const { data: windows, error: windowError } = await sb.rpc(
+    'list_it_intune_phase50_critical_windows',
+    { p_window_hours: 24 },
+  );
+  if (windowError) {
+    return { ok: false, error: windowError.message };
+  }
+
+  const pending = ((windows as { pending?: Phase50CriticalWindow[] } | null)
+    ?.pending ?? []) as Phase50CriticalWindow[];
+  let alertsRecorded = 0;
+  let delivered = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  for (const window of pending.slice(0, 50)) {
+    const delivery = await deliverIntuneOpsWebhook({
+      kind: 'it_intune_phase50_ops_alert',
+      version: 'phase50-v1',
+      alert_kind: window.alert_kind,
+      window_key: window.window_key,
+      severity: window.severity ?? 'warning',
+      proposal_id: window.proposal_id ?? null,
+      destination_key: INTUNE_OPS_DESTINATION_KEY,
+      entity_identifiers_included: false,
+      closes_or_resets_breaker: false,
+      requires_dual_approval: true,
+    });
+
+    const { data: recorded, error: recordError } = await sb.rpc(
+      'record_it_intune_phase50_ops_alert',
+      {
+        p_alert: {
+          alert_kind: window.alert_kind,
+          window_key: window.window_key,
+          severity: window.severity ?? 'warning',
+          proposal_id: window.proposal_id ?? null,
+          destination_key: INTUNE_OPS_DESTINATION_KEY,
+          delivery_status: delivery.delivery_status,
+          response_code: delivery.response_code,
+          aggregate_evidence: {
+            evidence_version: 'phase50-v1',
+            entity_identifiers_included: false,
+            closes_or_resets_breaker: false,
+            requires_dual_approval: true,
+          },
+        },
+      },
+    );
+    if (recordError) {
+      return { ok: false, error: recordError.message };
+    }
+    if ((recorded as { inserted?: boolean } | null)?.inserted) {
+      alertsRecorded += 1;
+      if (delivery.delivery_status === 'delivered') delivered += 1;
+      else if (delivery.delivery_status === 'skipped_no_webhook') skipped += 1;
+      else failed += 1;
+    }
+  }
+
+  return { ok: true, alertsRecorded, delivered, skipped, failed };
+}
+
+export async function processIntunePhase50DualApproveGateOps(): Promise<{
+  ok: boolean;
+  status: string;
+  detail?: Record<string, unknown>;
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const result = await runIntunePhase50DualApproveGateOpsTick(sb);
+  if (!result.ok) {
+    return {
+      ok: false,
+      status: 'phase50_dual_approve_gate_ops_failed',
+      error: result.error,
+    };
+  }
+  return {
+    ok: true,
+    status: 'done',
+    detail: {
+      alerts_recorded: result.alertsRecorded,
+      delivered: result.delivered,
+      skipped: result.skipped,
+      failed: result.failed,
+      closes_or_resets_breaker: false,
+      requires_dual_approval: true,
     },
   };
 }
