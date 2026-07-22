@@ -223,6 +223,17 @@ async function runReadOnlyHealthCanaryWithToken(token: string): Promise<{
       error: phase48.error,
     };
   }
+  // Phase 49: human-apply + dual-approve publish gate visibility alerts only.
+  // Never auto-publish; never close or reset breakers; apply/approve remain
+  // human actions triggered from the UI, not from this automated tick.
+  const phase49 = await runIntunePhase49PublishGateOpsTick(sb);
+  if (!phase49.ok) {
+    return {
+      ok: false,
+      status: 'phase49_publish_gate_ops_failed',
+      error: phase49.error,
+    };
+  }
   return {
     ok: true,
     status: String((finished as { status?: string } | null)?.status ?? 'done'),
@@ -1062,6 +1073,128 @@ export async function processIntunePhase48TemplateLifecycleOps(): Promise<{
       skipped: result.skipped,
       failed: result.failed,
       pages_delivered: result.pagesDelivered,
+      closes_or_resets_breaker: false,
+      auto_publish: false,
+    },
+  };
+}
+
+type Phase49CriticalWindow = {
+  alert_kind: string;
+  window_key: string;
+  severity?: string;
+  postmortem_id?: string | null;
+  suggestion_id?: string | null;
+  apply_id?: string | null;
+  event_id?: string | null;
+};
+
+async function runIntunePhase49PublishGateOpsTick(
+  sb: Awaited<ReturnType<typeof createPersistClient>>,
+): Promise<
+  | {
+      ok: true;
+      alertsRecorded: number;
+      delivered: number;
+      skipped: number;
+      failed: number;
+    }
+  | { ok: false; error: string }
+> {
+  // Visibility-only tick: never applies suggestions and never approves
+  // publishes on its own — those remain distinct human actions.
+  const { data: windows, error: windowError } = await sb.rpc(
+    'list_it_intune_phase49_critical_windows',
+    { p_window_hours: 24 },
+  );
+  if (windowError) {
+    return { ok: false, error: windowError.message };
+  }
+
+  const pending = ((windows as { pending?: Phase49CriticalWindow[] } | null)
+    ?.pending ?? []) as Phase49CriticalWindow[];
+  let alertsRecorded = 0;
+  let delivered = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  for (const window of pending.slice(0, 50)) {
+    const delivery = await deliverIntuneOpsWebhook({
+      kind: 'it_intune_phase49_ops_alert',
+      version: 'phase49-v1',
+      alert_kind: window.alert_kind,
+      window_key: window.window_key,
+      severity: window.severity ?? 'warning',
+      postmortem_id: window.postmortem_id ?? null,
+      suggestion_id: window.suggestion_id ?? null,
+      apply_id: window.apply_id ?? null,
+      event_id: window.event_id ?? null,
+      destination_key: INTUNE_OPS_DESTINATION_KEY,
+      entity_identifiers_included: false,
+      closes_or_resets_breaker: false,
+      auto_publish: false,
+    });
+
+    const { data: recorded, error: recordError } = await sb.rpc(
+      'record_it_intune_phase49_ops_alert',
+      {
+        p_alert: {
+          alert_kind: window.alert_kind,
+          window_key: window.window_key,
+          severity: window.severity ?? 'warning',
+          postmortem_id: window.postmortem_id ?? null,
+          suggestion_id: window.suggestion_id ?? null,
+          apply_id: window.apply_id ?? null,
+          event_id: window.event_id ?? null,
+          destination_key: INTUNE_OPS_DESTINATION_KEY,
+          delivery_status: delivery.delivery_status,
+          response_code: delivery.response_code,
+          aggregate_evidence: {
+            evidence_version: 'phase49-v1',
+            entity_identifiers_included: false,
+            closes_or_resets_breaker: false,
+            auto_publish: false,
+          },
+        },
+      },
+    );
+    if (recordError) {
+      return { ok: false, error: recordError.message };
+    }
+    if ((recorded as { inserted?: boolean } | null)?.inserted) {
+      alertsRecorded += 1;
+      if (delivery.delivery_status === 'delivered') delivered += 1;
+      else if (delivery.delivery_status === 'skipped_no_webhook') skipped += 1;
+      else failed += 1;
+    }
+  }
+
+  return { ok: true, alertsRecorded, delivered, skipped, failed };
+}
+
+export async function processIntunePhase49PublishGateOps(): Promise<{
+  ok: boolean;
+  status: string;
+  detail?: Record<string, unknown>;
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const result = await runIntunePhase49PublishGateOpsTick(sb);
+  if (!result.ok) {
+    return {
+      ok: false,
+      status: 'phase49_publish_gate_ops_failed',
+      error: result.error,
+    };
+  }
+  return {
+    ok: true,
+    status: 'done',
+    detail: {
+      alerts_recorded: result.alertsRecorded,
+      delivered: result.delivered,
+      skipped: result.skipped,
+      failed: result.failed,
       closes_or_resets_breaker: false,
       auto_publish: false,
     },

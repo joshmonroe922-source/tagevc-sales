@@ -101,6 +101,8 @@ export async function listSloPolicyAdministration() {
     { data: digestDeliveries, error: digestDeliveryError },
     { data: digestDeliverySlos, error: digestDeliverySloError },
     { data: phase48Report, error: phase48ReportError },
+    { data: ownerDigestSuccessSlos, error: ownerDigestSuccessSloError },
+    { data: phase49Report, error: phase49ReportError },
   ] = await Promise.all([
     sb
       .from('os_slo_policies')
@@ -245,6 +247,14 @@ export async function listSloPolicyAdministration() {
       .order('created_at', { ascending: false })
       .limit(12),
     sb.rpc('get_slo_phase48_governance_report'),
+    sb
+      .from('os_slo_owner_digest_delivery_success_slos')
+      .select(
+        'snapshot_id,owner_id,window_days,delivered_count,failed_count,skipped_count,success_rate,severity,created_at',
+      )
+      .order('created_at', { ascending: false })
+      .limit(12),
+    sb.rpc('get_slo_phase49_owner_digest_report'),
   ]);
   errorMessage(policyError);
   errorMessage(ownerError);
@@ -337,6 +347,15 @@ export async function listSloPolicyAdministration() {
   if (phase48ReportError) {
     console.error('slo phase48 governance report unavailable', phase48ReportError.message);
   }
+  if (ownerDigestSuccessSloError) {
+    console.error(
+      'slo owner digest delivery success SLOs unavailable',
+      ownerDigestSuccessSloError.message,
+    );
+  }
+  if (phase49ReportError) {
+    console.error('slo phase49 owner digest report unavailable', phase49ReportError.message);
+  }
   const archivedExportIds = new Set(
     (archivalError ? [] : (archivalReceipts ?? [])).map(
       (row: { export_id: string }) => row.export_id,
@@ -411,6 +430,10 @@ export async function listSloPolicyAdministration() {
     digestDeliveries: digestDeliveryError ? [] : (digestDeliveries ?? []),
     digestDeliverySlos: digestDeliverySloError ? [] : (digestDeliverySlos ?? []),
     phase48Report: phase48ReportError ? null : (phase48Report ?? null),
+    ownerDigestSuccessSlos: ownerDigestSuccessSloError
+      ? []
+      : (ownerDigestSuccessSlos ?? []),
+    phase49Report: phase49ReportError ? null : (phase49Report ?? null),
   };
 }
 
@@ -1227,3 +1250,10 @@ export {
   getSloPhase48GovernanceReport,
   processSloGovernancePhase48,
 } from '@/lib/shared-services/slo-phase48';
+
+export {
+  PHASE49_SLO_CONTRACT_VERSION,
+  scanSloOwnerDigestDeliverySuccessPhase49,
+  getSloPhase49OwnerDigestReport,
+  processSloGovernancePhase49,
+} from '@/lib/shared-services/slo-phase49';

@@ -20,6 +20,7 @@ import { runPhase45RevenueOpsTick } from '@/lib/shared-services/marketing-phase4
 import { runPhase46RevenueOpsTick } from '@/lib/shared-services/marketing-phase46';
 import { runPhase47RevenueOpsTick } from '@/lib/shared-services/marketing-phase47';
 import { runPhase48RevenueOpsTick } from '@/lib/shared-services/marketing-phase48';
+import { runPhase49RevenueOpsTick } from '@/lib/shared-services/marketing-phase49';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 
 type PullRun = {
@@ -525,6 +526,19 @@ export async function processMarketingRevenuePulls(limit = 1): Promise<{
     } else {
       details.push(
         `phase48-ops:${entityId}: perf=${phase48.performanceSnapshots} archives=${phase48.archivesRecorded} autopilot=${phase48.autopilotRuns}/${phase48.autopilotPromoted} alerts=${phase48.alertsRecorded}`,
+      );
+    }
+
+    // Phase 49: autopilot dry-run dashboards, cohort promotion audit exports.
+    const phase49 = await runPhase49RevenueOpsTick({
+      entityId,
+      days: 30,
+    });
+    if (!phase49.ok) {
+      details.push(`phase49-ops:${entityId}: ${phase49.error}`);
+    } else {
+      details.push(
+        `phase49-ops:${entityId}: dryrun=${phase49.dryRunSnapshots} would_promote=${phase49.wouldPromoteCount} would_block=${phase49.wouldBlockCount} audit_exported=${phase49.auditExported} alerts=${phase49.alertsRecorded}`,
       );
     }
   }

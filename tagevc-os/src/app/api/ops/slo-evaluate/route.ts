@@ -7,6 +7,7 @@ import {
   startOperationalWorker,
 } from '@/lib/shared-services/operational-health';
 import { processSloGovernancePhase40, processSloGovernancePhase44, processSloGovernancePhase45, processSloGovernancePhase46, processSloGovernancePhase47, processSloGovernancePhase48 } from '@/lib/shared-services/slo-policy';
+import { processSloGovernancePhase49 } from '@/lib/shared-services/slo-phase49';
 
 async function run(source: 'cron' | 'admin') {
   const worker = await startOperationalWorker({
@@ -22,6 +23,7 @@ async function run(source: 'cron' | 'admin') {
     const phase46 = await processSloGovernancePhase46();
     const phase47 = await processSloGovernancePhase47();
     const phase48 = await processSloGovernancePhase48();
+    const phase49 = await processSloGovernancePhase49();
     for (const transition of result.transitions) {
       captureMessage(
         `Shared Services SLO ${transition.transition}: ${transition.service}/${transition.metric_key}`,
@@ -64,6 +66,7 @@ async function run(source: 'cron' | 'admin') {
         phase48_allowlist: phase48.allowlist,
         phase48_deliveries: phase48.deliveries,
         phase48_delivery_slo: phase48.deliverySlo,
+        phase49_owner_digest_slo: phase49.ownerDigestSlo,
       },
     });
     return NextResponse.json({
@@ -78,6 +81,7 @@ async function run(source: 'cron' | 'admin') {
       phase46,
       phase47,
       phase48,
+      phase49,
     });
   } catch (error) {
     captureException(error, { route: 'slo-evaluate' });

@@ -39,7 +39,7 @@ async function run(request: Request) {
       errorCode: ok ? null : 'revenue_ingestion_failure',
       errorDetail: ok ? null : result.details.join('; '),
       details: {
-        contract: 'phase48-v1',
+        contract: 'phase49-v1',
         bounded_pages: 10,
         bounded_records: 500,
         production_slo_ticks: true,
@@ -58,6 +58,8 @@ async function run(request: Request) {
         cohort_autopilot: true,
         conflict_cohort_archives: true,
         cohort_performance_snapshots: true,
+        autopilot_dry_run_dashboards: true,
+        cohort_promotion_audit_exports: true,
       },
     });
     return NextResponse.json({ ok, result }, { status: ok ? 200 : 500 });

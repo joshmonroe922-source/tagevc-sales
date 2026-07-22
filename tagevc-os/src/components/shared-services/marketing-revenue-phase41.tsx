@@ -10,6 +10,7 @@ import type {
   Phase46RevenueOpsReport,
   Phase47RevenueOpsReport,
   Phase48RevenueOpsReport,
+  Phase49RevenueOpsReport,
 } from '@/lib/shared-services/marketing-revenue-contracts';
 import {
   reviewMarketingRevenueCorrectionAction,
@@ -62,6 +63,8 @@ export function MarketingRevenuePhase41({
   phase47OpsError,
   phase48OpsReport,
   phase48OpsError,
+  phase49OpsReport,
+  phase49OpsError,
 }: {
   report: Phase41RevenueReport;
   error?: string;
@@ -80,6 +83,8 @@ export function MarketingRevenuePhase41({
   phase47OpsError?: string;
   phase48OpsReport?: Phase48RevenueOpsReport;
   phase48OpsError?: string;
+  phase49OpsReport?: Phase49RevenueOpsReport;
+  phase49OpsError?: string;
 }) {
   const [pending, startTransition] = useTransition();
   const [actionError, setActionError] = useState<string | null>(null);
@@ -347,6 +352,29 @@ export function MarketingRevenuePhase41({
                 </span>
               </>
             ) : null}
+            {phase49OpsReport ? (
+              <>
+                <span
+                  className={`rounded border px-2 py-0.5 text-[11px] ${severityClass(phase49OpsReport.dry_run_health)}`}
+                >
+                  autopilot dry-run {phase49OpsReport.dry_run_health}
+                  {phase49OpsReport.would_promote_count
+                    ? ` (${phase49OpsReport.would_promote_count} would promote)`
+                    : phase49OpsReport.would_block_count
+                      ? ` (${phase49OpsReport.would_block_count} would block)`
+                      : ''}
+                </span>
+                <span
+                  className={`rounded border px-2 py-0.5 text-[11px] ${severityClass(phase49OpsReport.audit_export_health)}`}
+                >
+                  cohort promotion audit export{' '}
+                  {phase49OpsReport.audit_export_health}
+                  {phase49OpsReport.audit_exports_count
+                    ? ` (${phase49OpsReport.audit_exports_count})`
+                    : ''}
+                </span>
+              </>
+            ) : null}
           </div>
           {sloError ? (
             <p className="text-xs text-destructive">{sloError}</p>
@@ -368,6 +396,9 @@ export function MarketingRevenuePhase41({
           ) : null}
           {phase48OpsError ? (
             <p className="text-xs text-destructive">{phase48OpsError}</p>
+          ) : null}
+          {phase49OpsError ? (
+            <p className="text-xs text-destructive">{phase49OpsError}</p>
           ) : null}
           <div className="grid gap-2 md:grid-cols-2">
             <div className="rounded border p-2 text-xs">

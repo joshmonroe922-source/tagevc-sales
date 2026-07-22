@@ -2003,6 +2003,74 @@ export async function runIntunePhase48TemplateLifecycleOps() {
   return processIntunePhase48TemplateLifecycleOps();
 }
 
+export async function getIntunePhase49OpsReport(): Promise<{
+  report: Record<string, unknown> | null;
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc('get_it_intune_phase49_ops_report');
+  return error
+    ? { report: null, error: error.message }
+    : { report: (data as Record<string, unknown> | null) ?? null };
+}
+
+export async function runIntunePhase49PublishGateOps() {
+  const { processIntunePhase49PublishGateOps } = await import(
+    '@/lib/shared-services/it-intune-worker'
+  );
+  return processIntunePhase49PublishGateOps();
+}
+
+// Human-apply a Phase 48 template suggestion onto its draft postmortem.
+// Never auto-publish — this only appends the suggested notes fragment.
+export async function requestIntunePostmortemApply(input: {
+  suggestionId: string;
+  actorId: string;
+  expectedRowVersion: number;
+}) {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc(
+    'request_it_intune_postmortem_apply_phase49',
+    {
+      p_suggestion_id: input.suggestionId,
+      p_actor_id: input.actorId,
+      p_expected_row_version: input.expectedRowVersion,
+    },
+  );
+  return error
+    ? { ok: false as const, error: error.message }
+    : {
+        ok: true as const,
+        detail: (data as Record<string, unknown> | null) ?? undefined,
+      };
+}
+
+// Dual distinct-actor approval gate. Only calls the existing independent
+// maker-checker publish RPC after 2 distinct approvals — never auto-publish.
+export async function approveIntunePostmortemPublish(input: {
+  postmortemId: string;
+  actorId: string;
+  decision: 'approve' | 'reject';
+  statement: string;
+}) {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc(
+    'approve_it_intune_postmortem_publish_phase49',
+    {
+      p_postmortem_id: input.postmortemId,
+      p_actor_id: input.actorId,
+      p_decision: input.decision,
+      p_statement: input.statement,
+    },
+  );
+  return error
+    ? { ok: false as const, error: error.message }
+    : {
+        ok: true as const,
+        detail: (data as Record<string, unknown> | null) ?? undefined,
+      };
+}
+
 export async function proposeIntunePromoteWaive(input: {
   recommendation_id: string;
   actor_id: string;

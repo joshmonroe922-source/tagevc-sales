@@ -1602,6 +1602,105 @@ export async function refreshIntunePhase48TemplateLifecycleOpsAction(): Promise<
   };
 }
 
+export async function refreshIntunePhase49PublishGateOpsAction(): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('action:intune_manual_review');
+  if (!gate.ok) return gate;
+  const { runIntunePhase49PublishGateOps } = await import(
+    '@/lib/shared-services/it-assets-repo'
+  );
+  const result = await runIntunePhase49PublishGateOps();
+  if (!result.ok) {
+    return {
+      ok: false,
+      error: result.error ?? 'Phase 49 publish gate ops failed',
+    };
+  }
+  revalidateAssets();
+  const alerts = Number(result.detail?.alerts_recorded ?? 0);
+  return {
+    ok: true,
+    message: `Phase 49 publish gate: ${alerts} alert(s) — never auto-publish; breakers never closed or reset`,
+  };
+}
+
+export async function requestIntunePostmortemApplyAction(input: {
+  suggestionId: string;
+  expectedRowVersion: number;
+}): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('action:intune_manual_review');
+  if (!gate.ok) return gate;
+  const parsed = z
+    .object({
+      suggestionId: z.string().uuid(),
+      expectedRowVersion: z.number().int().nonnegative(),
+    })
+    .safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? 'Invalid apply request',
+    };
+  }
+  const { requestIntunePostmortemApply } = await import(
+    '@/lib/shared-services/it-assets-repo'
+  );
+  const result = await requestIntunePostmortemApply({
+    suggestionId: parsed.data.suggestionId,
+    actorId: gate.profile.id,
+    expectedRowVersion: parsed.data.expectedRowVersion,
+  });
+  if (!result.ok) return { ok: false, error: result.error };
+  revalidateAssets();
+  const status = String(
+    (result.detail as { status?: string } | undefined)?.status ?? 'applied',
+  );
+  return {
+    ok: true,
+    message: `Template suggestion ${status.replaceAll('_', ' ')} — never auto-publish`,
+  };
+}
+
+export async function approveIntunePostmortemPublishAction(input: {
+  postmortemId: string;
+  decision: 'approve' | 'reject';
+  statement: string;
+}): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('action:intune_manual_review');
+  if (!gate.ok) return gate;
+  const parsed = z
+    .object({
+      postmortemId: z.string().uuid(),
+      decision: z.enum(['approve', 'reject']),
+      statement: z.string().trim().min(20).max(1000),
+    })
+    .safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? 'Invalid publish decision',
+    };
+  }
+  const { approveIntunePostmortemPublish } = await import(
+    '@/lib/shared-services/it-assets-repo'
+  );
+  const result = await approveIntunePostmortemPublish({
+    postmortemId: parsed.data.postmortemId,
+    actorId: gate.profile.id,
+    decision: parsed.data.decision,
+    statement: parsed.data.statement,
+  });
+  if (!result.ok) return { ok: false, error: result.error };
+  revalidateAssets();
+  const disposition = String(
+    (result.detail as { disposition?: string } | undefined)?.disposition ??
+      'recorded',
+  );
+  return {
+    ok: true,
+    message: `Postmortem publish gate: ${disposition.replaceAll('_', ' ')} — never auto-publish; requires 2 distinct approvers`,
+  };
+}
+
 export async function proposeIntunePromoteWaiveExpiryAction(input: {
   waiveProposalId: string;
   action: 'extend' | 'expire';

@@ -44,6 +44,7 @@ import { getArchivePhase45OpsReport } from '@/lib/docusign/archive-phase45';
 import { getArchivePhase46OpsReport } from '@/lib/docusign/archive-phase46';
 import { getArchivePhase47OpsReport } from '@/lib/docusign/archive-phase47';
 import { getArchivePhase48OpsReport } from '@/lib/docusign/archive-phase48';
+import { getArchivePhase49OpsReport } from '@/lib/docusign/archive-phase49';
 import { listArchiveGovernance } from '@/lib/docusign/archive-governance';
 
 function formatBytes(n: number | null | undefined): string {
@@ -142,6 +143,7 @@ export default async function DocuSignModulePage({
     phase46Ops,
     phase47Ops,
     phase48Ops,
+    phase49Ops,
   ] = await Promise.all([
     listDocuSignEvents({
       limit: 40,
@@ -210,6 +212,7 @@ export default async function DocuSignModulePage({
     getArchivePhase46OpsReport({ firmWide }),
     getArchivePhase47OpsReport({ firmWide }),
     getArchivePhase48OpsReport({ firmWide }),
+    getArchivePhase49OpsReport({ firmWide }),
   ]);
 
   const voidPolicy = process.env.DOCUSIGN_VOID_POLICY?.trim() || 'allow';
@@ -287,6 +290,7 @@ export default async function DocuSignModulePage({
           <Badge variant="secondary">Phase 46</Badge>
           <Badge variant="secondary">Phase 47</Badge>
           <Badge variant="secondary">Phase 48</Badge>
+          <Badge variant="secondary">Phase 49</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">DocuSign</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
@@ -342,6 +346,12 @@ export default async function DocuSignModulePage({
           }
           phase48DriftPerformance={
             firmWide ? phase48Ops.report.drift_performance : undefined
+          }
+          phase49CadenceSloSeverity={
+            firmWide ? phase49Ops.report.cadence_slo_severity : undefined
+          }
+          phase49BudgetProposalStatus={
+            firmWide ? phase49Ops.report.budget_proposal_status : undefined
           }
         />
         <DocuSignTemplateSendForm
@@ -460,7 +470,9 @@ export default async function DocuSignModulePage({
               quarterly under tightened drift budgets and reports drift
               performance. Phase 48 schedules subsequent recurring quarterlies,
               tightens budgets on drift breaches, and improves execution
-              performance reporting.
+              performance reporting. Phase 49 tracks a multi-quarter cadence
+              SLO and proposes (never silently activates) budget revisions on
+              breach — activation requires a distinct dual-human approval.
               {archiveGovernance.error ? ` · ${archiveGovernance.error}` : ''}
               {archiveCampaigns.error ? ` · ${archiveCampaigns.error}` : ''}
               {archiveCampaignOps.error ? ` · ${archiveCampaignOps.error}` : ''}
@@ -470,6 +482,7 @@ export default async function DocuSignModulePage({
               {phase46Ops.error ? ` · ${phase46Ops.error}` : ''}
               {phase47Ops.error ? ` · ${phase47Ops.error}` : ''}
               {phase48Ops.error ? ` · ${phase48Ops.error}` : ''}
+              {phase49Ops.error ? ` · ${phase49Ops.error}` : ''}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-xs">
@@ -598,6 +611,21 @@ export default async function DocuSignModulePage({
                     : ''}
                   {phase48Ops.report.latest_schedule?.due_at
                     ? ` · next due ${new Date(String(phase48Ops.report.latest_schedule.due_at)).toLocaleString()}`
+                    : ''}
+                </p>
+                <p className="text-muted-foreground">
+                  Phase 49 cadence SLO:{' '}
+                  {phase49Ops.report.cadence_slo_severity}
+                  {phase49Ops.report.cadence_on_time_rate != null
+                    ? ` (${Math.round(phase49Ops.report.cadence_on_time_rate * 100)}% on-time)`
+                    : ''}
+                  {' · '}budget proposal{' '}
+                  {phase49Ops.report.budget_proposal_status}
+                  {phase49Ops.report.pending_proposal_count > 0
+                    ? ` · pending ${phase49Ops.report.pending_proposal_count}`
+                    : ''}
+                  {phase49Ops.report.activated_proposal_count > 0
+                    ? ` · activated ${phase49Ops.report.activated_proposal_count}`
                     : ''}
                 </p>
               </div>

@@ -42,6 +42,9 @@ import {
   refreshIntunePhase46QualityWaiveOpsAction,
   refreshIntunePhase47ExpiryMttrOpsAction,
   refreshIntunePhase48TemplateLifecycleOpsAction,
+  refreshIntunePhase49PublishGateOpsAction,
+  requestIntunePostmortemApplyAction,
+  approveIntunePostmortemPublishAction,
   proposeIntunePromoteWaiveAction,
   reviewIntunePromoteWaiveAction,
   proposeIntunePromoteWaiveExpiryAction,
@@ -145,6 +148,7 @@ export function ItAssetsClient({
   intunePhase46Health = null,
   intunePhase47Health = null,
   intunePhase48Health = null,
+  intunePhase49Ops = null,
   intuneOutagePostmortems = [],
   intuneThresholdRecommendations = [],
   intuneSoakCycleTimeline = [],
@@ -199,6 +203,7 @@ export function ItAssetsClient({
   intunePhase46Health?: ItIntunePhase46Health | null;
   intunePhase47Health?: ItIntunePhase47Health | null;
   intunePhase48Health?: ItIntunePhase48Health | null;
+  intunePhase49Ops?: Record<string, unknown> | null;
   intuneOutagePostmortems?: ItIntuneOutagePostmortem[];
   intuneThresholdRecommendations?: ItIntuneThresholdRecommendation[];
   intuneSoakCycleTimeline?: ItIntuneSoakCycleTimeline[];
@@ -271,6 +276,9 @@ export function ItAssetsClient({
   );
   const templateByPostmortem = new Map(
     intunePostmortemTemplateSuggestions.map((row) => [row.postmortem_id, row]),
+  );
+  const postmortemById = new Map(
+    intuneOutagePostmortems.map((row) => [row.postmortem_id, row]),
   );
 
   return (
@@ -417,6 +425,20 @@ export function ItAssetsClient({
                 : ''}
             </>
           ) : null}
+          {intunePhase49Ops ? (
+            <>
+              {' · '}phase49 applied {Number(intunePhase49Ops.applied_count ?? 0)}
+              {Number(intunePhase49Ops.awaiting_second_approval_count ?? 0) > 0
+                ? ` · awaiting 2nd approver ${Number(intunePhase49Ops.awaiting_second_approval_count ?? 0)}`
+                : ''}
+              {Number(intunePhase49Ops.published_count ?? 0) > 0
+                ? ` · dual-approved published ${Number(intunePhase49Ops.published_count ?? 0)}`
+                : ''}
+              {Number(intunePhase49Ops.blocked_count ?? 0) > 0
+                ? ` · blocked ${Number(intunePhase49Ops.blocked_count ?? 0)}`
+                : ''}
+            </>
+          ) : null}
         </div>
       ) : null}
 
@@ -449,6 +471,10 @@ export function ItAssetsClient({
               with soak-cycle MTTR. Phase 48 feeds MTTR↔scorecard into append-only
               postmortem template suggestions (never auto-publish), pages on expired
               waives via SLO_WEBHOOK_OPS_ALERTS, and surfaces waive lifecycle counts.
+              Phase 49 lets a human apply a suggestion onto its draft (never
+              auto-publish) and gates publish behind a distinct dual-approve
+              vote before calling the existing independent maker-checker
+              publish RPC — suggested vs applied vs published stay visible.
             </p>
             {canIntuneManualReview && intunePhase42Health ? (
               <div className="flex flex-wrap gap-2 pt-1">
@@ -513,6 +539,49 @@ export function ItAssetsClient({
                   }
                 >
                   Refresh templates / lifecycle
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={pending}
+                  onClick={() =>
+                    run(() => refreshIntunePhase49PublishGateOpsAction())
+                  }
+                >
+                  Refresh publish gate
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={pending}
+                  onClick={() => {
+                    const postmortemId = window.prompt(
+                      'Postmortem ID (dual-approve publish gate):',
+                    );
+                    if (!postmortemId?.trim()) return;
+                    const decision =
+                      window.prompt(
+                        'Decision: approve or reject (2 distinct approvers required before publish)',
+                        'approve',
+                      ) === 'reject'
+                        ? 'reject'
+                        : 'approve';
+                    const statement = window.prompt(
+                      'Statement (at least 20 characters):',
+                    );
+                    if (!statement?.trim()) return;
+                    run(() =>
+                      approveIntunePostmortemPublishAction({
+                        postmortemId: postmortemId.trim(),
+                        decision,
+                        statement: statement.trim(),
+                      }),
+                    );
+                  }}
+                >
+                  Approve/reject publish (dual-approve)
                 </Button>
               </div>
             ) : null}
@@ -811,6 +880,37 @@ export function ItAssetsClient({
                       }`
                     : ''}
                   {' · '}sha {suggestion.evidence_sha256.slice(0, 12)}
+                  {canIntuneManualReview &&
+                  suggestion.status === 'suggested' &&
+                  suggestion.postmortem_status === 'draft' ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="ml-2"
+                      disabled={pending}
+                      onClick={() => {
+                        const pm = postmortemById.get(suggestion.postmortem_id);
+                        const rowVersionInput =
+                          pm?.row_version != null
+                            ? String(pm.row_version)
+                            : window.prompt(
+                                'Postmortem row_version:',
+                                '0',
+                              );
+                        const rowVersion = Number(rowVersionInput ?? '0');
+                        if (!Number.isInteger(rowVersion)) return;
+                        run(() =>
+                          requestIntunePostmortemApplyAction({
+                            suggestionId: suggestion.suggestion_id,
+                            expectedRowVersion: rowVersion,
+                          }),
+                        );
+                      }}
+                    >
+                      Apply (human, never auto-publish)
+                    </Button>
+                  ) : null}
                 </div>
               ))}
             </div>

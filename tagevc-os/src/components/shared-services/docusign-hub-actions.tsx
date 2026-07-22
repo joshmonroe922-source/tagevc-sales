@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import {
+  approveDocusignBudgetRevisionProposalAction,
   backfillSignedStorageAction,
   emailCocAction,
   remindEnvelopeAction,
@@ -37,6 +38,8 @@ export function DocuSignHubActions({
   phase47DriftPerformance,
   phase48SubsequentRunStatus,
   phase48DriftPerformance,
+  phase49CadenceSloSeverity,
+  phase49BudgetProposalStatus,
 }: {
   canWrite: boolean;
   canReconcile: boolean;
@@ -55,6 +58,8 @@ export function DocuSignHubActions({
   phase47DriftPerformance?: string;
   phase48SubsequentRunStatus?: string;
   phase48DriftPerformance?: string;
+  phase49CadenceSloSeverity?: string;
+  phase49BudgetProposalStatus?: string;
 }) {
   const [flash, setFlash] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -76,13 +81,16 @@ export function DocuSignHubActions({
     phase47RecurringRunStatus != null || phase47DriftPerformance != null;
   const showPhase48Badges =
     phase48SubsequentRunStatus != null || phase48DriftPerformance != null;
+  const showPhase49Badges =
+    phase49CadenceSloSeverity != null || phase49BudgetProposalStatus != null;
 
   const badges =
     showPhase44Badges ||
     showPhase45Badges ||
     showPhase46Badges ||
     showPhase47Badges ||
-    showPhase48Badges ? (
+    showPhase48Badges ||
+    showPhase49Badges ? (
       <div className="flex flex-wrap gap-2 text-[11px]">
         {phase44DriftHealth ? (
           <span className="rounded border border-border/70 px-2 py-0.5 text-muted-foreground">
@@ -147,6 +155,16 @@ export function DocuSignHubActions({
         {phase48DriftPerformance ? (
           <span className="rounded border border-border/70 px-2 py-0.5 text-muted-foreground">
             Phase 48 drift {phase48DriftPerformance}
+          </span>
+        ) : null}
+        {phase49CadenceSloSeverity ? (
+          <span className="rounded border border-border/70 px-2 py-0.5 text-muted-foreground">
+            Phase 49 cadence {phase49CadenceSloSeverity}
+          </span>
+        ) : null}
+        {phase49BudgetProposalStatus ? (
+          <span className="rounded border border-border/70 px-2 py-0.5 text-muted-foreground">
+            Phase 49 budget proposal {phase49BudgetProposalStatus}
           </span>
         ) : null}
       </div>
@@ -387,6 +405,35 @@ export function DocuSignHubActions({
             }}
           >
             Review archive quarantine
+          </Button>
+        ) : null}
+        {canArchiveReview ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={pending}
+            onClick={() => {
+              const proposalId = window.prompt(
+                'Phase 49 budget revision proposal ID:',
+              );
+              if (!proposalId?.trim()) return;
+              const decision =
+                window.prompt(
+                  'Decision: approve or reject (activation requires 2 distinct approvers)',
+                  'approve',
+                ) === 'reject'
+                  ? 'reject'
+                  : 'approve';
+              run(() =>
+                approveDocusignBudgetRevisionProposalAction({
+                  proposalId: proposalId.trim(),
+                  decision,
+                }),
+              );
+            }}
+          >
+            Approve budget revision proposal
           </Button>
         ) : null}
         <Button

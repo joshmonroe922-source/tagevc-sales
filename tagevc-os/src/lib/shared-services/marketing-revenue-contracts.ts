@@ -11,6 +11,7 @@ export const REVENUE_REPORT_VERSION_PHASE45 = 'phase45-v1';
 export const REVENUE_REPORT_VERSION_PHASE46 = 'phase46-v1';
 export const REVENUE_REPORT_VERSION_PHASE47 = 'phase47-v1';
 export const REVENUE_REPORT_VERSION_PHASE48 = 'phase48-v1';
+export const REVENUE_REPORT_VERSION_PHASE49 = 'phase49-v1';
 export const REVENUE_SLO_SEVERITIES = [
   'healthy',
   'warning',
@@ -795,6 +796,78 @@ export type Phase48RevenueOpsReport = {
   aging_conflicts: Phase47AgingConflict[];
   alerts: Phase48OpsAlert[];
   destination_key: string;
+};
+
+export const REVENUE_PHASE49_ALERT_KINDS = [
+  'autopilot_dry_run_would_promote',
+  'autopilot_dry_run_would_block',
+  'cohort_promotion_audit_exported',
+] as const;
+export type RevenuePhase49AlertKind =
+  (typeof REVENUE_PHASE49_ALERT_KINDS)[number];
+
+export const REVENUE_DRY_RUN_PREDICTED_STATUSES = [
+  'would_promote',
+  'would_block',
+  'would_wait',
+] as const;
+export type RevenueDryRunPredictedStatus =
+  (typeof REVENUE_DRY_RUN_PREDICTED_STATUSES)[number];
+
+export type Phase49AutopilotDryRunSnapshot = {
+  dry_run_id: string;
+  cohort_id: string;
+  gate_passed: boolean;
+  consecutive_healthy_windows: number;
+  windows_required: number;
+  predicted_status: RevenueDryRunPredictedStatus | string;
+  block_reason: string | null;
+  metrics_sha256: string;
+  created_at: string;
+};
+
+export type Phase49CohortPromotionAuditExport = {
+  export_id: string;
+  export_key: string;
+  entity_id: string | null;
+  window_days: number;
+  promotions_included: number;
+  autopilot_runs_included: number;
+  dry_run_snapshots_included: number;
+  export_sha256: string;
+  metrics_sha256: string;
+  created_at: string;
+};
+
+export type Phase49OpsAlert = {
+  alert_id: string;
+  entity_id: string | null;
+  cohort_id?: string | null;
+  alert_kind: RevenuePhase49AlertKind | string;
+  window_key: string;
+  severity: 'critical' | string;
+  destination_key: string;
+  delivery_status: RevenueOpsAlertDelivery | string;
+  response_code: number | null;
+  metrics_sha256: string;
+  created_at: string;
+};
+
+export type Phase49RevenueOpsReport = {
+  version: typeof REVENUE_REPORT_VERSION_PHASE49 | string;
+  window_days: number;
+  dry_run_health: RevenueSloSeverity | string;
+  audit_export_health: RevenueSloSeverity | string;
+  alert_delivery: RevenueOpsAlertDelivery | string;
+  would_promote_count: number;
+  would_block_count: number;
+  would_wait_count: number;
+  audit_exports_count: number;
+  dry_run_snapshots: Phase49AutopilotDryRunSnapshot[];
+  audit_exports: Phase49CohortPromotionAuditExport[];
+  alerts: Phase49OpsAlert[];
+  destination_key: string;
+  never_auto_approves_money: boolean;
 };
 
 export type AuthenticityProbeEvidence = {

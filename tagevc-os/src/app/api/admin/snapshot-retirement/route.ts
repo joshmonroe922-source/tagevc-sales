@@ -34,11 +34,13 @@ import {
   recordSnapshotOncallAckPhase47,
 } from '@/lib/data/snapshot-retirement-phase47';
 import {
-  completeSnapshotEd25519CutoverPhase48,
-  getSnapshotPhase48OpsDashboard,
   recordSnapshotCiCutoverAcceptancePhase48,
   scanSnapshotOncallAckSloDashboardsPhase48,
 } from '@/lib/data/snapshot-retirement-phase48';
+import {
+  completeSnapshotEd25519CutoverPhase49,
+  getSnapshotPhase49OpsDashboard,
+} from '@/lib/data/snapshot-retirement-phase49';
 import {
   recordSnapshotCutoverAcceptancePhase46,
 } from '@/lib/data/snapshot-retirement-phase46';
@@ -175,6 +177,14 @@ const requestSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('complete_ed25519_cutover'),
     rotation_id: z.uuid(),
+    branch: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .min(1)
+      .max(120)
+      .regex(/^[a-z0-9][a-z0-9._/-]{0,119}$/)
+      .default('main'),
   }),
   z.object({
     action: z.literal('record_cutover_acceptance'),
@@ -250,40 +260,45 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: gate.error }, { status: 403 });
   }
   try {
-    const [phase40, phase48] = await Promise.all([
+    const [phase40, phase49] = await Promise.all([
       getSnapshotPhase40Dashboard(),
-      getSnapshotPhase48OpsDashboard(),
+      getSnapshotPhase49OpsDashboard(),
     ]);
     if (!phase40.ok) {
       return NextResponse.json(phase40, { status: 503 });
     }
     return NextResponse.json({
       ...phase40,
-      verifyMaterial: phase48.verifyMaterial,
-      coldRuns: phase48.coldRuns,
-      phase42Slo: phase48.phase42Slo,
-      firmWideVerifyMaterial: phase48.firmWideVerifyMaterial,
-      productionColdSchedules: phase48.productionColdSchedules,
-      phase43Slo: phase48.phase43Slo,
-      integrityChecks: phase48.integrityChecks,
-      retentionAlerts: phase48.retentionAlerts,
-      phase44CanarySchedules: phase48.phase44CanarySchedules,
-      phase44Slo: phase48.phase44Slo,
-      ed25519Rotations: phase48.ed25519Rotations,
-      consecutiveFailureCounters: phase48.consecutiveFailureCounters,
-      phase45OpsAlerts: phase48.phase45OpsAlerts,
-      phase45Slo: phase48.phase45Slo,
-      cutoverAcceptances: phase48.cutoverAcceptances,
-      oncallRoutes: phase48.oncallRoutes,
-      oncallDeliveries: phase48.oncallDeliveries,
-      phase46Slo: phase48.phase46Slo,
-      oncallAckSnapshots: phase48.oncallAckSnapshots,
-      oncallAckAlerts: phase48.oncallAckAlerts,
-      phase47Slo: phase48.phase47Slo,
-      ciCutoverAcceptances: phase48.ciCutoverAcceptances,
-      oncallAckDashboards: phase48.oncallAckDashboards,
-      phase48Slo: phase48.phase48Slo,
-      snapshotCiCutoverEnabled: phase48.snapshotCiCutoverEnabled,
+      verifyMaterial: phase49.verifyMaterial,
+      coldRuns: phase49.coldRuns,
+      phase42Slo: phase49.phase42Slo,
+      firmWideVerifyMaterial: phase49.firmWideVerifyMaterial,
+      productionColdSchedules: phase49.productionColdSchedules,
+      phase43Slo: phase49.phase43Slo,
+      integrityChecks: phase49.integrityChecks,
+      retentionAlerts: phase49.retentionAlerts,
+      phase44CanarySchedules: phase49.phase44CanarySchedules,
+      phase44Slo: phase49.phase44Slo,
+      ed25519Rotations: phase49.ed25519Rotations,
+      consecutiveFailureCounters: phase49.consecutiveFailureCounters,
+      phase45OpsAlerts: phase49.phase45OpsAlerts,
+      phase45Slo: phase49.phase45Slo,
+      cutoverAcceptances: phase49.cutoverAcceptances,
+      oncallRoutes: phase49.oncallRoutes,
+      oncallDeliveries: phase49.oncallDeliveries,
+      phase46Slo: phase49.phase46Slo,
+      oncallAckSnapshots: phase49.oncallAckSnapshots,
+      oncallAckAlerts: phase49.oncallAckAlerts,
+      phase47Slo: phase49.phase47Slo,
+      ciCutoverAcceptances: phase49.ciCutoverAcceptances,
+      oncallAckDashboards: phase49.oncallAckDashboards,
+      phase48Slo: phase49.phase48Slo,
+      snapshotCiCutoverEnabled: phase49.snapshotCiCutoverEnabled,
+      protectedBranchPolicies: phase49.protectedBranchPolicies,
+      cutoverEnforcementEvents: phase49.cutoverEnforcementEvents,
+      phase49OpsAlerts: phase49.phase49OpsAlerts,
+      phase49Slo: phase49.phase49Slo,
+      snapshotCiProtectedBranchesRequired: phase49.snapshotCiProtectedBranchesRequired,
     });
   } catch (error) {
     captureException(error, { route: 'snapshot-retirement-phase40-dashboard' });
@@ -432,9 +447,10 @@ export async function POST(request: Request) {
         });
         break;
       case 'complete_ed25519_cutover':
-        result = await completeSnapshotEd25519CutoverPhase48({
+        result = await completeSnapshotEd25519CutoverPhase49({
           actorId: gate.profile.id,
           rotationId: parsed.data.rotation_id,
+          branch: parsed.data.branch,
         });
         break;
       case 'record_cutover_acceptance':

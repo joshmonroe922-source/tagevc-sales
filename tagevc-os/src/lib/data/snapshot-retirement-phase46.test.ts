@@ -125,13 +125,13 @@ describe('Phase 46 snapshot cutover ops', () => {
     expect(route).toContain('record_cutover_acceptance');
     expect(route).toContain('complete_ed25519_cutover');
     expect(route).toMatch(
-      /completeSnapshotEd25519CutoverPhase46|completeSnapshotEd25519CutoverPhase47|completeSnapshotEd25519CutoverPhase48/,
+      /completeSnapshotEd25519CutoverPhase46|completeSnapshotEd25519CutoverPhase47|completeSnapshotEd25519CutoverPhase48|completeSnapshotEd25519CutoverPhase49/,
     );
     expect(route).toMatch(
-      /getSnapshotPhase46OpsDashboard|getSnapshotPhase47OpsDashboard|getSnapshotPhase48OpsDashboard/,
+      /getSnapshotPhase46OpsDashboard|getSnapshotPhase47OpsDashboard|getSnapshotPhase48OpsDashboard|getSnapshotPhase49OpsDashboard/,
     );
     expect(worker).toMatch(
-      /runSnapshotPhase46OpsWorker|runSnapshotPhase47OpsWorker|runSnapshotPhase48OpsWorker/,
+      /runSnapshotPhase46OpsWorker|runSnapshotPhase47OpsWorker|runSnapshotPhase48OpsWorker|runSnapshotPhase49OpsWorker/,
     );
     expect(ui).toMatch(/Record cutover acceptance|Record offline_script acceptance/);
     expect(ui).toContain('Complete cutover');

@@ -154,6 +154,11 @@ type Dashboard = {
   oncallAckDashboards?: Array<Record<string, unknown>>;
   phase48Slo?: Record<string, unknown> | null;
   snapshotCiCutoverEnabled?: boolean;
+  protectedBranchPolicies?: Array<Record<string, unknown>>;
+  cutoverEnforcementEvents?: Array<Record<string, unknown>>;
+  phase49OpsAlerts?: Array<Record<string, unknown>>;
+  phase49Slo?: Record<string, unknown> | null;
+  snapshotCiProtectedBranchesRequired?: string[];
 };
 
 type ApiResult = {
@@ -558,12 +563,23 @@ export function SnapshotRetirementPhase40Admin() {
       );
       return;
     }
+    const branchInput = window.prompt(
+      'Target branch for this cutover (protected branches always require CI offline_script dual acceptance):',
+      'main',
+    );
+    if (!branchInput?.trim()) return;
+    const branch = branchInput.trim().toLowerCase();
+    const protectedBranches = new Set(
+      (dashboard?.snapshotCiProtectedBranchesRequired ?? ['main', 'production']).map(
+        (value) => value.toLowerCase(),
+      ),
+    );
     const hasCi = (dashboard?.ciCutoverAcceptances ?? []).some(
       (row) => row.rotation_id === open.rotation_id,
     );
-    if (!hasCi) {
+    if (protectedBranches.has(branch) && !hasCi) {
       setError(
-        'Cutover requires CI offline_script dual acceptance evidence (record CI cutover acceptance or run ci-snapshot-cutover-accept.mjs).',
+        `Cutover on protected branch "${branch}" requires CI offline_script dual acceptance evidence (record CI cutover acceptance or run ci-snapshot-cutover-accept.mjs).`,
       );
       return;
     }
@@ -574,11 +590,12 @@ export function SnapshotRetirementPhase40Admin() {
         const result = await post({
           action: 'complete_ed25519_cutover',
           rotation_id: open.rotation_id,
+          branch,
         });
         setMessage(
           result.rotation
-            ? `Ed25519 cutover complete · ${String(result.rotation.status ?? 'cutover_complete')} (offline_script dual-acceptance; non-qualifying).`
-            : 'Ed25519 cutover completed (offline_script dual-acceptance; non-qualifying).',
+            ? `Ed25519 cutover complete · ${String(result.rotation.status ?? 'cutover_complete')} on branch ${branch} (non-qualifying).`
+            : `Ed25519 cutover completed on branch ${branch} (non-qualifying).`,
         );
         await refresh();
       } catch (cause) {
@@ -974,6 +991,27 @@ export function SnapshotRetirementPhase40Admin() {
           critical{' '}
           {String(dashboard.phase48Slo.oncall_ack_dashboard_critical_30d ?? 0)}
           {dashboard.snapshotCiCutoverEnabled ? ' · CI cutover enabled' : ''}
+        </p>
+      ) : null}
+      {(dashboard?.cutoverEnforcementEvents ?? []).slice(0, 3).map((row) => (
+        <p
+          key={String(row.event_id)}
+          className="font-mono text-[10px] text-muted-foreground"
+        >
+          P49 ENFORCE · branch {String(row.branch)} · {String(row.decision)} ·
+          protected {String(row.protected_branch)} · ci ready{' '}
+          {String(row.ci_dual_acceptance_ready)}
+        </p>
+      ))}
+      {dashboard?.phase49Slo ? (
+        <p className="text-muted-foreground">
+          Phase 49 protected branches{' '}
+          {String(dashboard.phase49Slo.protected_branch_policies_count ?? 0)} ·
+          cutovers allowed{' '}
+          {String(dashboard.phase49Slo.cutover_enforcement_allowed_365d ?? 0)} ·
+          blocked{' '}
+          {String(dashboard.phase49Slo.cutover_enforcement_blocked_365d ?? 0)} ·
+          CI required on every protected-branch cutover
         </p>
       ) : null}
       {dashboard?.checks.slice(0, 4).map((check) => (

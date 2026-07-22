@@ -20,6 +20,7 @@ import {
   getIntunePhase46Health,
   getIntunePhase47Health,
   getIntunePhase48Health,
+  getIntunePhase49OpsReport,
   listIntuneOutagePostmortems,
   listIntuneThresholdRecommendations,
   listIntuneSoakCycleTimeline,
@@ -77,6 +78,7 @@ export default async function ItAssetsModulePage() {
     phase46Health,
     phase47Health,
     phase48Health,
+    phase49Ops,
     outagePostmortems,
     thresholdRecommendations,
     soakCycleTimeline,
@@ -114,6 +116,7 @@ export default async function ItAssetsModulePage() {
     getIntunePhase46Health(),
     getIntunePhase47Health(),
     getIntunePhase48Health(),
+    getIntunePhase49OpsReport(),
     listIntuneOutagePostmortems(),
     listIntuneThresholdRecommendations(),
     listIntuneSoakCycleTimeline(),
@@ -172,6 +175,7 @@ export default async function ItAssetsModulePage() {
           <Badge variant="outline">IT</Badge>
           <Badge variant="secondary">Phase 43</Badge>
           <Badge variant="secondary">Phase 44</Badge>
+          <Badge variant="secondary">Phase 49</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Hardware &amp; licensing
@@ -225,6 +229,7 @@ export default async function ItAssetsModulePage() {
         intunePhase46Health={firmWide ? phase46Health.row : null}
         intunePhase47Health={firmWide ? phase47Health.row : null}
         intunePhase48Health={firmWide ? phase48Health.row : null}
+        intunePhase49Ops={firmWide ? phase49Ops.report : null}
         intuneOutagePostmortems={firmWide ? outagePostmortems.rows : []}
         intuneThresholdRecommendations={thresholdRecommendations.rows.filter(
           (recommendation) =>

@@ -11,6 +11,7 @@ import { runArchivePhase45OpsTick } from '@/lib/docusign/archive-phase45';
 import { runArchivePhase46OpsTick } from '@/lib/docusign/archive-phase46';
 import { runArchivePhase47OpsTick } from '@/lib/docusign/archive-phase47';
 import { runArchivePhase48OpsTick } from '@/lib/docusign/archive-phase48';
+import { runArchivePhase49OpsTick } from '@/lib/docusign/archive-phase49';
 import {
   finishOperationalWorker,
   startOperationalWorker,
@@ -105,6 +106,7 @@ async function run(request: Request) {
     const phase46 = await runArchivePhase46OpsTick();
     const phase47 = await runArchivePhase47OpsTick();
     const phase48 = await runArchivePhase48OpsTick();
+    const phase49 = await runArchivePhase49OpsTick();
     await finishOperationalWorker({
       workerRunId: worker.workerRunId,
       status: noop
@@ -178,10 +180,17 @@ async function run(request: Request) {
           ? phase48.driftPerformance
           : null,
         phase48_ops_error: phase48.ok ? null : phase48.error,
+        phase49_ops_ok: phase49.ok,
+        phase49_cadence_slo_severity: phase49.ok
+          ? phase49.cadenceSeverity
+          : null,
+        phase49_proposal_status: phase49.ok ? phase49.proposalStatus : null,
+        phase49_alerts_recorded: phase49.ok ? phase49.alertsRecorded : null,
+        phase49_ops_error: phase49.ok ? null : phase49.error,
       },
     });
     return NextResponse.json(
-      { ...result, phase44, phase45, phase46, phase47, phase48 },
+      { ...result, phase44, phase45, phase46, phase47, phase48, phase49 },
       {
         status: result.ok || noop || (result.governance?.claimed ?? 0) > 0
           ? 200
@@ -210,6 +219,7 @@ async function run(request: Request) {
   const phase46 = await runArchivePhase46OpsTick();
   const phase47 = await runArchivePhase47OpsTick();
   const phase48 = await runArchivePhase48OpsTick();
+  const phase49 = await runArchivePhase49OpsTick();
   await finishOperationalWorker({
     workerRunId: worker.workerRunId,
     status: result.checkpointed
@@ -262,10 +272,17 @@ async function run(request: Request) {
         ? phase48.driftPerformance
         : null,
       phase48_ops_error: phase48.ok ? null : phase48.error,
+      phase49_ops_ok: phase49.ok,
+      phase49_cadence_slo_severity: phase49.ok
+        ? phase49.cadenceSeverity
+        : null,
+      phase49_proposal_status: phase49.ok ? phase49.proposalStatus : null,
+      phase49_alerts_recorded: phase49.ok ? phase49.alertsRecorded : null,
+      phase49_ops_error: phase49.ok ? null : phase49.error,
     },
   });
   return NextResponse.json(
-    { ...result, phase44, phase45, phase46, phase47, phase48 },
+    { ...result, phase44, phase45, phase46, phase47, phase48, phase49 },
     {
       status: result.ok || result.claimed > 0 ? 200 : 500,
     },

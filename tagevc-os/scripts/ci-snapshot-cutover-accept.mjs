@@ -1,8 +1,15 @@
 #!/usr/bin/env node
 /**
- * CI-integrated offline_script dual-acceptance helper for Phase 48 snapshot
- * cutover. Records CI acceptance evidence when SNAPSHOT_CI_CUTOVER_ENABLED is
+ * CI-integrated offline_script dual-acceptance helper for snapshot cutover.
+ * Records CI acceptance evidence when SNAPSHOT_CI_CUTOVER_ENABLED is
  * truthy. Public key ids / hashes only — never secret key material.
+ *
+ * Phase 49: CI offline_script dual acceptance is REQUIRED on every cutover
+ * for protected branches (default main, production; override with
+ * SNAPSHOT_CI_PROTECTED_BRANCH_REQUIRED, comma-separated). On a protected
+ * branch this script fails closed (nonzero exit) instead of silently
+ * skipping when SNAPSHOT_CI_CUTOVER_ENABLED is not set. Non-protected
+ * branches may still skip when CI cutover is not enabled.
  *
  * Usage:
  *   SNAPSHOT_CI_CUTOVER_ENABLED=1 \
@@ -12,6 +19,7 @@
  *   SNAPSHOT_CI_PREVIOUS_KEY_ID=... \
  *   SNAPSHOT_CI_NEXT_KEY_ID=... \
  *   SNAPSHOT_CI_RUN_KEY=github:123 \
+ *   SNAPSHOT_CI_BRANCH=main \
  *     node scripts/ci-snapshot-cutover-accept.mjs
  *
  * Dry-check mode (no network) when env is incomplete:
@@ -19,11 +27,28 @@
  */
 import { createHash } from 'node:crypto';
 
+const CONTRACT_VERSION = 'phase49-v1';
+
 const ENABLED = String(process.env.SNAPSHOT_CI_CUTOVER_ENABLED ?? '')
   .trim()
   .toLowerCase();
 const CI_ENABLED = ENABLED === '1' || ENABLED === 'true' || ENABLED === 'yes';
 const CHECK_ONLY = process.argv.includes('--check');
+
+const branch = (
+  process.env.SNAPSHOT_CI_BRANCH?.trim() ||
+  process.env.GITHUB_REF_NAME?.trim() ||
+  ''
+).toLowerCase();
+
+const protectedBranches = (
+  process.env.SNAPSHOT_CI_PROTECTED_BRANCH_REQUIRED?.trim() || 'main,production'
+)
+  .split(',')
+  .map((value) => value.trim().toLowerCase())
+  .filter(Boolean);
+
+const isProtectedBranch = branch.length > 0 && protectedBranches.includes(branch);
 
 function die(message) {
   console.error(message);
@@ -41,12 +66,25 @@ function requireEnv(name) {
 }
 
 if (!CI_ENABLED) {
+  if (isProtectedBranch) {
+    die(
+      JSON.stringify({
+        ok: false,
+        error: `SNAPSHOT_CI_CUTOVER_ENABLED must be set for cutovers on protected branch "${branch}" (Phase 49 enforces CI offline_script dual acceptance on every protected-branch cutover)`,
+        branch,
+        protected_branch: true,
+        contract_version: CONTRACT_VERSION,
+      }),
+    );
+  }
   console.log(
     JSON.stringify({
       ok: true,
       skipped: true,
       reason: 'SNAPSHOT_CI_CUTOVER_ENABLED is not enabled',
-      contract_version: 'phase48-v1',
+      branch: branch || null,
+      protected_branch: isProtectedBranch,
+      contract_version: CONTRACT_VERSION,
     }),
   );
   process.exit(0);
@@ -77,7 +115,9 @@ if (CHECK_ONLY) {
       check_only: true,
       snapshot_ci_cutover_enabled: true,
       offline_script_required: true,
-      contract_version: 'phase48-v1',
+      branch: branch || null,
+      protected_branch: isProtectedBranch,
+      contract_version: CONTRACT_VERSION,
       qualification_eligible: false,
       attestation_eligible: false,
       production_relation_mutated: false,
@@ -137,7 +177,9 @@ console.log(
     ok: true,
     acceptance: payload,
     offline_script_required: true,
-    contract_version: 'phase48-v1',
+    branch: branch || null,
+    protected_branch: isProtectedBranch,
+    contract_version: CONTRACT_VERSION,
     qualification_eligible: false,
     attestation_eligible: false,
     production_relation_mutated: false,

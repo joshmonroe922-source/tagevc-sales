@@ -612,6 +612,43 @@ export async function reviewArchiveQuarantineAction(input: {
   return { ok: true, message: `Archive drift ${parsed.data.decision}d` };
 }
 
+export async function approveDocusignBudgetRevisionProposalAction(input: {
+  proposalId: string;
+  decision: 'approve' | 'reject';
+}): Promise<DocuSignActionResult> {
+  const gate = await guardPermission('action:docusign_manual_review');
+  if (!gate.ok) return gate;
+  const parsed = z
+    .object({
+      proposalId: z.string().uuid(),
+      decision: z.enum(['approve', 'reject']),
+    })
+    .safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message || 'Invalid budget revision decision',
+    };
+  }
+  const { approveDocusignBudgetRevisionProposalPhase49 } = await import(
+    '@/lib/docusign/archive-phase49'
+  );
+  const result = await approveDocusignBudgetRevisionProposalPhase49({
+    proposalId: parsed.data.proposalId,
+    actorId: gate.profile.id,
+    decision: parsed.data.decision,
+  });
+  if (!result.ok) return { ok: false, error: result.error };
+  revalidateDocuSign();
+  const disposition = String(
+    (result.data as { disposition?: string }).disposition ?? 'recorded',
+  );
+  return {
+    ok: true,
+    message: `Budget revision proposal ${disposition.replaceAll('_', ' ')}`,
+  };
+}
+
 export async function voidEnvelopeAction(
   envelopeId: string,
   reason: string,

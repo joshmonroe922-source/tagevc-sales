@@ -119,11 +119,17 @@ describe('Phase 48 snapshot cutover ops', () => {
     expect(lib).toContain(PHASE48_SNAPSHOT_CONTRACT_VERSION);
     expect(lib).toContain('SNAPSHOT_CI_CUTOVER_ENABLED');
     expect(lib).not.toMatch(/PRIVATE_KEY(?!S)/);
-    expect(route).toContain('completeSnapshotEd25519CutoverPhase48');
-    expect(route).toContain('getSnapshotPhase48OpsDashboard');
+    expect(route).toMatch(
+      /completeSnapshotEd25519CutoverPhase48|completeSnapshotEd25519CutoverPhase49/,
+    );
+    expect(route).toMatch(
+      /getSnapshotPhase48OpsDashboard|getSnapshotPhase49OpsDashboard/,
+    );
     expect(route).toContain('record_ci_cutover_acceptance');
     expect(route).toContain('offline_script');
-    expect(worker).toContain('runSnapshotPhase48OpsWorker');
+    expect(worker).toMatch(
+      /runSnapshotPhase48OpsWorker|runSnapshotPhase49OpsWorker/,
+    );
     expect(ui).toContain('phase48Slo');
     expect(ui).toContain('Record CI cutover acceptance');
     expect(ui).toContain('Scan on-call ack dashboards');

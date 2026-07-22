@@ -33,6 +33,7 @@ import {
   scanSloOwnershipChangeVisibilityPhase47,
   scanSloDigestNotificationDeliverySloPhase48,
   deliverSloOwnerDigestWebhooksPhase48,
+  scanSloOwnerDigestDeliverySuccessPhase49,
   saveSloPolicyDraft,
   transitionSloPolicyDraft,
 } from '@/lib/shared-services/slo-policy';
@@ -800,6 +801,27 @@ export async function scanSloDigestNotificationDeliverySloAction(): Promise<Tick
     return {
       ok: true,
       message: `Digest delivery SLO · snapshots ${result.slo_snapshots_recorded ?? 0} · alerts ${result.visibility_alerts_recorded ?? 0} · allowlist ${result.active_allowlist_count ?? 0} · ${result.window_days ?? 30}d`,
+    };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Failed' };
+  }
+}
+
+export async function scanSloOwnerDigestDeliverySuccessAction(): Promise<TicketActionResult> {
+  const gate = await guardPermission('write:shared_services');
+  if (!gate.ok) return gate;
+  try {
+    const result = (await scanSloOwnerDigestDeliverySuccessPhase49({
+      actorId: gate.profile.id,
+    })) as {
+      owner_slo_snapshots_recorded?: number;
+      owners_tracked?: number;
+      window_days?: number;
+    };
+    revalidatePath('/shared-services');
+    return {
+      ok: true,
+      message: `Owner digest success SLO · snapshots ${result.owner_slo_snapshots_recorded ?? 0} · owners ${result.owners_tracked ?? 0} · ${result.window_days ?? 30}d · not full push`,
     };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : 'Failed' };

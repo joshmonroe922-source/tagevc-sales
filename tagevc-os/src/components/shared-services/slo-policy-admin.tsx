@@ -19,6 +19,7 @@ import {
   scanSloOwnershipChangeVisibilityAction,
   deliverSloOwnerDigestWebhooksAction,
   scanSloDigestNotificationDeliverySloAction,
+  scanSloOwnerDigestDeliverySuccessAction,
   saveSloPolicyDraftAction,
   suggestSloOwnerHandoffsAction,
   transitionSloPolicyDraftAction,
@@ -262,6 +263,8 @@ export function SloPolicyAdmin({
   digestDeliveries = [],
   digestDeliverySlos = [],
   phase48Report = null,
+  ownerDigestSuccessSlos = [],
+  phase49Report = null,
 }: {
   activePolicies: SloPolicyRow[];
   drafts: SloPolicyRow[];
@@ -292,6 +295,8 @@ export function SloPolicyAdmin({
   digestDeliveries?: Array<Record<string, unknown>>;
   digestDeliverySlos?: Array<Record<string, unknown>>;
   phase48Report?: Record<string, unknown> | null;
+  ownerDigestSuccessSlos?: Array<Record<string, unknown>>;
+  phase49Report?: Record<string, unknown> | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -481,6 +486,16 @@ export function SloPolicyAdmin({
     startTransition(async () => {
       const result = await scanSloDigestNotificationDeliverySloAction();
       setMessage(result.ok ? result.message ?? 'Delivery SLO scanned' : result.error);
+      if (result.ok) router.refresh();
+    });
+  }
+
+  function scanOwnerDigestDeliverySuccess() {
+    startTransition(async () => {
+      const result = await scanSloOwnerDigestDeliverySuccessAction();
+      setMessage(
+        result.ok ? result.message ?? 'Owner digest success SLO scanned' : result.error,
+      );
       if (result.ok) router.refresh();
     });
   }
@@ -769,6 +784,15 @@ export function SloPolicyAdmin({
               >
                 Scan digest delivery SLO
               </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={pending}
+                onClick={scanOwnerDigestDeliverySuccess}
+              >
+                Scan owner digest success SLO
+              </Button>
             </div>
             {nightlyReplayRuns.slice(0, 4).map((run) => (
               <p
@@ -895,6 +919,27 @@ export function SloPolicyAdmin({
                 {String(phase48Report.digest_deliveries_30d ?? 0)} · failed{' '}
                 {String(phase48Report.digest_deliveries_failed_30d ?? 0)} · critical SLO{' '}
                 {String(phase48Report.delivery_slo_critical_30d ?? 0)}
+              </p>
+            ) : null}
+            {ownerDigestSuccessSlos.slice(0, 3).map((snapshot) => (
+              <p
+                key={String(snapshot.snapshot_id)}
+                className="font-mono text-[10px] text-muted-foreground"
+              >
+                OWNER DIGEST SLO · {String(snapshot.severity)} · owner{' '}
+                {String(snapshot.owner_id).slice(0, 8)} · rate{' '}
+                {String(snapshot.success_rate ?? 'n/a')} · ok{' '}
+                {String(snapshot.delivered_count)} / fail {String(snapshot.failed_count)}
+              </p>
+            ))}
+            {phase49Report ? (
+              <p className="text-muted-foreground">
+                Phase 49 · owners tracked 30d{' '}
+                {String(phase49Report.owners_tracked_30d ?? 0)} · healthy{' '}
+                {String(phase49Report.owners_healthy_30d ?? 0)} · warning{' '}
+                {String(phase49Report.owners_warning_30d ?? 0)} · critical{' '}
+                {String(phase49Report.owners_critical_30d ?? 0)} · overall rate{' '}
+                {String(phase49Report.overall_success_rate_30d ?? 'n/a')}
               </p>
             ) : null}
           </CardContent>
