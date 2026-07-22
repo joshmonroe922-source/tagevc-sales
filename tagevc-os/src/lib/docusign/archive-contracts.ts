@@ -59,3 +59,28 @@ export function assertPdfPayload(
     throw new Error(`${label} returned invalid PDF bytes`);
   }
 }
+
+export function decodeBoundedBase64(
+  value: string,
+  maxBytes: number,
+  label: string,
+): Buffer {
+  const normalized = value.trim();
+  const maxEncodedLength = Math.ceil(maxBytes / 3) * 4;
+  if (
+    !normalized ||
+    normalized.length > maxEncodedLength ||
+    normalized.length % 4 !== 0 ||
+    !/^[A-Za-z0-9+/]*={0,2}$/.test(normalized)
+  ) {
+    throw new Error(`${label} is invalid or exceeds ${maxBytes} byte limit`);
+  }
+  const buffer = Buffer.from(normalized, 'base64');
+  if (
+    buffer.byteLength > maxBytes ||
+    buffer.toString('base64') !== normalized
+  ) {
+    throw new Error(`${label} is invalid or exceeds ${maxBytes} byte limit`);
+  }
+  return buffer;
+}

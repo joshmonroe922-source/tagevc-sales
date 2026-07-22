@@ -879,3 +879,140 @@ export async function reviewIntuneBreakerResetAction(input: {
         : 'Breaker reset rejected; POST authorization remains blocked',
   };
 }
+
+export async function proposeIntuneBreakerTuningAction(input: {
+  breakerId: string;
+  reason: string;
+  expectedBreakerVersion: number;
+  failureWindowMinutes: number;
+  minimumSamples: number;
+  failureThreshold: number;
+  failureRateThreshold: number;
+  resetSuccessThreshold: number;
+}): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('action:intune_manual_review');
+  if (!gate.ok) return gate;
+  const parsed = z
+    .object({
+      breakerId: z.string().uuid(),
+      reason: z.string().trim().min(20).max(1000),
+      expectedBreakerVersion: z.number().int().nonnegative(),
+      failureWindowMinutes: z.number().int().min(5).max(120),
+      minimumSamples: z.number().int().min(3).max(50),
+      failureThreshold: z.number().int().min(2).max(50),
+      failureRateThreshold: z.number().min(0.25).max(0.95),
+      resetSuccessThreshold: z.number().int().min(2).max(10),
+    })
+    .refine((value) => value.failureThreshold <= value.minimumSamples, {
+      message: 'Failure threshold cannot exceed minimum samples',
+    })
+    .safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid tuning' };
+  }
+  const service = await createPersistClient();
+  const { data: breaker, error } = await service
+    .from('os_it_intune_provider_breakers')
+    .select('entity_id')
+    .eq('breaker_id', parsed.data.breakerId)
+    .single();
+  if (error || !breaker) {
+    return { ok: false, error: error?.message ?? 'Breaker not found' };
+  }
+  if (
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      breaker.entity_id,
+    )
+  ) {
+    return {
+      ok: false,
+      error: entityScopeDeniedMessage(breaker.entity_id ?? 'firm-wide'),
+    };
+  }
+  const { proposeIntuneBreakerTuning } = await import(
+    '@/lib/shared-services/it-assets-repo'
+  );
+  const result = await proposeIntuneBreakerTuning({
+    breaker_id: parsed.data.breakerId,
+    actor_id: gate.profile.id,
+    reason: parsed.data.reason,
+    failure_window_minutes: parsed.data.failureWindowMinutes,
+    minimum_samples: parsed.data.minimumSamples,
+    failure_threshold: parsed.data.failureThreshold,
+    failure_rate_threshold: parsed.data.failureRateThreshold,
+    reset_success_threshold: parsed.data.resetSuccessThreshold,
+    expected_breaker_version: parsed.data.expectedBreakerVersion,
+  });
+  if (!result.ok) return result;
+  revalidateAssets();
+  return {
+    ok: true,
+    message: 'Immutable tuning proposal created for independent review',
+  };
+}
+
+export async function reviewIntuneBreakerTuningAction(input: {
+  proposalId: string;
+  decision: 'approve' | 'reject';
+  statement: string;
+  expectedBreakerVersion: number;
+}): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('action:intune_manual_review');
+  if (!gate.ok) return gate;
+  const parsed = z
+    .object({
+      proposalId: z.string().uuid(),
+      decision: z.enum(['approve', 'reject']),
+      statement: z.string().trim().min(20).max(1000),
+      expectedBreakerVersion: z.number().int().nonnegative(),
+    })
+    .safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid review' };
+  }
+  const service = await createPersistClient();
+  const { data: proposal, error } = await service
+    .from('os_it_intune_breaker_tuning_proposals')
+    .select('entity_id, proposed_by')
+    .eq('proposal_id', parsed.data.proposalId)
+    .single();
+  if (error || !proposal) {
+    return { ok: false, error: error?.message ?? 'Tuning proposal not found' };
+  }
+  if (proposal.proposed_by === gate.profile.id) {
+    return { ok: false, error: 'The proposer cannot review this tuning' };
+  }
+  if (
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      proposal.entity_id,
+    )
+  ) {
+    return {
+      ok: false,
+      error: entityScopeDeniedMessage(proposal.entity_id ?? 'firm-wide'),
+    };
+  }
+  const { reviewIntuneBreakerTuning } = await import(
+    '@/lib/shared-services/it-assets-repo'
+  );
+  const result = await reviewIntuneBreakerTuning({
+    proposal_id: parsed.data.proposalId,
+    actor_id: gate.profile.id,
+    decision: parsed.data.decision,
+    statement: parsed.data.statement,
+    expected_breaker_version: parsed.data.expectedBreakerVersion,
+  });
+  if (!result.ok) return result;
+  revalidateAssets();
+  return {
+    ok: true,
+    message:
+      parsed.data.decision === 'approve'
+        ? 'Tuning applied as a new immutable config version'
+        : 'Tuning proposal rejected',
+  };
+}

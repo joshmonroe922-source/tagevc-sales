@@ -10,6 +10,8 @@ import {
   listIntuneAmbiguityResolutions,
   listIntuneBreakerHealth,
   listIntuneBreakerResetProposals,
+  listIntuneTuningProposals,
+  getIntunePhase40Health,
   listIntuneDispatchAttempts,
   listIntuneManualReviewSlo,
   listIntuneWorkerRuns,
@@ -45,6 +47,8 @@ export default async function ItAssetsModulePage() {
     manualReviewSlo,
     breakerHealth,
     breakerResetProposals,
+    tuningProposals,
+    phase40Health,
   ] = await Promise.all([
     listHardwareAssets(),
     listSoftwareLicenses(),
@@ -60,6 +64,8 @@ export default async function ItAssetsModulePage() {
     listIntuneManualReviewSlo(),
     listIntuneBreakerHealth(),
     listIntuneBreakerResetProposals(),
+    listIntuneTuningProposals(),
+    getIntunePhase40Health(),
   ]);
   const candidateTickets = listOffboardingCandidateTickets();
   const onboardingTickets = listOnboardingCandidateTickets();
@@ -104,14 +110,14 @@ export default async function ItAssetsModulePage() {
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">IT</Badge>
-          <Badge variant="secondary">Phase 39</Badge>
+          <Badge variant="secondary">Phase 40</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Hardware &amp; licensing
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Governed provider circuit breaking, fenced canary recovery, final
-          pre-dispatch authorization, ambiguity quarantine, and asset lifecycle.
+          Versioned breaker tuning, aggregate outage correlation, independent
+          read-only health canaries, fenced dispatch recovery, and asset lifecycle.
         </p>
       </div>
 
@@ -144,6 +150,11 @@ export default async function ItAssetsModulePage() {
           (proposal) =>
             firmWide || proposal.entity_id === ctx?.profile.entity_id,
         )}
+        intuneTuningProposals={tuningProposals.rows.filter(
+          (proposal) =>
+            firmWide || proposal.entity_id === ctx?.profile.entity_id,
+        )}
+        intunePhase40Health={firmWide ? phase40Health.row : null}
         canWrite={canWrite}
         canIntuneRetire={canIntuneRetire}
         canIntuneManualReview={canIntuneManualReview}
@@ -153,7 +164,9 @@ export default async function ItAssetsModulePage() {
           intune.error ||
           ambiguity.error ||
           breakerHealth.error ||
-          breakerResetProposals.error
+          breakerResetProposals.error ||
+          tuningProposals.error ||
+          phase40Health.error
         }
       />
     </div>

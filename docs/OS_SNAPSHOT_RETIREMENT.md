@@ -179,6 +179,19 @@ SQL: `phase38_snapshot_cycle_lifecycle.sql` and
 
 SQL: `phase39_snapshot_retirement.sql`.
 
+## Phase 40 signed exports and multi-hour canaries
+
+- Signed export packages bind Phase 39 manifests, current validity, hashes, and
+  artifact metadata under an HMAC keyring.
+- External retention checks use allowlisted destination keys and HTTPS HEAD
+  metadata only.
+- Multi-hour canary orchestration is durable, leased, resumable, and explicitly
+  non-qualifying for soak or attestation.
+- Phase 40 contains no insert, update, delete, rename, alter, truncate, or drop
+  against `os_store_snapshots`.
+
+SQL: `phase40_snapshot_retirement.sql`.
+
 ## Non-goals
 
 - Dropping the table in Phase 16–19  

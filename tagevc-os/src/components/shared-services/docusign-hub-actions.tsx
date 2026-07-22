@@ -8,6 +8,8 @@ import {
   reconcileDocuSignAction,
   refreshTemplateRecipientsAction,
   runReminderWorkerAction,
+  runArchiveGovernanceAction,
+  reviewArchiveQuarantineAction,
   scheduleRemindersAction,
   sendFromTemplateAction,
   syncTemplatesAction,
@@ -18,9 +20,11 @@ import { Button } from '@/components/ui/button';
 export function DocuSignHubActions({
   canWrite,
   canReconcile,
+  canArchiveReview,
 }: {
   canWrite: boolean;
   canReconcile: boolean;
+  canArchiveReview: boolean;
 }) {
   const [flash, setFlash] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -131,14 +135,95 @@ export function DocuSignHubActions({
           Run reminder worker
         </Button>
         {canReconcile ? (
+          <>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={pending}
+              onClick={() => run(() => reconcileDocuSignAction())}
+            >
+              Reconcile envelopes
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={pending}
+              onClick={() =>
+                run(() =>
+                  runArchiveGovernanceAction({ kind: 'legacy_backfill' }),
+                )
+              }
+            >
+              Backfill signed archives
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={pending}
+              onClick={() =>
+                run(() =>
+                  runArchiveGovernanceAction({
+                    kind: 'integrity_scan',
+                    mode: 'sample',
+                  }),
+                )
+              }
+            >
+              Sample archive integrity
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={pending}
+              onClick={() =>
+                run(() =>
+                  runArchiveGovernanceAction({
+                    kind: 'integrity_scan',
+                    mode: 'full',
+                  }),
+                )
+              }
+            >
+              Full archive integrity
+            </Button>
+          </>
+        ) : null}
+        {canArchiveReview ? (
           <Button
             type="button"
             size="sm"
             variant="outline"
             disabled={pending}
-            onClick={() => run(() => reconcileDocuSignAction())}
+            onClick={() => {
+              const quarantineId = window.prompt('Archive quarantine ID:');
+              if (!quarantineId?.trim()) return;
+              const decision =
+                window.prompt('Decision: acknowledge or resolve', 'acknowledge') ===
+                'resolve'
+                  ? 'resolve'
+                  : 'acknowledge';
+              const note = window.prompt(
+                'Review note (at least 20 characters):',
+              );
+              if (!note?.trim()) return;
+              const version = Number(
+                window.prompt('Current row version:', '0') ?? '0',
+              );
+              run(() =>
+                reviewArchiveQuarantineAction({
+                  quarantineId: quarantineId.trim(),
+                  decision,
+                  note: note.trim(),
+                  expectedRowVersion: Number.isInteger(version) ? version : 0,
+                }),
+              );
+            }}
           >
-            Reconcile envelopes
+            Review archive quarantine
           </Button>
         ) : null}
         <Button

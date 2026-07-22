@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   requestSloRouteTestAction,
+  requestSloSimulationAction,
   saveSloPolicyDraftAction,
   transitionSloPolicyDraftAction,
 } from '@/app/(app)/shared-services/actions';
@@ -12,7 +13,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import type { SloOwnerOption, SloPolicyRow } from '@/lib/shared-services/slo-policy';
+import type {
+  SloDraftComparison,
+  SloOwnerOption,
+  SloPolicyRow,
+} from '@/lib/shared-services/slo-policy';
 
 type EntityOption = { entity_id: string; canonical_name: string };
 
@@ -26,12 +31,14 @@ function PolicyEditor({
   owners,
   entities,
   onMessage,
+  comparison,
 }: {
   active: SloPolicyRow;
   draft?: SloPolicyRow;
   owners: SloOwnerOption[];
   entities: EntityOption[];
   onMessage: (message: string) => void;
+  comparison?: SloDraftComparison;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -45,6 +52,12 @@ function PolicyEditor({
   const [ownerEntityId, setOwnerEntityId] = useState(value.owner_entity_id ?? '');
   const [webhooks, setWebhooks] = useState(
     Object.keys(value.config?.webhook_destinations ?? {}).join(', '),
+  );
+  const [ownerExpiresAt, setOwnerExpiresAt] = useState(
+    value.owner_expires_at?.slice(0, 16) ?? '',
+  );
+  const [replacementOwnerId, setReplacementOwnerId] = useState(
+    value.replacement_owner_id ?? '',
   );
 
   function save(formData: FormData) {
@@ -64,6 +77,11 @@ function PolicyEditor({
         webhookDestinationKeys: keys,
         ownerId,
         ownerEntityId: ownerEntityId || null,
+        ownerEffectiveAt: value.owner_effective_at ?? new Date().toISOString(),
+        ownerExpiresAt: ownerExpiresAt
+          ? new Date(ownerExpiresAt).toISOString()
+          : null,
+        replacementOwnerId: ownerExpiresAt ? replacementOwnerId : null,
         expectedRowVersion: draft?.row_version ?? active.row_version,
       });
       onMessage(result.ok ? result.message ?? 'Saved' : result.error);
@@ -78,6 +96,11 @@ function PolicyEditor({
         policyId: draft.policy_id,
         rowVersion: draft.row_version,
         transition: kind,
+        ownerEffectiveAt: new Date().toISOString(),
+        ownerExpiresAt: ownerExpiresAt
+          ? new Date(ownerExpiresAt).toISOString()
+          : null,
+        replacementOwnerId: ownerExpiresAt ? replacementOwnerId : null,
       });
       onMessage(result.ok ? result.message ?? kind : result.error);
       if (result.ok) router.refresh();
@@ -115,6 +138,18 @@ function PolicyEditor({
         <CardDescription>
           Owner: {ownerLabel(owners.find((owner) => owner.id === value.owner_id))}
         </CardDescription>
+        {comparison ? (
+          <div className="flex flex-wrap gap-1">
+            <Badge variant={comparison.material_risk ? 'destructive' : 'secondary'}>
+              {comparison.material_risk ? 'material risk' : 'non-material'}
+            </Badge>
+            {comparison.changes.map((change) => (
+              <Badge key={change.field} variant="outline">
+                {change.field.replaceAll('_', ' ')}
+              </Badge>
+            ))}
+          </div>
+        ) : null}
       </CardHeader>
       <CardContent>
         <details>
@@ -157,10 +192,23 @@ function PolicyEditor({
               <Input value={webhooks} onChange={(event) => setWebhooks(event.target.value)} placeholder="ops_alerts, security" />
               <p className="text-xs text-muted-foreground">Keys resolve through SLO_WEBHOOK_* environment variables. URLs are rejected.</p>
             </div>
+            <div className="space-y-1">
+              <Label>Owner expires (optional)</Label>
+              <Input type="datetime-local" value={ownerExpiresAt} onChange={(event) => setOwnerExpiresAt(event.target.value)} />
+            </div>
+            {ownerExpiresAt ? (
+              <div className="space-y-1">
+                <Label>Named eligible replacement</Label>
+                <select value={replacementOwnerId} onChange={(event) => setReplacementOwnerId(event.target.value)} className="h-9 w-full rounded-md border bg-background px-2 text-sm">
+                  <option value="">Select replacement</option>
+                  {eligibleOwners.filter((owner) => owner.id !== ownerId).map((owner) => <option key={owner.id} value={owner.id}>{ownerLabel(owner)}</option>)}
+                </select>
+              </div>
+            ) : null}
             <div className="flex items-end gap-2 sm:col-span-2">
               <Button type="submit" disabled={pending || !ownerId}>Save draft</Button>
               {draft?.lifecycle_status === 'draft' ? <Button type="button" variant="outline" disabled={pending} onClick={() => transition('validate')}>Validate</Button> : null}
-              {draft?.lifecycle_status === 'validated' ? <Button type="button" variant="outline" disabled={pending} onClick={() => transition('publish')}>Publish as checker</Button> : null}
+              {draft?.lifecycle_status === 'validated' ? <Button type="button" variant="outline" disabled={pending || Boolean(ownerExpiresAt && !replacementOwnerId)} onClick={() => transition('publish')}>Publish as checker</Button> : null}
             </div>
           </form>
         </details>
@@ -175,12 +223,18 @@ export function SloPolicyAdmin({
   owners,
   entities,
   routeTests,
+  comparisons,
+  simulations,
+  ownerCoverage,
 }: {
   activePolicies: SloPolicyRow[];
   drafts: SloPolicyRow[];
   owners: SloOwnerOption[];
   entities: EntityOption[];
   routeTests: Array<Record<string, unknown>>;
+  comparisons: SloDraftComparison[];
+  simulations: Array<Record<string, unknown>>;
+  ownerCoverage: Array<Record<string, unknown>>;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -189,6 +243,9 @@ export function SloPolicyAdmin({
   const [ownerId, setOwnerId] = useState(owners[0]?.id ?? '');
   const [entityId, setEntityId] = useState('');
   const [destinationKey, setDestinationKey] = useState('owner');
+  const [simulationDraftId, setSimulationDraftId] = useState(drafts[0]?.policy_id ?? '');
+  const [simulationEntityId, setSimulationEntityId] = useState('');
+  const [simulationDays, setSimulationDays] = useState(7);
 
   function requestTest() {
     startTransition(async () => {
@@ -204,6 +261,25 @@ export function SloPolicyAdmin({
     });
   }
 
+  function requestSimulation() {
+    const draft = drafts.find((item) => item.policy_id === simulationDraftId);
+    if (!draft) return;
+    const endsAt = new Date();
+    const startsAt = new Date(endsAt.getTime() - simulationDays * 86_400_000);
+    startTransition(async () => {
+      const result = await requestSloSimulationAction({
+        idempotencyKey: `ui:${crypto.randomUUID()}`,
+        draftPolicyId: draft.policy_id,
+        entityIds: draft.scope === 'entity' && simulationEntityId ? [simulationEntityId] : [],
+        startsAt: startsAt.toISOString(),
+        endsAt: endsAt.toISOString(),
+        maxBuckets: Math.min(2160, simulationDays * 24),
+      });
+      setMessage(result.ok ? result.message ?? 'Queued' : result.error);
+      if (result.ok) router.refresh();
+    });
+  }
+
   return (
     <section className="space-y-3">
       <div>
@@ -211,8 +287,41 @@ export function SloPolicyAdmin({
         <p className="text-sm text-muted-foreground">Draft, validate, then publish with a different maker/checker. Every transition is versioned and audited.</p>
       </div>
       <div className="grid gap-3">{activePolicies.map((active) => (
-        <PolicyEditor key={active.policy_id} active={active} draft={drafts.find((item) => item.draft_of_policy_id === active.policy_id)} owners={owners} entities={entities} onMessage={setMessage} />
+        <PolicyEditor key={active.policy_id} active={active} draft={drafts.find((item) => item.draft_of_policy_id === active.policy_id)} comparison={comparisons.find((item) => item.active_policy_id === active.policy_id)} owners={owners} entities={entities} onMessage={setMessage} />
       ))}</div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Historical policy simulation</CardTitle>
+          <CardDescription>COUNTERFACTUAL only. Replays immutable historical evaluations against a frozen draft snapshot and never changes evaluations, alerts, incidents, or delivery.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-4">
+            <select value={simulationDraftId} onChange={(event) => setSimulationDraftId(event.target.value)} className="h-9 rounded-md border bg-background px-2 text-sm">
+              <option value="">Select draft</option>
+              {drafts.map((draft) => <option key={draft.policy_id} value={draft.policy_id}>{draft.service} / {draft.metric_key}</option>)}
+            </select>
+            <select value={simulationEntityId} onChange={(event) => setSimulationEntityId(event.target.value)} className="h-9 rounded-md border bg-background px-2 text-sm">
+              <option value="">Firm / no entity</option>
+              {entities.map((entity) => <option key={entity.entity_id} value={entity.entity_id}>{entity.canonical_name}</option>)}
+            </select>
+            <Input type="number" min={1} max={90} value={simulationDays} onChange={(event) => setSimulationDays(Number(event.target.value))} />
+            <Button disabled={pending || !simulationDraftId} onClick={requestSimulation}>Queue counterfactual</Button>
+          </div>
+          {simulations.map((simulation) => <p key={String(simulation.simulation_id)} className="text-xs">
+            COUNTERFACTUAL · {String(simulation.status)} · {String(simulation.source_evaluation_count)} immutable evaluations
+          </p>)}
+        </CardContent>
+      </Card>
+      {ownerCoverage.length ? (
+        <Card>
+          <CardHeader><CardTitle className="text-sm">Expiring owner coverage</CardTitle></CardHeader>
+          <CardContent className="space-y-1">
+            {ownerCoverage.map((coverage) => <p key={`${String(coverage.policy_id)}:${String(coverage.entity_id)}`} className="text-xs">
+              {String(coverage.days_remaining)} days · replacement {coverage.eligible_replacement_named ? 'eligible and named' : 'missing'}
+            </p>)}
+          </CardContent>
+        </Card>
+      ) : null}
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">Delivery route test</CardTitle>

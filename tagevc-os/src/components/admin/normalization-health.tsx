@@ -16,6 +16,7 @@ import {
   createRollbackRehearsalAction,
   reviewRollbackRehearsalAction,
 } from '@/app/(app)/admin/normalization/actions';
+import { SnapshotRetirementPhase40Admin } from './snapshot-retirement-phase40';
 
 export function NormalizationHealthPanel({
   status,
@@ -534,6 +535,7 @@ export function NormalizationHealthPanel({
                 </Button>
               </div>
             </div>
+            <SnapshotRetirementPhase40Admin />
             <div className="mt-3 space-y-2 rounded-md border border-border/60 p-3 text-xs">
               <p className="font-medium">Offline rollback rehearsal evidence</p>
               <p className="text-muted-foreground">

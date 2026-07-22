@@ -34,6 +34,7 @@ import {
   listDocuSignSendIntents,
 } from '@/lib/docusign/send-intents-repo';
 import { listDocuSignMappingReviews } from '@/lib/docusign/mapping-review-repo';
+import { listArchiveGovernance } from '@/lib/docusign/archive-governance';
 
 function formatBytes(n: number | null | undefined): string {
   if (n == null || n <= 0) return '—';
@@ -103,6 +104,9 @@ export default async function DocuSignModulePage({
   const canReconcile = ctx
     ? roleHasPermission(ctx.profile.role, 'action:docusign_reconcile')
     : false;
+  const canArchiveReview = ctx
+    ? roleHasPermission(ctx.profile.role, 'action:docusign_manual_review')
+    : false;
   const firmWide = ctx
     ? isFirmWideAccess(ctx.profile.role, ctx.profile.entity_id)
     : false;
@@ -119,6 +123,7 @@ export default async function DocuSignModulePage({
     sendIntents,
     manualReview,
     mappingReview,
+    archiveGovernance,
   ] = await Promise.all([
     listDocuSignEvents({
       limit: 40,
@@ -172,6 +177,10 @@ export default async function DocuSignModulePage({
       firmWide,
     }),
     listDocuSignMappingReviews({
+      entityId: ctx?.profile.entity_id ?? null,
+      firmWide,
+    }),
+    listArchiveGovernance({
       entityId: ctx?.profile.entity_id ?? null,
       firmWide,
     }),
@@ -245,7 +254,7 @@ export default async function DocuSignModulePage({
           <Badge variant={mode === 'live' ? 'default' : 'secondary'}>
             {mode === 'live' ? 'Live JWT' : 'Mock envelopes'}
           </Badge>
-          <Badge variant="secondary">Phase 39</Badge>
+          <Badge variant="secondary">Phase 40</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">DocuSign</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
@@ -259,6 +268,7 @@ export default async function DocuSignModulePage({
         <DocuSignHubActions
           canWrite={canWrite}
           canReconcile={canReconcile}
+          canArchiveReview={canArchiveReview}
         />
         <DocuSignTemplateSendForm
           templates={templates.rows}
@@ -354,6 +364,64 @@ export default async function DocuSignModulePage({
                   : ''}
               </p>
             ) : null}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Archive governance</CardTitle>
+            <CardDescription>
+              Governed legacy backfill and scheduled byte rehashing. Availability
+              failures remain distinct from content drift; drift is quarantined
+              for manual review. Evidence contains identifiers and hashes only.
+              {archiveGovernance.error ? ` · ${archiveGovernance.error}` : ''}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2 text-xs">
+            {firmWide && archiveGovernance.runs.length > 0 ? (
+              archiveGovernance.runs.slice(0, 6).map((run) => (
+                <div
+                  className="flex flex-wrap justify-between gap-2 border-b py-1"
+                  key={String(run.run_id)}
+                >
+                  <span>
+                    {String(run.run_kind).replaceAll('_', ' ')} ·{' '}
+                    {String(run.scan_mode)}
+                  </span>
+                  <span>
+                    {String(run.status)} · {String(run.succeeded_count)} ok ·{' '}
+                    {String(run.unavailable_count)} unavailable ·{' '}
+                    {String(run.drift_count)} drift · invocation{' '}
+                    {String(run.invocation_count)}
+                  </span>
+                </div>
+              ))
+            ) : firmWide ? (
+              <p className="text-muted-foreground">No archive governance runs yet.</p>
+            ) : null}
+            <p className="text-muted-foreground">
+              Open quarantine: {' '}
+              {
+                archiveGovernance.quarantines.filter(
+                  (row) => row.status === 'manual_review',
+                ).length
+              }
+            </p>
+            {archiveGovernance.quarantines.slice(0, 8).map((row) => (
+              <div
+                className="flex flex-wrap justify-between gap-2 border-b py-1"
+                key={String(row.quarantine_id)}
+              >
+                <span className="font-mono">
+                  {String(row.envelope_id).slice(0, 18)} · {String(row.file_kind)}
+                  <span className="block text-muted-foreground">
+                    {String(row.quarantine_id)} · version {String(row.row_version)}
+                  </span>
+                </span>
+                <span className="text-amber-700">
+                  {String(row.status)} · {String(row.reason_code)}
+                </span>
+              </div>
+            ))}
           </CardContent>
         </Card>
         <Card>

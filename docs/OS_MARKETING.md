@@ -152,8 +152,20 @@ SQL: `phase38_marketing_paid_reconciliation.sql`.
 
 SQL: `phase39_marketing_attribution_settlement.sql`.
 
-## Phase 40+
+## Phase 40
 
-1. Automated authoritative revenue-source ingestion and correction
-2. Attribution-model comparison and settlement-lag SLOs
+1. Authoritative HTTPS connectors pull bounded revenue pages with HMAC or
+   request-id authenticity checks and leased checkpoints.
+2. Canonical evidence and receipts are immutable; corrections require
+   maker-checker approval before superseding current revisions.
+3. Attribution-model comparison is restricted to aligned cohorts, windows, and
+   currencies and does not imply causality.
+4. Completeness, late, and corrected statuses are visible in the Marketing hub.
+
+SQL: `phase40_marketing_authoritative_revenue.sql`.
+
+## Phase 41+
+
+1. Production revenue-ledger connectors and broader authenticity modes
+2. Settlement-lag SLOs against authoritative evidence
 3. TikTok upload cancellation/reinitialization

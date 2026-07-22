@@ -835,6 +835,11 @@ export type ItIntuneBreakerHealth = {
   blocked_action_count: number;
   sample_count: number;
   failure_count: number;
+  failure_window_minutes: number;
+  minimum_samples: number;
+  failure_threshold: number;
+  failure_rate_threshold: number;
+  reset_success_threshold: number;
 };
 
 export type ItIntuneBreakerResetProposal = {
@@ -851,6 +856,77 @@ export type ItIntuneBreakerResetProposal = {
   reviewer_statement: string | null;
   reviewed_at: string | null;
   row_version: number;
+};
+
+export type ItIntuneTuningProposal = {
+  proposal_id: string;
+  breaker_id: string;
+  entity_id: string | null;
+  base_config_version_no: number;
+  proposed_failure_window_minutes: number;
+  proposed_minimum_samples: number;
+  proposed_failure_threshold: number;
+  proposed_failure_rate_threshold: number;
+  proposed_reset_success_threshold: number;
+  risk_class: 'standard' | 'riskier';
+  proposed_by: string;
+  proposed_reason: string;
+  evidence_sha256: string;
+  proposed_at: string;
+  expires_at: string;
+  decision?: 'approved' | 'rejected' | 'expired' | null;
+};
+
+export type ItIntunePhase40Health = {
+  active_outage_count: number;
+  recovering_outage_count: number;
+  open_incident_count: number;
+  last_canary_success_at: string | null;
+  last_canary_failure_at: string | null;
+  open_breaker_count: number;
+  recovering_breaker_count: number;
+  slo_state: 'healthy' | 'warning' | 'breached';
+};
+
+export type ItIntuneBreakerGovernance = {
+  breaker_id: string;
+  entity_id: string | null;
+  state: 'closed' | 'open' | 'half_open';
+  breaker_version: number;
+  failure_window_minutes: number;
+  minimum_samples: number;
+  failure_threshold: number;
+  failure_rate_threshold: number;
+  reset_success_threshold: number;
+  config_version_no: number;
+  current_risk_class: 'baseline' | 'standard' | 'riskier';
+  config_applied_at: string;
+  pending_proposal_id: string | null;
+  pending_proposed_by: string | null;
+  pending_risk_class: 'standard' | 'riskier' | null;
+  pending_reason: string | null;
+  proposed_failure_window_minutes: number | null;
+  proposed_minimum_samples: number | null;
+  proposed_failure_threshold: number | null;
+  proposed_failure_rate_threshold: number | null;
+  proposed_reset_success_threshold: number | null;
+  pending_expires_at: string | null;
+};
+
+export type ItIntuneOutageStatus = {
+  episode_id: string;
+  provider: string;
+  operation: string;
+  state: 'active' | 'recovering' | 'resolved';
+  started_at: string;
+  recovering_at: string | null;
+  resolved_at: string | null;
+  correlated_scope_count: number;
+  failure_count: number;
+  sample_count: number;
+  evidence_sha256: string;
+  row_version: number;
+  updated_at: string;
 };
 
 export async function listIntuneActions(
@@ -953,7 +1029,7 @@ export async function listIntuneBreakerHealth(): Promise<{
   const { data, error } = await sb
     .from('os_it_intune_breaker_health')
     .select(
-      'breaker_id, entity_id, provider, operation, state, opened_at, cooldown_until, last_failure_at, last_success_at, opened_reason, canary_action_id, canary_expires_at, canary_post_accepted_at, row_version, state_age_minutes, blocked_action_count, sample_count, failure_count',
+      'breaker_id, entity_id, provider, operation, state, opened_at, cooldown_until, last_failure_at, last_success_at, opened_reason, canary_action_id, canary_expires_at, canary_post_accepted_at, row_version, state_age_minutes, blocked_action_count, sample_count, failure_count, failure_window_minutes, minimum_samples, failure_threshold, failure_rate_threshold, reset_success_threshold',
     )
     .order('state_age_minutes', { ascending: false });
   return error
@@ -976,6 +1052,92 @@ export async function listIntuneBreakerResetProposals(limit = 30): Promise<{
   return error
     ? { rows: [], error: error.message }
     : { rows: (data ?? []) as ItIntuneBreakerResetProposal[] };
+}
+
+export async function listIntuneTuningProposals(limit = 30): Promise<{
+  rows: ItIntuneTuningProposal[];
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb
+    .from('os_it_intune_breaker_tuning_proposals')
+    .select(
+      'proposal_id, breaker_id, entity_id, base_config_version_no, proposed_failure_window_minutes, proposed_minimum_samples, proposed_failure_threshold, proposed_failure_rate_threshold, proposed_reset_success_threshold, risk_class, proposed_by, proposed_reason, evidence_sha256, proposed_at, expires_at',
+    )
+    .order('proposed_at', { ascending: false })
+    .limit(limit);
+  if (error) return { rows: [], error: error.message };
+  const proposals = (data ?? []) as ItIntuneTuningProposal[];
+  if (proposals.length === 0) return { rows: [] };
+  const { data: decisions, error: decisionError } = await sb
+    .from('os_it_intune_breaker_tuning_decisions')
+    .select('proposal_id, decision')
+    .in(
+      'proposal_id',
+      proposals.map((proposal) => proposal.proposal_id),
+    );
+  if (decisionError) return { rows: [], error: decisionError.message };
+  const decisionByProposal = new Map(
+    (decisions ?? []).map((decision) => [
+      String(decision.proposal_id),
+      String(decision.decision) as ItIntuneTuningProposal['decision'],
+    ]),
+  );
+  return {
+    rows: proposals.map((proposal) => ({
+      ...proposal,
+      decision: decisionByProposal.get(proposal.proposal_id) ?? null,
+    })),
+  };
+}
+
+export async function getIntunePhase40Health(): Promise<{
+  row: ItIntunePhase40Health | null;
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb
+    .from('os_it_intune_phase40_health')
+    .select(
+      'active_outage_count, recovering_outage_count, open_incident_count, last_canary_success_at, last_canary_failure_at, open_breaker_count, recovering_breaker_count, slo_state',
+    )
+    .maybeSingle();
+  return error
+    ? { row: null, error: error.message }
+    : { row: (data as ItIntunePhase40Health | null) ?? null };
+}
+
+export async function listIntuneBreakerGovernance(): Promise<{
+  rows: ItIntuneBreakerGovernance[];
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb
+    .from('os_it_intune_breaker_governance')
+    .select(
+      'breaker_id, entity_id, state, breaker_version, failure_window_minutes, minimum_samples, failure_threshold, failure_rate_threshold, reset_success_threshold, config_version_no, current_risk_class, config_applied_at, pending_proposal_id, pending_proposed_by, pending_risk_class, pending_reason, proposed_failure_window_minutes, proposed_minimum_samples, proposed_failure_threshold, proposed_failure_rate_threshold, proposed_reset_success_threshold, pending_expires_at',
+    )
+    .order('config_applied_at', { ascending: false });
+  return error
+    ? { rows: [], error: error.message }
+    : { rows: (data ?? []) as ItIntuneBreakerGovernance[] };
+}
+
+export async function listIntuneOutageStatus(limit = 20): Promise<{
+  rows: ItIntuneOutageStatus[];
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb
+    .from('os_it_intune_outage_status')
+    .select(
+      'episode_id, provider, operation, state, started_at, recovering_at, resolved_at, correlated_scope_count, failure_count, sample_count, evidence_sha256, row_version, updated_at',
+    )
+    .order('started_at', { ascending: false })
+    .limit(limit);
+  return error
+    ? { rows: [], error: error.message }
+    : { rows: (data ?? []) as ItIntuneOutageStatus[] };
 }
 
 export async function approveIntuneAction(input: {
@@ -1119,6 +1281,51 @@ export async function reviewIntuneBreakerReset(input: {
     p_decision: input.decision,
     p_statement: input.statement,
     p_expected_proposal_version: input.expected_proposal_version,
+    p_expected_breaker_version: input.expected_breaker_version,
+  });
+  return error ? { ok: false as const, error: error.message } : { ok: true as const };
+}
+
+
+export async function proposeIntuneBreakerTuning(input: {
+  breaker_id: string;
+  actor_id: string;
+  reason: string;
+  failure_window_minutes: number;
+  minimum_samples: number;
+  failure_threshold: number;
+  failure_rate_threshold: number;
+  reset_success_threshold: number;
+  expected_breaker_version: number;
+}) {
+  const sb = await createPersistClient();
+  const { error } = await sb.rpc('propose_it_intune_breaker_tuning', {
+    p_breaker_id: input.breaker_id,
+    p_actor_id: input.actor_id,
+    p_reason: input.reason,
+    p_failure_window_minutes: input.failure_window_minutes,
+    p_minimum_samples: input.minimum_samples,
+    p_failure_threshold: input.failure_threshold,
+    p_failure_rate_threshold: input.failure_rate_threshold,
+    p_reset_success_threshold: input.reset_success_threshold,
+    p_expected_breaker_version: input.expected_breaker_version,
+  });
+  return error ? { ok: false as const, error: error.message } : { ok: true as const };
+}
+
+export async function reviewIntuneBreakerTuning(input: {
+  proposal_id: string;
+  actor_id: string;
+  decision: 'approve' | 'reject';
+  statement: string;
+  expected_breaker_version: number;
+}) {
+  const sb = await createPersistClient();
+  const { error } = await sb.rpc('review_it_intune_breaker_tuning', {
+    p_proposal_id: input.proposal_id,
+    p_actor_id: input.actor_id,
+    p_decision: input.decision,
+    p_statement: input.statement,
     p_expected_breaker_version: input.expected_breaker_version,
   });
   return error ? { ok: false as const, error: error.message } : { ok: true as const };

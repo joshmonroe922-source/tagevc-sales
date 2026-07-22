@@ -22,6 +22,21 @@ export type SloPolicyRow = {
   created_by: string | null;
   validated_by: string | null;
   published_by: string | null;
+  owner_effective_at: string | null;
+  owner_expires_at: string | null;
+  replacement_owner_id: string | null;
+};
+
+export type SloDraftComparison = {
+  draft_policy_id: string;
+  active_policy_id: string;
+  changes: Array<{
+    field: string;
+    active: unknown;
+    draft: unknown;
+    material_risk: boolean;
+  }>;
+  material_risk: boolean;
 };
 
 export type SloOwnerOption = {
@@ -40,12 +55,15 @@ export async function listSloPolicyAdministration() {
   const sb = await createPersistClient();
   const [{ data: policies, error: policyError }, { data: owners, error: ownerError },
     { data: entities, error: entityError }, { data: tests, error: testError },
-    { data: assignments, error: assignmentError }] =
+    { data: assignments, error: assignmentError },
+    { data: comparisons, error: comparisonError },
+    { data: simulations, error: simulationError },
+    { data: coverage, error: coverageError }] =
     await Promise.all([
       sb
         .from('os_slo_policies')
         .select(
-          'policy_id,policy_version,service,metric_key,scope,comparator,warning_threshold,critical_threshold,window_seconds,evaluation_interval_seconds,warning_breach_buckets,recovery_buckets,config,lifecycle_status,draft_of_policy_id,owner_id,owner_entity_id,row_version,created_by,validated_by,published_by',
+          'policy_id,policy_version,service,metric_key,scope,comparator,warning_threshold,critical_threshold,window_seconds,evaluation_interval_seconds,warning_breach_buckets,recovery_buckets,config,lifecycle_status,draft_of_policy_id,owner_id,owner_entity_id,row_version,created_by,validated_by,published_by,owner_effective_at,owner_expires_at,replacement_owner_id',
         )
         .in('lifecycle_status', ['published', 'draft', 'validated'])
         .order('service')
@@ -69,12 +87,24 @@ export async function listSloPolicyAdministration() {
         .select('service,metric_key,entity_id,owner_id')
         .eq('active', true)
         .order('assigned_at', { ascending: false }),
+      sb.from('os_slo_policy_draft_comparisons').select(
+        'draft_policy_id,active_policy_id,changes,material_risk',
+      ),
+      sb.from('os_slo_simulations').select(
+        'simulation_id,draft_policy_id,status,counterfactual,source_evaluation_count,requested_at,completed_at',
+      ).order('requested_at', { ascending: false }).limit(12),
+      sb.from('os_slo_owner_coverage_metrics').select(
+        'policy_id,entity_id,owner_id,replacement_owner_id,expires_at,days_remaining,warning,eligible_replacement_named',
+      ).order('expires_at').limit(50),
     ]);
   errorMessage(policyError);
   errorMessage(ownerError);
   errorMessage(entityError);
   errorMessage(testError);
   errorMessage(assignmentError);
+  errorMessage(comparisonError);
+  errorMessage(simulationError);
+  errorMessage(coverageError);
   const rows = ((policies ?? []) as SloPolicyRow[]).map((row) => {
     if (row.owner_id) return row;
     const assignment = assignments?.find(
@@ -93,6 +123,9 @@ export async function listSloPolicyAdministration() {
     owners: (owners ?? []) as SloOwnerOption[],
     entities: entities ?? [],
     routeTests: tests ?? [],
+    comparisons: (comparisons ?? []) as SloDraftComparison[],
+    simulations: simulations ?? [],
+    ownerCoverage: coverage ?? [],
   };
 }
 
@@ -110,6 +143,9 @@ export async function saveSloPolicyDraft(input: {
   webhookDestinationKeys: string[];
   ownerId: string;
   ownerEntityId?: string | null;
+  ownerEffectiveAt: string;
+  ownerExpiresAt?: string | null;
+  replacementOwnerId?: string | null;
   actorId: string;
   expectedRowVersion: number;
 }) {
@@ -117,7 +153,7 @@ export async function saveSloPolicyDraft(input: {
   const destinations = Object.fromEntries(
     input.webhookDestinationKeys.map((key) => [key, key]),
   );
-  const { data, error } = await sb.rpc('save_slo_policy_draft_phase39', {
+  const { data, error } = await sb.rpc('save_slo_policy_draft_phase40', {
     p_source_policy_id: input.sourcePolicyId,
     p_draft_policy_id: input.draftPolicyId ?? null,
     p_policy_version: input.policyVersion,
@@ -131,6 +167,9 @@ export async function saveSloPolicyDraft(input: {
     p_config: { webhook_destinations: destinations },
     p_owner_id: input.ownerId,
     p_owner_entity_id: input.ownerEntityId ?? null,
+    p_owner_effective_at: input.ownerEffectiveAt,
+    p_owner_expires_at: input.ownerExpiresAt ?? null,
+    p_replacement_owner_id: input.replacementOwnerId ?? null,
     p_actor_id: input.actorId,
     p_expected_row_version: input.expectedRowVersion,
   });
@@ -143,19 +182,73 @@ export async function transitionSloPolicyDraft(input: {
   actorId: string;
   expectedRowVersion: number;
   transition: 'validate' | 'publish';
+  ownerEffectiveAt?: string;
+  ownerExpiresAt?: string | null;
+  replacementOwnerId?: string | null;
 }) {
   const sb = await createPersistClient();
-  const rpc =
-    input.transition === 'validate'
-      ? 'validate_slo_policy_draft_phase39'
-      : 'publish_slo_policy_draft_phase39';
-  const { data, error } = await sb.rpc(rpc, {
+  const rpc = input.transition === 'validate'
+    ? 'validate_slo_policy_draft_phase39'
+    : 'publish_slo_policy_draft_phase40';
+  const args = {
     p_policy_id: input.policyId,
     p_actor_id: input.actorId,
     p_expected_row_version: input.expectedRowVersion,
+    ...(input.transition === 'publish' ? {
+      p_owner_effective_at: input.ownerEffectiveAt ?? new Date().toISOString(),
+      p_owner_expires_at: input.ownerExpiresAt ?? null,
+      p_replacement_owner_id: input.replacementOwnerId ?? null,
+    } : {}),
+  };
+  const { data, error } = await sb.rpc(rpc, args);
+  errorMessage(error);
+  return data;
+}
+
+export async function requestSloSimulation(input: {
+  idempotencyKey: string;
+  draftPolicyId: string;
+  entityIds: string[];
+  startsAt: string;
+  endsAt: string;
+  maxBuckets: number;
+  actorId: string;
+}) {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc('request_slo_simulation_phase40', {
+    p_idempotency_key: input.idempotencyKey,
+    p_draft_policy_id: input.draftPolicyId,
+    p_entity_ids: input.entityIds,
+    p_starts_at: input.startsAt,
+    p_ends_at: input.endsAt,
+    p_max_buckets: input.maxBuckets,
+    p_actor_id: input.actorId,
   });
   errorMessage(error);
   return data;
+}
+
+export async function processSloGovernancePhase40() {
+  const sb = await createPersistClient();
+  const { error: coverageError } = await sb.rpc('scan_slo_owner_expiry_phase40', {
+    p_warning_days: 30,
+  });
+  errorMessage(coverageError);
+  const { data: jobs, error: claimError } = await sb.rpc(
+    'claim_slo_simulation_jobs_phase40',
+    { p_limit: 5, p_lease_seconds: 300 },
+  );
+  errorMessage(claimError);
+  let completed = 0;
+  for (const job of (jobs ?? []) as Array<{ job_id: string; lease_token: string }>) {
+    const { error } = await sb.rpc('run_slo_simulation_job_phase40', {
+      p_job_id: job.job_id,
+      p_lease_token: job.lease_token,
+    });
+    if (error) throw new Error(error.message);
+    completed += 1;
+  }
+  return { claimed: jobs?.length ?? 0, completed };
 }
 
 export async function requestSloRouteTest(input: {

@@ -42,6 +42,119 @@ export function classifyIntuneProviderOutcome(
   return 'ignored';
 }
 
+type ClaimedHealthCanary = {
+  canary_run_id: string;
+  lease_token: string;
+  row_version: number;
+};
+
+async function runReadOnlyHealthCanaryWithToken(token: string): Promise<{
+  ok: boolean;
+  status: string;
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const workerId = `intune-health-${randomUUID()}`;
+  const { error: enqueueError } = await sb.rpc(
+    'enqueue_it_intune_health_canary',
+    { p_run_key: randomUUID() },
+  );
+  if (enqueueError) {
+    return { ok: false, status: 'enqueue_failed', error: enqueueError.message };
+  }
+  const { data, error: claimError } = await sb.rpc(
+    'claim_it_intune_health_canary',
+    { p_worker_id: workerId, p_lease_seconds: 60 },
+  );
+  if (claimError) {
+    return { ok: false, status: 'claim_failed', error: claimError.message };
+  }
+  if (!data) return { ok: true, status: 'idle' };
+  const run = data as ClaimedHealthCanary;
+  let httpStatus: number | null = null;
+  let errorCode: string | null = null;
+  let graphRequestId: string | null = null;
+  try {
+    // Phase 40's canary is intentionally a tenant-level GET. It has no action,
+    // dispatch attempt, authorization token, or route to the retire POST.
+    const response = await fetch(
+      'https://graph.microsoft.com/v1.0/deviceManagement/managedDevices?$top=1&$select=id',
+      {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+          'client-request-id': run.canary_run_id,
+        },
+        signal: AbortSignal.timeout(15_000),
+      },
+    );
+    httpStatus = response.status;
+    graphRequestId =
+      response.headers.get('request-id') ||
+      response.headers.get('client-request-id');
+    errorCode =
+      response.status === 429
+        ? 'provider_throttled'
+        : response.status >= 500
+          ? 'provider_5xx'
+          : [401, 403].includes(response.status)
+            ? 'permission_denied'
+            : null;
+  } catch {
+    errorCode = 'provider_transport';
+  }
+  const { data: finished, error: finishError } = await sb.rpc(
+    'finish_it_intune_health_canary',
+    {
+      p_canary_run_id: run.canary_run_id,
+      p_worker_id: workerId,
+      p_lease_token: run.lease_token,
+      p_expected_row_version: run.row_version,
+      p_http_status: httpStatus,
+      p_error_code: errorCode,
+      p_graph_request_id: graphRequestId,
+      p_evidence: {
+        endpoint: 'managedDevices',
+        request_method: 'GET',
+        response_body_persisted: false,
+      },
+    },
+  );
+  if (finishError) {
+    return { ok: false, status: 'finish_failed', error: finishError.message };
+  }
+  const { error: correlationError } = await sb.rpc(
+    'correlate_it_intune_provider_outage',
+  );
+  if (correlationError) {
+    return {
+      ok: false,
+      status: 'correlation_failed',
+      error: correlationError.message,
+    };
+  }
+  return {
+    ok: true,
+    status: String((finished as { status?: string } | null)?.status ?? 'done'),
+  };
+}
+
+export async function processReadOnlyIntuneHealthCanary(): Promise<{
+  ok: boolean;
+  status: string;
+  error?: string;
+}> {
+  if (!graphConfigured()) {
+    return { ok: false, status: 'not_configured', error: 'MS_GRAPH_* is not configured' };
+  }
+  const token = await getMsGraphToken();
+  if (!token.ok) {
+    return { ok: false, status: 'token_failed', error: token.detail };
+  }
+  return runReadOnlyHealthCanaryWithToken(token.token);
+}
+
 export async function processIntuneActions(): Promise<{
   ok: boolean;
   claimed: number;
@@ -137,6 +250,9 @@ export async function processIntuneActions(): Promise<{
     }
     return { ok: false, claimed: 0, processed: [], error: token.detail };
   }
+  // Health visibility is best-effort and independent from destructive dispatch.
+  // Its failures are persisted/alerted but never grant or deny a POST.
+  await runReadOnlyHealthCanaryWithToken(token.token);
   const { data, error } = await sb.rpc('claim_it_intune_action_v4', {
     p_worker_id: workerId,
     p_lease_seconds: 120,

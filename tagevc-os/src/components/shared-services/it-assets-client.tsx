@@ -27,8 +27,10 @@ import {
   retryIntuneActionAction,
   proposeIntuneAmbiguityResolutionAction,
   proposeIntuneBreakerResetAction,
+  proposeIntuneBreakerTuningAction,
   reviewIntuneAmbiguityResolutionAction,
   reviewIntuneBreakerResetAction,
+  reviewIntuneBreakerTuningAction,
   runIntuneWorkerAction,
   type ItAssetActionResult,
 } from '@/app/(app)/shared-services/it/assets/actions';
@@ -47,6 +49,8 @@ import type {
   ItIntuneAmbiguityResolution,
   ItIntuneBreakerHealth,
   ItIntuneBreakerResetProposal,
+  ItIntunePhase40Health,
+  ItIntuneTuningProposal,
   ItLifecycleEvent,
 } from '@/lib/shared-services/it-assets-repo';
 
@@ -96,6 +100,8 @@ export function ItAssetsClient({
   intuneManualReviewSlo = [],
   intuneBreakerHealth = [],
   intuneBreakerResetProposals = [],
+  intuneTuningProposals = [],
+  intunePhase40Health = null,
   canIntuneRetire = false,
   canIntuneManualReview = false,
   currentActorId = null,
@@ -128,6 +134,8 @@ export function ItAssetsClient({
   intuneManualReviewSlo?: Array<Record<string, unknown>>;
   intuneBreakerHealth?: ItIntuneBreakerHealth[];
   intuneBreakerResetProposals?: ItIntuneBreakerResetProposal[];
+  intuneTuningProposals?: ItIntuneTuningProposal[];
+  intunePhase40Health?: ItIntunePhase40Health | null;
   canIntuneRetire?: boolean;
   canIntuneManualReview?: boolean;
   currentActorId?: string | null;
@@ -195,6 +203,24 @@ export function ItAssetsClient({
           {err ?? msg}
         </p>
       )}
+      {intunePhase40Health ? (
+        <div
+          className={`rounded-md border px-3 py-2 text-sm ${
+            intunePhase40Health.slo_state === 'healthy'
+              ? 'border-emerald-600/40 bg-emerald-50 text-emerald-950'
+              : 'border-amber-600/40 bg-amber-50 text-amber-950'
+          }`}
+        >
+          <strong>Intune provider health: {intunePhase40Health.slo_state}</strong>
+          {' · '}outages {Number(intunePhase40Health.active_outage_count)} active /{' '}
+          {Number(intunePhase40Health.recovering_outage_count)} recovering
+          {' · '}alerts {Number(intunePhase40Health.open_incident_count)}
+          {' · '}breakers {Number(intunePhase40Health.open_breaker_count)} open /{' '}
+          {Number(intunePhase40Health.recovering_breaker_count)} half-open
+          {' · '}last read-only canary success{' '}
+          {intunePhase40Health.last_canary_success_at ?? 'never'}
+        </div>
+      ) : null}
 
       {canWrite && (
         <div className="grid gap-6 lg:grid-cols-2">
@@ -361,6 +387,11 @@ export function ItAssetsClient({
                   proposal.breaker_id === breaker.breaker_id &&
                   proposal.status === 'awaiting_review',
               );
+              const pendingTuning = intuneTuningProposals.find(
+                (proposal) =>
+                  proposal.breaker_id === breaker.breaker_id &&
+                  !proposal.decision,
+              );
               return (
                 <div
                   key={breaker.breaker_id}
@@ -388,7 +419,101 @@ export function ItAssetsClient({
                     {breaker.canary_post_accepted_at
                       ? ' · POST accepted, verification pending'
                       : ''}
+                    {' · '}policy {breaker.failure_threshold}/
+                    {breaker.minimum_samples} at{' '}
+                    {Math.round(Number(breaker.failure_rate_threshold) * 100)}%
+                    {' · '}window {breaker.failure_window_minutes}m
                   </span>
+                  {canIntuneManualReview && !pendingTuning ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={pending}
+                      onClick={() => {
+                        const values = window.prompt(
+                          'Tuning values: window minutes, minimum samples, failure threshold, failure rate, reset successes',
+                          [
+                            breaker.failure_window_minutes,
+                            breaker.minimum_samples,
+                            breaker.failure_threshold,
+                            breaker.failure_rate_threshold,
+                            breaker.reset_success_threshold,
+                          ].join(','),
+                        );
+                        if (!values) return;
+                        const parsed = values
+                          .split(',')
+                          .map((value) => Number(value.trim()));
+                        if (
+                          parsed.length !== 5 ||
+                          parsed.some((value) => !Number.isFinite(value))
+                        ) {
+                          setErr('Enter five comma-separated numeric values');
+                          return;
+                        }
+                        const reason = window.prompt(
+                          'Tuning reason (20+ characters):',
+                        );
+                        if (!reason?.trim()) return;
+                        run(() =>
+                          proposeIntuneBreakerTuningAction({
+                            breakerId: breaker.breaker_id,
+                            reason: reason.trim(),
+                            expectedBreakerVersion: breaker.row_version,
+                            failureWindowMinutes: parsed[0],
+                            minimumSamples: parsed[1],
+                            failureThreshold: parsed[2],
+                            failureRateThreshold: parsed[3],
+                            resetSuccessThreshold: parsed[4],
+                          }),
+                        );
+                      }}
+                    >
+                      Propose tuning
+                    </Button>
+                  ) : null}
+                  {canIntuneManualReview && pendingTuning ? (
+                    pendingTuning.proposed_by === currentActorId ? (
+                      <span>
+                        {pendingTuning.risk_class} tuning awaits another reviewer
+                      </span>
+                    ) : (
+                      <>
+                        <span>
+                          {pendingTuning.risk_class} tuning v
+                          {pendingTuning.base_config_version_no + 1} awaiting review
+                        </span>
+                        {(['approve', 'reject'] as const).map((decision) => (
+                          <Button
+                            key={`tuning-${decision}`}
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={pending}
+                            onClick={() => {
+                              const statement = window.prompt(
+                                `${decision} tuning statement (20+ characters):`,
+                              );
+                              if (!statement?.trim()) return;
+                              run(() =>
+                                reviewIntuneBreakerTuningAction({
+                                  proposalId: pendingTuning.proposal_id,
+                                  decision,
+                                  statement: statement.trim(),
+                                  expectedBreakerVersion: breaker.row_version,
+                                }),
+                              );
+                            }}
+                          >
+                            {decision === 'approve'
+                              ? 'Approve tuning'
+                              : 'Reject tuning'}
+                          </Button>
+                        ))}
+                      </>
+                    )
+                  ) : null}
                   {canIntuneManualReview &&
                   breaker.state === 'open' &&
                   !pendingReset ? (

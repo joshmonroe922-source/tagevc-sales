@@ -169,9 +169,21 @@ SQL: `phase38_intune_ambiguity_governance.sql`.
 
 SQL: `phase39_intune_provider_circuit_breaker.sql`.
 
-## Phase 40+
+## Phase 40
 
-1. Breaker tuning history, outage correlation, and canary health alerts
+1. Breaker threshold changes are versioned, bounded, and maker-checked. Tuning
+   never closes or resets an open breaker.
+2. Aggregate outage episodes correlate durable observations without leaking
+   entity-level detail.
+3. A read-only Graph health canary is fenced separately from half-open dispatch
+   canaries and never authorizes POST.
+4. Operator dashboards expose breaker health, episode age, and canary outcomes.
+
+SQL: `phase40_intune_resilience_observability.sql`.
+
+## Phase 41+
+
+1. Outage postmortems and automatic threshold recommendation drafts
 2. Signed Exchange hold callback + deleted-user restore
 3. Downloadable warranty preview failure reports
 

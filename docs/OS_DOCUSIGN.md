@@ -188,9 +188,19 @@ SQL: `phase38_docusign_reconciliation_batches.sql`.
 
 SQL: `phase39_docusign_mapping_archive.sql`.
 
+## Phase 40
+
+- Legacy completed envelopes without content hashes enter leased backfill runs.
+- Scheduled sample and full integrity scans rehash stored bytes and quarantine
+  drift separately from provider or storage unavailability.
+- Evidence stores metadata and digests only; workers never create, void, or
+  resend envelopes.
+- The DocuSign hub exposes backfill/scan status, quarantine, and drift outcomes.
+
+SQL: `phase40_docusign_archive_governance.sql`.
+
 ## Still deferred
 
 - Dedicated recipient detail drawer
-- Legacy archive hash backfill and scheduled integrity scans
-- Retire simulate button in production  
+- Retire simulate button in production
 

@@ -29,6 +29,22 @@
       "schedule": "0 14 * * *"
     },
     {
+      "path": "/api/marketing/revenue-ingestion-worker",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/docusign/archive-governance-worker?kind=backfill",
+      "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/docusign/archive-governance-worker?mode=sample",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/admin/snapshot-retirement-worker",
+      "schedule": "*/15 * * * *"
+    },
+    {
       "path": "/api/it/offboarding-status-scan",
       "schedule": "0 7 * * *"
     },

@@ -439,6 +439,87 @@ export async function reconcileDocuSignAction(): Promise<DocuSignActionResult> {
     : { ok: false, error: result.error || 'Reconciliation failed' };
 }
 
+export async function runArchiveGovernanceAction(input: {
+  kind: 'legacy_backfill' | 'integrity_scan';
+  mode?: 'sample' | 'full';
+}): Promise<DocuSignActionResult> {
+  const gate = await guardPermission('action:docusign_reconcile');
+  if (!gate.ok) return gate;
+  const { runArchiveGovernanceWorker } = await import(
+    '@/lib/docusign/archive-governance'
+  );
+  const result = await runArchiveGovernanceWorker({
+    runKind: input.kind,
+    scanMode: input.kind === 'legacy_backfill' ? 'full' : input.mode ?? 'sample',
+    trigger: 'manual',
+    requestedBy: gate.profile.id,
+    limit: 5,
+  });
+  revalidateDocuSign();
+  return result.ok || result.claimed > 0
+    ? {
+        ok: true,
+        message: `Archive ${input.kind === 'legacy_backfill' ? 'backfill' : `${input.mode ?? 'sample'} scan`}: ${result.succeeded} verified/archived, ${result.unavailable} unavailable, ${result.drift} drift${result.checkpointed ? ' · checkpointed' : ''}`,
+      }
+    : { ok: false, error: result.error || 'Archive governance worker failed' };
+}
+
+export async function reviewArchiveQuarantineAction(input: {
+  quarantineId: string;
+  decision: 'acknowledge' | 'resolve';
+  note: string;
+  expectedRowVersion: number;
+}): Promise<DocuSignActionResult> {
+  const gate = await guardPermission('action:docusign_manual_review');
+  if (!gate.ok) return gate;
+  const parsed = z
+    .object({
+      quarantineId: z.string().uuid(),
+      decision: z.enum(['acknowledge', 'resolve']),
+      note: z.string().trim().min(20).max(1000),
+      expectedRowVersion: z.number().int().nonnegative(),
+    })
+    .safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message || 'Invalid archive review',
+    };
+  }
+  const service = await createPersistClient();
+  const { data: row, error: rowError } = await service
+    .from('os_docusign_archive_quarantine')
+    .select('entity_id')
+    .eq('quarantine_id', parsed.data.quarantineId)
+    .single();
+  if (
+    rowError ||
+    !row ||
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      row.entity_id,
+    )
+  ) {
+    return {
+      ok: false,
+      error:
+        rowError?.message ||
+        entityScopeDeniedMessage(row?.entity_id || 'archive quarantine'),
+    };
+  }
+  const { error } = await service.rpc('review_docusign_archive_quarantine', {
+    p_quarantine_id: parsed.data.quarantineId,
+    p_actor_id: gate.profile.id,
+    p_decision: parsed.data.decision,
+    p_note: parsed.data.note,
+    p_expected_row_version: parsed.data.expectedRowVersion,
+  });
+  if (error) return { ok: false, error: error.message };
+  revalidateDocuSign();
+  return { ok: true, message: `Archive drift ${parsed.data.decision}d` };
+}
+
 export async function voidEnvelopeAction(
   envelopeId: string,
   reason: string,

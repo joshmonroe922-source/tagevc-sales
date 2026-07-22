@@ -214,7 +214,7 @@ async function storedPayloadMatches(
   }
 }
 
-async function persistSignedPayload(input: {
+export async function persistSignedPayload(input: {
   envelope_id: string;
   doc_id: string;
   entity_id: string | null;
@@ -387,6 +387,107 @@ async function persistSignedPayload(input: {
     error: uploaded.ok ? undefined : uploaded.error,
     file_kind: kind,
   };
+}
+
+/**
+ * Phase 40 provider-only backfill. This path only downloads completed bytes;
+ * it never creates, sends, corrects, or resends an envelope.
+ */
+export async function archiveProviderCompletedDocument(input: {
+  envelopeId: string;
+  documentId: string;
+  entityId: string | null;
+  providerStatus: string;
+  sourceRequestId: string;
+}): Promise<SignedFileResult> {
+  if (
+    input.envelopeId.startsWith('ENV-') ||
+    !isDocuSignConfigured() ||
+    !['completed', 'signed'].includes(input.providerStatus.toLowerCase())
+  ) {
+    return {
+      ok: false,
+      source: 'docusign',
+      error: 'Provider archive is unavailable or envelope is not completed',
+    };
+  }
+  const cfg = getDocuSignConfig()!;
+  const fileBase = `${input.documentId}-signed`;
+  const libraryPath = input.entityId
+    ? entityFolderPath(input.entityId, '07_Signed', `${fileBase}.pdf`)
+    : `/Firm/Signed/${fileBase}.pdf`;
+  try {
+    const token = await getDocuSignAccessToken(cfg);
+    const url = `${cfg.basePath}/restapi/v2.1/accounts/${cfg.accountId}/envelopes/${encodeURIComponent(input.envelopeId)}/documents/combined`;
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/pdf' },
+    });
+    if (!response.ok) {
+      throw new Error(`Combined archive download HTTP ${response.status}`);
+    }
+    const buffer = await readBoundedResponseBuffer(
+      response,
+      DOCUSIGN_COMBINED_ARCHIVE_MAX_BYTES,
+      'DocuSign combined archive backfill',
+    );
+    assertPdfPayload(
+      buffer,
+      response.headers.get('content-type'),
+      'DocuSign combined archive backfill',
+    );
+    const combined = await persistSignedPayload({
+      envelope_id: input.envelopeId,
+      doc_id: input.documentId,
+      entity_id: input.entityId,
+      file_name: `${fileBase}.pdf`,
+      buffer,
+      content_type: 'application/pdf',
+      library_path: libraryPath,
+      source: 'docusign',
+      file_kind: 'combined',
+      provider_status: input.providerStatus,
+      source_request_id: input.sourceRequestId,
+    });
+    if (!combined.ok) return combined;
+
+    const certificate = await downloadCertificateOfCompletion(input.envelopeId);
+    const coc = certificate.ok
+      ? await persistSignedPayload({
+          envelope_id: input.envelopeId,
+          doc_id: input.documentId,
+          entity_id: input.entityId,
+          file_name: `${fileBase}-coc.pdf`,
+          buffer: certificate.buffer,
+          content_type: 'application/pdf',
+          library_path: input.entityId
+            ? entityFolderPath(
+                input.entityId,
+                '07_Signed',
+                `${fileBase}-coc.pdf`,
+              )
+            : `/Firm/Signed/${fileBase}-coc.pdf`,
+          source: 'docusign',
+          file_kind: 'certificate',
+          provider_status: input.providerStatus,
+          source_request_id: `${input.sourceRequestId}:certificate`,
+        })
+      : {
+          ok: false,
+          source: 'docusign' as const,
+          file_kind: 'certificate' as const,
+          error: certificate.error,
+        };
+    return { ...combined, coc };
+  } catch (error) {
+    return {
+      ok: false,
+      source: 'docusign',
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Provider archive backfill failed',
+    };
+  }
 }
 
 export async function getSignedFileDownloadUrl(

@@ -712,13 +712,32 @@ Docs: `docs/OS_PHASE38.md`
 
 Docs: `docs/OS_PHASE39.md`
 
-### Phase 40+ backlog
+### Phase 40 scope (authoritative integrity · long-running governance)
 
-- Automated authoritative revenue ingestion and attribution-model comparison
-- Legacy signed-archive backfill and scheduled integrity scans
-- Intune breaker tuning, outage correlation, and canary health alerts
-- Historical SLO policy simulation and owner coverage expiry
-- Signed snapshot export packages and multi-hour canary orchestration
+- Authoritative revenue connectors with leased ingestion, governed
+  corrections, and aligned attribution-model comparison
+- Legacy signed-archive backfill and scheduled integrity scans with
+  drift quarantine
+- Intune breaker tuning history, aggregate outage episodes, and read-only
+  health canaries
+- SLO draft comparison, historical counterfactual simulation, and owner
+  coverage expiry alerts
+- Signed snapshot export packages, external retention checks, and multi-hour
+  non-qualifying canary orchestration
+- SQL: apply `phase40_marketing_authoritative_revenue.sql`,
+  `phase40_docusign_archive_governance.sql`,
+  `phase40_intune_resilience_observability.sql`,
+  `phase40_slo_governance.sql`, and
+  `phase40_snapshot_retirement.sql`
+
+Docs: `docs/OS_PHASE40.md`
+
+### Phase 41+ backlog
+
+- Production revenue-ledger connectors and broader authenticity modes
+- Quarterly full archive integrity campaigns and post-backfill cleanup
+- Intune outage postmortems and threshold recommendation drafts
+- SLO simulation exports and coverage calendars
 - Continue Stage 4e evidence and attestation soak; do not drop snapshots
 - Push · user admin
 
@@ -754,8 +773,7 @@ Set `DEV_BYPASS_AUTH=1` in `.env.local` to preview the shell as Visionary (local
 
 ## Next phases (from Cursor Brief)
 
-Phase 39 adds paid-revenue settlement reconciliation, DocuSign mapping/archive
-integrity, Intune outage circuit breaking, governed SLO editing/testing, and
-snapshot manifests/canaries. Remaining: continued Stage 4e soak and separately
-approved offline retirement, authoritative integration backfills, push, and
-user admin.
+Phase 40 adds authoritative revenue ingestion, archive integrity scans, Intune
+outage observability, SLO simulation/owner expiry, and signed multi-hour
+snapshot packages. Remaining: continued Stage 4e soak and separately approved
+offline retirement, production connector rollout, push, and user admin.

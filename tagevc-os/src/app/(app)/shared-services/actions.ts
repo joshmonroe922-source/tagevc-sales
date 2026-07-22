@@ -15,6 +15,7 @@ import {
 } from '@/lib/shared-services/operational-health';
 import {
   requestSloRouteTest,
+  requestSloSimulation,
   saveSloPolicyDraft,
   transitionSloPolicyDraft,
 } from '@/lib/shared-services/slo-policy';
@@ -193,6 +194,9 @@ const policyDraftSchema = z.object({
   ).max(10),
   ownerId: z.string().uuid(),
   ownerEntityId: z.string().trim().max(100).nullable().optional(),
+  ownerEffectiveAt: z.string().datetime(),
+  ownerExpiresAt: z.string().datetime().nullable().optional(),
+  replacementOwnerId: z.string().uuid().nullable().optional(),
   expectedRowVersion: z.number().int().nonnegative(),
 });
 
@@ -218,6 +222,9 @@ export async function transitionSloPolicyDraftAction(input: {
   policyId: string;
   rowVersion: number;
   transition: 'validate' | 'publish';
+  ownerEffectiveAt?: string;
+  ownerExpiresAt?: string | null;
+  replacementOwnerId?: string | null;
 }): Promise<TicketActionResult> {
   const gate = await guardPermission('write:shared_services');
   if (!gate.ok) return gate;
@@ -225,6 +232,9 @@ export async function transitionSloPolicyDraftAction(input: {
     policyId: z.string().uuid(),
     rowVersion: z.number().int().nonnegative(),
     transition: z.enum(['validate', 'publish']),
+    ownerEffectiveAt: z.string().datetime().optional(),
+    ownerExpiresAt: z.string().datetime().nullable().optional(),
+    replacementOwnerId: z.string().uuid().nullable().optional(),
   }).safeParse(input);
   if (!parsed.success) return { ok: false, error: 'Invalid policy transition' };
   try {
@@ -232,6 +242,9 @@ export async function transitionSloPolicyDraftAction(input: {
       policyId: parsed.data.policyId,
       expectedRowVersion: parsed.data.rowVersion,
       transition: parsed.data.transition,
+      ownerEffectiveAt: parsed.data.ownerEffectiveAt,
+      ownerExpiresAt: parsed.data.ownerExpiresAt,
+      replacementOwnerId: parsed.data.replacementOwnerId,
       actorId: gate.profile.id,
     });
     revalidatePath('/shared-services');
@@ -240,6 +253,39 @@ export async function transitionSloPolicyDraftAction(input: {
       message: parsed.data.transition === 'validate'
         ? 'Draft validated; a different publisher must approve it'
         : 'Policy published',
+    };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Failed' };
+  }
+}
+
+export async function requestSloSimulationAction(input: {
+  idempotencyKey: string;
+  draftPolicyId: string;
+  entityIds: string[];
+  startsAt: string;
+  endsAt: string;
+  maxBuckets: number;
+}): Promise<TicketActionResult> {
+  const gate = await guardPermission('write:shared_services');
+  if (!gate.ok) return gate;
+  const parsed = z.object({
+    idempotencyKey: z.string().min(8).max(120).regex(/^[A-Za-z0-9._:-]+$/),
+    draftPolicyId: z.string().uuid(),
+    entityIds: z.array(z.string().trim().min(1).max(100)).max(100),
+    startsAt: z.string().datetime(),
+    endsAt: z.string().datetime(),
+    maxBuckets: z.number().int().min(1).max(2160),
+  }).safeParse(input);
+  if (!parsed.success || Date.parse(parsed.data.endsAt) <= Date.parse(parsed.data.startsAt)) {
+    return { ok: false, error: 'Invalid simulation request' };
+  }
+  try {
+    await requestSloSimulation({ ...parsed.data, actorId: gate.profile.id });
+    revalidatePath('/shared-services');
+    return {
+      ok: true,
+      message: 'COUNTERFACTUAL simulation queued; production state is unchanged',
     };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : 'Failed' };
