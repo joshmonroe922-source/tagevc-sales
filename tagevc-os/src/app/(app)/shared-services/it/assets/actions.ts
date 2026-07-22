@@ -1210,7 +1210,7 @@ export async function acceptIntuneThresholdRecommendationAction(input: {
     getIntuneTuningPromoteGate,
     acceptIntuneThresholdRecommendation,
   } = await import('@/lib/shared-services/it-assets-repo');
-  // Phase 46: require ready scorecard or dual-approved waive before accept.
+  // Phase 47: require ready scorecard or non-expired dual-approved waive before accept.
   const evaluated = await evaluateIntuneTuningPromoteGate({
     recommendation_id: parsed.data.recommendationId,
   });
@@ -1224,11 +1224,19 @@ export async function acceptIntuneThresholdRecommendationAction(input: {
   }
   const gateStatus = String(promoteGate?.gate_status ?? 'blocked');
   const dualApproved = promoteGate?.dual_approved_waive === true;
+  const waiveExpired = promoteGate?.waive_expired === true;
+  if (waiveExpired) {
+    return {
+      ok: false,
+      error:
+        'Phase 47 promote waive expired — dual-approved expiry-extend required before Accept → tuning proposal',
+    };
+  }
   if (gateStatus !== 'ready' && !(gateStatus === 'waived' && dualApproved)) {
     return {
       ok: false,
       error:
-        'Phase 46 promote gate blocked — need ready scorecard or dual-approved waive before Accept → tuning proposal',
+        'Phase 47 promote gate blocked — need ready scorecard or non-expired dual-approved waive before Accept → tuning proposal',
     };
   }
   const result = await acceptIntuneThresholdRecommendation({
@@ -1545,5 +1553,222 @@ export async function reviewIntunePromoteWaiveAction(input: {
       parsed.data.decision === 'approve'
         ? 'Promote waive dual-approved — Accept → tuning proposal is unblocked'
         : 'Promote waive rejected',
+  };
+}
+
+export async function refreshIntunePhase47ExpiryMttrOpsAction(): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('action:intune_manual_review');
+  if (!gate.ok) return gate;
+  const { runIntunePhase47ExpiryMttrOps } = await import(
+    '@/lib/shared-services/it-assets-repo'
+  );
+  const result = await runIntunePhase47ExpiryMttrOps();
+  if (!result.ok) {
+    return {
+      ok: false,
+      error: result.error ?? 'Phase 47 expiry/MTTR ops failed',
+    };
+  }
+  revalidateAssets();
+  const correlations = Number(result.detail?.correlations_recorded ?? 0);
+  const expired = Number(result.detail?.expired_count ?? 0);
+  const alerts = Number(result.detail?.alerts_recorded ?? 0);
+  return {
+    ok: true,
+    message: `Phase 47 expiry/MTTR: ${correlations} correlation(s), ${expired} waive(s) expired, ${alerts} alert(s) — breakers never closed or reset`,
+  };
+}
+
+export async function proposeIntunePromoteWaiveExpiryAction(input: {
+  waiveProposalId: string;
+  action: 'extend' | 'expire';
+  reason: string;
+  newExpiresAt?: string | null;
+}): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('action:intune_manual_review');
+  if (!gate.ok) return gate;
+  const parsed = z
+    .object({
+      waiveProposalId: z.string().uuid(),
+      action: z.enum(['extend', 'expire']),
+      reason: z.string().trim().min(20).max(1000),
+      newExpiresAt: z.string().datetime().nullable().optional(),
+    })
+    .safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? 'Invalid waive expiry proposal',
+    };
+  }
+  if (parsed.data.action === 'extend' && !parsed.data.newExpiresAt) {
+    return {
+      ok: false,
+      error: 'Extend requires a new expiry timestamp',
+    };
+  }
+  const service = await createPersistClient();
+  const { data: waive, error } = await service
+    .from('os_it_intune_promote_waive_proposals')
+    .select('recommendation_id')
+    .eq('proposal_id', parsed.data.waiveProposalId)
+    .single();
+  if (error || !waive) {
+    return { ok: false, error: error?.message ?? 'Waive proposal not found' };
+  }
+  const { data: recommendation, error: recoError } = await service
+    .from('os_it_intune_threshold_recommendation_drafts')
+    .select('breaker_id')
+    .eq('recommendation_id', waive.recommendation_id)
+    .single();
+  if (recoError || !recommendation) {
+    return {
+      ok: false,
+      error: recoError?.message ?? 'Recommendation not found',
+    };
+  }
+  const { data: breaker, error: breakerError } = await service
+    .from('os_it_intune_provider_breakers')
+    .select('entity_id')
+    .eq('breaker_id', recommendation.breaker_id)
+    .single();
+  if (breakerError || !breaker) {
+    return { ok: false, error: breakerError?.message ?? 'Breaker not found' };
+  }
+  if (
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      breaker.entity_id,
+    )
+  ) {
+    return {
+      ok: false,
+      error: entityScopeDeniedMessage(breaker.entity_id ?? 'firm-wide'),
+    };
+  }
+  const { proposeIntunePromoteWaiveExpiry } = await import(
+    '@/lib/shared-services/it-assets-repo'
+  );
+  const result = await proposeIntunePromoteWaiveExpiry({
+    waive_proposal_id: parsed.data.waiveProposalId,
+    actor_id: gate.profile.id,
+    action: parsed.data.action,
+    reason: parsed.data.reason,
+    new_expires_at: parsed.data.newExpiresAt ?? null,
+  });
+  if (!result.ok) return result;
+  revalidateAssets();
+  return {
+    ok: true,
+    message:
+      parsed.data.action === 'extend'
+        ? 'Waive expiry extend proposed — a different approver must dual-approve'
+        : 'Waive expire proposed — a different approver must dual-approve',
+  };
+}
+
+export async function reviewIntunePromoteWaiveExpiryAction(input: {
+  expiryProposalId: string;
+  decision: 'approve' | 'reject';
+  statement: string;
+  expectedRowVersion: number;
+}): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('action:intune_manual_review');
+  if (!gate.ok) return gate;
+  const parsed = z
+    .object({
+      expiryProposalId: z.string().uuid(),
+      decision: z.enum(['approve', 'reject']),
+      statement: z.string().trim().min(20).max(1000),
+      expectedRowVersion: z.number().int().nonnegative(),
+    })
+    .safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? 'Invalid waive expiry review',
+    };
+  }
+  const service = await createPersistClient();
+  const { data: proposal, error } = await service
+    .from('os_it_intune_promote_waive_expiry_proposals')
+    .select('waive_proposal_id, proposed_by, action')
+    .eq('expiry_proposal_id', parsed.data.expiryProposalId)
+    .single();
+  if (error || !proposal) {
+    return {
+      ok: false,
+      error: error?.message ?? 'Waive expiry proposal not found',
+    };
+  }
+  if (proposal.proposed_by === gate.profile.id) {
+    return {
+      ok: false,
+      error: 'The proposer cannot dual-approve this waive expiry action',
+    };
+  }
+  const { data: waive, error: waiveError } = await service
+    .from('os_it_intune_promote_waive_proposals')
+    .select('recommendation_id')
+    .eq('proposal_id', proposal.waive_proposal_id)
+    .single();
+  if (waiveError || !waive) {
+    return {
+      ok: false,
+      error: waiveError?.message ?? 'Waive proposal not found',
+    };
+  }
+  const { data: recommendation, error: recoError } = await service
+    .from('os_it_intune_threshold_recommendation_drafts')
+    .select('breaker_id')
+    .eq('recommendation_id', waive.recommendation_id)
+    .single();
+  if (recoError || !recommendation) {
+    return {
+      ok: false,
+      error: recoError?.message ?? 'Recommendation not found',
+    };
+  }
+  const { data: breaker, error: breakerError } = await service
+    .from('os_it_intune_provider_breakers')
+    .select('entity_id')
+    .eq('breaker_id', recommendation.breaker_id)
+    .single();
+  if (breakerError || !breaker) {
+    return { ok: false, error: breakerError?.message ?? 'Breaker not found' };
+  }
+  if (
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      breaker.entity_id,
+    )
+  ) {
+    return {
+      ok: false,
+      error: entityScopeDeniedMessage(breaker.entity_id ?? 'firm-wide'),
+    };
+  }
+  const { reviewIntunePromoteWaiveExpiry } = await import(
+    '@/lib/shared-services/it-assets-repo'
+  );
+  const result = await reviewIntunePromoteWaiveExpiry({
+    expiry_proposal_id: parsed.data.expiryProposalId,
+    actor_id: gate.profile.id,
+    decision: parsed.data.decision,
+    statement: parsed.data.statement,
+    expected_row_version: parsed.data.expectedRowVersion,
+  });
+  if (!result.ok) return result;
+  revalidateAssets();
+  return {
+    ok: true,
+    message:
+      parsed.data.decision === 'approve'
+        ? proposal.action === 'extend'
+          ? 'Waive expiry extend dual-approved — TTL renewed'
+          : 'Waive expire dual-approved — waive no longer usable for Accept'
+        : 'Waive expiry action rejected',
   };
 }

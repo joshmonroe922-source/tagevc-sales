@@ -180,12 +180,12 @@ describe('Phase 46 Intune dual-approver waive + deeper quality scoring', () => {
     expect(repo).toContain('proposeIntunePromoteWaive');
     expect(repo).toContain('reviewIntunePromoteWaive');
     expect(repo).toContain(
-      'accept_it_intune_threshold_recommendation_phase46',
+      'accept_it_intune_threshold_recommendation_phase47',
     );
     expect(actions).toContain('proposeIntunePromoteWaiveAction');
     expect(actions).toContain('reviewIntunePromoteWaiveAction');
     expect(actions).toContain('refreshIntunePhase46QualityWaiveOpsAction');
-    expect(actions).toContain('Phase 46 promote gate blocked');
+    expect(actions).toContain('Phase 47 promote gate blocked');
     expect(actions).toContain('dual-approved waive');
     expect(client).toContain('intunePhase46Health');
     expect(client).toContain('intunePostmortemScorecards');

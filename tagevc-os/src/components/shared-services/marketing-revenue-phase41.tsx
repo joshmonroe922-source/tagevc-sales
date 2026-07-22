@@ -8,6 +8,7 @@ import type {
   Phase44RevenueOpsReport,
   Phase45RevenueOpsReport,
   Phase46RevenueOpsReport,
+  Phase47RevenueOpsReport,
 } from '@/lib/shared-services/marketing-revenue-contracts';
 import {
   reviewMarketingRevenueCorrectionAction,
@@ -56,6 +57,8 @@ export function MarketingRevenuePhase41({
   phase45OpsError,
   phase46OpsReport,
   phase46OpsError,
+  phase47OpsReport,
+  phase47OpsError,
 }: {
   report: Phase41RevenueReport;
   error?: string;
@@ -70,6 +73,8 @@ export function MarketingRevenuePhase41({
   phase45OpsError?: string;
   phase46OpsReport?: Phase46RevenueOpsReport;
   phase46OpsError?: string;
+  phase47OpsReport?: Phase47RevenueOpsReport;
+  phase47OpsError?: string;
 }) {
   const [pending, startTransition] = useTransition();
   const [actionError, setActionError] = useState<string | null>(null);
@@ -280,6 +285,34 @@ export function MarketingRevenuePhase41({
                 </span>
               </>
             ) : null}
+            {phase47OpsReport ? (
+              <>
+                <span
+                  className={`rounded border px-2 py-0.5 text-[11px] ${severityClass(phase47OpsReport.cohort_gate_health)}`}
+                >
+                  cohort gate {phase47OpsReport.cohort_gate_health}
+                  {phase47OpsReport.cohort_gate
+                    ? ` (${phase47OpsReport.cohort_gate.entities_healthy ?? 0}/${phase47OpsReport.cohort_gate.entities_required ?? 0})`
+                    : ''}
+                </span>
+                <span
+                  className={`rounded border px-2 py-0.5 text-[11px] ${severityClass(phase47OpsReport.conflict_aging_health)}`}
+                >
+                  conflict aging {phase47OpsReport.conflict_aging_health}
+                  {phase47OpsReport.open_aging_count
+                    ? ` (${phase47OpsReport.open_aging_count})`
+                    : ''}
+                </span>
+                <span
+                  className={`rounded border px-2 py-0.5 text-[11px] ${severityClass(phase47OpsReport.closure_health)}`}
+                >
+                  conflict closures {phase47OpsReport.closure_health}
+                  {phase47OpsReport.pending_closure_count
+                    ? ` (${phase47OpsReport.pending_closure_count} pending)`
+                    : ''}
+                </span>
+              </>
+            ) : null}
           </div>
           {sloError ? (
             <p className="text-xs text-destructive">{sloError}</p>
@@ -295,6 +328,9 @@ export function MarketingRevenuePhase41({
           ) : null}
           {phase46OpsError ? (
             <p className="text-xs text-destructive">{phase46OpsError}</p>
+          ) : null}
+          {phase47OpsError ? (
+            <p className="text-xs text-destructive">{phase47OpsError}</p>
           ) : null}
           <div className="grid gap-2 md:grid-cols-2">
             <div className="rounded border p-2 text-xs">

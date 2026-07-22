@@ -147,6 +147,9 @@ type Dashboard = {
   }>;
   oncallDeliveries?: Array<Record<string, unknown>>;
   phase46Slo?: Record<string, unknown> | null;
+  oncallAckSnapshots?: Array<Record<string, unknown>>;
+  oncallAckAlerts?: Array<Record<string, unknown>>;
+  phase47Slo?: Record<string, unknown> | null;
 };
 
 type ApiResult = {
@@ -537,6 +540,19 @@ export function SnapshotRetirementPhase40Admin() {
       setError('Activate dual-key before completing cutover.');
       return;
     }
+    const acceptances = (dashboard?.cutoverAcceptances ?? []).filter(
+      (row) => row.rotation_id === open.rotation_id,
+    );
+    const hasOfflineScript = acceptances.some(
+      (row) => row.verifier_kind === 'offline_script',
+    );
+    const distinctKinds = new Set(acceptances.map((row) => row.verifier_kind));
+    if (!hasOfflineScript || distinctKinds.size < 2) {
+      setError(
+        'Cutover requires offline_script acceptance plus one other verifier kind.',
+      );
+      return;
+    }
     setMessage(null);
     setError(null);
     startTransition(async () => {
@@ -547,8 +563,8 @@ export function SnapshotRetirementPhase40Admin() {
         });
         setMessage(
           result.rotation
-            ? `Ed25519 cutover complete · ${String(result.rotation.status ?? 'cutover_complete')} (dual-acceptance; non-qualifying).`
-            : 'Ed25519 cutover completed (dual-acceptance; non-qualifying).',
+            ? `Ed25519 cutover complete · ${String(result.rotation.status ?? 'cutover_complete')} (offline_script dual-acceptance; non-qualifying).`
+            : 'Ed25519 cutover completed (offline_script dual-acceptance; non-qualifying).',
         );
         await refresh();
       } catch (cause) {
@@ -559,7 +575,7 @@ export function SnapshotRetirementPhase40Admin() {
     });
   }
 
-  function recordCutoverAcceptance() {
+  function recordCutoverAcceptance(verifierKind: 'offline_script' | 'admin' = 'offline_script') {
     const open = (dashboard?.ed25519Rotations ?? []).find(
       (row) => row.status === 'dual_active' || row.status === 'cutover_complete',
     );
@@ -574,13 +590,13 @@ export function SnapshotRetirementPhase40Admin() {
         const result = await post({
           action: 'record_cutover_acceptance',
           rotation_id: open.rotation_id,
-          verifier_kind: 'admin',
+          verifier_kind: verifierKind,
           previous_key_id: open.previous_key_id,
           next_key_id: open.next_key_id,
         });
         setMessage(
           result.acceptance
-            ? `Cutover acceptance recorded · ${String(result.acceptance.verifier_kind ?? 'admin')} · dual=${String(result.acceptance.dual_acceptance_complete ?? false)} (public key ids only).`
+            ? `Cutover acceptance recorded · ${String(result.acceptance.verifier_kind ?? verifierKind)} · dual=${String(result.acceptance.dual_acceptance_complete ?? false)} (public key ids only).`
             : 'Cutover acceptance recorded (public key ids only).',
         );
         await refresh();
@@ -834,6 +850,33 @@ export function SnapshotRetirementPhase40Admin() {
           {String(dashboard.phase46Slo.oncall_delivered_30d ?? 0)}
         </p>
       ) : null}
+      {(dashboard?.oncallAckSnapshots ?? []).slice(0, 3).map((snapshot) => (
+        <p
+          key={String(snapshot.snapshot_id)}
+          className="font-mono text-[10px] text-muted-foreground"
+        >
+          ACK SLO · {String(snapshot.severity)} · overdue={String(snapshot.overdue)} · within{' '}
+          {String(snapshot.ack_within_minutes)}m · ack{' '}
+          {String(snapshot.acknowledged_at ?? 'pending')}
+        </p>
+      ))}
+      {(dashboard?.oncallAckAlerts ?? []).slice(0, 2).map((alert) => (
+        <p
+          key={String(alert.alert_id)}
+          className="font-mono text-[10px] text-muted-foreground"
+        >
+          ACK ALERT · {String(alert.alert_kind)} · consec{' '}
+          {String(alert.consecutive_ack_overdue)} · {String(alert.severity)}
+        </p>
+      ))}
+      {dashboard?.phase47Slo ? (
+        <p className="text-muted-foreground">
+          Phase 47 offline_script ready ·{' '}
+          {String(dashboard.phase47Slo.offline_script_dual_ready ?? 0)} · ack overdue 30d{' '}
+          {String(dashboard.phase47Slo.oncall_ack_overdue_30d ?? 0)} · consec ack alerts{' '}
+          {String(dashboard.phase47Slo.consecutive_ack_overdue_alerts_30d ?? 0)}
+        </p>
+      ) : null}
       {dashboard?.checks.slice(0, 4).map((check) => (
         <p key={check.check_id} className="font-mono text-[10px] text-muted-foreground">
           {check.checked_at} · retention {check.status}
@@ -899,8 +942,11 @@ export function SnapshotRetirementPhase40Admin() {
         <Button type="button" size="sm" variant="outline" disabled={pending} onClick={activateDualKey}>
           Activate dual-key
         </Button>
-        <Button type="button" size="sm" variant="outline" disabled={pending} onClick={recordCutoverAcceptance}>
-          Record cutover acceptance
+        <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => recordCutoverAcceptance('offline_script')}>
+          Record offline_script acceptance
+        </Button>
+        <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => recordCutoverAcceptance('admin')}>
+          Record admin acceptance
         </Button>
         <Button type="button" size="sm" variant="outline" disabled={pending} onClick={completeEd25519Cutover}>
           Complete cutover

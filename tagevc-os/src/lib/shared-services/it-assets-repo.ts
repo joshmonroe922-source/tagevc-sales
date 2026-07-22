@@ -1075,6 +1075,19 @@ export type ItIntunePhase46Health = {
   dual_approve_required_7d: number;
 };
 
+export type ItIntunePhase47Health = {
+  mttr_correlation_count: number;
+  mttr_score_mismatch_7d: number;
+  waive_expiry_pending_count: number;
+  waive_extend_approved_count: number;
+  waive_expire_approved_count: number;
+  waive_expiry_decision_count: number;
+  waive_expired_7d: number;
+  ops_alert_count: number;
+  alerts_delivered_count: number;
+  alerts_undelivered_count: number;
+};
+
 export type ItIntunePostmortemQualityStatus = {
   review_id: string;
   postmortem_id: string;
@@ -1124,6 +1137,40 @@ export type ItIntunePromoteWaiveStatus = {
   recommendation_status: string;
   breaker_id: string;
   postmortem_id: string | null;
+};
+
+export type ItIntunePromoteWaiveExpiryStatus = {
+  expiry_proposal_id: string;
+  waive_proposal_id: string;
+  action: 'extend' | 'expire';
+  proposed_by: string;
+  proposed_reason: string;
+  new_expires_at: string | null;
+  status: 'proposed' | 'approved' | 'rejected';
+  proposed_at: string;
+  row_version: number;
+  evidence_sha256: string;
+  decision_id: string | null;
+  decided_by: string | null;
+  decision_status: 'approved' | 'rejected' | null;
+  decided_at: string | null;
+  recommendation_id: string;
+  waive_expires_at: string;
+  waive_status: string;
+};
+
+export type ItIntuneScorecardMttrCorrelationStatus = {
+  correlation_id: string;
+  postmortem_id: string;
+  scorecard_id: string;
+  cycle_elapsed_minutes: number;
+  composite_score: number;
+  correlation_delta: number;
+  aggregate_evidence: Record<string, unknown>;
+  evidence_sha256: string;
+  recorded_at: string;
+  ready_for_tuning_promote: boolean;
+  postmortem_status: string;
 };
 
 export type ItIntuneTuningPromoteGateStatus = {
@@ -1523,6 +1570,22 @@ export async function getIntunePhase46Health(): Promise<{
     : { row: (data as ItIntunePhase46Health | null) ?? null };
 }
 
+export async function getIntunePhase47Health(): Promise<{
+  row: ItIntunePhase47Health | null;
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb
+    .from('os_it_intune_phase47_health')
+    .select(
+      'mttr_correlation_count, mttr_score_mismatch_7d, waive_expiry_pending_count, waive_extend_approved_count, waive_expire_approved_count, waive_expiry_decision_count, waive_expired_7d, ops_alert_count, alerts_delivered_count, alerts_undelivered_count',
+    )
+    .maybeSingle();
+  return error
+    ? { row: null, error: error.message }
+    : { row: (data as ItIntunePhase47Health | null) ?? null };
+}
+
 export async function listIntunePostmortemQualityStatus(limit = 50): Promise<{
   rows: ItIntunePostmortemQualityStatus[];
   error?: string;
@@ -1574,6 +1637,42 @@ export async function listIntunePromoteWaiveStatus(limit = 50): Promise<{
   return error
     ? { rows: [], error: error.message }
     : { rows: (data ?? []) as ItIntunePromoteWaiveStatus[] };
+}
+
+export async function listIntunePromoteWaiveExpiryStatus(limit = 50): Promise<{
+  rows: ItIntunePromoteWaiveExpiryStatus[];
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb
+    .from('os_it_intune_promote_waive_expiry_status')
+    .select(
+      'expiry_proposal_id, waive_proposal_id, action, proposed_by, proposed_reason, new_expires_at, status, proposed_at, row_version, evidence_sha256, decision_id, decided_by, decision_status, decided_at, recommendation_id, waive_expires_at, waive_status',
+    )
+    .order('proposed_at', { ascending: false })
+    .limit(limit);
+  return error
+    ? { rows: [], error: error.message }
+    : { rows: (data ?? []) as ItIntunePromoteWaiveExpiryStatus[] };
+}
+
+export async function listIntuneScorecardMttrCorrelations(
+  limit = 50,
+): Promise<{
+  rows: ItIntuneScorecardMttrCorrelationStatus[];
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb
+    .from('os_it_intune_scorecard_mttr_correlation_status')
+    .select(
+      'correlation_id, postmortem_id, scorecard_id, cycle_elapsed_minutes, composite_score, correlation_delta, aggregate_evidence, evidence_sha256, recorded_at, ready_for_tuning_promote, postmortem_status',
+    )
+    .order('recorded_at', { ascending: false })
+    .limit(limit);
+  return error
+    ? { rows: [], error: error.message }
+    : { rows: (data ?? []) as ItIntuneScorecardMttrCorrelationStatus[] };
 }
 
 export async function listIntuneTuningPromoteGateStatus(limit = 50): Promise<{
@@ -1682,6 +1781,17 @@ export async function getIntunePhase46OpsReport(): Promise<{
     : { report: (data as Record<string, unknown> | null) ?? null };
 }
 
+export async function getIntunePhase47OpsReport(): Promise<{
+  report: Record<string, unknown> | null;
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc('get_it_intune_phase47_ops_report');
+  return error
+    ? { report: null, error: error.message }
+    : { report: (data as Record<string, unknown> | null) ?? null };
+}
+
 export async function getIntuneTuningPromoteGate(input: {
   recommendation_id?: string;
   proposal_id?: string;
@@ -1691,7 +1801,7 @@ export async function getIntuneTuningPromoteGate(input: {
 }> {
   const sb = await createPersistClient();
   const { data, error } = await sb.rpc(
-    'get_it_intune_tuning_promote_gate_phase46',
+    'get_it_intune_tuning_promote_gate_phase47',
     {
       p_recommendation_id: input.recommendation_id ?? null,
       p_proposal_id: input.proposal_id ?? null,
@@ -1772,6 +1882,13 @@ export async function runIntunePhase46QualityWaiveOps() {
   return processIntunePhase46QualityWaiveOps();
 }
 
+export async function runIntunePhase47ExpiryMttrOps() {
+  const { processIntunePhase47ExpiryMttrOps } = await import(
+    '@/lib/shared-services/it-intune-worker'
+  );
+  return processIntunePhase47ExpiryMttrOps();
+}
+
 export async function proposeIntunePromoteWaive(input: {
   recommendation_id: string;
   actor_id: string;
@@ -1808,6 +1925,60 @@ export async function reviewIntunePromoteWaive(input: {
     'review_it_intune_promote_waive_phase46',
     {
       p_proposal_id: input.proposal_id,
+      p_actor_id: input.actor_id,
+      p_decision: input.decision,
+      p_statement: input.statement,
+      p_expected_row_version: input.expected_row_version,
+    },
+  );
+  return error
+    ? { ok: false as const, error: error.message }
+    : {
+        ok: true as const,
+        detail: (data as Record<string, unknown> | null) ?? undefined,
+      };
+}
+
+export async function proposeIntunePromoteWaiveExpiry(input: {
+  waive_proposal_id: string;
+  actor_id: string;
+  action: 'extend' | 'expire';
+  reason: string;
+  new_expires_at?: string | null;
+  expected_row_version?: number | null;
+}) {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc(
+    'propose_it_intune_promote_waive_expiry_phase47',
+    {
+      p_waive_proposal_id: input.waive_proposal_id,
+      p_actor_id: input.actor_id,
+      p_action: input.action,
+      p_reason: input.reason,
+      p_new_expires_at: input.new_expires_at ?? null,
+      p_expected_row_version: input.expected_row_version ?? null,
+    },
+  );
+  return error
+    ? { ok: false as const, error: error.message }
+    : {
+        ok: true as const,
+        detail: (data as Record<string, unknown> | null) ?? undefined,
+      };
+}
+
+export async function reviewIntunePromoteWaiveExpiry(input: {
+  expiry_proposal_id: string;
+  actor_id: string;
+  decision: 'approve' | 'reject';
+  statement: string;
+  expected_row_version: number;
+}) {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc(
+    'review_it_intune_promote_waive_expiry_phase47',
+    {
+      p_expiry_proposal_id: input.expiry_proposal_id,
       p_actor_id: input.actor_id,
       p_decision: input.decision,
       p_statement: input.statement,
@@ -1880,10 +2051,10 @@ export async function acceptIntuneThresholdRecommendation(input: {
   expected_row_version: number;
 }) {
   const sb = await createPersistClient();
-  // Phase 46: ready scorecard or dual-approved waive before accept.
+  // Phase 47: non-expired dual-approved waive (extend renews TTL) or ready gate.
   // Never closes or resets breakers.
   const { error } = await sb.rpc(
-    'accept_it_intune_threshold_recommendation_phase46',
+    'accept_it_intune_threshold_recommendation_phase47',
     {
       p_recommendation_id: input.recommendation_id,
       p_actor_id: input.actor_id,

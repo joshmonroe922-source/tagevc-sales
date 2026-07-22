@@ -9,6 +9,7 @@ import { runArchiveGovernanceWorker } from '@/lib/docusign/archive-governance';
 import { runArchivePhase44OpsTick } from '@/lib/docusign/archive-phase44';
 import { runArchivePhase45OpsTick } from '@/lib/docusign/archive-phase45';
 import { runArchivePhase46OpsTick } from '@/lib/docusign/archive-phase46';
+import { runArchivePhase47OpsTick } from '@/lib/docusign/archive-phase47';
 import {
   finishOperationalWorker,
   startOperationalWorker,
@@ -101,6 +102,7 @@ async function run(request: Request) {
     const phase44 = await runArchivePhase44OpsTick();
     const phase45 = await runArchivePhase45OpsTick();
     const phase46 = await runArchivePhase46OpsTick();
+    const phase47 = await runArchivePhase47OpsTick();
     await finishOperationalWorker({
       workerRunId: worker.workerRunId,
       status: noop
@@ -159,10 +161,17 @@ async function run(request: Request) {
           ? phase46.completionStatus
           : null,
         phase46_ops_error: phase46.ok ? null : phase46.error,
+        phase47_ops_ok: phase47.ok,
+        phase47_alerts_recorded: phase47.ok ? phase47.alertsRecorded : null,
+        phase47_run_status: phase47.ok ? phase47.runStatus : null,
+        phase47_drift_performance: phase47.ok
+          ? phase47.driftPerformance
+          : null,
+        phase47_ops_error: phase47.ok ? null : phase47.error,
       },
     });
     return NextResponse.json(
-      { ...result, phase44, phase45, phase46 },
+      { ...result, phase44, phase45, phase46, phase47 },
       {
         status: result.ok || noop || (result.governance?.claimed ?? 0) > 0
           ? 200
@@ -189,6 +198,7 @@ async function run(request: Request) {
   const phase44 = await runArchivePhase44OpsTick();
   const phase45 = await runArchivePhase45OpsTick();
   const phase46 = await runArchivePhase46OpsTick();
+  const phase47 = await runArchivePhase47OpsTick();
   await finishOperationalWorker({
     workerRunId: worker.workerRunId,
     status: result.checkpointed
@@ -226,10 +236,17 @@ async function run(request: Request) {
         ? phase46.completionStatus
         : null,
       phase46_ops_error: phase46.ok ? null : phase46.error,
+      phase47_ops_ok: phase47.ok,
+      phase47_alerts_recorded: phase47.ok ? phase47.alertsRecorded : null,
+      phase47_run_status: phase47.ok ? phase47.runStatus : null,
+      phase47_drift_performance: phase47.ok
+        ? phase47.driftPerformance
+        : null,
+      phase47_ops_error: phase47.ok ? null : phase47.error,
     },
   });
   return NextResponse.json(
-    { ...result, phase44, phase45, phase46 },
+    { ...result, phase44, phase45, phase46, phase47 },
     {
       status: result.ok || result.claimed > 0 ? 200 : 500,
     },

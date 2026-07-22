@@ -42,6 +42,7 @@ import {
 import { getArchivePhase44OpsReport } from '@/lib/docusign/archive-phase44';
 import { getArchivePhase45OpsReport } from '@/lib/docusign/archive-phase45';
 import { getArchivePhase46OpsReport } from '@/lib/docusign/archive-phase46';
+import { getArchivePhase47OpsReport } from '@/lib/docusign/archive-phase47';
 import { listArchiveGovernance } from '@/lib/docusign/archive-governance';
 
 function formatBytes(n: number | null | undefined): string {
@@ -138,6 +139,7 @@ export default async function DocuSignModulePage({
     phase44Ops,
     phase45Ops,
     phase46Ops,
+    phase47Ops,
   ] = await Promise.all([
     listDocuSignEvents({
       limit: 40,
@@ -204,6 +206,7 @@ export default async function DocuSignModulePage({
     getArchivePhase44OpsReport({ firmWide }),
     getArchivePhase45OpsReport({ firmWide }),
     getArchivePhase46OpsReport({ firmWide }),
+    getArchivePhase47OpsReport({ firmWide }),
   ]);
 
   const voidPolicy = process.env.DOCUSIGN_VOID_POLICY?.trim() || 'allow';
@@ -279,6 +282,7 @@ export default async function DocuSignModulePage({
           <Badge variant="secondary">Phase 44</Badge>
           <Badge variant="secondary">Phase 45</Badge>
           <Badge variant="secondary">Phase 46</Badge>
+          <Badge variant="secondary">Phase 47</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">DocuSign</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
@@ -322,6 +326,12 @@ export default async function DocuSignModulePage({
           }
           phase46CadenceHealth={
             firmWide ? phase46Ops.report.cadence_health : undefined
+          }
+          phase47RecurringRunStatus={
+            firmWide ? phase47Ops.report.recurring_run_status : undefined
+          }
+          phase47DriftPerformance={
+            firmWide ? phase47Ops.report.drift_performance : undefined
           }
         />
         <DocuSignTemplateSendForm
@@ -436,7 +446,9 @@ export default async function DocuSignModulePage({
               signed-archive drift budgets, and recurring integrity cadence.
               Phase 46 completes the first quarterly review, arms recurring
               quarterlies, tightens drift budgets from baselines, and improves
-              cadence visibility.
+              cadence visibility. Phase 47 runs the first armed recurring
+              quarterly under tightened drift budgets and reports drift
+              performance.
               {archiveGovernance.error ? ` · ${archiveGovernance.error}` : ''}
               {archiveCampaigns.error ? ` · ${archiveCampaigns.error}` : ''}
               {archiveCampaignOps.error ? ` · ${archiveCampaignOps.error}` : ''}
@@ -444,6 +456,7 @@ export default async function DocuSignModulePage({
               {phase44Ops.error ? ` · ${phase44Ops.error}` : ''}
               {phase45Ops.error ? ` · ${phase45Ops.error}` : ''}
               {phase46Ops.error ? ` · ${phase46Ops.error}` : ''}
+              {phase47Ops.error ? ` · ${phase47Ops.error}` : ''}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-xs">
@@ -542,6 +555,20 @@ export default async function DocuSignModulePage({
                     : ''}
                   {phase46Ops.report.latest_cadence?.quarterly_overdue
                     ? ' · quarterly overdue'
+                    : ''}
+                </p>
+                <p className="text-muted-foreground">
+                  Phase 47 recurring run:{' '}
+                  {phase47Ops.report.recurring_run_status} · drift{' '}
+                  {phase47Ops.report.drift_performance}
+                  {phase47Ops.report.first_recurring_completed
+                    ? ' · first recurring complete'
+                    : ''}
+                  {phase47Ops.report.tightened_budget_active
+                    ? ' · tightened budget active'
+                    : ''}
+                  {phase47Ops.report.latest_run?.content_drift_count != null
+                    ? ` · drift ${String(phase47Ops.report.latest_run.content_drift_count)}/${String(phase47Ops.report.latest_run.max_content_drift_per_window ?? '?')}`
                     : ''}
                 </p>
               </div>

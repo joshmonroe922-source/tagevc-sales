@@ -119,10 +119,10 @@ describe('Phase 44 snapshot retention ops', () => {
     expect(route).toContain('verify_package_integrity');
     expect(route).toContain('schedule_phase44_canary');
     expect(route).toMatch(
-      /getSnapshotPhase45OpsDashboard|getSnapshotPhase46OpsDashboard/,
+      /getSnapshotPhase45OpsDashboard|getSnapshotPhase46OpsDashboard|getSnapshotPhase47OpsDashboard/,
     );
     expect(worker).toMatch(
-      /runSnapshotPhase45OpsWorker|runSnapshotPhase46OpsWorker/,
+      /runSnapshotPhase45OpsWorker|runSnapshotPhase46OpsWorker|runSnapshotPhase47OpsWorker/,
     );
     expect(ui).toContain('Verify package integrity');
     expect(ui).toContain('Schedule Phase 44 canary');

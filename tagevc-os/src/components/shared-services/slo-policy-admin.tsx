@@ -15,6 +15,8 @@ import {
   generateSloOwnerHandoffDigestAction,
   runSloFirmWideNightlyReplayAction,
   publishSloOwnerHandoffDigestAction,
+  notifySloHandoffDigestOwnersAction,
+  scanSloOwnershipChangeVisibilityAction,
   saveSloPolicyDraftAction,
   suggestSloOwnerHandoffsAction,
   transitionSloPolicyDraftAction,
@@ -252,6 +254,9 @@ export function SloPolicyAdmin({
   digestPublications = [],
   ownershipChangeAlerts = [],
   phase46Report = null,
+  digestNotifications = [],
+  ownershipVisibility = [],
+  phase47Report = null,
 }: {
   activePolicies: SloPolicyRow[];
   drafts: SloPolicyRow[];
@@ -276,6 +281,9 @@ export function SloPolicyAdmin({
   digestPublications?: Array<Record<string, unknown>>;
   ownershipChangeAlerts?: Array<Record<string, unknown>>;
   phase46Report?: Record<string, unknown> | null;
+  digestNotifications?: Array<Record<string, unknown>>;
+  ownershipVisibility?: Array<Record<string, unknown>>;
+  phase47Report?: Record<string, unknown> | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -431,6 +439,24 @@ export function SloPolicyAdmin({
         destinationKey: 'ops_alerts',
       });
       setMessage(result.ok ? result.message ?? 'Digest published' : result.error);
+      if (result.ok) router.refresh();
+    });
+  }
+
+  function notifyDigestOwners() {
+    startTransition(async () => {
+      const result = await notifySloHandoffDigestOwnersAction({
+        destinationKey: 'ops_alerts',
+      });
+      setMessage(result.ok ? result.message ?? 'Owners notified' : result.error);
+      if (result.ok) router.refresh();
+    });
+  }
+
+  function scanOwnershipVisibility() {
+    startTransition(async () => {
+      const result = await scanSloOwnershipChangeVisibilityAction();
+      setMessage(result.ok ? result.message ?? 'Visibility scanned' : result.error);
       if (result.ok) router.refresh();
     });
   }
@@ -683,6 +709,24 @@ export function SloPolicyAdmin({
               >
                 Publish handoff digest
               </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={pending}
+                onClick={notifyDigestOwners}
+              >
+                Notify digest owners
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={pending}
+                onClick={scanOwnershipVisibility}
+              >
+                Scan ownership visibility
+              </Button>
             </div>
             {nightlyReplayRuns.slice(0, 4).map((run) => (
               <p
@@ -735,6 +779,25 @@ export function SloPolicyAdmin({
                 {String(alert.expires_at ?? '')}
               </p>
             ))}
+            {digestNotifications.slice(0, 3).map((notification) => (
+              <p
+                key={String(notification.notification_id)}
+                className="font-mono text-[10px] text-muted-foreground"
+              >
+                NOTIFY · {String(notification.delivery_status)} · dest{' '}
+                {String(notification.destination_key)} · owner{' '}
+                {String(notification.owner_id)}
+              </p>
+            ))}
+            {ownershipVisibility.slice(0, 4).map((row) => (
+              <p
+                key={String(row.visibility_id)}
+                className="font-mono text-[10px] text-muted-foreground"
+              >
+                VISIBILITY · {String(row.alert_kind)} · {String(row.severity)} · window{' '}
+                {String(row.handoff_window_start ?? '')}→{String(row.handoff_window_end ?? '')}
+              </p>
+            ))}
             {phase45Report ? (
               <p className="text-muted-foreground">
                 Phase 45 · nightly 30d {String(phase45Report.nightly_replay_runs_30d ?? 0)} ·
@@ -751,6 +814,15 @@ export function SloPolicyAdmin({
                 {String(
                   phase46Report.upcoming_ownership_change_without_handoff_count ?? 0,
                 )}
+              </p>
+            ) : null}
+            {phase47Report ? (
+              <p className="text-muted-foreground">
+                Phase 47 · digest notifies 30d{' '}
+                {String(phase47Report.digest_notifications_30d ?? 0)} · handoff windows{' '}
+                {String(phase47Report.upcoming_handoff_window_count ?? 0)} · expiry without
+                handoff{' '}
+                {String(phase47Report.ownership_expiry_without_handoff_count ?? 0)}
               </p>
             ) : null}
           </CardContent>

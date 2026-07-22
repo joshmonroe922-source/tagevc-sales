@@ -124,10 +124,16 @@ describe('Phase 46 snapshot cutover ops', () => {
     expect(lib).not.toMatch(/PRIVATE_KEY(?!S)/);
     expect(route).toContain('record_cutover_acceptance');
     expect(route).toContain('complete_ed25519_cutover');
-    expect(route).toContain('completeSnapshotEd25519CutoverPhase46');
-    expect(route).toContain('getSnapshotPhase46OpsDashboard');
-    expect(worker).toContain('runSnapshotPhase46OpsWorker');
-    expect(ui).toContain('Record cutover acceptance');
+    expect(route).toMatch(
+      /completeSnapshotEd25519CutoverPhase46|completeSnapshotEd25519CutoverPhase47/,
+    );
+    expect(route).toMatch(
+      /getSnapshotPhase46OpsDashboard|getSnapshotPhase47OpsDashboard/,
+    );
+    expect(worker).toMatch(
+      /runSnapshotPhase46OpsWorker|runSnapshotPhase47OpsWorker/,
+    );
+    expect(ui).toMatch(/Record cutover acceptance|Record offline_script acceptance/);
     expect(ui).toContain('Complete cutover');
     expect(ui).toContain('phase46Slo');
     expect(ui).not.toMatch(/-----BEGIN/);

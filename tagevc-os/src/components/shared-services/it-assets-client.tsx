@@ -40,8 +40,11 @@ import {
   refreshIntunePhase44ResilienceOpsAction,
   refreshIntunePhase45QualityGateOpsAction,
   refreshIntunePhase46QualityWaiveOpsAction,
+  refreshIntunePhase47ExpiryMttrOpsAction,
   proposeIntunePromoteWaiveAction,
   reviewIntunePromoteWaiveAction,
+  proposeIntunePromoteWaiveExpiryAction,
+  reviewIntunePromoteWaiveExpiryAction,
   runIntuneWorkerAction,
   type ItAssetActionResult,
 } from '@/app/(app)/shared-services/it/assets/actions';
@@ -68,9 +71,12 @@ import type {
   ItIntunePhase44Health,
   ItIntunePhase45Health,
   ItIntunePhase46Health,
+  ItIntunePhase47Health,
   ItIntunePostmortemQualityStatus,
   ItIntunePostmortemQualityScorecardStatus,
   ItIntunePromoteWaiveStatus,
+  ItIntunePromoteWaiveExpiryStatus,
+  ItIntuneScorecardMttrCorrelationStatus,
   ItIntuneTuningPromoteGateStatus,
   ItIntuneResilienceCorrelationEvent,
   ItIntuneSoakCycleTimeline,
@@ -133,6 +139,7 @@ export function ItAssetsClient({
   intunePhase44Health = null,
   intunePhase45Health = null,
   intunePhase46Health = null,
+  intunePhase47Health = null,
   intuneOutagePostmortems = [],
   intuneThresholdRecommendations = [],
   intuneSoakCycleTimeline = [],
@@ -140,6 +147,8 @@ export function ItAssetsClient({
   intunePostmortemQuality = [],
   intunePostmortemScorecards = [],
   intunePromoteWaives = [],
+  intunePromoteWaiveExpiries = [],
+  intuneScorecardMttrCorrelations = [],
   intunePromoteGates = [],
   canIntuneRetire = false,
   canIntuneManualReview = false,
@@ -181,6 +190,7 @@ export function ItAssetsClient({
   intunePhase44Health?: ItIntunePhase44Health | null;
   intunePhase45Health?: ItIntunePhase45Health | null;
   intunePhase46Health?: ItIntunePhase46Health | null;
+  intunePhase47Health?: ItIntunePhase47Health | null;
   intuneOutagePostmortems?: ItIntuneOutagePostmortem[];
   intuneThresholdRecommendations?: ItIntuneThresholdRecommendation[];
   intuneSoakCycleTimeline?: ItIntuneSoakCycleTimeline[];
@@ -188,6 +198,8 @@ export function ItAssetsClient({
   intunePostmortemQuality?: ItIntunePostmortemQualityStatus[];
   intunePostmortemScorecards?: ItIntunePostmortemQualityScorecardStatus[];
   intunePromoteWaives?: ItIntunePromoteWaiveStatus[];
+  intunePromoteWaiveExpiries?: ItIntunePromoteWaiveExpiryStatus[];
+  intuneScorecardMttrCorrelations?: ItIntuneScorecardMttrCorrelationStatus[];
   intunePromoteGates?: ItIntuneTuningPromoteGateStatus[];
   canIntuneRetire?: boolean;
   canIntuneManualReview?: boolean;
@@ -240,6 +252,12 @@ export function ItAssetsClient({
   );
   const waiveByRecommendation = new Map(
     intunePromoteWaives.map((row) => [row.recommendation_id, row]),
+  );
+  const expiryByWaive = new Map(
+    intunePromoteWaiveExpiries.map((row) => [row.waive_proposal_id, row]),
+  );
+  const mttrByPostmortem = new Map(
+    intuneScorecardMttrCorrelations.map((row) => [row.postmortem_id, row]),
   );
 
   return (
@@ -353,6 +371,21 @@ export function ItAssetsClient({
                 : ''}
             </>
           ) : null}
+          {intunePhase47Health ? (
+            <>
+              {' · '}MTTR corr{' '}
+              {Number(intunePhase47Health.mttr_correlation_count)}
+              {Number(intunePhase47Health.mttr_score_mismatch_7d) > 0
+                ? ` · MTTR mismatch 7d ${Number(intunePhase47Health.mttr_score_mismatch_7d)}`
+                : ''}
+              {Number(intunePhase47Health.waive_expiry_pending_count) > 0
+                ? ` · expiry pending ${Number(intunePhase47Health.waive_expiry_pending_count)}`
+                : ''}
+              {Number(intunePhase47Health.waive_expired_7d) > 0
+                ? ` · waive expired 7d ${Number(intunePhase47Health.waive_expired_7d)}`
+                : ''}
+            </>
+          ) : null}
         </div>
       ) : null}
 
@@ -363,6 +396,8 @@ export function ItAssetsClient({
         intunePostmortemQuality.length > 0 ||
         intunePostmortemScorecards.length > 0 ||
         intunePromoteWaives.length > 0 ||
+        intunePromoteWaiveExpiries.length > 0 ||
+        intuneScorecardMttrCorrelations.length > 0 ||
         intunePromoteGates.length > 0) && (
         <section className="space-y-3 rounded-lg border p-4">
           <div>
@@ -377,6 +412,8 @@ export function ItAssetsClient({
               adds performance trends, canary/outage ops alerts, and correlation.
               Phase 45 quality-gates promote behind multi-cycle healthy trends. Phase 46
               deepens scorecards and requires dual-approver waive for promote exceptions.
+              Phase 47 dual-approves waive expiry (extend/expire) and correlates scorecards
+              with soak-cycle MTTR.
             </p>
             {canIntuneManualReview && intunePhase42Health ? (
               <div className="flex flex-wrap gap-2 pt-1">
@@ -419,6 +456,17 @@ export function ItAssetsClient({
                   }
                 >
                   Refresh scorecards / waives
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={pending}
+                  onClick={() =>
+                    run(() => refreshIntunePhase47ExpiryMttrOpsAction())
+                  }
+                >
+                  Refresh expiry / MTTR
                 </Button>
               </div>
             ) : null}
@@ -473,6 +521,7 @@ export function ItAssetsClient({
                 const scorecard = scorecardByPostmortem.get(
                   postmortem.postmortem_id,
                 );
+                const mttr = mttrByPostmortem.get(postmortem.postmortem_id);
                 return (
                 <div
                   key={postmortem.postmortem_id}
@@ -542,6 +591,25 @@ export function ItAssetsClient({
                               : ' · trend weak'}
                           {' · '}
                           {Number(quality.cycle_complete_count)} cycles
+                        </span>
+                      </>
+                    ) : null}
+                    {mttr ? (
+                      <>
+                        {' · '}
+                        <span
+                          className={
+                            Math.abs(Number(mttr.correlation_delta)) >= 0.25
+                              ? 'rounded bg-amber-100 px-1.5 py-0.5 text-amber-950'
+                              : 'rounded bg-emerald-100 px-1.5 py-0.5 text-emerald-950'
+                          }
+                        >
+                          MTTR {Number(mttr.cycle_elapsed_minutes)}m
+                          {' · '}Δ{' '}
+                          {Math.round(Number(mttr.correlation_delta) * 100)}
+                          {Math.abs(Number(mttr.correlation_delta)) >= 0.25
+                            ? ' · mismatch'
+                            : ' · aligned'}
                         </span>
                       </>
                     ) : null}
@@ -661,6 +729,9 @@ export function ItAssetsClient({
                 const waive = waiveByRecommendation.get(
                   recommendation.recommendation_id,
                 );
+                const expiry = waive
+                  ? expiryByWaive.get(waive.proposal_id)
+                  : undefined;
                 const dualApprovedWaive =
                   waive?.status === 'approved' &&
                   waive.decided_by != null &&
@@ -727,6 +798,15 @@ export function ItAssetsClient({
                         <span className="rounded bg-violet-100 px-1.5 py-0.5 text-violet-950">
                           waive {waive.status}
                           {dualApprovedWaive ? ' · dual-approved' : ''}
+                          {waive.status === 'expired' ? ' · needs extend' : ''}
+                        </span>
+                      </>
+                    ) : null}
+                    {expiry ? (
+                      <>
+                        {' · '}
+                        <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-indigo-950">
+                          expiry {expiry.action} {expiry.status}
                         </span>
                       </>
                     ) : null}
@@ -874,6 +954,128 @@ export function ItAssetsClient({
                       ) : waive?.status === 'proposed' &&
                         waive.proposed_by === currentActorId ? (
                         <span>Awaiting a different dual-approver</span>
+                      ) : null}
+                      {dualApprovedWaive &&
+                      waive &&
+                      (!expiry ||
+                        expiry.status === 'rejected') ? (
+                        <>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={pending}
+                            onClick={() => {
+                              const hoursRaw = window.prompt(
+                                'Extend waive TTL by hours (1–168). A different approver must dual-approve:',
+                                '72',
+                              );
+                              if (!hoursRaw) return;
+                              const hours = Number(hoursRaw);
+                              if (
+                                !Number.isFinite(hours) ||
+                                hours < 1 ||
+                                hours > 168
+                              )
+                                return;
+                              const reason = window.prompt(
+                                'Propose waive extend reason (20+ characters):',
+                              );
+                              if (!reason || reason.trim().length < 20) return;
+                              const baseMs = Math.max(
+                                Date.now(),
+                                Date.parse(waive.expires_at) || 0,
+                              );
+                              const newExpiresAt = new Date(
+                                baseMs + hours * 3_600_000,
+                              ).toISOString();
+                              run(() =>
+                                proposeIntunePromoteWaiveExpiryAction({
+                                  waiveProposalId: waive.proposal_id,
+                                  action: 'extend',
+                                  reason: reason.trim(),
+                                  newExpiresAt,
+                                }),
+                              );
+                            }}
+                          >
+                            Propose extend
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={pending}
+                            onClick={() => {
+                              const reason = window.prompt(
+                                'Propose waive expire reason (20+ characters). A different approver must dual-approve:',
+                              );
+                              if (!reason || reason.trim().length < 20) return;
+                              run(() =>
+                                proposeIntunePromoteWaiveExpiryAction({
+                                  waiveProposalId: waive.proposal_id,
+                                  action: 'expire',
+                                  reason: reason.trim(),
+                                }),
+                              );
+                            }}
+                          >
+                            Propose expire
+                          </Button>
+                        </>
+                      ) : null}
+                      {expiry?.status === 'proposed' &&
+                      expiry.proposed_by !== currentActorId ? (
+                        <>
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={pending}
+                            onClick={() => {
+                              const statement = window.prompt(
+                                `Dual-approve waive ${expiry.action} statement (20+ characters):`,
+                              );
+                              if (!statement || statement.trim().length < 20)
+                                return;
+                              run(() =>
+                                reviewIntunePromoteWaiveExpiryAction({
+                                  expiryProposalId: expiry.expiry_proposal_id,
+                                  decision: 'approve',
+                                  statement: statement.trim(),
+                                  expectedRowVersion: expiry.row_version,
+                                }),
+                              );
+                            }}
+                          >
+                            Dual-approve {expiry.action}
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={pending}
+                            onClick={() => {
+                              const statement = window.prompt(
+                                `Reject waive ${expiry.action} statement (20+ characters):`,
+                              );
+                              if (!statement || statement.trim().length < 20)
+                                return;
+                              run(() =>
+                                reviewIntunePromoteWaiveExpiryAction({
+                                  expiryProposalId: expiry.expiry_proposal_id,
+                                  decision: 'reject',
+                                  statement: statement.trim(),
+                                  expectedRowVersion: expiry.row_version,
+                                }),
+                              );
+                            }}
+                          >
+                            Reject {expiry.action}
+                          </Button>
+                        </>
+                      ) : expiry?.status === 'proposed' &&
+                        expiry.proposed_by === currentActorId ? (
+                        <span>Awaiting a different expiry dual-approver</span>
                       ) : null}
                       <Button
                         type="button"

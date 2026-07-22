@@ -29,6 +29,8 @@ import {
   generateSloOwnerHandoffDigestPhase45,
   runSloFirmWideNightlyReplayPhase46,
   publishSloOwnerHandoffDigestPhase46,
+  notifySloHandoffDigestOwnersPhase47,
+  scanSloOwnershipChangeVisibilityPhase47,
   saveSloPolicyDraft,
   transitionSloPolicyDraft,
 } from '@/lib/shared-services/slo-policy';
@@ -676,11 +678,87 @@ export async function publishSloOwnerHandoffDigestAction(input?: {
       publish_status?: string;
       recipient_count?: number;
       destination_key?: string;
+      publication_id?: string;
+    };
+    let notifyMessage = '';
+    if (result.publish_status === 'published' && result.publication_id) {
+      try {
+        const notified = (await notifySloHandoffDigestOwnersPhase47({
+          actorId: gate.profile.id,
+          publicationId: result.publication_id,
+          destinationKey: result.destination_key ?? parsed.data.destinationKey,
+        })) as { notifications_recorded?: number };
+        notifyMessage = ` · notified ${notified.notifications_recorded ?? 0}`;
+      } catch {
+        notifyMessage = ' · notify skipped';
+      }
+    }
+    revalidatePath('/shared-services');
+    return {
+      ok: true,
+      message: `Handoff digest publish ${result.publish_status ?? 'published'} · ${result.digest_quarter ?? ''} · recipients ${result.recipient_count ?? 0} · dest ${result.destination_key ?? 'ops_alerts'}${notifyMessage}`,
+    };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Failed' };
+  }
+}
+
+export async function notifySloHandoffDigestOwnersAction(input?: {
+  publicationId?: string | null;
+  destinationKey?: string | null;
+}): Promise<TicketActionResult> {
+  const gate = await guardPermission('write:shared_services');
+  if (!gate.ok) return gate;
+  const parsed = z
+    .object({
+      publicationId: z.string().uuid().nullable().optional(),
+      destinationKey: z
+        .string()
+        .regex(/^[a-z][a-z0-9_]{0,62}$/)
+        .nullable()
+        .optional(),
+    })
+    .safeParse(input ?? {});
+  if (!parsed.success) {
+    return { ok: false, error: 'Invalid handoff digest notify input' };
+  }
+  try {
+    const result = (await notifySloHandoffDigestOwnersPhase47({
+      actorId: gate.profile.id,
+      publicationId: parsed.data.publicationId,
+      destinationKey: parsed.data.destinationKey,
+    })) as {
+      digest_quarter?: string;
+      notifications_recorded?: number;
+      notifications_replayed?: number;
+      destination_key?: string;
+      skipped?: boolean;
     };
     revalidatePath('/shared-services');
     return {
       ok: true,
-      message: `Handoff digest publish ${result.publish_status ?? 'published'} · ${result.digest_quarter ?? ''} · recipients ${result.recipient_count ?? 0} · dest ${result.destination_key ?? 'ops_alerts'}`,
+      message: `Digest owner notify · ${result.digest_quarter ?? 'latest'} · recorded ${result.notifications_recorded ?? 0} · replayed ${result.notifications_replayed ?? 0} · dest ${result.destination_key ?? 'ops_alerts'}${result.skipped ? ' · skipped' : ''}`,
+    };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Failed' };
+  }
+}
+
+export async function scanSloOwnershipChangeVisibilityAction(): Promise<TicketActionResult> {
+  const gate = await guardPermission('write:shared_services');
+  if (!gate.ok) return gate;
+  try {
+    const result = (await scanSloOwnershipChangeVisibilityPhase47({
+      actorId: gate.profile.id,
+    })) as {
+      expiry_visibility_recorded?: number;
+      handoff_windows_recorded?: number;
+      days_ahead?: number;
+    };
+    revalidatePath('/shared-services');
+    return {
+      ok: true,
+      message: `Ownership visibility · expiry ${result.expiry_visibility_recorded ?? 0} · handoff windows ${result.handoff_windows_recorded ?? 0} · ahead ${result.days_ahead ?? 60}d`,
     };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : 'Failed' };

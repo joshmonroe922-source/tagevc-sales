@@ -18,6 +18,7 @@ import { runPhase43RevenueOpsTick } from '@/lib/shared-services/marketing-phase4
 import { runPhase44RevenueOpsTick } from '@/lib/shared-services/marketing-phase44';
 import { runPhase45RevenueOpsTick } from '@/lib/shared-services/marketing-phase45';
 import { runPhase46RevenueOpsTick } from '@/lib/shared-services/marketing-phase46';
+import { runPhase47RevenueOpsTick } from '@/lib/shared-services/marketing-phase47';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 
 type PullRun = {
@@ -497,6 +498,19 @@ export async function processMarketingRevenuePulls(limit = 1): Promise<{
     } else {
       details.push(
         `phase46-ops:${entityId}: performance=${phase46.performanceSnapshots} reliability=${phase46.reliabilitySnapshots} alerts=${phase46.alertsRecorded}`,
+      );
+    }
+
+    // Phase 47: cohort promotion gates, aging conflicts, closure visibility.
+    const phase47 = await runPhase47RevenueOpsTick({
+      entityId,
+      days: 30,
+    });
+    if (!phase47.ok) {
+      details.push(`phase47-ops:${entityId}: ${phase47.error}`);
+    } else {
+      details.push(
+        `phase47-ops:${entityId}: aging=${phase47.agingDetected} alerts=${phase47.alertsRecorded}`,
       );
     }
   }

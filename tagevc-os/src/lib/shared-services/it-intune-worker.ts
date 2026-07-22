@@ -203,6 +203,16 @@ async function runReadOnlyHealthCanaryWithToken(token: string): Promise<{
       error: phase46.error,
     };
   }
+  // Phase 47: MTTR correlation → waive expiry expire tick → alerts.
+  // Observe-only; never close or reset breakers.
+  const phase47 = await runIntunePhase47ExpiryMttrOpsTick(sb);
+  if (!phase47.ok) {
+    return {
+      ok: false,
+      status: 'phase47_expiry_mttr_ops_failed',
+      error: phase47.error,
+    };
+  }
   return {
     ok: true,
     status: String((finished as { status?: string } | null)?.status ?? 'done'),
@@ -727,6 +737,155 @@ export async function processIntunePhase46QualityWaiveOps(): Promise<{
     detail: {
       scorecards_recorded: result.scorecardsRecorded,
       gates_recorded: result.gatesRecorded,
+      alerts_recorded: result.alertsRecorded,
+      delivered: result.delivered,
+      skipped: result.skipped,
+      failed: result.failed,
+      closes_or_resets_breaker: false,
+    },
+  };
+}
+
+type Phase47CriticalWindow = {
+  alert_kind: string;
+  window_key: string;
+  severity?: string;
+  recommendation_id?: string | null;
+  waive_proposal_id?: string | null;
+  expiry_proposal_id?: string | null;
+  postmortem_id?: string | null;
+  scorecard_id?: string | null;
+};
+
+async function runIntunePhase47ExpiryMttrOpsTick(
+  sb: Awaited<ReturnType<typeof createPersistClient>>,
+): Promise<
+  | {
+      ok: true;
+      correlationsRecorded: number;
+      expiredCount: number;
+      alertsRecorded: number;
+      delivered: number;
+      skipped: number;
+      failed: number;
+    }
+  | { ok: false; error: string }
+> {
+  const { data: corrData, error: corrError } = await sb.rpc(
+    'correlate_it_intune_scorecard_mttr_phase47',
+  );
+  if (corrError) {
+    return { ok: false, error: corrError.message };
+  }
+
+  const { data: expireData, error: expireError } = await sb.rpc(
+    'expire_it_intune_promote_waive_approved_phase47',
+  );
+  if (expireError) {
+    return { ok: false, error: expireError.message };
+  }
+
+  const { data: windows, error: windowError } = await sb.rpc(
+    'list_it_intune_phase47_critical_windows',
+    { p_window_hours: 24 },
+  );
+  if (windowError) {
+    return { ok: false, error: windowError.message };
+  }
+
+  const pending = ((windows as { pending?: Phase47CriticalWindow[] } | null)
+    ?.pending ?? []) as Phase47CriticalWindow[];
+  let alertsRecorded = 0;
+  let delivered = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  for (const window of pending.slice(0, 50)) {
+    const delivery = await deliverIntuneOpsWebhook({
+      kind: 'it_intune_phase47_ops_alert',
+      version: 'phase47-v1',
+      alert_kind: window.alert_kind,
+      window_key: window.window_key,
+      severity: window.severity ?? 'warning',
+      recommendation_id: window.recommendation_id ?? null,
+      waive_proposal_id: window.waive_proposal_id ?? null,
+      expiry_proposal_id: window.expiry_proposal_id ?? null,
+      postmortem_id: window.postmortem_id ?? null,
+      scorecard_id: window.scorecard_id ?? null,
+      destination_key: INTUNE_OPS_DESTINATION_KEY,
+      entity_identifiers_included: false,
+      closes_or_resets_breaker: false,
+    });
+
+    const { data: recorded, error: recordError } = await sb.rpc(
+      'record_it_intune_phase47_ops_alert',
+      {
+        p_alert: {
+          alert_kind: window.alert_kind,
+          window_key: window.window_key,
+          severity: window.severity ?? 'warning',
+          recommendation_id: window.recommendation_id ?? null,
+          waive_proposal_id: window.waive_proposal_id ?? null,
+          expiry_proposal_id: window.expiry_proposal_id ?? null,
+          postmortem_id: window.postmortem_id ?? null,
+          scorecard_id: window.scorecard_id ?? null,
+          destination_key: INTUNE_OPS_DESTINATION_KEY,
+          delivery_status: delivery.delivery_status,
+          response_code: delivery.response_code,
+          aggregate_evidence: {
+            evidence_version: 'phase47-v1',
+            entity_identifiers_included: false,
+            closes_or_resets_breaker: false,
+          },
+        },
+      },
+    );
+    if (recordError) {
+      return { ok: false, error: recordError.message };
+    }
+    if ((recorded as { inserted?: boolean } | null)?.inserted) {
+      alertsRecorded += 1;
+      if (delivery.delivery_status === 'delivered') delivered += 1;
+      else if (delivery.delivery_status === 'skipped_no_webhook') skipped += 1;
+      else failed += 1;
+    }
+  }
+
+  return {
+    ok: true,
+    correlationsRecorded: Number(
+      (corrData as { correlations_recorded?: number } | null)
+        ?.correlations_recorded ?? 0,
+    ),
+    expiredCount: Number(expireData ?? 0),
+    alertsRecorded,
+    delivered,
+    skipped,
+    failed,
+  };
+}
+
+export async function processIntunePhase47ExpiryMttrOps(): Promise<{
+  ok: boolean;
+  status: string;
+  detail?: Record<string, unknown>;
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const result = await runIntunePhase47ExpiryMttrOpsTick(sb);
+  if (!result.ok) {
+    return {
+      ok: false,
+      status: 'phase47_expiry_mttr_ops_failed',
+      error: result.error,
+    };
+  }
+  return {
+    ok: true,
+    status: 'done',
+    detail: {
+      correlations_recorded: result.correlationsRecorded,
+      expired_count: result.expiredCount,
       alerts_recorded: result.alertsRecorded,
       delivered: result.delivered,
       skipped: result.skipped,

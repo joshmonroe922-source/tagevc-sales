@@ -844,13 +844,35 @@ Docs: `docs/OS_PHASE46.md`
 Optional env: `SNAPSHOT_ONCALL_WEBHOOK` (allowlisted via
 `SLO_WEBHOOK_ALLOWED_HOSTS`); falls back to `SLO_WEBHOOK_OPS_ALERTS`.
 
-### Phase 47+ backlog
+### Phase 47
 
-- Expand auto-reject promotion SLOs to multi-entity cohorts; close attribution conflicts
-- Run first armed DocuSign recurring quarterly under tightened drift budgets
-- Require dual-approve waive expiry SLOs; correlate scorecards with outage MTTR
-- Auto-notify owners on published handoff digests (still no full push system)
-- Offline verify-script dual acceptance as default cutover path; on-call ack SLOs
+Cohort promotion, recurring cadence, and ack SLOs: multi-entity auto-reject
+promotion cohorts with attribution conflict closures, first armed DocuSign
+recurring quarterly under tightened drift budgets, dual-approver Intune waive
+expiry with scorecard↔MTTR correlation, owner notify on published handoff
+digests, and offline-script-required snapshot cutovers with on-call
+acknowledgment SLOs. Stage 4e non-qualifying flags remain false; no snapshot
+relation mutations.
+
+Apply after Phase 46:
+
+1. `phase47_marketing_revenue_ops.sql`
+2. `phase47_docusign_archive_ops.sql`
+3. `phase47_intune_resilience_ops.sql`
+4. `phase47_slo_governance_ops.sql`
+5. `phase47_snapshot_cutover_ops.sql`
+
+Docs: `docs/OS_PHASE47.md`
+
+Optional env: `SNAPSHOT_ONCALL_ACK_SLO_MINUTES` (default 60).
+
+### Phase 48+ backlog
+
+- Autopilot healthy cohort promotions; archive closed conflict cohorts
+- Schedule subsequent DocuSign recurring quarterlies; tighten on drift breaches
+- Feed MTTR↔scorecard into postmortem templates; page on waive_expired
+- Allowlisted owner digest webhooks + notification delivery SLOs (not full push)
+- CI offline_script dual acceptance; on-call ack SLO dashboards
 - Continue Stage 4e soak; do not drop snapshots
 - Push · user admin
 

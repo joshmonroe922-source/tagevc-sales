@@ -9,6 +9,7 @@ export const REVENUE_REPORT_VERSION_PHASE43 = 'phase43-v1';
 export const REVENUE_REPORT_VERSION_PHASE44 = 'phase44-v1';
 export const REVENUE_REPORT_VERSION_PHASE45 = 'phase45-v1';
 export const REVENUE_REPORT_VERSION_PHASE46 = 'phase46-v1';
+export const REVENUE_REPORT_VERSION_PHASE47 = 'phase47-v1';
 export const REVENUE_SLO_SEVERITIES = [
   'healthy',
   'warning',
@@ -569,6 +570,124 @@ export type Phase46RevenueOpsReport = {
   performance_snapshots: Phase46AutoRejectPerformanceSnapshot[];
   reliability_snapshots: Phase46WebhookReliabilitySnapshot[];
   alerts: Phase46OpsAlert[];
+  destination_key: string;
+};
+
+export const REVENUE_PHASE47_ALERT_KINDS = [
+  'cohort_promotion_blocked',
+  'cohort_promoted',
+  'attribution_conflict_aging',
+  'conflict_closure_pending',
+] as const;
+export type RevenuePhase47AlertKind =
+  (typeof REVENUE_PHASE47_ALERT_KINDS)[number];
+
+export const REVENUE_CONFLICT_CLOSURE_STATUSES = [
+  'proposed',
+  'approved',
+  'rejected',
+  'closed',
+] as const;
+export type RevenueConflictClosureStatus =
+  (typeof REVENUE_CONFLICT_CLOSURE_STATUSES)[number];
+
+export type Phase47PromotionCohort = {
+  cohort_id: string;
+  cohort_key: string;
+  entity_ids: string[];
+  status: 'active' | 'retired' | string;
+  firm_wide?: boolean;
+  metrics_sha256: string;
+  created_at: string;
+  created_by: string | null;
+};
+
+export type Phase47CohortPromotionGate = {
+  version?: string;
+  gate_passed: boolean;
+  cohort_id?: string | null;
+  cohort_key?: string | null;
+  firm_wide?: boolean;
+  webhook_slo_windows_required: number;
+  webhook_slo_windows_healthy: number;
+  entities_required?: number;
+  entities_healthy?: number;
+  entity_gates?: unknown[];
+  block_reason?: string | null;
+};
+
+export type Phase47CohortPromotion = {
+  promotion_id: string;
+  cohort_id: string;
+  rule_version_id: string | null;
+  version_no: number | null;
+  webhook_slo_windows_required: number;
+  webhook_slo_windows_healthy: number;
+  entities_required: number;
+  entities_healthy: number;
+  promotion_status: 'blocked' | 'promoted' | 'rejected' | string;
+  block_reason: string | null;
+  metrics_sha256: string;
+  created_at: string;
+  actor_id: string | null;
+};
+
+export type Phase47AttributionConflictClosure = {
+  closure_id: string;
+  conflict_id: string;
+  closure_status: RevenueConflictClosureStatus | string;
+  resolution_notes: string;
+  closed_by: string;
+  metrics_sha256: string;
+  created_at: string;
+  entity_id?: string | null;
+};
+
+export type Phase47AgingConflict = {
+  conflict_id: string;
+  conflict_key: string;
+  entity_id: string;
+  conflict_kind: string;
+  resolution_status: string;
+  age_days: number;
+  age_hours: number;
+  metrics_sha256: string;
+  created_at: string;
+  has_pending_closure?: boolean;
+};
+
+export type Phase47OpsAlert = {
+  alert_id: string;
+  entity_id: string;
+  source_id: string | null;
+  cohort_id?: string | null;
+  conflict_id?: string | null;
+  alert_kind: RevenuePhase47AlertKind | string;
+  window_key: string;
+  severity: 'critical' | string;
+  destination_key: string;
+  delivery_status: RevenueOpsAlertDelivery | string;
+  response_code: number | null;
+  metrics_sha256: string;
+  created_at: string;
+};
+
+export type Phase47RevenueOpsReport = {
+  version: typeof REVENUE_REPORT_VERSION_PHASE47 | string;
+  window_days: number;
+  cohort_gate_health: RevenueSloSeverity | string;
+  conflict_aging_health: RevenueSloSeverity | string;
+  closure_health: RevenueSloSeverity | string;
+  alert_delivery: RevenueOpsAlertDelivery | string;
+  open_aging_count: number;
+  pending_closure_count: number;
+  cohort_gate: Phase47CohortPromotionGate | null;
+  thresholds: Record<string, unknown>;
+  cohorts: Phase47PromotionCohort[];
+  cohort_promotions: Phase47CohortPromotion[];
+  conflict_closures: Phase47AttributionConflictClosure[];
+  aging_conflicts: Phase47AgingConflict[];
+  alerts: Phase47OpsAlert[];
   destination_key: string;
 };
 

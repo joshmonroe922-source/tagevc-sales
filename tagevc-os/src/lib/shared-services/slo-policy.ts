@@ -95,6 +95,9 @@ export async function listSloPolicyAdministration() {
     { data: digestPublications, error: digestPublicationError },
     { data: ownershipChangeAlerts, error: ownershipChangeAlertError },
     { data: phase46Report, error: phase46ReportError },
+    { data: digestNotifications, error: digestNotificationError },
+    { data: ownershipVisibility, error: ownershipVisibilityError },
+    { data: phase47Report, error: phase47ReportError },
   ] = await Promise.all([
     sb
       .from('os_slo_policies')
@@ -209,6 +212,21 @@ export async function listSloPolicyAdministration() {
       .order('created_at', { ascending: false })
       .limit(12),
     sb.rpc('get_slo_phase46_governance_report'),
+    sb
+      .from('os_slo_handoff_digest_notifications')
+      .select(
+        'notification_id,publication_id,destination_key,owner_id,delivery_status,window_key,created_at',
+      )
+      .order('created_at', { ascending: false })
+      .limit(12),
+    sb
+      .from('os_slo_ownership_change_visibility')
+      .select(
+        'visibility_id,alert_kind,window_key,ownership_id,owner_id,handoff_window_start,handoff_window_end,expires_at,severity,created_at',
+      )
+      .order('created_at', { ascending: false })
+      .limit(12),
+    sb.rpc('get_slo_phase47_governance_report'),
   ]);
   errorMessage(policyError);
   errorMessage(ownerError);
@@ -270,6 +288,21 @@ export async function listSloPolicyAdministration() {
   }
   if (phase46ReportError) {
     console.error('slo phase46 governance report unavailable', phase46ReportError.message);
+  }
+  if (digestNotificationError) {
+    console.error(
+      'slo handoff digest notifications unavailable',
+      digestNotificationError.message,
+    );
+  }
+  if (ownershipVisibilityError) {
+    console.error(
+      'slo ownership-change visibility unavailable',
+      ownershipVisibilityError.message,
+    );
+  }
+  if (phase47ReportError) {
+    console.error('slo phase47 governance report unavailable', phase47ReportError.message);
   }
   const archivedExportIds = new Set(
     (archivalError ? [] : (archivalReceipts ?? [])).map(
@@ -335,6 +368,13 @@ export async function listSloPolicyAdministration() {
       ? []
       : (ownershipChangeAlerts ?? []),
     phase46Report: phase46ReportError ? null : (phase46Report ?? null),
+    digestNotifications: digestNotificationError
+      ? []
+      : (digestNotifications ?? []),
+    ownershipVisibility: ownershipVisibilityError
+      ? []
+      : (ownershipVisibility ?? []),
+    phase47Report: phase47ReportError ? null : (phase47Report ?? null),
   };
 }
 
@@ -1062,5 +1102,82 @@ export async function processSloGovernancePhase46(input?: { actorId?: string }) 
     firmWide,
     publication,
     ownershipAlerts: ownershipAlertError ? null : ownershipAlerts,
+  };
+}
+
+export const PHASE47_SLO_CONTRACT_VERSION = 'phase47-v1';
+
+export async function notifySloHandoffDigestOwnersPhase47(input?: {
+  actorId?: string | null;
+  publicationId?: string | null;
+  destinationKey?: string | null;
+}) {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc(
+    'notify_slo_handoff_digest_owners_phase47',
+    {
+      p_actor_id: input?.actorId ?? null,
+      p_publication_id: input?.publicationId ?? null,
+      p_destination_key: input?.destinationKey ?? null,
+    },
+  );
+  errorMessage(error);
+  return data;
+}
+
+export async function scanSloOwnershipChangeVisibilityPhase47(input?: {
+  actorId?: string | null;
+  daysAhead?: number;
+}) {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc(
+    'scan_slo_ownership_change_visibility_phase47',
+    {
+      p_actor_id: input?.actorId ?? null,
+      p_days_ahead: input?.daysAhead ?? 60,
+    },
+  );
+  errorMessage(error);
+  return data;
+}
+
+export async function getSloPhase47GovernanceReport() {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc('get_slo_phase47_governance_report');
+  if (error) {
+    console.error('slo phase47 governance report unavailable', error.message);
+    return null;
+  }
+  return data;
+}
+
+export async function processSloGovernancePhase47(input?: { actorId?: string }) {
+  let notifications: unknown = null;
+  try {
+    notifications = await notifySloHandoffDigestOwnersPhase47({
+      actorId: input?.actorId ?? null,
+    });
+  } catch (error) {
+    console.error(
+      'slo phase47 handoff digest notify unavailable',
+      error instanceof Error ? error.message : error,
+    );
+  }
+
+  let visibility: unknown = null;
+  try {
+    visibility = await scanSloOwnershipChangeVisibilityPhase47({
+      actorId: input?.actorId ?? null,
+    });
+  } catch (error) {
+    console.error(
+      'slo phase47 ownership visibility scan unavailable',
+      error instanceof Error ? error.message : error,
+    );
+  }
+
+  return {
+    notifications,
+    visibility,
   };
 }

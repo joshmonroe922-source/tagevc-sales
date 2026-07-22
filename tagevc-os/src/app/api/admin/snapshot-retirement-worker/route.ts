@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { captureException } from '@/lib/observability';
 import { runSnapshotPhase40Worker } from '@/lib/data/snapshot-retirement-phase40';
-import { runSnapshotPhase46OpsWorker } from '@/lib/data/snapshot-retirement-phase46';
+import { runSnapshotPhase47OpsWorker } from '@/lib/data/snapshot-retirement-phase47';
 
 async function run(request: Request) {
   const secret = process.env.CRON_SECRET?.trim();
@@ -9,13 +9,13 @@ async function run(request: Request) {
     return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
   }
   try {
-    const [phase40, phase46] = await Promise.all([
+    const [phase40, phase47] = await Promise.all([
       runSnapshotPhase40Worker(),
-      runSnapshotPhase46OpsWorker(),
+      runSnapshotPhase47OpsWorker(),
     ]);
-    const ok = phase40.ok && phase46.ok;
+    const ok = phase40.ok && phase47.ok;
     return NextResponse.json(
-      { ok, phase40, phase46 },
+      { ok, phase40, phase47 },
       { status: ok ? 200 : 503 },
     );
   } catch (error) {
