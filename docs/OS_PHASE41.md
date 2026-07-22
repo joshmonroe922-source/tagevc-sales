@@ -89,15 +89,7 @@ git diff --check
 
 ## Phase 42+ recommendations
 
-1. Connect live production revenue ledger endpoints and monitor authenticity
-   probe failure rates / settlement-lag SLOs in production.
-2. Drive legacy DocuSign backfill to completion, then run the first governed
-   quarterly full integrity campaign and age down quarantine.
-3. Publish Intune postmortems for real outages; promote accepted threshold
-   recommendations through Phase 40 maker-checker with soak observation.
-4. Operationalize SLO simulation exports (retention, audit access) and use the
-   coverage calendar for succession planning.
-5. Publish ed25519 public keys for offline receipt verification; exercise cold
-   retention HEAD checks against real destinations.
-6. Continue Stage 4e soak and attestation governance. Do not drop
-   `os_store_snapshots` without the separately approved retirement operation.
+Phase 42 implemented the ops layer. See `docs/OS_PHASE42.md` for apply order and
+Phase 43+ recommendations. Remaining theme: continue Stage 4e soak and
+attestation governance; do not drop `os_store_snapshots` without separately
+approved retirement.

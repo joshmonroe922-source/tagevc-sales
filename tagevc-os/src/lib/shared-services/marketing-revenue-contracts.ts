@@ -4,6 +4,14 @@ import { z } from 'zod';
 export const REVENUE_TRANSFORM_VERSION = 'phase40-canonical-v1';
 export const REVENUE_REPORT_VERSION = 'phase40-v1';
 export const REVENUE_REPORT_VERSION_PHASE41 = 'phase41-v1';
+export const REVENUE_REPORT_VERSION_PHASE42 = 'phase42-v1';
+export const REVENUE_SLO_SEVERITIES = [
+  'healthy',
+  'warning',
+  'critical',
+  'unknown',
+] as const;
+export type RevenueSloSeverity = (typeof REVENUE_SLO_SEVERITIES)[number];
 export const MAX_REVENUE_PAGES = 10;
 export const MAX_REVENUE_RECORDS = 500;
 export const MAX_REVENUE_BODY_BYTES = 1_048_576;
@@ -167,6 +175,49 @@ export type Phase41RevenueReport = Phase40RevenueReport & {
   }>;
   pending_correction_queue: Phase41PendingCorrection[];
   settlement_lag: Phase41SettlementLag;
+};
+
+export type Phase42AuthenticitySloSnapshot = {
+  snapshot_id: string;
+  entity_id: string;
+  source_id: string;
+  ledger_profile: string;
+  authenticity_mode: string;
+  window_days: number;
+  probe_count: number;
+  fail_count: number;
+  fail_rate: number | null;
+  severity: RevenueSloSeverity | string;
+  metrics_sha256: string;
+  created_at: string;
+};
+
+export type Phase42SettlementSloSnapshot = {
+  snapshot_id: string;
+  entity_id: string;
+  window_days: number;
+  evidence_count: number;
+  overdue_count: number;
+  settled_late_count: number;
+  overdue_rate: number | null;
+  late_rate: number | null;
+  severity: RevenueSloSeverity | string;
+  metrics_sha256: string;
+  created_at: string;
+};
+
+export type Phase42RevenueSloReport = {
+  version: typeof REVENUE_REPORT_VERSION_PHASE42 | string;
+  window_days: number;
+  authenticity_severity: RevenueSloSeverity | string;
+  settlement_severity: RevenueSloSeverity | string;
+  overall_severity: RevenueSloSeverity | string;
+  authenticity_snapshots: Phase42AuthenticitySloSnapshot[];
+  settlement_snapshots: Phase42SettlementSloSnapshot[];
+  thresholds: {
+    authenticity_fail_rate: { warning: number; critical: number };
+    settlement_rate: { warning: number; critical: number };
+  };
 };
 
 export type AuthenticityProbeEvidence = {

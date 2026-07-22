@@ -986,6 +986,22 @@ export type ItIntuneThresholdRecommendation = {
   operation: string;
   breaker_state: 'closed' | 'open' | 'half_open';
   breaker_version: number;
+  soak_status?:
+    | 'awaiting_decision'
+    | 'soaking'
+    | 'healthy'
+    | 'degraded'
+    | 'rejected'
+    | 'expired'
+    | 'breaker_open_observed'
+    | null;
+  soak_elapsed_minutes?: number | null;
+  soak_sample_count?: number | null;
+  soak_failure_count?: number | null;
+  soak_failure_rate?: number | null;
+  soak_proposal_decision?: 'approve' | 'reject' | null;
+  soak_observed_at?: string | null;
+  soak_evidence_sha256?: string | null;
 };
 
 export type ItIntunePhase41Health = {
@@ -994,6 +1010,16 @@ export type ItIntunePhase41Health = {
   pending_recommendation_count: number;
   accepted_recommendation_count: number;
   unresolved_postmortem_backlog: number;
+};
+
+export type ItIntunePhase42Health = {
+  accepted_recommendation_count: number;
+  soak_observation_count: number;
+  awaiting_decision_count: number;
+  soaking_count: number;
+  healthy_count: number;
+  degraded_count: number;
+  breaker_open_observed_count: number;
 };
 
 export async function listIntuneActions(
@@ -1246,15 +1272,55 @@ export async function listIntuneThresholdRecommendations(limit = 30): Promise<{
 }> {
   const sb = await createPersistClient();
   const { data, error } = await sb
-    .from('os_it_intune_threshold_recommendation_status')
+    .from('os_it_intune_recommendation_soak_status')
     .select(
-      'recommendation_id, episode_id, postmortem_id, breaker_id, status, base_config_version_no, recommended_failure_window_minutes, recommended_minimum_samples, recommended_failure_threshold, recommended_failure_rate_threshold, recommended_reset_success_threshold, risk_class, rationale, evidence_sha256, generated_at, expires_at, accepted_by, accepted_at, resulting_proposal_id, dismissed_by, dismissed_at, row_version, entity_id, provider, operation, breaker_state, breaker_version',
+      'recommendation_id, episode_id, postmortem_id, breaker_id, status, base_config_version_no, recommended_failure_window_minutes, recommended_minimum_samples, recommended_failure_threshold, recommended_failure_rate_threshold, recommended_reset_success_threshold, risk_class, rationale, evidence_sha256, generated_at, expires_at, accepted_by, accepted_at, resulting_proposal_id, dismissed_by, dismissed_at, row_version, entity_id, provider, operation, breaker_state, breaker_version, soak_status, soak_elapsed_minutes, soak_sample_count, soak_failure_count, soak_failure_rate, soak_proposal_decision, soak_observed_at, soak_evidence_sha256',
     )
     .order('generated_at', { ascending: false })
     .limit(limit);
   return error
     ? { rows: [], error: error.message }
     : { rows: (data ?? []) as ItIntuneThresholdRecommendation[] };
+}
+
+export async function getIntunePhase42Health(): Promise<{
+  row: ItIntunePhase42Health | null;
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb
+    .from('os_it_intune_phase42_health')
+    .select(
+      'accepted_recommendation_count, soak_observation_count, awaiting_decision_count, soaking_count, healthy_count, degraded_count, breaker_open_observed_count',
+    )
+    .maybeSingle();
+  return error
+    ? { row: null, error: error.message }
+    : { row: (data as ItIntunePhase42Health | null) ?? null };
+}
+
+export async function getIntunePhase42OpsReport(): Promise<{
+  report: Record<string, unknown> | null;
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc('get_it_intune_phase42_ops_report');
+  return error
+    ? { report: null, error: error.message }
+    : { report: (data as Record<string, unknown> | null) ?? null };
+}
+
+export async function observeIntuneRecommendationSoak() {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc(
+    'observe_it_intune_recommendation_soak_phase42',
+  );
+  return error
+    ? { ok: false as const, error: error.message }
+    : {
+        ok: true as const,
+        detail: (data as Record<string, unknown> | null) ?? undefined,
+      };
 }
 
 export async function updateIntuneOutagePostmortemDraft(input: {

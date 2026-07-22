@@ -1,7 +1,10 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import type { Phase41RevenueReport } from '@/lib/shared-services/marketing-revenue-contracts';
+import type {
+  Phase41RevenueReport,
+  Phase42RevenueSloReport,
+} from '@/lib/shared-services/marketing-revenue-contracts';
 import {
   reviewMarketingRevenueCorrectionAction,
 } from '@/app/(app)/shared-services/marketing/actions';
@@ -15,14 +18,30 @@ function money(micros: string, currency: string) {
     .slice(0, 2)}`;
 }
 
+function percent(rate: number | null | undefined) {
+  if (rate == null || Number.isNaN(Number(rate))) return 'n/a';
+  return `${(Number(rate) * 100).toFixed(2)}%`;
+}
+
+function severityClass(severity: string) {
+  if (severity === 'critical') return 'border-destructive text-destructive';
+  if (severity === 'warning') return 'border-amber-600 text-amber-800';
+  if (severity === 'healthy') return 'border-emerald-600 text-emerald-800';
+  return 'border-muted-foreground/40 text-muted-foreground';
+}
+
 export function MarketingRevenuePhase41({
   report,
   error,
   canWrite = false,
+  sloReport,
+  sloError,
 }: {
   report: Phase41RevenueReport;
   error?: string;
   canWrite?: boolean;
+  sloReport?: Phase42RevenueSloReport;
+  sloError?: string;
 }) {
   const [pending, startTransition] = useTransition();
   const [actionError, setActionError] = useState<string | null>(null);
@@ -75,8 +94,8 @@ export function MarketingRevenuePhase41({
         <div>
           <h2 className="font-medium">Production ledger revenue</h2>
           <p className="text-xs text-muted-foreground">
-            Authenticity modes, correction queue, and settlement-lag summary over
-            authoritative evidence
+            Authenticity modes, correction queue, settlement-lag summary, and
+            production SLO badges over authoritative evidence
           </p>
         </div>
         <p className="text-xs text-muted-foreground">
@@ -94,6 +113,77 @@ export function MarketingRevenuePhase41({
       ) : null}
       {actionMessage ? (
         <p className="text-sm text-emerald-700">{actionMessage}</p>
+      ) : null}
+
+      {sloReport ? (
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs font-medium">Production SLOs</p>
+            <span
+              className={`rounded border px-2 py-0.5 text-[11px] ${severityClass(sloReport.overall_severity)}`}
+            >
+              overall {sloReport.overall_severity}
+            </span>
+            <span
+              className={`rounded border px-2 py-0.5 text-[11px] ${severityClass(sloReport.authenticity_severity)}`}
+            >
+              authenticity {sloReport.authenticity_severity}
+            </span>
+            <span
+              className={`rounded border px-2 py-0.5 text-[11px] ${severityClass(sloReport.settlement_severity)}`}
+            >
+              settlement {sloReport.settlement_severity}
+            </span>
+          </div>
+          {sloError ? (
+            <p className="text-xs text-destructive">{sloError}</p>
+          ) : null}
+          <div className="grid gap-2 md:grid-cols-2">
+            <div className="rounded border p-2 text-xs">
+              <p className="font-medium">Authenticity probe fail rate</p>
+              <p className="text-muted-foreground">
+                warn ≥{' '}
+                {percent(sloReport.thresholds.authenticity_fail_rate.warning)} ·
+                crit ≥{' '}
+                {percent(sloReport.thresholds.authenticity_fail_rate.critical)}
+              </p>
+              {(sloReport.authenticity_snapshots ?? []).slice(0, 6).map((row) => (
+                <p key={row.snapshot_id} className="mt-1">
+                  <span className={severityClass(row.severity)}>{row.severity}</span>
+                  {' · '}
+                  {row.authenticity_mode} · {row.fail_count}/{row.probe_count}{' '}
+                  failed ({percent(row.fail_rate)})
+                </p>
+              ))}
+              {(sloReport.authenticity_snapshots ?? []).length === 0 ? (
+                <p className="mt-1 text-muted-foreground">
+                  No authenticity SLO snapshots yet for production_v1 sources.
+                </p>
+              ) : null}
+            </div>
+            <div className="rounded border p-2 text-xs">
+              <p className="font-medium">Settlement overdue / late rate</p>
+              <p className="text-muted-foreground">
+                warn ≥ {percent(sloReport.thresholds.settlement_rate.warning)} ·
+                crit ≥ {percent(sloReport.thresholds.settlement_rate.critical)}
+              </p>
+              {(sloReport.settlement_snapshots ?? []).slice(0, 6).map((row) => (
+                <p key={row.snapshot_id} className="mt-1">
+                  <span className={severityClass(row.severity)}>{row.severity}</span>
+                  {' · '}
+                  {row.overdue_count} overdue ({percent(row.overdue_rate)}) ·{' '}
+                  {row.settled_late_count} late ({percent(row.late_rate)}) ·{' '}
+                  {row.evidence_count} evidence
+                </p>
+              ))}
+              {(sloReport.settlement_snapshots ?? []).length === 0 ? (
+                <p className="mt-1 text-muted-foreground">
+                  No settlement SLO snapshots yet for production_v1 sources.
+                </p>
+              ) : null}
+            </div>
+          </div>
+        </div>
       ) : null}
 
       <div className="space-y-2">

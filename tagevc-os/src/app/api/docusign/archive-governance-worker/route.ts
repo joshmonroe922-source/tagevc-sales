@@ -100,6 +100,10 @@ async function run(request: Request) {
         gate_reason: result.gateReason ?? null,
         remaining_unhashed: result.remainingUnhashed ?? null,
         quarantine_backlog: result.quarantineBacklog ?? null,
+        ops_milestone_kind: result.opsMilestone?.eventKind ?? null,
+        ops_milestone_disposition: result.opsMilestone?.disposition ?? null,
+        ops_first_quarterly:
+          result.opsMilestone?.firstQuarterlyMilestone ?? false,
         archive_run_id: result.governance?.run_id ?? null,
         archive_status: result.governance?.status ?? null,
         checkpointed: result.governance?.checkpointed ?? false,

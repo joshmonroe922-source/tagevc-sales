@@ -490,19 +490,19 @@ export async function runArchiveCampaignAction(input: {
   if (result.disposition === 'gated') {
     return {
       ok: true,
-      message: `Campaign gated: ${result.gateReason ?? 'gates'} · ${result.remainingUnhashed ?? 0} unhashed remaining · ${result.quarantineBacklog ?? 0} quarantine · ${result.progressPct ?? 0}%`,
+      message: `Campaign gated: ${result.gateReason ?? 'gates'} · ${result.remainingUnhashed ?? 0} unhashed remaining · ${result.quarantineBacklog ?? 0} quarantine · ${result.progressPct ?? 0}%${result.opsMilestone?.eventKind ? ` · ops ${result.opsMilestone.eventKind}` : ''}`,
     };
   }
   if (result.disposition === 'already_complete') {
     return {
       ok: true,
-      message: `Campaign already complete · ${result.progressPct ?? 100}%`,
+      message: `Campaign already complete · ${result.progressPct ?? 100}%${result.opsMilestone?.firstQuarterlyMilestone ? ' · first quarterly milestone recorded' : ''}`,
     };
   }
   if (result.ok || (result.governance?.claimed ?? 0) > 0) {
     return {
       ok: true,
-      message: `Campaign ${input.kind.replaceAll('_', ' ')}: ${result.progressPct ?? 0}% · run ${result.governance?.succeeded ?? 0} ok, ${result.governance?.unavailable ?? 0} unavailable, ${result.governance?.drift ?? 0} drift${result.governance?.checkpointed ? ' · checkpointed' : ''}`,
+      message: `Campaign ${input.kind.replaceAll('_', ' ')}: ${result.progressPct ?? 0}% · run ${result.governance?.succeeded ?? 0} ok, ${result.governance?.unavailable ?? 0} unavailable, ${result.governance?.drift ?? 0} drift${result.governance?.checkpointed ? ' · checkpointed' : ''}${result.opsMilestone?.eventKind ? ` · ops ${result.opsMilestone.eventKind}` : ''}`,
     };
   }
   return {

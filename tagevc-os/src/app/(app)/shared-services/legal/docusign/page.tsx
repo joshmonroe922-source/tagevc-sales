@@ -34,7 +34,10 @@ import {
   listDocuSignSendIntents,
 } from '@/lib/docusign/send-intents-repo';
 import { listDocuSignMappingReviews } from '@/lib/docusign/mapping-review-repo';
-import { listArchiveCampaigns } from '@/lib/docusign/archive-campaigns';
+import {
+  getArchiveCampaignOpsReport,
+  listArchiveCampaigns,
+} from '@/lib/docusign/archive-campaigns';
 import { listArchiveGovernance } from '@/lib/docusign/archive-governance';
 
 function formatBytes(n: number | null | undefined): string {
@@ -126,6 +129,7 @@ export default async function DocuSignModulePage({
     mappingReview,
     archiveGovernance,
     archiveCampaigns,
+    archiveCampaignOps,
   ] = await Promise.all([
     listDocuSignEvents({
       limit: 40,
@@ -187,6 +191,7 @@ export default async function DocuSignModulePage({
       firmWide,
     }),
     listArchiveCampaigns({ firmWide }),
+    getArchiveCampaignOpsReport({ firmWide }),
   ]);
 
   const voidPolicy = process.env.DOCUSIGN_VOID_POLICY?.trim() || 'allow';
@@ -258,6 +263,7 @@ export default async function DocuSignModulePage({
             {mode === 'live' ? 'Live JWT' : 'Mock envelopes'}
           </Badge>
           <Badge variant="secondary">Phase 40</Badge>
+          <Badge variant="secondary">Phase 42</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">DocuSign</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
@@ -377,12 +383,50 @@ export default async function DocuSignModulePage({
               failures remain distinct from content drift; drift is quarantined
               for manual review. Evidence contains identifiers and hashes only.
               Phase 41 campaigns track backfill completion and quarterly full
-              integrity windows.
+              integrity windows. Phase 42 adds ops readiness and quarantine aging
+              queue visibility.
               {archiveGovernance.error ? ` · ${archiveGovernance.error}` : ''}
               {archiveCampaigns.error ? ` · ${archiveCampaigns.error}` : ''}
+              {archiveCampaignOps.error ? ` · ${archiveCampaignOps.error}` : ''}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-xs">
+            {firmWide ? (
+              <div className="rounded border border-border/60 bg-muted/30 p-2 space-y-1">
+                <p className="font-medium text-foreground">Ops readiness</p>
+                <p className="text-muted-foreground">
+                  Backfill complete:{' '}
+                  {archiveCampaignOps.readiness.backfill_complete ? 'yes' : 'no'}{' '}
+                  · Quarterly unlocked:{' '}
+                  {archiveCampaignOps.readiness.quarterly_unlocked
+                    ? 'yes'
+                    : 'no'}{' '}
+                  · Ops ready:{' '}
+                  {archiveCampaignOps.readiness.ops_ready ? 'yes' : 'no'}
+                  {archiveCampaignOps.readiness.quarantine_aging_breach
+                    ? ' · aging SLA breach'
+                    : ''}
+                  {archiveCampaignOps.readiness.quarantine_backlog_high
+                    ? ' · backlog gate'
+                    : ''}
+                </p>
+                <p className="text-muted-foreground">
+                  Remaining unhashed:{' '}
+                  {archiveCampaignOps.readiness.remaining_unhashed} · Quarantine:{' '}
+                  {archiveCampaignOps.readiness.quarantine_backlog}
+                  {archiveCampaignOps.readiness.quarantine_oldest_days > 0
+                    ? ` · oldest ${archiveCampaignOps.readiness.quarantine_oldest_days}d / SLA ${archiveCampaignOps.readiness.aging_sla_days}d`
+                    : ''}{' '}
+                  · Quarterly due:{' '}
+                  {archiveCampaignOps.readiness.quarterly_full_due
+                    ? 'yes'
+                    : 'no'}
+                  {archiveCampaignOps.readiness.first_quarterly_milestone_at
+                    ? ` · First quarterly milestone ${new Date(archiveCampaignOps.readiness.first_quarterly_milestone_at).toLocaleString()}`
+                    : ' · First quarterly milestone pending'}
+                </p>
+              </div>
+            ) : null}
             {firmWide ? (
               <p className="text-muted-foreground">
                 Remaining unhashed: {archiveCampaigns.live.remaining_unhashed} ·
@@ -418,6 +462,29 @@ export default async function DocuSignModulePage({
                   </div>
                 ))
               : null}
+            {firmWide && archiveCampaignOps.milestones.length > 0 ? (
+              <div className="space-y-1">
+                <p className="text-muted-foreground">Recent ops milestones</p>
+                {archiveCampaignOps.milestones.slice(0, 4).map((milestone) => (
+                  <div
+                    className="flex flex-wrap justify-between gap-2 border-b py-1"
+                    key={String(milestone.event_id)}
+                  >
+                    <span>
+                      {String(milestone.event_kind).replaceAll('_', ' ')}
+                    </span>
+                    <span>
+                      {milestone.created_at
+                        ? new Date(
+                            String(milestone.created_at),
+                          ).toLocaleString()
+                        : '—'}{' '}
+                      · {String(milestone.progress_pct ?? 0)}%
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
             {firmWide && archiveGovernance.runs.length > 0 ? (
               archiveGovernance.runs.slice(0, 6).map((run) => (
                 <div
@@ -446,7 +513,40 @@ export default async function DocuSignModulePage({
                   (row) => row.status === 'manual_review',
                 ).length
               }
+              {firmWide
+                ? ` · Aging queue: ${archiveCampaignOps.agingQueue.length}`
+                : ''}
             </p>
+            {firmWide && archiveCampaignOps.agingQueue.length > 0 ? (
+              <div className="space-y-1">
+                <p className="text-muted-foreground">
+                  Quarantine aging queue (oldest first by opened_at)
+                </p>
+                {archiveCampaignOps.agingQueue.slice(0, 8).map((row) => (
+                  <div
+                    className="flex flex-wrap justify-between gap-2 border-b py-1"
+                    key={row.quarantine_id}
+                  >
+                    <span className="font-mono">
+                      {row.envelope_id.slice(0, 18)} · {row.file_kind}
+                      <span className="block text-muted-foreground">
+                        {row.quarantine_id} · version {row.row_version} · bucket{' '}
+                        {row.age_bucket}
+                      </span>
+                    </span>
+                    <span
+                      className={
+                        row.age_days > 45
+                          ? 'text-amber-800'
+                          : 'text-amber-700'
+                      }
+                    >
+                      {row.age_days}d · {row.reason_code}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
             {archiveGovernance.quarantines.slice(0, 8).map((row) => (
               <div
                 className="flex flex-wrap justify-between gap-2 border-b py-1"

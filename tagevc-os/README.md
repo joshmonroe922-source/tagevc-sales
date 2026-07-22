@@ -748,13 +748,29 @@ Apply after Phase 40:
 
 Docs: `docs/OS_PHASE41.md`
 
-### Phase 42+ backlog
+### Phase 42
 
-- Live production revenue ledger endpoints + authenticity/settlement SLOs
-- Complete DocuSign legacy backfill; first governed quarterly full scan
-- Real Intune postmortems; soak accepted threshold recommendations
-- Operationalize SLO exports and coverage succession planning
-- Publish ed25519 public keys; exercise cold retention destinations
+Production ops on Phase 41 rails: revenue authenticity/settlement SLOs, DocuSign
+campaign ops and quarantine aging, Intune recommendation soak, SLO export
+retention/succession, and public snapshot verify material with cold HEAD cadence.
+
+Apply after Phase 41:
+
+1. `phase42_marketing_production_slos.sql`
+2. `phase42_docusign_campaign_ops.sql`
+3. `phase42_intune_recommendation_soak.sql`
+4. `phase42_slo_export_retention_succession.sql`
+5. `phase42_snapshot_verify_cold_ops.sql`
+
+Docs: `docs/OS_PHASE42.md`
+
+### Phase 43+ backlog
+
+- Live production ledger credentials + ops alerts on SLO critical windows
+- Complete DocuSign backfill; first governed quarterly full campaign
+- Real Intune postmortem/soak loops through open/closed breaker cycles
+- SLO export retention archival + succession drills
+- Publish ed25519 keys firm-wide; cold HEAD against production destinations
 - Continue Stage 4e evidence and attestation soak; do not drop snapshots
 - Push · user admin
 

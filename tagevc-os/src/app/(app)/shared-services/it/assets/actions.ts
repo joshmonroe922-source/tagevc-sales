@@ -1286,3 +1286,19 @@ export async function dismissIntuneThresholdRecommendationAction(input: {
   revalidateAssets();
   return { ok: true, message: 'Recommendation dismissed' };
 }
+
+export async function refreshIntuneRecommendationSoakAction(): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('action:intune_manual_review');
+  if (!gate.ok) return gate;
+  const { observeIntuneRecommendationSoak } = await import(
+    '@/lib/shared-services/it-assets-repo'
+  );
+  const result = await observeIntuneRecommendationSoak();
+  if (!result.ok) return result;
+  revalidateAssets();
+  const observed = Number(result.detail?.observations_recorded ?? 0);
+  return {
+    ok: true,
+    message: `Recommendation soak observed ${observed} accepted draft(s) — breakers never closed or reset`,
+  };
+}

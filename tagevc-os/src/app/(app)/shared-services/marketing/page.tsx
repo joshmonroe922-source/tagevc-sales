@@ -18,6 +18,7 @@ import { isFirmWideAccess } from '@/lib/rbac/entity-scope';
 import { listPaidMetricOperations } from '@/lib/shared-services/marketing-paid-backfill';
 import { getPaidAttributionReport } from '@/lib/shared-services/marketing-attribution';
 import { getPhase41RevenueReport } from '@/lib/shared-services/marketing-phase41';
+import { getPhase42RevenueSloReport } from '@/lib/shared-services/marketing-phase42';
 
 export default async function MarketingModulePage({
   searchParams,
@@ -59,6 +60,7 @@ export default async function MarketingModulePage({
     paidOperations,
     attribution,
     authoritativeRevenue,
+    productionSlos,
   ] = await Promise.all([
     listCampaigns(
       50,
@@ -87,6 +89,11 @@ export default async function MarketingModulePage({
       days: paidDays,
     }),
     getPhase41RevenueReport({
+      entityId: firmWide ? null : (ctx?.profile.entity_id ?? null),
+      firmWide,
+      days: paidDays,
+    }),
+    getPhase42RevenueSloReport({
       entityId: firmWide ? null : (ctx?.profile.entity_id ?? null),
       firmWide,
       days: paidDays,
@@ -132,14 +139,15 @@ export default async function MarketingModulePage({
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">Marketing</Badge>
-          <Badge variant="secondary">Phase 41</Badge>
+          <Badge variant="secondary">Phase 42</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Multichannel Marketing
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
           Entity-bound paid delivery, production ledger authenticity, governed
-          corrections, and settlement-lag visibility over authoritative evidence.
+          corrections, settlement-lag visibility, and production SLO monitoring
+          over authoritative evidence.
         </p>
         {oauthFlash && (
           <p className="text-sm text-emerald-700">{oauthFlash}</p>
@@ -150,6 +158,8 @@ export default async function MarketingModulePage({
         report={authoritativeRevenue.report}
         error={authoritativeRevenue.error}
         canWrite={canWrite}
+        sloReport={productionSlos.report}
+        sloError={productionSlos.error}
       />
 
       <MarketingClient

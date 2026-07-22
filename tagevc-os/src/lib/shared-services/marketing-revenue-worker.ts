@@ -35,6 +35,8 @@ type RevenueSource = {
   signature_env_name: string | null;
   authenticity_mode: RevenueAuthenticityMode;
   config_status: string;
+  ledger_profile?: string | null;
+  ledger_kind?: string | null;
 };
 
 function serviceClient() {
@@ -336,12 +338,13 @@ export async function processMarketingRevenuePulls(limit = 1): Promise<{
   let completed = 0;
   let failed = 0;
   const details: string[] = [];
+  const productionEntities = new Set<string>();
   for (const run of runs) {
     try {
       const { data: source, error: sourceError } = await sb
         .from('os_marketing_revenue_sources')
         .select(
-          'source_id,entity_id,endpoint_url,credential_env_name,signature_env_name,authenticity_mode,config_status',
+          'source_id,entity_id,endpoint_url,credential_env_name,signature_env_name,authenticity_mode,config_status,ledger_profile,ledger_kind',
         )
         .eq('source_id', run.source_id)
         .single();
@@ -350,6 +353,9 @@ export async function processMarketingRevenuePulls(limit = 1): Promise<{
           retryable: false,
           code: 'source_missing',
         });
+      }
+      if ((source as RevenueSource).ledger_profile === 'production_v1') {
+        productionEntities.add(run.entity_id);
       }
       const result = await pullSource(
         run,
@@ -415,6 +421,30 @@ export async function processMarketingRevenuePulls(limit = 1): Promise<{
       details.push(`${run.run_id}: ${message}`);
     }
   }
+
+  // Phase 42: record authenticity/settlement SLO ticks for production ledgers.
+  for (const entityId of productionEntities) {
+    try {
+      const { error: sloError } = await sb.rpc(
+        'record_marketing_revenue_phase42_slo_snapshots',
+        {
+          p_entity_id: entityId,
+          p_days: 30,
+          p_ledger_profile: 'production_v1',
+        },
+      );
+      if (sloError) {
+        details.push(`phase42-slo:${entityId}: ${sloError.message}`);
+      } else {
+        details.push(`phase42-slo:${entityId}: recorded`);
+      }
+    } catch (sloCaught) {
+      const message =
+        sloCaught instanceof Error ? sloCaught.message : 'Phase 42 SLO tick failed';
+      details.push(`phase42-slo:${entityId}: ${message}`);
+    }
+  }
+
   return { claimed: runs.length, completed, failed, details };
 }
 

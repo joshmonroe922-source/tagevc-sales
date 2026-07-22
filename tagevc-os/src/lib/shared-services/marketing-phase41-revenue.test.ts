@@ -183,10 +183,10 @@ describe('Phase 41 production ledger revenue contracts', () => {
     );
     expect(page).toMatch(/MarketingRevenuePhase41/);
     expect(page).toMatch(/getPhase41RevenueReport/);
-    expect(page).toMatch(/Phase 41/);
+    expect(page).toMatch(/Phase 4[12]/);
     expect(actions).toMatch(/reviewMarketingRevenueCorrectionAction/);
     expect(actions).toMatch(/upsertMarketingRevenueSourceAction/);
     expect(actions).toMatch(/visionary.*admin|admin.*visionary/);
-    expect(route).toMatch(/phase41-v1/);
+    expect(route).toMatch(/phase42-v1/);
   });
 });

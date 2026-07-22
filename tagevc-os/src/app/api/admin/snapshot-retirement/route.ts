@@ -13,6 +13,12 @@ import {
   scheduleSnapshotPhase40Canary,
 } from '@/lib/data/snapshot-retirement-phase40';
 import { createSnapshotExternalReceipt } from '@/lib/data/snapshot-retirement-phase41';
+import {
+  exportSnapshotVerifyBundle,
+  getSnapshotPhase42VerifyColdDashboard,
+  publishSnapshotVerifyMaterial,
+  runColdRetentionHeadCadence,
+} from '@/lib/data/snapshot-retirement-phase42';
 import { captureException } from '@/lib/observability';
 import { guardPermission } from '@/lib/rbac/session';
 
@@ -79,6 +85,18 @@ const requestSchema = z.discriminatedUnion('action', [
     idempotency_key: idempotencyKeySchema,
   }),
   z.object({
+    action: z.literal('publish_verify_material'),
+  }),
+  z.object({
+    action: z.literal('export_verify_bundle'),
+    receipt_id: z.uuid(),
+  }),
+  z.object({
+    action: z.literal('check_cold_retention'),
+    package_id: z.uuid().optional(),
+    idempotency_key: idempotencyKeySchema,
+  }),
+  z.object({
     action: z.literal('schedule_phase40_canary'),
     entity_id: z.string().trim().min(1).max(100).nullable().optional(),
     package_id: z.uuid(),
@@ -104,8 +122,19 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: gate.error }, { status: 403 });
   }
   try {
-    const result = await getSnapshotPhase40Dashboard();
-    return NextResponse.json(result, { status: result.ok ? 200 : 503 });
+    const [phase40, phase42] = await Promise.all([
+      getSnapshotPhase40Dashboard(),
+      getSnapshotPhase42VerifyColdDashboard(),
+    ]);
+    if (!phase40.ok) {
+      return NextResponse.json(phase40, { status: 503 });
+    }
+    return NextResponse.json({
+      ...phase40,
+      verifyMaterial: phase42.ok ? phase42.verifyMaterial : [],
+      coldRuns: phase42.ok ? phase42.coldRuns : [],
+      phase42Slo: phase42.ok ? phase42.phase42Slo : null,
+    });
   } catch (error) {
     captureException(error, { route: 'snapshot-retirement-phase40-dashboard' });
     return NextResponse.json(
@@ -191,6 +220,23 @@ export async function POST(request: Request) {
         break;
       case 'create_external_receipt':
         result = await createSnapshotExternalReceipt({
+          actorId: gate.profile.id,
+          packageId: parsed.data.package_id,
+          idempotencyKey: parsed.data.idempotency_key,
+        });
+        break;
+      case 'publish_verify_material':
+        result = await publishSnapshotVerifyMaterial({
+          actorId: gate.profile.id,
+        });
+        break;
+      case 'export_verify_bundle':
+        result = await exportSnapshotVerifyBundle({
+          receiptId: parsed.data.receipt_id,
+        });
+        break;
+      case 'check_cold_retention':
+        result = await runColdRetentionHeadCadence({
           actorId: gate.profile.id,
           packageId: parsed.data.package_id,
           idempotencyKey: parsed.data.idempotency_key,

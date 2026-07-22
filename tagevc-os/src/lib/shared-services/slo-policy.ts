@@ -4,6 +4,19 @@ import { createPersistClient } from '@/lib/supabase/persist-client';
 export const PHASE41_SLO_CONTRACT_VERSION = 'phase41-v1';
 export const PHASE41_SLO_COUNTERFACTUAL_LABEL =
   'COUNTERFACTUAL — no production state mutated';
+export const PHASE42_SLO_DEFAULT_RETENTION_DAYS = 90;
+
+export function sloSimulationExportRetentionDays(): number {
+  const raw = process.env.SLO_SIMULATION_EXPORT_RETENTION_DAYS?.trim();
+  if (!raw) return PHASE42_SLO_DEFAULT_RETENTION_DAYS;
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed < 30 || parsed > 730) {
+    throw new Error(
+      'SLO_SIMULATION_EXPORT_RETENTION_DAYS must be an integer between 30 and 730',
+    );
+  }
+  return parsed;
+}
 
 export type SloPolicyRow = {
   policy_id: string;
@@ -58,62 +71,73 @@ function errorMessage(error: { message: string } | null) {
 
 export async function listSloPolicyAdministration() {
   const sb = await createPersistClient();
-  const [{ data: policies, error: policyError }, { data: owners, error: ownerError },
-    { data: entities, error: entityError }, { data: tests, error: testError },
+  const [
+    { data: policies, error: policyError },
+    { data: owners, error: ownerError },
+    { data: entities, error: entityError },
+    { data: tests, error: testError },
     { data: assignments, error: assignmentError },
     { data: comparisons, error: comparisonError },
     { data: simulations, error: simulationError },
     { data: coverage, error: coverageError },
     { data: exports, error: exportError },
-    { data: calendar, error: calendarError }] =
-    await Promise.all([
-      sb
-        .from('os_slo_policies')
-        .select(
-          'policy_id,policy_version,service,metric_key,scope,comparator,warning_threshold,critical_threshold,window_seconds,evaluation_interval_seconds,warning_breach_buckets,recovery_buckets,config,lifecycle_status,draft_of_policy_id,owner_id,owner_entity_id,row_version,created_by,validated_by,published_by,owner_effective_at,owner_expires_at,replacement_owner_id',
-        )
-        .in('lifecycle_status', ['published', 'draft', 'validated'])
-        .order('service')
-        .order('metric_key'),
-      sb
-        .from('profiles')
-        .select('id,full_name,email,role,entity_id')
-        .eq('active', true)
-        .in('role', ['visionary', 'admin', 'service_lead', 'coo'])
-        .order('full_name'),
-      sb.from('entities').select('entity_id,canonical_name').order('canonical_name'),
-      sb
-        .from('os_slo_route_tests')
-        .select(
-          'route_test_id,adapter,destination_key,owner_id,entity_id,status,last_result,requested_at',
-        )
-        .order('requested_at', { ascending: false })
-        .limit(12),
-      sb
-        .from('os_slo_owners')
-        .select('service,metric_key,entity_id,owner_id')
-        .eq('active', true)
-        .order('assigned_at', { ascending: false }),
-      sb.from('os_slo_policy_draft_comparisons').select(
-        'draft_policy_id,active_policy_id,changes,material_risk',
-      ),
-      sb.from('os_slo_simulations').select(
-        'simulation_id,draft_policy_id,status,counterfactual,source_evaluation_count,requested_at,completed_at',
-      ).order('requested_at', { ascending: false }).limit(12),
-      sb.from('os_slo_owner_coverage_metrics').select(
-        'policy_id,entity_id,owner_id,replacement_owner_id,expires_at,days_remaining,warning,eligible_replacement_named',
-      ).order('expires_at').limit(50),
-      sb.from('os_slo_simulation_exports').select(
-        'export_id,simulation_id,counterfactual,label,metadata_digest,signature_key_id,result_count,exported_at',
-      ).order('exported_at', { ascending: false }).limit(12),
-      sb.rpc('get_slo_owner_coverage_calendar_phase41', { p_days_ahead: 30 }),
-    ]);
+    { data: calendar, error: calendarError },
+    { data: successionProposals, error: successionError },
+  ] = await Promise.all([
+    sb
+      .from('os_slo_policies')
+      .select(
+        'policy_id,policy_version,service,metric_key,scope,comparator,warning_threshold,critical_threshold,window_seconds,evaluation_interval_seconds,warning_breach_buckets,recovery_buckets,config,lifecycle_status,draft_of_policy_id,owner_id,owner_entity_id,row_version,created_by,validated_by,published_by,owner_effective_at,owner_expires_at,replacement_owner_id',
+      )
+      .in('lifecycle_status', ['published', 'draft', 'validated'])
+      .order('service')
+      .order('metric_key'),
+    sb
+      .from('profiles')
+      .select('id,full_name,email,role,entity_id')
+      .eq('active', true)
+      .in('role', ['visionary', 'admin', 'service_lead', 'coo'])
+      .order('full_name'),
+    sb.from('entities').select('entity_id,canonical_name').order('canonical_name'),
+    sb
+      .from('os_slo_route_tests')
+      .select(
+        'route_test_id,adapter,destination_key,owner_id,entity_id,status,last_result,requested_at',
+      )
+      .order('requested_at', { ascending: false })
+      .limit(12),
+    sb
+      .from('os_slo_owners')
+      .select('service,metric_key,entity_id,owner_id')
+      .eq('active', true)
+      .order('assigned_at', { ascending: false }),
+    sb.from('os_slo_policy_draft_comparisons').select(
+      'draft_policy_id,active_policy_id,changes,material_risk',
+    ),
+    sb.from('os_slo_simulations').select(
+      'simulation_id,draft_policy_id,status,counterfactual,source_evaluation_count,requested_at,completed_at',
+    ).order('requested_at', { ascending: false }).limit(12),
+    sb.from('os_slo_owner_coverage_metrics').select(
+      'policy_id,entity_id,owner_id,replacement_owner_id,expires_at,days_remaining,warning,eligible_replacement_named',
+    ).order('expires_at').limit(50),
+    sb.from('os_slo_simulation_exports').select(
+      'export_id,simulation_id,counterfactual,label,metadata_digest,signature_key_id,result_count,retention_days,retained_until,exported_at',
+    ).order('exported_at', { ascending: false }).limit(12),
+    sb.rpc('get_slo_owner_coverage_calendar_phase41', { p_days_ahead: 30 }),
+    sb
+      .from('os_slo_owner_succession_proposals')
+      .select(
+        'proposal_id,policy_id,entity_id,current_owner_id,replacement_owner_id,expires_at,proposed_at',
+      )
+      .order('proposed_at', { ascending: false })
+      .limit(12),
+  ]);
   errorMessage(policyError);
   errorMessage(ownerError);
   errorMessage(entityError);
   errorMessage(testError);
   errorMessage(assignmentError);
-  // Phase 40/41 governance surfaces should not take down Shared Services if a
+  // Phase 40/41/42 governance surfaces should not take down Shared Services if a
   // view/function grant is incomplete; degrade to empty panels instead.
   if (comparisonError) {
     console.error('slo draft comparisons unavailable', comparisonError.message);
@@ -129,6 +153,9 @@ export async function listSloPolicyAdministration() {
   }
   if (calendarError) {
     console.error('slo coverage calendar unavailable', calendarError.message);
+  }
+  if (successionError) {
+    console.error('slo succession proposals unavailable', successionError.message);
   }
   const rows = ((policies ?? []) as SloPolicyRow[]).map((row) => {
     if (row.owner_id) return row;
@@ -155,6 +182,7 @@ export async function listSloPolicyAdministration() {
     ownerCoverage: coverageError ? [] : (coverage ?? []),
     simulationExports: exportError ? [] : (exports ?? []),
     coverageCalendar: calendarError ? [] : (calendar ?? []),
+    successionProposals: successionError ? [] : (successionProposals ?? []),
   };
 }
 
@@ -392,6 +420,7 @@ export async function exportSloSimulation(input: {
       })
       .join(','),
   );
+  const retentionDays = sloSimulationExportRetentionDays();
   const metadata = {
     contract_version: PHASE41_SLO_CONTRACT_VERSION,
     counterfactual: true,
@@ -400,6 +429,7 @@ export async function exportSloSimulation(input: {
     label: PHASE41_SLO_COUNTERFACTUAL_LABEL,
     result_count: rows.length,
     result_digest: resultDigest,
+    retention_days: retentionDays,
     severity_summary: severitySummary,
     simulation_id: simulation.simulation_id,
     source_policy_id: simulation.source_policy_id,
@@ -421,6 +451,55 @@ export async function exportSloSimulation(input: {
     p_signature_key_id: keyId,
     p_metadata_signature: metadataSignature,
     p_actor_id: input.actorId,
+  });
+  errorMessage(error);
+  return data;
+}
+
+export async function listSloSimulationExportsPhase42(input: {
+  actorId: string;
+  includeExpired?: boolean;
+  limit?: number;
+}) {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc('list_slo_simulation_exports_phase42', {
+    p_actor_id: input.actorId,
+    p_include_expired: input.includeExpired ?? false,
+    p_limit: input.limit ?? 50,
+  });
+  errorMessage(error);
+  return data ?? [];
+}
+
+export async function recordSloExportAuditAccess(input: {
+  actorId: string;
+  exportId: string;
+  accessType: 'listed' | 'viewed' | 'downloaded' | 'replayed';
+  detail?: Record<string, unknown>;
+}) {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc('record_slo_export_audit_access_phase42', {
+    p_actor_id: input.actorId,
+    p_export_id: input.exportId,
+    p_access_type: input.accessType,
+    p_detail: input.detail ?? {},
+  });
+  errorMessage(error);
+  return data;
+}
+
+export async function proposeSloOwnerSuccession(input: {
+  actorId: string;
+  policyId: string;
+  entityId?: string | null;
+  replacementOwnerId: string;
+}) {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc('propose_slo_owner_succession_phase42', {
+    p_actor_id: input.actorId,
+    p_policy_id: input.policyId,
+    p_entity_id: input.entityId ?? null,
+    p_replacement_owner_id: input.replacementOwnerId,
   });
   errorMessage(error);
   return data;

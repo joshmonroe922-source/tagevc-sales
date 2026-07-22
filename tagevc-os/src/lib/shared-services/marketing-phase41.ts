@@ -157,6 +157,19 @@ export async function upsertMarketingRevenueSource(input: unknown): Promise<
       error: 'Signature-backed authenticity modes require signature_env_name',
     };
   }
+  if (parsed.data.ledger_profile === 'production_v1') {
+    if (
+      !parsed.data.endpoint_url.startsWith('https://') ||
+      parsed.data.ledger_kind !== 'production_ledger' ||
+      parsed.data.authenticity_mode === 'request_id'
+    ) {
+      return {
+        ok: false,
+        error:
+          'production_v1 requires HTTPS, production_ledger, and strong authenticity',
+      };
+    }
+  }
   const sb = await createPersistClient();
   const { data, error } = await sb.rpc('upsert_marketing_revenue_source', {
     p_source: parsed.data,

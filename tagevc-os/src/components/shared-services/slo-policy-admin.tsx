@@ -4,6 +4,8 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   exportSloSimulationAction,
+  proposeSloOwnerSuccessionAction,
+  recordSloExportAuditAccessAction,
   requestSloRouteTestAction,
   requestSloSimulationAction,
   saveSloPolicyDraftAction,
@@ -229,6 +231,7 @@ export function SloPolicyAdmin({
   ownerCoverage,
   simulationExports = [],
   coverageCalendar = [],
+  successionProposals = [],
 }: {
   activePolicies: SloPolicyRow[];
   drafts: SloPolicyRow[];
@@ -240,6 +243,7 @@ export function SloPolicyAdmin({
   ownerCoverage: Array<Record<string, unknown>>;
   simulationExports?: Array<Record<string, unknown>>;
   coverageCalendar?: Array<Record<string, unknown>>;
+  successionProposals?: Array<Record<string, unknown>>;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -251,6 +255,7 @@ export function SloPolicyAdmin({
   const [simulationDraftId, setSimulationDraftId] = useState(drafts[0]?.policy_id ?? '');
   const [simulationEntityId, setSimulationEntityId] = useState('');
   const [simulationDays, setSimulationDays] = useState(7);
+  const [successionOwnerId, setSuccessionOwnerId] = useState(owners[0]?.id ?? '');
 
   function requestTest() {
     startTransition(async () => {
@@ -292,6 +297,30 @@ export function SloPolicyAdmin({
         simulationId,
       });
       setMessage(result.ok ? result.message ?? 'Exported' : result.error);
+      if (result.ok) router.refresh();
+    });
+  }
+
+  function auditExportAccess(exportId: string) {
+    startTransition(async () => {
+      const result = await recordSloExportAuditAccessAction({
+        exportId,
+        accessType: 'viewed',
+      });
+      setMessage(result.ok ? result.message ?? 'Access recorded' : result.error);
+      if (result.ok) router.refresh();
+    });
+  }
+
+  function proposeSuccession(coverage: Record<string, unknown>) {
+    if (!successionOwnerId) return;
+    startTransition(async () => {
+      const result = await proposeSloOwnerSuccessionAction({
+        policyId: String(coverage.policy_id),
+        entityId: coverage.entity_id ? String(coverage.entity_id) : null,
+        replacementOwnerId: successionOwnerId,
+      });
+      setMessage(result.ok ? result.message ?? 'Succession proposed' : result.error);
       if (result.ok) router.refresh();
     });
   }
@@ -350,19 +379,69 @@ export function SloPolicyAdmin({
             </div>
           ))}
           {simulationExports.map((item) => (
-            <p key={String(item.export_id)} className="break-all font-mono text-[10px] text-muted-foreground">
-              EXPORT · {String(item.label)} · {String(item.metadata_digest)} · key {String(item.signature_key_id)}
-            </p>
+            <div key={String(item.export_id)} className="flex flex-wrap items-center gap-2">
+              <p className="break-all font-mono text-[10px] text-muted-foreground">
+                EXPORT · {String(item.label)} · {String(item.metadata_digest)} · key{' '}
+                {String(item.signature_key_id)}
+                {item.retention_days != null
+                  ? ` · retain ${String(item.retention_days)}d until ${String(item.retained_until ?? '')}`
+                  : ''}
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                disabled={pending}
+                onClick={() => auditExportAccess(String(item.export_id))}
+              >
+                Record view access
+              </Button>
+            </div>
           ))}
         </CardContent>
       </Card>
       {ownerCoverage.length ? (
         <Card>
           <CardHeader><CardTitle className="text-sm">Expiring owner coverage</CardTitle></CardHeader>
-          <CardContent className="space-y-1">
-            {ownerCoverage.map((coverage) => <p key={`${String(coverage.policy_id)}:${String(coverage.entity_id)}`} className="text-xs">
-              {String(coverage.days_remaining)} days · replacement {coverage.eligible_replacement_named ? 'eligible and named' : 'missing'}
-            </p>)}
+          <CardContent className="space-y-2">
+            <select
+              value={successionOwnerId}
+              onChange={(event) => setSuccessionOwnerId(event.target.value)}
+              className="h-9 rounded-md border bg-background px-2 text-sm"
+            >
+              <option value="">Replacement owner</option>
+              {owners.map((owner) => (
+                <option key={owner.id} value={owner.id}>{ownerLabel(owner)}</option>
+              ))}
+            </select>
+            {ownerCoverage.map((coverage) => (
+              <div
+                key={`${String(coverage.policy_id)}:${String(coverage.entity_id)}`}
+                className="flex flex-wrap items-center gap-2 text-xs"
+              >
+                <p>
+                  {String(coverage.days_remaining)} days · replacement{' '}
+                  {coverage.eligible_replacement_named ? 'eligible and named' : 'missing'}
+                </p>
+                {!coverage.eligible_replacement_named ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={pending || !successionOwnerId}
+                    onClick={() => proposeSuccession(coverage)}
+                  >
+                    Propose succession
+                  </Button>
+                ) : null}
+              </div>
+            ))}
+            {successionProposals.slice(0, 4).map((proposal) => (
+              <p key={String(proposal.proposal_id)} className="font-mono text-[10px] text-muted-foreground">
+                SUCCESSION · {String(proposal.proposed_at)} · replacement{' '}
+                {String(proposal.replacement_owner_id)} · expires {String(proposal.expires_at)}
+              </p>
+            ))}
           </CardContent>
         </Card>
       ) : null}

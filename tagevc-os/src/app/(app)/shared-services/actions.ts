@@ -17,6 +17,8 @@ import {
   requestSloRouteTest,
   requestSloSimulation,
   exportSloSimulation,
+  recordSloExportAuditAccess,
+  proposeSloOwnerSuccession,
   saveSloPolicyDraft,
   transitionSloPolicyDraft,
 } from '@/lib/shared-services/slo-policy';
@@ -312,6 +314,64 @@ export async function exportSloSimulationAction(input: {
     return {
       ok: true,
       message: 'COUNTERFACTUAL signed metadata export recorded',
+    };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Failed' };
+  }
+}
+
+export async function recordSloExportAuditAccessAction(input: {
+  exportId: string;
+  accessType: 'listed' | 'viewed' | 'downloaded' | 'replayed';
+}): Promise<TicketActionResult> {
+  const gate = await guardPermission('write:shared_services');
+  if (!gate.ok) return gate;
+  const parsed = z.object({
+    exportId: z.string().uuid(),
+    accessType: z.enum(['listed', 'viewed', 'downloaded', 'replayed']),
+  }).safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: 'Invalid export audit access request' };
+  }
+  try {
+    await recordSloExportAuditAccess({
+      actorId: gate.profile.id,
+      exportId: parsed.data.exportId,
+      accessType: parsed.data.accessType,
+    });
+    revalidatePath('/shared-services');
+    return { ok: true, message: `Export ${parsed.data.accessType} access recorded` };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Failed' };
+  }
+}
+
+export async function proposeSloOwnerSuccessionAction(input: {
+  policyId: string;
+  entityId?: string | null;
+  replacementOwnerId: string;
+}): Promise<TicketActionResult> {
+  const gate = await guardPermission('write:shared_services');
+  if (!gate.ok) return gate;
+  const parsed = z.object({
+    policyId: z.string().uuid(),
+    entityId: z.string().trim().max(100).nullable().optional(),
+    replacementOwnerId: z.string().uuid(),
+  }).safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: 'Invalid succession proposal' };
+  }
+  try {
+    await proposeSloOwnerSuccession({
+      actorId: gate.profile.id,
+      policyId: parsed.data.policyId,
+      entityId: parsed.data.entityId,
+      replacementOwnerId: parsed.data.replacementOwnerId,
+    });
+    revalidatePath('/shared-services');
+    return {
+      ok: true,
+      message: 'Owner succession proposed via Phase 40 replacement fields',
     };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : 'Failed' };

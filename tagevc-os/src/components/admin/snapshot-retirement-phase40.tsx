@@ -59,6 +59,21 @@ type Dashboard = {
     attestation_eligible: boolean;
   }>;
   phase41Slo?: Record<string, unknown> | null;
+  verifyMaterial?: Array<{
+    material_id: string;
+    key_id: string;
+    public_key_spki_sha256: string;
+    published_at: string;
+    active: boolean;
+  }>;
+  coldRuns?: Array<{
+    run_id: string;
+    package_id: string;
+    status: string;
+    cadence_hours: number;
+    checked_at: string;
+  }>;
+  phase42Slo?: Record<string, unknown> | null;
 };
 
 type ApiResult = {
@@ -66,6 +81,10 @@ type ApiResult = {
   error?: string;
   package?: Record<string, unknown>;
   receipt?: Record<string, unknown>;
+  bundle?: Record<string, unknown>;
+  material?: Record<string, unknown>;
+  run?: Record<string, unknown>;
+  skipped?: boolean;
 };
 
 function downloadSignedPackage(value: Record<string, unknown>) {
@@ -216,6 +235,82 @@ export function SnapshotRetirementPhase40Admin() {
     });
   }
 
+  function publishVerifyMaterial() {
+    setMessage(null);
+    setError(null);
+    startTransition(async () => {
+      try {
+        await post({ action: 'publish_verify_material' });
+        setMessage('Public ed25519 verify material published (fingerprint only).');
+        await refresh();
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : 'Verify material publish failed');
+      }
+    });
+  }
+
+  function downloadVerifyBundle() {
+    const receipt = dashboard?.receipts?.[0];
+    if (!receipt) {
+      setError('Issue an ed25519 receipt before downloading a verify bundle.');
+      return;
+    }
+    setMessage(null);
+    setError(null);
+    startTransition(async () => {
+      try {
+        const result = await post({
+          action: 'export_verify_bundle',
+          receipt_id: receipt.receipt_id,
+        });
+        if (result.bundle) {
+          const blob = new Blob([JSON.stringify(result.bundle, null, 2)], {
+            type: 'application/json',
+          });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `snapshot-verify-bundle-${receipt.receipt_id}.json`;
+          link.click();
+          URL.revokeObjectURL(url);
+        }
+        setMessage('Offline verify bundle downloaded (public keys only).');
+        await refresh();
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : 'Verify bundle failed');
+      }
+    });
+  }
+
+  function runColdHeadCadence() {
+    const coldPackage =
+      dashboard?.packages.find((row) => row.retention_tier === 'cold') ??
+      dashboard?.packages[0];
+    if (!coldPackage || coldPackage.retention_tier !== 'cold') {
+      setError('Create a cold-tier package before running cold HEAD cadence.');
+      return;
+    }
+    setMessage(null);
+    setError(null);
+    startTransition(async () => {
+      try {
+        const result = await post({
+          action: 'check_cold_retention',
+          package_id: coldPackage.package_id,
+          idempotency_key: `phase42-cold-head-${Date.now()}`,
+        });
+        setMessage(
+          result.skipped
+            ? 'Cold HEAD cadence not due; skip evidence recorded.'
+            : 'Cold HEAD cadence check recorded (non-qualifying).',
+        );
+        await refresh();
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : 'Cold HEAD cadence failed');
+      }
+    });
+  }
+
   function scheduleCanary() {
     const packageRow = dashboard?.packages[0];
     if (!packageRow) {
@@ -276,13 +371,14 @@ export function SnapshotRetirementPhase40Admin() {
   return (
     <div className="mt-3 space-y-3 rounded-md border border-border/60 p-3 text-xs">
       <div className="flex flex-wrap items-center gap-2">
-        <p className="font-medium">Phase 40/41 signed retention evidence</p>
+        <p className="font-medium">Phase 40/41/42 signed retention evidence</p>
         <Badge variant="outline">Synthetic · non-qualifying</Badge>
       </div>
       <p className="text-muted-foreground">
         HMAC-signed metadata packages bind the current Phase 39 manifest and
         external artifact hashes. Phase 41 adds ed25519 externally verifiable
-        receipts and warm/cold retention tiers. Canaries never qualify soak or
+        receipts and warm/cold retention tiers. Phase 42 publishes public verify
+        material and cold HEAD cadence evidence. Canaries never qualify soak or
         attestation.
       </p>
       {dashboard?.packages[0] ? (
@@ -312,6 +408,23 @@ export function SnapshotRetirementPhase40Admin() {
           {String(dashboard.phase41Slo.cold_receipts_30d ?? 0)} · warm{' '}
           {String(dashboard.phase41Slo.warm_receipts_30d ?? 0)} · packages cold{' '}
           {String(dashboard.phase41Slo.packages_cold ?? 0)}
+        </p>
+      ) : null}
+      {(dashboard?.verifyMaterial ?? []).slice(0, 3).map((material) => (
+        <p key={material.material_id} className="font-mono text-[10px] text-muted-foreground">
+          VERIFY · {material.key_id} · {material.public_key_spki_sha256}
+        </p>
+      ))}
+      {(dashboard?.coldRuns ?? []).slice(0, 3).map((run) => (
+        <p key={run.run_id} className="font-mono text-[10px] text-muted-foreground">
+          COLD HEAD · {run.checked_at} · {run.status} · cadence {run.cadence_hours}h
+        </p>
+      ))}
+      {dashboard?.phase42Slo ? (
+        <p className="text-muted-foreground">
+          Phase 42 verify keys · {String(dashboard.phase42Slo.active_verify_keys ?? 0)} · cold
+          runs 30d {String(dashboard.phase42Slo.cold_runs_30d ?? 0)} · verified{' '}
+          {String(dashboard.phase42Slo.cold_verified_30d ?? 0)}
         </p>
       ) : null}
       {dashboard?.checks.slice(0, 4).map((check) => (
@@ -354,6 +467,15 @@ export function SnapshotRetirementPhase40Admin() {
         </Button>
         <Button type="button" size="sm" variant="outline" disabled={pending} onClick={createExternalReceipt}>
           Issue ed25519 receipt
+        </Button>
+        <Button type="button" size="sm" variant="outline" disabled={pending} onClick={publishVerifyMaterial}>
+          Publish verify material
+        </Button>
+        <Button type="button" size="sm" variant="outline" disabled={pending} onClick={downloadVerifyBundle}>
+          Download verify bundle
+        </Button>
+        <Button type="button" size="sm" variant="outline" disabled={pending} onClick={runColdHeadCadence}>
+          Run cold HEAD cadence
         </Button>
         <Button type="button" size="sm" variant="outline" disabled={pending} onClick={scheduleCanary}>
           Schedule multi-hour canary

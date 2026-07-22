@@ -13,6 +13,7 @@ import {
   listIntuneTuningProposals,
   getIntunePhase40Health,
   getIntunePhase41Health,
+  getIntunePhase42Health,
   listIntuneOutagePostmortems,
   listIntuneThresholdRecommendations,
   listIntuneDispatchAttempts,
@@ -53,6 +54,7 @@ export default async function ItAssetsModulePage() {
     tuningProposals,
     phase40Health,
     phase41Health,
+    phase42Health,
     outagePostmortems,
     thresholdRecommendations,
   ] = await Promise.all([
@@ -73,6 +75,7 @@ export default async function ItAssetsModulePage() {
     listIntuneTuningProposals(),
     getIntunePhase40Health(),
     getIntunePhase41Health(),
+    getIntunePhase42Health(),
     listIntuneOutagePostmortems(),
     listIntuneThresholdRecommendations(),
   ]);
@@ -119,14 +122,15 @@ export default async function ItAssetsModulePage() {
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">IT</Badge>
-          <Badge variant="secondary">Phase 41</Badge>
+          <Badge variant="secondary">Phase 42</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Hardware &amp; licensing
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Aggregate outage postmortems, bounded threshold recommendation drafts,
-          versioned maker-checked tuning, and fenced Intune recovery.
+          Aggregate outage postmortems, recommendation soak observations after
+          accepted drafts, versioned maker-checked tuning, and fenced Intune
+          recovery. Soak never closes or resets open breakers.
         </p>
       </div>
 
@@ -165,6 +169,7 @@ export default async function ItAssetsModulePage() {
         )}
         intunePhase40Health={firmWide ? phase40Health.row : null}
         intunePhase41Health={firmWide ? phase41Health.row : null}
+        intunePhase42Health={firmWide ? phase42Health.row : null}
         intuneOutagePostmortems={firmWide ? outagePostmortems.rows : []}
         intuneThresholdRecommendations={thresholdRecommendations.rows.filter(
           (recommendation) =>
@@ -183,6 +188,7 @@ export default async function ItAssetsModulePage() {
           tuningProposals.error ||
           phase40Health.error ||
           phase41Health.error ||
+          phase42Health.error ||
           outagePostmortems.error ||
           thresholdRecommendations.error
         }

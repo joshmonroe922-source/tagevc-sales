@@ -36,6 +36,7 @@ import {
   rejectIntuneOutagePostmortemAction,
   acceptIntuneThresholdRecommendationAction,
   dismissIntuneThresholdRecommendationAction,
+  refreshIntuneRecommendationSoakAction,
   runIntuneWorkerAction,
   type ItAssetActionResult,
 } from '@/app/(app)/shared-services/it/assets/actions';
@@ -57,6 +58,7 @@ import type {
   ItIntuneOutagePostmortem,
   ItIntunePhase40Health,
   ItIntunePhase41Health,
+  ItIntunePhase42Health,
   ItIntuneThresholdRecommendation,
   ItIntuneTuningProposal,
   ItLifecycleEvent,
@@ -111,6 +113,7 @@ export function ItAssetsClient({
   intuneTuningProposals = [],
   intunePhase40Health = null,
   intunePhase41Health = null,
+  intunePhase42Health = null,
   intuneOutagePostmortems = [],
   intuneThresholdRecommendations = [],
   canIntuneRetire = false,
@@ -148,6 +151,7 @@ export function ItAssetsClient({
   intuneTuningProposals?: ItIntuneTuningProposal[];
   intunePhase40Health?: ItIntunePhase40Health | null;
   intunePhase41Health?: ItIntunePhase41Health | null;
+  intunePhase42Health?: ItIntunePhase42Health | null;
   intuneOutagePostmortems?: ItIntuneOutagePostmortem[];
   intuneThresholdRecommendations?: ItIntuneThresholdRecommendation[];
   canIntuneRetire?: boolean;
@@ -241,6 +245,18 @@ export function ItAssetsClient({
               {Number(intunePhase41Health.pending_recommendation_count)} pending
             </>
           ) : null}
+          {intunePhase42Health ? (
+            <>
+              {' · '}soak {Number(intunePhase42Health.healthy_count)} healthy /{' '}
+              {Number(intunePhase42Health.degraded_count)} degraded /{' '}
+              {Number(intunePhase42Health.soaking_count)} soaking
+              {' · '}awaiting decision{' '}
+              {Number(intunePhase42Health.awaiting_decision_count)}
+              {Number(intunePhase42Health.breaker_open_observed_count) > 0
+                ? ` · open breaker observed ${Number(intunePhase42Health.breaker_open_observed_count)} (never auto-reset)`
+                : ''}
+            </>
+          ) : null}
         </div>
       ) : null}
 
@@ -254,8 +270,22 @@ export function ItAssetsClient({
             <p className="text-xs text-muted-foreground">
               Aggregate-only postmortems and system recommendation drafts. Accepting
               a draft creates a Phase 40 tuning proposal for a second human — it never
-              closes or resets an open breaker.
+              closes or resets an open breaker. Phase 42 records soak status after
+              accept.
             </p>
+            {canIntuneManualReview && intunePhase42Health ? (
+              <div className="pt-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={pending}
+                  onClick={() => run(() => refreshIntuneRecommendationSoakAction())}
+                >
+                  Refresh recommendation soak
+                </Button>
+              </div>
+            ) : null}
           </div>
           {intuneOutagePostmortems.length > 0 ? (
             <div className="space-y-2 text-xs">
@@ -401,6 +431,20 @@ export function ItAssetsClient({
                         100,
                     )}
                     % · breaker {recommendation.breaker_state}
+                    {recommendation.status === 'accepted' &&
+                    recommendation.soak_status
+                      ? ` · soak ${recommendation.soak_status}${
+                          recommendation.soak_elapsed_minutes != null
+                            ? ` (${recommendation.soak_elapsed_minutes}m)`
+                            : ''
+                        }${
+                          recommendation.soak_sample_count != null
+                            ? ` · post-accept ${recommendation.soak_failure_count ?? 0}/${recommendation.soak_sample_count}`
+                            : ''
+                        }`
+                      : recommendation.status === 'accepted'
+                        ? ' · soak pending observation'
+                        : ''}
                     {' · '}
                     {recommendation.rationale.slice(0, 100)}
                     {recommendation.rationale.length > 100 ? '…' : ''}

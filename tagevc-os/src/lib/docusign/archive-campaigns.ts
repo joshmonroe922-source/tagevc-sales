@@ -24,8 +24,61 @@ export type ArchiveCampaignResult = {
   gateReason?: string | null;
   remainingUnhashed?: number;
   quarantineBacklog?: number;
+  opsMilestone?: ArchiveCampaignOpsMilestoneResult | null;
   governance?: ArchiveGovernanceResult;
   error?: string;
+};
+
+export type ArchiveCampaignOpsEventKind =
+  | 'backfill_completed'
+  | 'backfill_gate_cleared'
+  | 'quarterly_first_milestone'
+  | 'quarterly_completed'
+  | 'campaign_gated'
+  | 'quarantine_aging_breach'
+  | 'quarantine_aged_cleared';
+
+export type ArchiveCampaignOpsMilestoneResult = {
+  disposition: 'recorded' | 'already_recorded' | 'skipped' | 'failed';
+  eventKind?: ArchiveCampaignOpsEventKind;
+  eventId?: string;
+  evidenceSha256?: string;
+  firstQuarterlyMilestone?: boolean;
+  error?: string;
+};
+
+export type ArchiveCampaignOpsReadiness = {
+  backfill_complete: boolean;
+  quarterly_unlocked: boolean;
+  ops_ready: boolean;
+  quarantine_aging_breach: boolean;
+  quarantine_backlog_high: boolean;
+  remaining_unhashed: number;
+  quarantine_backlog: number;
+  quarantine_oldest_days: number;
+  quarterly_full_due: boolean;
+  aging_sla_days: number;
+  quarantine_backlog_gate: number;
+  first_quarterly_milestone_at: string | null;
+  last_ops_event_at: string | null;
+  last_full_scan_at: string | null;
+};
+
+export type ArchiveQuarantineAgingRow = {
+  quarantine_id: string;
+  manifest_id?: string;
+  envelope_id: string;
+  document_id?: string;
+  entity_id: string | null;
+  file_kind: string;
+  status: string;
+  reason_code: string;
+  expected_sha256?: string;
+  observed_sha256?: string | null;
+  row_version: number;
+  opened_at: string;
+  age_days: number;
+  age_bucket: '0_7' | '8_30' | '31_45' | 'over_45' | string;
 };
 
 type Claim = {
@@ -64,6 +117,110 @@ function mapCampaignParam(
 }
 
 export { mapCampaignParam };
+
+export async function recordArchiveCampaignOpsMilestone(input: {
+  eventKind: ArchiveCampaignOpsEventKind;
+  campaignId?: string | null;
+  campaignKind?: ArchiveCampaignKind | null;
+  gateReason?: string | null;
+  remainingUnhashed?: number | null;
+  quarantineBacklog?: number | null;
+  quarantineOldestDays?: number | null;
+  progressPct?: number | null;
+  recordedBy?: string | null;
+  metadata?: Record<string, unknown>;
+  idempotencyKey?: string | null;
+}): Promise<ArchiveCampaignOpsMilestoneResult> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc(
+    'record_docusign_campaign_ops_milestone_phase42',
+    {
+      p_event_kind: input.eventKind,
+      p_campaign_id: input.campaignId ?? null,
+      p_campaign_kind: input.campaignKind ?? null,
+      p_gate_reason: input.gateReason ?? null,
+      p_remaining_unhashed: input.remainingUnhashed ?? null,
+      p_quarantine_backlog: input.quarantineBacklog ?? null,
+      p_quarantine_oldest_days: input.quarantineOldestDays ?? null,
+      p_progress_pct: input.progressPct ?? null,
+      p_recorded_by: input.recordedBy ?? null,
+      p_metadata: input.metadata ?? {},
+      p_idempotency_key: input.idempotencyKey ?? null,
+    },
+  );
+  if (error) {
+    return { disposition: 'failed', error: error.message };
+  }
+  const row = data as {
+    disposition?: 'recorded' | 'already_recorded';
+    event_id?: string;
+    event_kind?: ArchiveCampaignOpsEventKind;
+    evidence_sha256?: string;
+    first_quarterly_milestone?: boolean;
+  } | null;
+  return {
+    disposition: row?.disposition ?? 'recorded',
+    eventKind: row?.event_kind,
+    eventId: row?.event_id,
+    evidenceSha256: row?.evidence_sha256,
+    firstQuarterlyMilestone: row?.first_quarterly_milestone ?? false,
+  };
+}
+
+async function maybeRecordCampaignOpsMilestone(input: {
+  disposition: ArchiveCampaignResult['disposition'];
+  campaignKind: ArchiveCampaignKind;
+  campaignId?: string;
+  status?: string;
+  gateReason?: string | null;
+  remainingUnhashed?: number;
+  quarantineBacklog?: number;
+  progressPct?: number;
+  recordedBy?: string | null;
+}): Promise<ArchiveCampaignOpsMilestoneResult | null> {
+  if (
+    input.disposition !== 'gated' &&
+    input.disposition !== 'already_complete' &&
+    !(input.disposition === 'claimed' && input.status === 'completed')
+  ) {
+    return null;
+  }
+
+  let eventKind: ArchiveCampaignOpsEventKind | null = null;
+  if (input.disposition === 'gated') {
+    eventKind =
+      input.gateReason === 'quarantine_aging'
+        ? 'quarantine_aging_breach'
+        : 'campaign_gated';
+  } else if (input.campaignKind === 'legacy_backfill_completion') {
+    eventKind =
+      (input.remainingUnhashed ?? 0) <= 0
+        ? 'backfill_completed'
+        : 'backfill_gate_cleared';
+  } else if (input.campaignKind === 'quarterly_full_integrity') {
+    eventKind = 'quarterly_completed';
+  }
+  if (!eventKind || !input.campaignId) {
+    return { disposition: 'skipped' };
+  }
+
+  return recordArchiveCampaignOpsMilestone({
+    eventKind,
+    campaignId: input.campaignId,
+    campaignKind: input.campaignKind,
+    gateReason: input.gateReason,
+    remainingUnhashed: input.remainingUnhashed,
+    quarantineBacklog: input.quarantineBacklog,
+    progressPct: input.progressPct,
+    recordedBy: input.recordedBy,
+    metadata: {
+      contract_version: 'phase42-v1',
+      disposition: input.disposition,
+      status: input.status ?? null,
+    },
+    idempotencyKey: `phase42:ops:${eventKind}:${input.campaignId}:${input.disposition}`,
+  });
+}
 
 export async function runArchiveCampaignTick(input: {
   campaignKind: ArchiveCampaignKind;
@@ -108,6 +265,17 @@ export async function runArchiveCampaignTick(input: {
     };
   }
   if (claim.disposition === 'gated') {
+    const opsMilestone = await maybeRecordCampaignOpsMilestone({
+      disposition: 'gated',
+      campaignKind: input.campaignKind,
+      campaignId: claim.campaign_id,
+      status: claim.status,
+      gateReason: claim.gate_reason,
+      remainingUnhashed: claim.gate_remaining_unhashed,
+      quarantineBacklog: claim.gate_quarantine_backlog,
+      progressPct: claim.progress_pct,
+      recordedBy: input.requestedBy,
+    });
     return {
       ok: true,
       disposition: 'gated',
@@ -117,6 +285,7 @@ export async function runArchiveCampaignTick(input: {
       gateReason: claim.gate_reason,
       remainingUnhashed: claim.gate_remaining_unhashed,
       quarantineBacklog: claim.gate_quarantine_backlog,
+      opsMilestone,
     };
   }
   if (claim.disposition === 'busy') {
@@ -129,6 +298,16 @@ export async function runArchiveCampaignTick(input: {
     };
   }
   if (claim.disposition === 'already_complete') {
+    const opsMilestone = await maybeRecordCampaignOpsMilestone({
+      disposition: 'already_complete',
+      campaignKind: input.campaignKind,
+      campaignId: claim.campaign_id,
+      status: 'completed',
+      remainingUnhashed: claim.gate_remaining_unhashed,
+      quarantineBacklog: claim.gate_quarantine_backlog,
+      progressPct: claim.progress_pct ?? 100,
+      recordedBy: input.requestedBy,
+    });
     return {
       ok: true,
       disposition: 'already_complete',
@@ -137,6 +316,7 @@ export async function runArchiveCampaignTick(input: {
       progressPct: claim.progress_pct ?? 100,
       remainingUnhashed: claim.gate_remaining_unhashed,
       quarantineBacklog: claim.gate_quarantine_backlog,
+      opsMilestone,
     };
   }
   if (
@@ -213,6 +393,16 @@ export async function runArchiveCampaignTick(input: {
     gate_remaining_unhashed?: number;
     gate_quarantine_backlog?: number;
   } | null;
+  const opsMilestone = await maybeRecordCampaignOpsMilestone({
+    disposition: 'claimed',
+    campaignKind: input.campaignKind,
+    campaignId: claim.campaign_id,
+    status: finished?.status,
+    remainingUnhashed: finished?.gate_remaining_unhashed,
+    quarantineBacklog: finished?.gate_quarantine_backlog,
+    progressPct: finished?.progress_pct,
+    recordedBy: input.requestedBy,
+  });
   return {
     ok: governance.ok || governance.claimed > 0,
     disposition: 'claimed',
@@ -221,6 +411,7 @@ export async function runArchiveCampaignTick(input: {
     progressPct: finished?.progress_pct,
     remainingUnhashed: finished?.gate_remaining_unhashed,
     quarantineBacklog: finished?.gate_quarantine_backlog,
+    opsMilestone,
     governance,
   };
 }
@@ -264,6 +455,81 @@ export async function listArchiveCampaigns(input: {
       quarterly_full_due: hub?.live?.quarterly_full_due ?? false,
     },
     lastFullScanAt: hub?.last_full_scan_at ?? null,
+    error: error?.message,
+  };
+}
+
+export async function getArchiveCampaignOpsReport(input: {
+  firmWide: boolean;
+}) {
+  const emptyReadiness: ArchiveCampaignOpsReadiness = {
+    backfill_complete: false,
+    quarterly_unlocked: false,
+    ops_ready: false,
+    quarantine_aging_breach: false,
+    quarantine_backlog_high: false,
+    remaining_unhashed: 0,
+    quarantine_backlog: 0,
+    quarantine_oldest_days: 0,
+    quarterly_full_due: false,
+    aging_sla_days: 45,
+    quarantine_backlog_gate: 25,
+    first_quarterly_milestone_at: null,
+    last_ops_event_at: null,
+    last_full_scan_at: null,
+  };
+  if (!input.firmWide) {
+    return {
+      contractVersion: 'phase42-v1' as const,
+      readiness: emptyReadiness,
+      milestones: [] as Array<Record<string, unknown>>,
+      agingQueue: [] as ArchiveQuarantineAgingRow[],
+      error: undefined as string | undefined,
+    };
+  }
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc(
+    'get_docusign_archive_campaign_ops_phase42',
+    { p_entity_id: null },
+  );
+  const report = data as {
+    contract_version?: string;
+    readiness?: Partial<ArchiveCampaignOpsReadiness>;
+    milestones?: Array<Record<string, unknown>>;
+    aging_queue?: ArchiveQuarantineAgingRow[];
+  } | null;
+  return {
+    contractVersion: (report?.contract_version as 'phase42-v1') ?? 'phase42-v1',
+    readiness: {
+      ...emptyReadiness,
+      ...(report?.readiness ?? {}),
+    },
+    milestones: report?.milestones ?? [],
+    agingQueue: report?.aging_queue ?? [],
+    error: error?.message,
+  };
+}
+
+export async function listArchiveQuarantineAging(input: {
+  firmWide: boolean;
+  limit?: number;
+}) {
+  if (!input.firmWide) {
+    return {
+      rows: [] as ArchiveQuarantineAgingRow[],
+      error: undefined as string | undefined,
+    };
+  }
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc(
+    'list_docusign_archive_quarantine_aging_phase42',
+    {
+      p_limit: input.limit ?? 25,
+      p_entity_id: null,
+    },
+  );
+  return {
+    rows: (data as ArchiveQuarantineAgingRow[] | null) ?? [],
     error: error?.message,
   };
 }

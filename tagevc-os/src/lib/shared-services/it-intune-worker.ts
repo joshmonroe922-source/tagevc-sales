@@ -146,6 +146,18 @@ async function runReadOnlyHealthCanaryWithToken(token: string): Promise<{
       error: phase41Error.message,
     };
   }
+  // Phase 42 soak observations after accepted recommendations. Read-only
+  // against breaker state — never close or reset open breakers.
+  const { error: phase42Error } = await sb.rpc(
+    'observe_it_intune_recommendation_soak_phase42',
+  );
+  if (phase42Error) {
+    return {
+      ok: false,
+      status: 'phase42_soak_failed',
+      error: phase42Error.message,
+    };
+  }
   return {
     ok: true,
     status: String((finished as { status?: string } | null)?.status ?? 'done'),
@@ -177,6 +189,26 @@ export async function processIntunePhase41Followups(): Promise<{
   const { data, error } = await sb.rpc('generate_it_intune_phase41_followups');
   if (error) {
     return { ok: false, status: 'phase41_followups_failed', error: error.message };
+  }
+  return {
+    ok: true,
+    status: 'done',
+    detail: (data as Record<string, unknown> | null) ?? undefined,
+  };
+}
+
+export async function processIntunePhase42Soak(): Promise<{
+  ok: boolean;
+  status: string;
+  detail?: Record<string, unknown>;
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc(
+    'observe_it_intune_recommendation_soak_phase42',
+  );
+  if (error) {
+    return { ok: false, status: 'phase42_soak_failed', error: error.message };
   }
   return {
     ok: true,
