@@ -88,8 +88,13 @@ async function run(request: Request) {
       result.disposition === 'gated' ||
       result.disposition === 'already_complete';
     const leaseConflict = result.disposition === 'busy';
-    const firstQuarterlyMeta =
-      'firstQuarterly' in result ? result.firstQuarterly : undefined;
+    const firstQuarterlyMeta = useFirstQuarterlyPath
+      ? (
+          result as Awaited<
+            ReturnType<typeof runFirstQuarterlyGatedOps>
+          >
+        ).firstQuarterly
+      : undefined;
     await finishOperationalWorker({
       workerRunId: worker.workerRunId,
       status: noop
