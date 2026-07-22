@@ -4,6 +4,9 @@ import {
   getMsGraphToken,
   graphConfigured,
 } from '@/lib/shared-services/it-mdm';
+import { webhookUrl } from '@/lib/shared-services/slo-delivery';
+
+const INTUNE_OPS_DESTINATION_KEY = 'ops_alerts';
 
 type ClaimedAction = {
   action_id: string;
@@ -170,6 +173,16 @@ async function runReadOnlyHealthCanaryWithToken(token: string): Promise<{
       error: phase43Error.message,
     };
   }
+  // Phase 44: performance snapshots → correlate → critical windows → webhook
+  // → record alerts. Observe-only; never close or reset breakers.
+  const phase44 = await runIntunePhase44ResilienceOpsTick(sb);
+  if (!phase44.ok) {
+    return {
+      ok: false,
+      status: 'phase44_resilience_ops_failed',
+      error: phase44.error,
+    };
+  }
   return {
     ok: true,
     status: String((finished as { status?: string } | null)?.status ?? 'done'),
@@ -250,6 +263,166 @@ export async function processIntunePhase43SoakCycle(): Promise<{
     ok: true,
     status: 'done',
     detail: (data as Record<string, unknown> | null) ?? undefined,
+  };
+}
+
+type Phase44CriticalWindow = {
+  alert_kind: string;
+  window_key: string;
+  severity?: string;
+  breaker_id?: string | null;
+};
+
+async function deliverIntuneOpsWebhook(payload: Record<string, unknown>): Promise<{
+  delivery_status: 'delivered' | 'skipped_no_webhook' | 'failed';
+  response_code: number | null;
+}> {
+  const url = webhookUrl(INTUNE_OPS_DESTINATION_KEY);
+  if (!url) {
+    return { delivery_status: 'skipped_no_webhook', response_code: null };
+  }
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      redirect: 'error',
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) {
+      return { delivery_status: 'failed', response_code: response.status };
+    }
+    return { delivery_status: 'delivered', response_code: response.status };
+  } catch {
+    return { delivery_status: 'failed', response_code: null };
+  }
+}
+
+async function runIntunePhase44ResilienceOpsTick(
+  sb: Awaited<ReturnType<typeof createPersistClient>>,
+): Promise<
+  | {
+      ok: true;
+      snapshotsRecorded: number;
+      alertsRecorded: number;
+      delivered: number;
+      skipped: number;
+      failed: number;
+    }
+  | { ok: false; error: string }
+> {
+  const { data: snapshotData, error: snapshotError } = await sb.rpc(
+    'snapshot_it_intune_breaker_performance_phase44',
+  );
+  if (snapshotError) {
+    return { ok: false, error: snapshotError.message };
+  }
+
+  // Optional enrichment — returns timeline jsonb; never mutates breakers.
+  const { error: correlateError } = await sb.rpc(
+    'correlate_it_intune_resilience_phase44',
+  );
+  if (correlateError) {
+    return { ok: false, error: correlateError.message };
+  }
+
+  const { data: windows, error: windowError } = await sb.rpc(
+    'list_it_intune_phase44_critical_windows',
+    { p_window_hours: 24 },
+  );
+  if (windowError) {
+    return { ok: false, error: windowError.message };
+  }
+
+  const pending = ((windows as { pending?: Phase44CriticalWindow[] } | null)
+    ?.pending ?? []) as Phase44CriticalWindow[];
+  let alertsRecorded = 0;
+  let delivered = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  for (const window of pending.slice(0, 50)) {
+    const delivery = await deliverIntuneOpsWebhook({
+      kind: 'it_intune_phase44_ops_alert',
+      version: 'phase44-v1',
+      alert_kind: window.alert_kind,
+      window_key: window.window_key,
+      severity: window.severity ?? 'critical',
+      breaker_id: window.breaker_id ?? null,
+      destination_key: INTUNE_OPS_DESTINATION_KEY,
+      entity_identifiers_included: false,
+      closes_or_resets_breaker: false,
+    });
+
+    const { data: recorded, error: recordError } = await sb.rpc(
+      'record_it_intune_phase44_ops_alert',
+      {
+        p_alert: {
+          alert_kind: window.alert_kind,
+          window_key: window.window_key,
+          severity: window.severity ?? 'critical',
+          breaker_id: window.breaker_id ?? null,
+          destination_key: INTUNE_OPS_DESTINATION_KEY,
+          delivery_status: delivery.delivery_status,
+          response_code: delivery.response_code,
+          aggregate_evidence: {
+            evidence_version: 'phase44-v1',
+            entity_identifiers_included: false,
+            closes_or_resets_breaker: false,
+          },
+        },
+      },
+    );
+    if (recordError) {
+      return { ok: false, error: recordError.message };
+    }
+    if ((recorded as { inserted?: boolean } | null)?.inserted) {
+      alertsRecorded += 1;
+      if (delivery.delivery_status === 'delivered') delivered += 1;
+      else if (delivery.delivery_status === 'skipped_no_webhook') skipped += 1;
+      else failed += 1;
+    }
+  }
+
+  return {
+    ok: true,
+    snapshotsRecorded: Number(
+      (snapshotData as { snapshots_recorded?: number } | null)
+        ?.snapshots_recorded ?? 0,
+    ),
+    alertsRecorded,
+    delivered,
+    skipped,
+    failed,
+  };
+}
+
+export async function processIntunePhase44ResilienceOps(): Promise<{
+  ok: boolean;
+  status: string;
+  detail?: Record<string, unknown>;
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const result = await runIntunePhase44ResilienceOpsTick(sb);
+  if (!result.ok) {
+    return {
+      ok: false,
+      status: 'phase44_resilience_ops_failed',
+      error: result.error,
+    };
+  }
+  return {
+    ok: true,
+    status: 'done',
+    detail: {
+      snapshots_recorded: result.snapshotsRecorded,
+      alerts_recorded: result.alertsRecorded,
+      delivered: result.delivered,
+      skipped: result.skipped,
+      failed: result.failed,
+      closes_or_resets_breaker: false,
+    },
   };
 }
 

@@ -19,10 +19,14 @@ import {
   runColdRetentionHeadCadence,
 } from '@/lib/data/snapshot-retirement-phase42';
 import {
-  getSnapshotPhase43VerifyColdDashboard,
   publishFirmWideVerifyMaterialPhase43,
   runProductionColdHeadCadencePhase43,
 } from '@/lib/data/snapshot-retirement-phase43';
+import {
+  getSnapshotPhase44OpsDashboard,
+  scheduleSnapshotPhase44CanaryOps,
+  verifySnapshotExportPackageIntegrityPhase44,
+} from '@/lib/data/snapshot-retirement-phase44';
 import { captureException } from '@/lib/observability';
 import { guardPermission } from '@/lib/rbac/session';
 
@@ -109,6 +113,32 @@ const requestSchema = z.discriminatedUnion('action', [
     limit: z.number().int().min(1).max(100).default(25),
   }),
   z.object({
+    action: z.literal('verify_package_integrity'),
+    package_id: z.uuid(),
+  }),
+  z
+    .object({
+      action: z.literal('schedule_phase44_canary'),
+      package_id: z.uuid().optional(),
+      definition_id: z
+        .string()
+        .trim()
+        .min(3)
+        .max(64)
+        .regex(/^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$/)
+        .optional(),
+      cadence_hours: z.number().int().min(1).max(168).default(6),
+    })
+    .superRefine((value, context) => {
+      if (!value.package_id && !value.definition_id) {
+        context.addIssue({
+          code: 'custom',
+          path: ['package_id'],
+          message: 'Phase 44 canary schedules require package_id or definition_id',
+        });
+      }
+    }),
+  z.object({
     action: z.literal('schedule_phase40_canary'),
     entity_id: z.string().trim().min(1).max(100).nullable().optional(),
     package_id: z.uuid(),
@@ -134,21 +164,25 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: gate.error }, { status: 403 });
   }
   try {
-    const [phase40, phase43] = await Promise.all([
+    const [phase40, phase44] = await Promise.all([
       getSnapshotPhase40Dashboard(),
-      getSnapshotPhase43VerifyColdDashboard(),
+      getSnapshotPhase44OpsDashboard(),
     ]);
     if (!phase40.ok) {
       return NextResponse.json(phase40, { status: 503 });
     }
     return NextResponse.json({
       ...phase40,
-      verifyMaterial: phase43.verifyMaterial,
-      coldRuns: phase43.coldRuns,
-      phase42Slo: phase43.phase42Slo,
-      firmWideVerifyMaterial: phase43.firmWideVerifyMaterial,
-      productionColdSchedules: phase43.productionColdSchedules,
-      phase43Slo: phase43.phase43Slo,
+      verifyMaterial: phase44.verifyMaterial,
+      coldRuns: phase44.coldRuns,
+      phase42Slo: phase44.phase42Slo,
+      firmWideVerifyMaterial: phase44.firmWideVerifyMaterial,
+      productionColdSchedules: phase44.productionColdSchedules,
+      phase43Slo: phase44.phase43Slo,
+      integrityChecks: phase44.integrityChecks,
+      retentionAlerts: phase44.retentionAlerts,
+      phase44CanarySchedules: phase44.phase44CanarySchedules,
+      phase44Slo: phase44.phase44Slo,
     });
   } catch (error) {
     captureException(error, { route: 'snapshot-retirement-phase40-dashboard' });
@@ -267,6 +301,20 @@ export async function POST(request: Request) {
           actorId: gate.profile.id,
           idempotencyKey: parsed.data.idempotency_key,
           limit: parsed.data.limit,
+        });
+        break;
+      case 'verify_package_integrity':
+        result = await verifySnapshotExportPackageIntegrityPhase44({
+          actorId: gate.profile.id,
+          packageId: parsed.data.package_id,
+        });
+        break;
+      case 'schedule_phase44_canary':
+        result = await scheduleSnapshotPhase44CanaryOps({
+          actorId: gate.profile.id,
+          packageId: parsed.data.package_id,
+          definitionId: parsed.data.definition_id,
+          cadenceHours: parsed.data.cadence_hours,
         });
         break;
       case 'schedule_phase40_canary':

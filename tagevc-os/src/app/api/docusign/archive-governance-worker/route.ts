@@ -6,6 +6,7 @@ import {
   runFirstQuarterlyGatedOps,
 } from '@/lib/docusign/archive-campaigns';
 import { runArchiveGovernanceWorker } from '@/lib/docusign/archive-governance';
+import { runArchivePhase44OpsTick } from '@/lib/docusign/archive-phase44';
 import {
   finishOperationalWorker,
   startOperationalWorker,
@@ -95,6 +96,7 @@ async function run(request: Request) {
           >
         ).firstQuarterly
       : undefined;
+    const phase44 = await runArchivePhase44OpsTick();
     await finishOperationalWorker({
       workerRunId: worker.workerRunId,
       status: noop
@@ -138,13 +140,19 @@ async function run(request: Request) {
         archive_run_id: result.governance?.run_id ?? null,
         archive_status: result.governance?.status ?? null,
         checkpointed: result.governance?.checkpointed ?? false,
+        phase44_ops_ok: phase44.ok,
+        phase44_alerts_recorded: phase44.ok ? phase44.alertsRecorded : null,
+        phase44_ops_error: phase44.ok ? null : phase44.error,
       },
     });
-    return NextResponse.json(result, {
-      status: result.ok || noop || (result.governance?.claimed ?? 0) > 0
-        ? 200
-        : 500,
-    });
+    return NextResponse.json(
+      { ...result, phase44 },
+      {
+        status: result.ok || noop || (result.governance?.claimed ?? 0) > 0
+          ? 200
+          : 500,
+      },
+    );
   }
 
   const worker = await startOperationalWorker({
@@ -162,6 +170,7 @@ async function run(request: Request) {
     limit: 5,
   });
   const leaseConflict = /busy|not due|lease/i.test(result.error ?? '');
+  const phase44 = await runArchivePhase44OpsTick();
   await finishOperationalWorker({
     workerRunId: worker.workerRunId,
     status: result.checkpointed
@@ -184,11 +193,17 @@ async function run(request: Request) {
       drift: result.drift,
       quarantined: result.quarantined,
       checkpointed: result.checkpointed,
+      phase44_ops_ok: phase44.ok,
+      phase44_alerts_recorded: phase44.ok ? phase44.alertsRecorded : null,
+      phase44_ops_error: phase44.ok ? null : phase44.error,
     },
   });
-  return NextResponse.json(result, {
-    status: result.ok || result.claimed > 0 ? 200 : 500,
-  });
+  return NextResponse.json(
+    { ...result, phase44 },
+    {
+      status: result.ok || result.claimed > 0 ? 200 : 500,
+    },
+  );
 }
 
 export async function GET(request: Request) {

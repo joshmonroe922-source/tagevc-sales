@@ -39,6 +39,7 @@ import {
   getFirstQuarterlyOpsReport,
   listArchiveCampaigns,
 } from '@/lib/docusign/archive-campaigns';
+import { getArchivePhase44OpsReport } from '@/lib/docusign/archive-phase44';
 import { listArchiveGovernance } from '@/lib/docusign/archive-governance';
 
 function formatBytes(n: number | null | undefined): string {
@@ -132,6 +133,7 @@ export default async function DocuSignModulePage({
     archiveCampaigns,
     archiveCampaignOps,
     firstQuarterlyOps,
+    phase44Ops,
   ] = await Promise.all([
     listDocuSignEvents({
       limit: 40,
@@ -195,6 +197,7 @@ export default async function DocuSignModulePage({
     listArchiveCampaigns({ firmWide }),
     getArchiveCampaignOpsReport({ firmWide }),
     getFirstQuarterlyOpsReport({ firmWide }),
+    getArchivePhase44OpsReport({ firmWide }),
   ]);
 
   const voidPolicy = process.env.DOCUSIGN_VOID_POLICY?.trim() || 'allow';
@@ -267,6 +270,7 @@ export default async function DocuSignModulePage({
           </Badge>
           <Badge variant="secondary">Phase 40</Badge>
           <Badge variant="secondary">Phase 42</Badge>
+          <Badge variant="secondary">Phase 44</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">DocuSign</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
@@ -283,6 +287,15 @@ export default async function DocuSignModulePage({
           canArchiveReview={canArchiveReview}
           firstQuarterlyCtaEligible={
             firmWide && firstQuarterlyOps.cta.eligible
+          }
+          phase44DriftHealth={
+            firmWide ? phase44Ops.report.drift_health : undefined
+          }
+          phase44BackfillHealth={
+            firmWide ? phase44Ops.report.backfill_health : undefined
+          }
+          phase44AlertDelivery={
+            firmWide ? phase44Ops.report.alert_delivery : undefined
           }
         />
         <DocuSignTemplateSendForm
@@ -392,11 +405,13 @@ export default async function DocuSignModulePage({
               integrity windows. Phase 42 adds ops readiness and quarantine aging
               queue visibility. Phase 43 unlocks the first quarterly when
               backfill is zero and quarantine is aged, with runbook evidence and
-              a gated CTA.
+              a gated CTA. Phase 44 adds drift/backfill snapshots and integrity
+              ops alerts.
               {archiveGovernance.error ? ` · ${archiveGovernance.error}` : ''}
               {archiveCampaigns.error ? ` · ${archiveCampaigns.error}` : ''}
               {archiveCampaignOps.error ? ` · ${archiveCampaignOps.error}` : ''}
               {firstQuarterlyOps.error ? ` · ${firstQuarterlyOps.error}` : ''}
+              {phase44Ops.error ? ` · ${phase44Ops.error}` : ''}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-xs">
@@ -452,6 +467,17 @@ export default async function DocuSignModulePage({
                     : ''}
                   {firstQuarterlyOps.gates.runbook_ack_recorded
                     ? ' · runbook ack'
+                    : ''}
+                </p>
+                <p className="text-muted-foreground">
+                  Phase 44 health: drift {phase44Ops.report.drift_health} ·
+                  backfill {phase44Ops.report.backfill_health} · alerts{' '}
+                  {phase44Ops.report.alert_delivery}
+                  {phase44Ops.report.critical_alert_count > 0
+                    ? ` (${phase44Ops.report.critical_alert_count})`
+                    : ''}
+                  {phase44Ops.report.latest_backfill?.completeness_pct != null
+                    ? ` · completeness ${String(phase44Ops.report.latest_backfill.completeness_pct)}%`
                     : ''}
                 </p>
               </div>

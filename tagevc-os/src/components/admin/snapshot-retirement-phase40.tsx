@@ -91,6 +91,25 @@ type Dashboard = {
     scheduled_at: string;
   }>;
   phase43Slo?: Record<string, unknown> | null;
+  integrityChecks?: Array<{
+    check_id: string;
+    package_id: string;
+    check_status: string;
+    key_id: string | null;
+    created_at: string;
+    qualification_eligible?: boolean;
+  }>;
+  retentionAlerts?: Array<Record<string, unknown>>;
+  phase44CanarySchedules?: Array<{
+    schedule_id: string;
+    definition_id: string | null;
+    package_id: string | null;
+    cadence_hours: number;
+    last_run_at: string | null;
+    status: string;
+    created_at: string;
+  }>;
+  phase44Slo?: Record<string, unknown> | null;
 };
 
 type ApiResult = {
@@ -102,6 +121,7 @@ type ApiResult = {
   material?: Record<string, unknown>;
   run?: Record<string, unknown>;
   schedule?: Record<string, unknown>;
+  check?: Record<string, unknown>;
   skipped?: boolean;
 };
 
@@ -352,6 +372,63 @@ export function SnapshotRetirementPhase40Admin() {
     });
   }
 
+  function verifyPackageIntegrity() {
+    const packageRow = dashboard?.packages[0];
+    if (!packageRow) {
+      setError('Create a signed package before verifying integrity.');
+      return;
+    }
+    setMessage(null);
+    setError(null);
+    startTransition(async () => {
+      try {
+        const result = await post({
+          action: 'verify_package_integrity',
+          package_id: packageRow.package_id,
+        });
+        setMessage(
+          result.check
+            ? `Package integrity · ${String(result.check.check_status ?? 'recorded')} (non-qualifying).`
+            : 'Package integrity check recorded (non-qualifying).',
+        );
+        await refresh();
+      } catch (cause) {
+        setError(
+          cause instanceof Error ? cause.message : 'Package integrity check failed',
+        );
+      }
+    });
+  }
+
+  function schedulePhase44Canary() {
+    const packageRow = dashboard?.packages[0];
+    if (!packageRow) {
+      setError('Create a signed package before scheduling a Phase 44 canary.');
+      return;
+    }
+    const cadence = window.prompt('Cadence hours (1–168):', '6');
+    if (!cadence) return;
+    setMessage(null);
+    setError(null);
+    startTransition(async () => {
+      try {
+        await post({
+          action: 'schedule_phase44_canary',
+          package_id: packageRow.package_id,
+          cadence_hours: Number(cadence),
+        });
+        setMessage(
+          'Phase 44 recurring canary schedule recorded (non-qualifying).',
+        );
+        await refresh();
+      } catch (cause) {
+        setError(
+          cause instanceof Error ? cause.message : 'Phase 44 canary schedule failed',
+        );
+      }
+    });
+  }
+
   function scheduleCanary() {
     const packageRow = dashboard?.packages[0];
     if (!packageRow) {
@@ -412,7 +489,7 @@ export function SnapshotRetirementPhase40Admin() {
   return (
     <div className="mt-3 space-y-3 rounded-md border border-border/60 p-3 text-xs">
       <div className="flex flex-wrap items-center gap-2">
-        <p className="font-medium">Phase 40/41/42/43 signed retention evidence</p>
+        <p className="font-medium">Phase 40/41/42/43/44 signed retention evidence</p>
         <Badge variant="outline">Synthetic · non-qualifying</Badge>
       </div>
       <p className="text-muted-foreground">
@@ -421,7 +498,9 @@ export function SnapshotRetirementPhase40Admin() {
         receipts and warm/cold retention tiers. Phase 42 publishes public verify
         material and cold HEAD cadence evidence. Phase 43 publishes the firm-wide
         verify catalog and schedules production cold HEAD against retention
-        destinations. Canaries never qualify soak or attestation.
+        destinations. Phase 44 adds package integrity evidence, retention ops
+        alerts, and recurring multi-hour canary schedules. Canaries never qualify
+        soak or attestation.
       </p>
       {dashboard?.packages[0] ? (
         <div>
@@ -489,6 +568,38 @@ export function SnapshotRetirementPhase40Admin() {
           {String(dashboard.phase43Slo.production_cold_completed_30d ?? 0)}
         </p>
       ) : null}
+      {(dashboard?.integrityChecks ?? []).slice(0, 3).map((check) => (
+        <p key={check.check_id} className="font-mono text-[10px] text-muted-foreground">
+          INTEGRITY · {check.created_at} · {check.check_status} · key {check.key_id ?? 'n/a'}
+        </p>
+      ))}
+      {(dashboard?.retentionAlerts ?? []).slice(0, 3).map((alert) => (
+        <p
+          key={String(alert.alert_id)}
+          className="font-mono text-[10px] text-muted-foreground"
+        >
+          RETENTION ALERT · {String(alert.created_at)} · {String(alert.alert_kind)} ·{' '}
+          {String(alert.window_key)}
+        </p>
+      ))}
+      {(dashboard?.phase44CanarySchedules ?? []).slice(0, 3).map((schedule) => (
+        <p
+          key={schedule.schedule_id}
+          className="font-mono text-[10px] text-muted-foreground"
+        >
+          P44 CANARY · {schedule.status} · cadence {schedule.cadence_hours}h · last{' '}
+          {schedule.last_run_at ?? 'never'}
+        </p>
+      ))}
+      {dashboard?.phase44Slo ? (
+        <p className="text-muted-foreground">
+          Phase 44 integrity 30d ·{' '}
+          {String(dashboard.phase44Slo.integrity_checks_30d ?? 0)} · verified{' '}
+          {String(dashboard.phase44Slo.integrity_verified_30d ?? 0)} · alerts{' '}
+          {String(dashboard.phase44Slo.retention_alerts_30d ?? 0)} · active canaries{' '}
+          {String(dashboard.phase44Slo.active_canary_schedules ?? 0)}
+        </p>
+      ) : null}
       {dashboard?.checks.slice(0, 4).map((check) => (
         <p key={check.check_id} className="font-mono text-[10px] text-muted-foreground">
           {check.checked_at} · retention {check.status}
@@ -541,6 +652,12 @@ export function SnapshotRetirementPhase40Admin() {
         </Button>
         <Button type="button" size="sm" variant="outline" disabled={pending} onClick={runProductionColdHead}>
           Run production cold HEAD
+        </Button>
+        <Button type="button" size="sm" variant="outline" disabled={pending} onClick={verifyPackageIntegrity}>
+          Verify package integrity
+        </Button>
+        <Button type="button" size="sm" variant="outline" disabled={pending} onClick={schedulePhase44Canary}>
+          Schedule Phase 44 canary
         </Button>
         <Button type="button" size="sm" variant="outline" disabled={pending} onClick={scheduleCanary}>
           Schedule multi-hour canary

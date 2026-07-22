@@ -5,9 +5,11 @@ import type {
   Phase41RevenueReport,
   Phase42RevenueSloReport,
   Phase43RevenueOpsReport,
+  Phase44RevenueOpsReport,
 } from '@/lib/shared-services/marketing-revenue-contracts';
 import {
   reviewMarketingRevenueCorrectionAction,
+  resolveMarketingAttributionConflictAction,
 } from '@/app/(app)/shared-services/marketing/actions';
 
 function money(micros: string, currency: string) {
@@ -46,6 +48,8 @@ export function MarketingRevenuePhase41({
   sloError,
   opsReport,
   opsError,
+  phase44OpsReport,
+  phase44OpsError,
 }: {
   report: Phase41RevenueReport;
   error?: string;
@@ -54,6 +58,8 @@ export function MarketingRevenuePhase41({
   sloError?: string;
   opsReport?: Phase43RevenueOpsReport;
   opsError?: string;
+  phase44OpsReport?: Phase44RevenueOpsReport;
+  phase44OpsError?: string;
 }) {
   const [pending, startTransition] = useTransition();
   const [actionError, setActionError] = useState<string | null>(null);
@@ -97,6 +103,34 @@ export function MarketingRevenuePhase41({
         return;
       }
       setActionMessage(result.message ?? `Correction ${decision}`);
+    });
+  }
+
+  function resolveConflict(
+    conflictId: string,
+    resolution: 'proposed' | 'approved' | 'rejected',
+  ) {
+    const reason = window.prompt(
+      resolution === 'proposed'
+        ? 'Proposal reason (min 10 characters):'
+        : resolution === 'approved'
+          ? 'Approval reason (min 10 characters):'
+          : 'Rejection reason (min 10 characters):',
+    );
+    if (!reason?.trim()) return;
+    setActionError(null);
+    setActionMessage(null);
+    startTransition(async () => {
+      const result = await resolveMarketingAttributionConflictAction(
+        conflictId,
+        resolution,
+        reason.trim(),
+      );
+      if (!result.ok) {
+        setActionError(result.error);
+        return;
+      }
+      setActionMessage(result.message ?? `Conflict ${resolution}`);
     });
   }
 
@@ -163,12 +197,39 @@ export function MarketingRevenuePhase41({
                 </span>
               </>
             ) : null}
+            {phase44OpsReport ? (
+              <>
+                <span
+                  className={`rounded border px-2 py-0.5 text-[11px] ${severityClass(phase44OpsReport.correction_validation_health)}`}
+                >
+                  correction validation{' '}
+                  {phase44OpsReport.correction_validation_health}
+                </span>
+                <span
+                  className={`rounded border px-2 py-0.5 text-[11px] ${
+                    phase44OpsReport.conflict_open_count > 0
+                      ? 'border-amber-600 text-amber-800'
+                      : 'border-emerald-600 text-emerald-800'
+                  }`}
+                >
+                  open conflicts {phase44OpsReport.conflict_open_count}
+                </span>
+                <span
+                  className={`rounded border px-2 py-0.5 text-[11px] ${severityClass(phase44OpsReport.recon_health)}`}
+                >
+                  recon health {phase44OpsReport.recon_health}
+                </span>
+              </>
+            ) : null}
           </div>
           {sloError ? (
             <p className="text-xs text-destructive">{sloError}</p>
           ) : null}
           {opsError ? (
             <p className="text-xs text-destructive">{opsError}</p>
+          ) : null}
+          {phase44OpsError ? (
+            <p className="text-xs text-destructive">{phase44OpsError}</p>
           ) : null}
           <div className="grid gap-2 md:grid-cols-2">
             <div className="rounded border p-2 text-xs">
@@ -321,6 +382,70 @@ export function MarketingRevenuePhase41({
           ))
         )}
       </div>
+
+      {phase44OpsReport && phase44OpsReport.conflicts.length > 0 ? (
+        <div className="space-y-2">
+          <p className="text-xs font-medium">Attribution conflicts</p>
+          {phase44OpsReport.conflicts.slice(0, 20).map((conflict) => (
+            <div
+              className="flex flex-wrap items-start justify-between gap-2 rounded border p-2 text-xs"
+              key={conflict.conflict_id}
+            >
+              <div>
+                <p className="font-medium">
+                  {conflict.conflict_kind} · {conflict.resolution_status}
+                </p>
+                <p className="text-muted-foreground">
+                  {conflict.currency} · {conflict.window_days}d ·{' '}
+                  {conflict.window_start.slice(0, 10)}–
+                  {conflict.window_end.slice(0, 10)}
+                </p>
+              </div>
+              {canWrite &&
+              (conflict.resolution_status === 'open' ||
+                conflict.resolution_status === 'proposed') ? (
+                <div className="flex gap-2">
+                  {conflict.resolution_status === 'open' ? (
+                    <button
+                      type="button"
+                      className="rounded border px-2 py-1"
+                      disabled={pending}
+                      onClick={() =>
+                        resolveConflict(conflict.conflict_id, 'proposed')
+                      }
+                    >
+                      Propose
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        className="rounded border px-2 py-1"
+                        disabled={pending}
+                        onClick={() =>
+                          resolveConflict(conflict.conflict_id, 'approved')
+                        }
+                      >
+                        Approve
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded border px-2 py-1"
+                        disabled={pending}
+                        onClick={() =>
+                          resolveConflict(conflict.conflict_id, 'rejected')
+                        }
+                      >
+                        Reject
+                      </button>
+                    </>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
         {report.sources.map((source) => (

@@ -29,6 +29,7 @@ import {
   reviewMarketingRevenueCorrection,
   upsertMarketingRevenueSource,
 } from '@/lib/shared-services/marketing-phase41';
+import { proposeResolveAttributionConflict } from '@/lib/shared-services/marketing-phase44';
 import {
   REVENUE_AUTHENTICITY_MODES,
   REVENUE_LEDGER_KINDS,
@@ -886,6 +887,51 @@ export async function reviewMarketingRevenueCorrectionAction(
       decision === 'approved'
         ? `Approved correction ${correctionId}`
         : `Rejected correction ${correctionId}`,
+  };
+}
+
+export async function resolveMarketingAttributionConflictAction(
+  conflictId: string,
+  resolution: 'proposed' | 'approved' | 'rejected',
+  reason: string,
+): Promise<MarketingActionResult> {
+  const gate = await guardPermission('write:marketing');
+  if (!gate.ok) return gate;
+  const sb = await createPersistClient();
+  const { data: conflict, error: conflictError } = await sb
+    .from('os_marketing_revenue_attribution_conflicts')
+    .select('conflict_id,entity_id,resolution_status')
+    .eq('conflict_id', conflictId)
+    .maybeSingle();
+  if (conflictError || !conflict) {
+    return {
+      ok: false,
+      error: conflictError?.message ?? 'Attribution conflict not found',
+    };
+  }
+  if (
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      conflict.entity_id,
+    )
+  ) {
+    return {
+      ok: false,
+      error: entityScopeDeniedMessage(conflict.entity_id),
+    };
+  }
+  const result = await proposeResolveAttributionConflict({
+    conflictId,
+    resolution,
+    reason,
+    actorId: gate.profile.id,
+  });
+  if (!result.ok) return result;
+  revalidateMarketing();
+  return {
+    ok: true,
+    message: `Attribution conflict ${resolution}`,
   };
 }
 

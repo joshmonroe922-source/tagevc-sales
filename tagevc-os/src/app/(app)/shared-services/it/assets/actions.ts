@@ -1306,3 +1306,22 @@ export async function refreshIntuneRecommendationSoakAction(): Promise<ItAssetAc
     message: `Recommendation soak observed ${observed} draft(s); recorded ${recorded} open→closed cycle(s) — breakers never closed or reset`,
   };
 }
+
+export async function refreshIntunePhase44ResilienceOpsAction(): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('action:intune_manual_review');
+  if (!gate.ok) return gate;
+  const { runIntunePhase44ResilienceOps } = await import(
+    '@/lib/shared-services/it-assets-repo'
+  );
+  const result = await runIntunePhase44ResilienceOps();
+  if (!result.ok) {
+    return { ok: false, error: result.error ?? 'Phase 44 resilience ops failed' };
+  }
+  revalidateAssets();
+  const snaps = Number(result.detail?.snapshots_recorded ?? 0);
+  const alerts = Number(result.detail?.alerts_recorded ?? 0);
+  return {
+    ok: true,
+    message: `Phase 44 resilience ops: ${snaps} performance snapshot(s), ${alerts} alert(s) — breakers never closed or reset`,
+  };
+}

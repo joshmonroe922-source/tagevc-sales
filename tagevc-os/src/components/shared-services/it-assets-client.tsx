@@ -37,6 +37,7 @@ import {
   acceptIntuneThresholdRecommendationAction,
   dismissIntuneThresholdRecommendationAction,
   refreshIntuneRecommendationSoakAction,
+  refreshIntunePhase44ResilienceOpsAction,
   runIntuneWorkerAction,
   type ItAssetActionResult,
 } from '@/app/(app)/shared-services/it/assets/actions';
@@ -60,6 +61,8 @@ import type {
   ItIntunePhase41Health,
   ItIntunePhase42Health,
   ItIntunePhase43Health,
+  ItIntunePhase44Health,
+  ItIntuneResilienceCorrelationEvent,
   ItIntuneSoakCycleTimeline,
   ItIntuneThresholdRecommendation,
   ItIntuneTuningProposal,
@@ -117,9 +120,11 @@ export function ItAssetsClient({
   intunePhase41Health = null,
   intunePhase42Health = null,
   intunePhase43Health = null,
+  intunePhase44Health = null,
   intuneOutagePostmortems = [],
   intuneThresholdRecommendations = [],
   intuneSoakCycleTimeline = [],
+  intuneResilienceCorrelation = [],
   canIntuneRetire = false,
   canIntuneManualReview = false,
   currentActorId = null,
@@ -157,9 +162,11 @@ export function ItAssetsClient({
   intunePhase41Health?: ItIntunePhase41Health | null;
   intunePhase42Health?: ItIntunePhase42Health | null;
   intunePhase43Health?: ItIntunePhase43Health | null;
+  intunePhase44Health?: ItIntunePhase44Health | null;
   intuneOutagePostmortems?: ItIntuneOutagePostmortem[];
   intuneThresholdRecommendations?: ItIntuneThresholdRecommendation[];
   intuneSoakCycleTimeline?: ItIntuneSoakCycleTimeline[];
+  intuneResilienceCorrelation?: ItIntuneResilienceCorrelationEvent[];
   canIntuneRetire?: boolean;
   canIntuneManualReview?: boolean;
   currentActorId?: string | null;
@@ -272,12 +279,25 @@ export function ItAssetsClient({
                 : ''}
             </>
           ) : null}
+          {intunePhase44Health ? (
+            <>
+              {' · '}perf snaps{' '}
+              {Number(intunePhase44Health.performance_snapshot_count)}
+              {' · '}ops alerts {Number(intunePhase44Health.ops_alert_count)}
+              {Number(intunePhase44Health.alerts_undelivered_count) > 0
+                ? ` · undelivered ${Number(intunePhase44Health.alerts_undelivered_count)}`
+                : ''}
+              {' · '}correlation 7d{' '}
+              {Number(intunePhase44Health.correlation_events_7d)}
+            </>
+          ) : null}
         </div>
       ) : null}
 
       {(intuneOutagePostmortems.length > 0 ||
         intuneThresholdRecommendations.length > 0 ||
-        intuneSoakCycleTimeline.length > 0) && (
+        intuneSoakCycleTimeline.length > 0 ||
+        intuneResilienceCorrelation.length > 0) && (
         <section className="space-y-3 rounded-lg border p-4">
           <div>
             <h2 className="text-base font-semibold">
@@ -287,10 +307,11 @@ export function ItAssetsClient({
               Aggregate-only postmortems and system recommendation drafts. Accepting
               a draft creates a Phase 40 tuning proposal for a second human — it never
               closes or resets an open breaker. Phase 42 records soak status; Phase 43
-              records open→closed cycle evidence only after natural recovery.
+              records open→closed cycle evidence only after natural recovery. Phase 44
+              adds performance trends, canary/outage ops alerts, and correlation.
             </p>
             {canIntuneManualReview && intunePhase42Health ? (
-              <div className="pt-1">
+              <div className="flex flex-wrap gap-2 pt-1">
                 <Button
                   type="button"
                   size="sm"
@@ -300,9 +321,38 @@ export function ItAssetsClient({
                 >
                   Refresh recommendation soak
                 </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={pending}
+                  onClick={() => run(() => refreshIntunePhase44ResilienceOpsAction())}
+                >
+                  Refresh resilience ops
+                </Button>
               </div>
             ) : null}
           </div>
+          {intuneResilienceCorrelation.length > 0 ? (
+            <div className="space-y-2 text-xs">
+              <p className="font-medium">Resilience correlation timeline</p>
+              {intuneResilienceCorrelation.map((event, index) => (
+                <div
+                  key={`${event.event_kind}-${event.occurred_at}-${event.evidence_sha256.slice(0, 12)}-${index}`}
+                  className="border-b border-border/40 pb-2"
+                >
+                  <strong>{event.event_kind}</strong>
+                  {event.status ? ` · ${event.status}` : ''}
+                  {event.breaker_id
+                    ? ` · breaker ${event.breaker_id.slice(0, 8)}`
+                    : ''}
+                  {' · '}
+                  {new Date(event.occurred_at).toLocaleString()}
+                  {' · '}sha {event.evidence_sha256.slice(0, 12)}
+                </div>
+              ))}
+            </div>
+          ) : null}
           {intuneSoakCycleTimeline.length > 0 ? (
             <div className="space-y-2 text-xs">
               <p className="font-medium">Soak open→closed cycle timeline</p>

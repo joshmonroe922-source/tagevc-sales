@@ -6,6 +6,7 @@ export const REVENUE_REPORT_VERSION = 'phase40-v1';
 export const REVENUE_REPORT_VERSION_PHASE41 = 'phase41-v1';
 export const REVENUE_REPORT_VERSION_PHASE42 = 'phase42-v1';
 export const REVENUE_REPORT_VERSION_PHASE43 = 'phase43-v1';
+export const REVENUE_REPORT_VERSION_PHASE44 = 'phase44-v1';
 export const REVENUE_SLO_SEVERITIES = [
   'healthy',
   'warning',
@@ -280,6 +281,119 @@ export type Phase43RevenueOpsReport = {
   critical_alert_count: number;
   bindings: Phase43CredentialBinding[];
   alerts: Phase43OpsAlert[];
+  destination_key: string;
+};
+
+export const REVENUE_CORRECTION_VALIDATION_STATUSES = [
+  'passed',
+  'failed',
+  'auto_rejected',
+] as const;
+export type RevenueCorrectionValidationStatus =
+  (typeof REVENUE_CORRECTION_VALIDATION_STATUSES)[number];
+
+export const REVENUE_ATTRIBUTION_CONFLICT_KINDS = [
+  'event_set_mismatch',
+  'amount_delta_threshold',
+  'model_count_gap',
+] as const;
+export type RevenueAttributionConflictKind =
+  (typeof REVENUE_ATTRIBUTION_CONFLICT_KINDS)[number];
+
+export const REVENUE_ATTRIBUTION_RESOLUTION_STATUSES = [
+  'open',
+  'proposed',
+  'approved',
+  'rejected',
+] as const;
+export type RevenueAttributionResolutionStatus =
+  (typeof REVENUE_ATTRIBUTION_RESOLUTION_STATUSES)[number];
+
+export const REVENUE_RECONCILIATION_STATUSES = [
+  'complete',
+  'incomplete',
+  'failed',
+  'denominator_inconsistent',
+  'unavailable',
+] as const;
+export type RevenueReconciliationStatus =
+  (typeof REVENUE_RECONCILIATION_STATUSES)[number];
+
+export type Phase44CorrectionValidation = {
+  validation_id: string;
+  correction_id: string;
+  entity_id: string;
+  validation_status: RevenueCorrectionValidationStatus | string;
+  fail_reason: string | null;
+  age_hours: number;
+  metrics_sha256: string;
+  created_at: string;
+};
+
+export type Phase44AttributionConflict = {
+  conflict_id: string;
+  conflict_key: string;
+  entity_id: string;
+  window_start: string;
+  window_end: string;
+  currency: string;
+  window_days: number;
+  conflict_kind: RevenueAttributionConflictKind | string;
+  model_digests: unknown[];
+  metrics_sha256: string;
+  resolution_status: RevenueAttributionResolutionStatus | string;
+  resolution_reason: string | null;
+  resolved_by: string | null;
+  resolved_at: string | null;
+  created_at: string;
+};
+
+export type Phase44ReconciliationSnapshot = {
+  snapshot_id: string;
+  entity_id: string;
+  source_id: string | null;
+  reconciliation_status: RevenueReconciliationStatus | string;
+  expected_count: number;
+  observed_count: number;
+  completeness_pct: number | null;
+  late_records: number;
+  staged_corrections: number;
+  metrics_sha256: string;
+  created_at: string;
+};
+
+export type Phase44OpsAlert = {
+  alert_id: string;
+  entity_id: string;
+  source_id: string | null;
+  alert_kind:
+    | 'correction_queue_critical'
+    | 'correction_validation_failed'
+    | 'attribution_conflict'
+    | 'recon_incomplete'
+    | 'recon_denominator_inconsistent'
+    | 'late_records_critical'
+    | string;
+  window_key: string;
+  severity: 'critical' | string;
+  destination_key: string;
+  delivery_status: RevenueOpsAlertDelivery | string;
+  response_code: number | null;
+  metrics_sha256: string;
+  created_at: string;
+};
+
+export type Phase44RevenueOpsReport = {
+  version: typeof REVENUE_REPORT_VERSION_PHASE44 | string;
+  window_days: number;
+  correction_validation_health: RevenueSloSeverity | string;
+  conflict_open_count: number;
+  recon_health: RevenueSloSeverity | string;
+  alert_delivery: RevenueOpsAlertDelivery | string;
+  validations: Phase44CorrectionValidation[];
+  conflicts: Phase44AttributionConflict[];
+  snapshots: Phase44ReconciliationSnapshot[];
+  alerts: Phase44OpsAlert[];
   destination_key: string;
 };
 

@@ -781,13 +781,31 @@ Apply after Phase 42:
 
 Docs: `docs/OS_PHASE43.md`
 
-### Phase 44+ backlog
+### Phase 44
 
-- Live ledger secrets + critical alert delivery SLOs
-- Complete first DocuSign quarterly; recurring quarterlies
-- Real Intune soak cycles feeding postmortem reviews
-- Nightly SLO export archival + quarterly succession drills
-- Firm-wide ed25519 rotation; cold HEAD failure alerts
+Ops maturity and evidence depth: revenue correction validation and attribution
+conflicts, DocuSign drift/backfill health with integrity alerts, Intune
+breaker performance trends and resilience correlation, SLO scenario library
+with handoff suggestions and revision ledger, snapshot package integrity plus
+retention/canary monitoring.
+
+Apply after Phase 43:
+
+1. `phase44_marketing_revenue_ops.sql`
+2. `phase44_docusign_archive_ops.sql`
+3. `phase44_intune_resilience_ops.sql`
+4. `phase44_slo_governance_ops.sql`
+5. `phase44_snapshot_retention_ops.sql`
+
+Docs: `docs/OS_PHASE44.md`
+
+### Phase 45+ backlog
+
+- Tune correction auto-reject + attribution conflict SLOs; webhook delivery rates
+- Complete first DocuSign quarterly; recurring quarterlies with drift budgets
+- Intune multi-cycle performance trends feeding postmortem quality
+- Nightly SLO scenario replay + quarterly handoff digests
+- Firm-wide ed25519 dual-key rotation; consecutive cold HEAD pages
 - Continue Stage 4e soak; do not drop snapshots
 - Push · user admin
 

@@ -85,6 +85,9 @@ export async function listSloPolicyAdministration() {
     { data: successionProposals, error: successionError },
     { data: successionDrills, error: drillError },
     { data: archivalReceipts, error: archivalError },
+    { data: handoffSuggestions, error: handoffError },
+    { data: simulationScenarios, error: scenarioError },
+    { data: phase44Report, error: phase44ReportError },
   ] = await Promise.all([
     sb
       .from('os_slo_policies')
@@ -147,6 +150,21 @@ export async function listSloPolicyAdministration() {
       )
       .order('archived_at', { ascending: false })
       .limit(12),
+    sb
+      .from('os_slo_owner_handoff_suggestions')
+      .select(
+        'suggestion_id,policy_id,current_owner_id,suggested_owner_id,eligibility_ok,reason,status,created_at',
+      )
+      .order('created_at', { ascending: false })
+      .limit(12),
+    sb
+      .from('os_slo_simulation_scenarios')
+      .select(
+        'scenario_id,name,window_start,window_end,draft_policy_hash,published_policy_hash,created_at',
+      )
+      .order('created_at', { ascending: false })
+      .limit(12),
+    sb.rpc('get_slo_phase44_governance_report'),
   ]);
   errorMessage(policyError);
   errorMessage(ownerError);
@@ -178,6 +196,15 @@ export async function listSloPolicyAdministration() {
   }
   if (archivalError) {
     console.error('slo export archival receipts unavailable', archivalError.message);
+  }
+  if (handoffError) {
+    console.error('slo handoff suggestions unavailable', handoffError.message);
+  }
+  if (scenarioError) {
+    console.error('slo simulation scenarios unavailable', scenarioError.message);
+  }
+  if (phase44ReportError) {
+    console.error('slo phase44 governance report unavailable', phase44ReportError.message);
   }
   const archivedExportIds = new Set(
     (archivalError ? [] : (archivalReceipts ?? [])).map(
@@ -231,6 +258,9 @@ export async function listSloPolicyAdministration() {
     successionProposals: successionError ? [] : (successionProposals ?? []),
     successionDrills: drillError ? [] : (successionDrills ?? []),
     archivalReceipts: archivalError ? [] : (archivalReceipts ?? []),
+    handoffSuggestions: handoffError ? [] : (handoffSuggestions ?? []),
+    simulationScenarios: scenarioError ? [] : (simulationScenarios ?? []),
+    phase44Report: phase44ReportError ? null : (phase44Report ?? null),
   };
 }
 
@@ -619,4 +649,145 @@ export async function runSloOwnerSuccessionDrillPhase43(input: {
   });
   errorMessage(error);
   return data;
+}
+
+export const PHASE44_SLO_CONTRACT_VERSION = 'phase44-v1';
+
+export async function registerSloSimulationScenarioPhase44(input: {
+  actorId: string;
+  name: string;
+  windowStart: string;
+  windowEnd: string;
+  entityScope?: unknown;
+  draftPolicyHash: string;
+  publishedPolicyHash?: string | null;
+  lastResultDigest?: string | null;
+  metadata?: Record<string, unknown>;
+}) {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc('register_slo_simulation_scenario_phase44', {
+    p_actor_id: input.actorId,
+    p_name: input.name,
+    p_window_start: input.windowStart,
+    p_window_end: input.windowEnd,
+    p_entity_scope: input.entityScope ?? [],
+    p_draft_policy_hash: input.draftPolicyHash,
+    p_published_policy_hash: input.publishedPolicyHash ?? null,
+    p_last_result_digest: input.lastResultDigest ?? null,
+    p_metadata: input.metadata ?? {},
+  });
+  errorMessage(error);
+  return data;
+}
+
+export async function replaySloSimulationScenarioPhase44(input: {
+  actorId: string;
+  scenarioId: string;
+  idempotencyKey: string;
+  draftPolicyId?: string | null;
+  maxBuckets?: number;
+}) {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc('replay_slo_simulation_scenario_phase44', {
+    p_actor_id: input.actorId,
+    p_scenario_id: input.scenarioId,
+    p_idempotency_key: input.idempotencyKey,
+    p_draft_policy_id: input.draftPolicyId ?? null,
+    p_max_buckets: input.maxBuckets ?? 168,
+  });
+  errorMessage(error);
+  return data;
+}
+
+/** Suggest only — does not apply live succession. */
+export async function suggestSloOwnerHandoffsPhase44(input?: {
+  warningDays?: number;
+}) {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc('suggest_slo_owner_handoffs_phase44', {
+    p_warning_days: input?.warningDays ?? 30,
+  });
+  errorMessage(error);
+  return data;
+}
+
+export async function resolveSloOwnerHandoffSuggestionPhase44(input: {
+  actorId: string;
+  suggestionId: string;
+  status: 'accepted' | 'dismissed' | 'expired';
+}) {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc(
+    'resolve_slo_owner_handoff_suggestion_phase44',
+    {
+      p_actor_id: input.actorId,
+      p_suggestion_id: input.suggestionId,
+      p_status: input.status,
+    },
+  );
+  errorMessage(error);
+  return data;
+}
+
+export async function recordSloPolicyRevisionPhase44(input: {
+  actorId: string;
+  policyId: string;
+  fromRowVersion: number;
+  toRowVersion: number;
+  comparisonDigest: string;
+  materialRisk: boolean;
+}) {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc('record_slo_policy_revision_phase44', {
+    p_actor_id: input.actorId,
+    p_policy_id: input.policyId,
+    p_from_row_version: input.fromRowVersion,
+    p_to_row_version: input.toRowVersion,
+    p_comparison_digest: input.comparisonDigest,
+    p_material_risk: input.materialRisk,
+  });
+  errorMessage(error);
+  return data;
+}
+
+export async function getSloPhase44GovernanceReport() {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc('get_slo_phase44_governance_report');
+  if (error) {
+    console.error('slo phase44 governance report unavailable', error.message);
+    return null;
+  }
+  return data;
+}
+
+export async function processSloGovernancePhase44(input?: { actorId?: string }) {
+  const sb = await createPersistClient();
+  const handoffs = await suggestSloOwnerHandoffsPhase44({ warningDays: 30 });
+  let archival: unknown = null;
+  if (input?.actorId) {
+    const { data, error } = await sb.rpc(
+      'archive_expired_slo_simulation_exports_phase43',
+      {
+        p_actor_id: input.actorId,
+        p_limit: 25,
+      },
+    );
+    if (error) {
+      console.error('slo phase44 archival tick unavailable', error.message);
+    } else {
+      archival = data;
+    }
+  }
+  const { data: alerts, error: alertError } = await sb.rpc(
+    'scan_slo_phase44_ops_alerts',
+    { p_actor_id: input?.actorId ?? null },
+  );
+  if (alertError) {
+    console.error('slo phase44 ops alert scan unavailable', alertError.message);
+  }
+  return {
+    handoffs,
+    archival,
+    alerts: alertError ? null : alerts,
+  };
 }

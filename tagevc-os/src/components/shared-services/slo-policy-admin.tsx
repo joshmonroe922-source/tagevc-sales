@@ -9,8 +9,10 @@ import {
   recordSloExportAuditAccessAction,
   requestSloRouteTestAction,
   requestSloSimulationAction,
+  resolveSloOwnerHandoffSuggestionAction,
   runSloOwnerSuccessionDrillAction,
   saveSloPolicyDraftAction,
+  suggestSloOwnerHandoffsAction,
   transitionSloPolicyDraftAction,
 } from '@/app/(app)/shared-services/actions';
 import { Badge } from '@/components/ui/badge';
@@ -236,6 +238,9 @@ export function SloPolicyAdmin({
   successionProposals = [],
   successionDrills = [],
   archivalReceipts = [],
+  handoffSuggestions = [],
+  simulationScenarios = [],
+  phase44Report = null,
 }: {
   activePolicies: SloPolicyRow[];
   drafts: SloPolicyRow[];
@@ -250,6 +255,9 @@ export function SloPolicyAdmin({
   successionProposals?: Array<Record<string, unknown>>;
   successionDrills?: Array<Record<string, unknown>>;
   archivalReceipts?: Array<Record<string, unknown>>;
+  handoffSuggestions?: Array<Record<string, unknown>>;
+  simulationScenarios?: Array<Record<string, unknown>>;
+  phase44Report?: Record<string, unknown> | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -348,6 +356,28 @@ export function SloPolicyAdmin({
     startTransition(async () => {
       const result = await archiveExpiredSloExportsAction();
       setMessage(result.ok ? result.message ?? 'Archived' : result.error);
+      if (result.ok) router.refresh();
+    });
+  }
+
+  function suggestHandoffs() {
+    startTransition(async () => {
+      const result = await suggestSloOwnerHandoffsAction();
+      setMessage(result.ok ? result.message ?? 'Suggestions recorded' : result.error);
+      if (result.ok) router.refresh();
+    });
+  }
+
+  function resolveHandoff(
+    suggestionId: string,
+    status: 'accepted' | 'dismissed',
+  ) {
+    startTransition(async () => {
+      const result = await resolveSloOwnerHandoffSuggestionAction({
+        suggestionId,
+        status,
+      });
+      setMessage(result.ok ? result.message ?? 'Resolved' : result.error);
       if (result.ok) router.refresh();
     });
   }
@@ -501,6 +531,68 @@ export function SloPolicyAdmin({
                 {String(drill.live_succession_mutated ?? false)}
               </p>
             ))}
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={pending}
+              onClick={suggestHandoffs}
+            >
+              Suggest owner handoffs
+            </Button>
+            {handoffSuggestions.slice(0, 4).map((suggestion) => (
+              <div
+                key={String(suggestion.suggestion_id)}
+                className="flex flex-wrap items-center gap-2 text-xs"
+              >
+                <p className="font-mono text-[10px] text-muted-foreground">
+                  HANDOFF · {String(suggestion.status)} · eligible=
+                  {String(suggestion.eligibility_ok)} · {String(suggestion.reason)}
+                </p>
+                {suggestion.status === 'suggested' ? (
+                  <>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      disabled={pending}
+                      onClick={() =>
+                        resolveHandoff(String(suggestion.suggestion_id), 'accepted')
+                      }
+                    >
+                      Accept suggestion
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      disabled={pending}
+                      onClick={() =>
+                        resolveHandoff(String(suggestion.suggestion_id), 'dismissed')
+                      }
+                    >
+                      Dismiss
+                    </Button>
+                  </>
+                ) : null}
+              </div>
+            ))}
+            {simulationScenarios.slice(0, 4).map((scenario) => (
+              <p
+                key={String(scenario.scenario_id)}
+                className="font-mono text-[10px] text-muted-foreground"
+              >
+                SCENARIO · {String(scenario.name)} · {String(scenario.window_start)} →{' '}
+                {String(scenario.window_end)}
+              </p>
+            ))}
+            {phase44Report ? (
+              <p className="text-muted-foreground">
+                Phase 44 · scenarios {String(phase44Report.scenarios ?? 0)} · open handoffs{' '}
+                {String(phase44Report.handoff_suggestions_open ?? 0)} · revisions 30d{' '}
+                {String(phase44Report.policy_revisions_30d ?? 0)}
+              </p>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}

@@ -24,17 +24,48 @@ export function DocuSignHubActions({
   canReconcile,
   canArchiveReview,
   firstQuarterlyCtaEligible = false,
+  phase44DriftHealth,
+  phase44BackfillHealth,
+  phase44AlertDelivery,
 }: {
   canWrite: boolean;
   canReconcile: boolean;
   canArchiveReview: boolean;
   firstQuarterlyCtaEligible?: boolean;
+  phase44DriftHealth?: string;
+  phase44BackfillHealth?: string;
+  phase44AlertDelivery?: string;
 }) {
   const [flash, setFlash] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  if (!canWrite) return null;
+  const showPhase44Badges =
+    phase44DriftHealth != null ||
+    phase44BackfillHealth != null ||
+    phase44AlertDelivery != null;
+
+  const badges = showPhase44Badges ? (
+    <div className="flex flex-wrap gap-2 text-[11px]">
+      {phase44DriftHealth ? (
+        <span className="rounded border border-border/70 px-2 py-0.5 text-muted-foreground">
+          Phase 44 drift {phase44DriftHealth}
+        </span>
+      ) : null}
+      {phase44BackfillHealth ? (
+        <span className="rounded border border-border/70 px-2 py-0.5 text-muted-foreground">
+          Phase 44 backfill {phase44BackfillHealth}
+        </span>
+      ) : null}
+      {phase44AlertDelivery ? (
+        <span className="rounded border border-border/70 px-2 py-0.5 text-muted-foreground">
+          Phase 44 alerts {phase44AlertDelivery}
+        </span>
+      ) : null}
+    </div>
+  ) : null;
+
+  if (!canWrite) return badges;
 
   function run(
     fn: () => Promise<
@@ -52,6 +83,7 @@ export function DocuSignHubActions({
 
   return (
     <div className="space-y-2">
+      {badges}
       <div className="flex flex-wrap gap-2">
         <Button
           type="button"

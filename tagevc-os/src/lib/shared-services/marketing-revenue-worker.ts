@@ -15,6 +15,7 @@ import {
   type RevenueReceipt,
 } from '@/lib/shared-services/marketing-revenue-contracts';
 import { runPhase43RevenueOpsTick } from '@/lib/shared-services/marketing-phase43';
+import { runPhase44RevenueOpsTick } from '@/lib/shared-services/marketing-phase44';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 
 type PullRun = {
@@ -455,6 +456,19 @@ export async function processMarketingRevenuePulls(limit = 1): Promise<{
     } else {
       details.push(
         `phase43-ops:${entityId}: bindings=${phase43.bindingsRecorded} alerts=${phase43.alertsRecorded} delivered=${phase43.delivered}`,
+      );
+    }
+
+    // Phase 44: correction validation, attribution conflicts, recon snapshots.
+    const phase44 = await runPhase44RevenueOpsTick({
+      entityId,
+      days: 30,
+    });
+    if (!phase44.ok) {
+      details.push(`phase44-ops:${entityId}: ${phase44.error}`);
+    } else {
+      details.push(
+        `phase44-ops:${entityId}: validated=${phase44.validations.passed + phase44.validations.failed + phase44.validations.auto_rejected} conflicts=${phase44.conflictsInserted} snapshots=${phase44.snapshotsRecorded} alerts=${phase44.alertsRecorded}`,
       );
     }
   }

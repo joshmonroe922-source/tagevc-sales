@@ -1036,6 +1036,27 @@ export type ItIntunePhase43Health = {
   open_awaiting_close_count: number;
 };
 
+export type ItIntunePhase44Health = {
+  performance_snapshot_count: number;
+  ops_alert_count: number;
+  alerts_delivered_count: number;
+  alerts_undelivered_count: number;
+  canary_unhealthy_alerts_7d: number;
+  canary_stale_alerts_7d: number;
+  canary_during_outage_alerts_7d: number;
+  open_awaiting_close_aged_7d: number;
+  failure_rate_elevated_7d: number;
+  correlation_events_7d: number;
+};
+
+export type ItIntuneResilienceCorrelationEvent = {
+  breaker_id: string | null;
+  event_kind: string;
+  occurred_at: string;
+  evidence_sha256: string;
+  status: string | null;
+};
+
 export type ItIntuneSoakCycleTimeline = {
   cycle_id: string;
   recommendation_id: string;
@@ -1358,6 +1379,22 @@ export async function getIntunePhase43Health(): Promise<{
     : { row: (data as ItIntunePhase43Health | null) ?? null };
 }
 
+export async function getIntunePhase44Health(): Promise<{
+  row: ItIntunePhase44Health | null;
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb
+    .from('os_it_intune_phase44_health')
+    .select(
+      'performance_snapshot_count, ops_alert_count, alerts_delivered_count, alerts_undelivered_count, canary_unhealthy_alerts_7d, canary_stale_alerts_7d, canary_during_outage_alerts_7d, open_awaiting_close_aged_7d, failure_rate_elevated_7d, correlation_events_7d',
+    )
+    .maybeSingle();
+  return error
+    ? { row: null, error: error.message }
+    : { row: (data as ItIntunePhase44Health | null) ?? null };
+}
+
 export async function listIntuneSoakCycleTimeline(limit = 30): Promise<{
   rows: ItIntuneSoakCycleTimeline[];
   error?: string;
@@ -1373,6 +1410,23 @@ export async function listIntuneSoakCycleTimeline(limit = 30): Promise<{
   return error
     ? { rows: [], error: error.message }
     : { rows: (data ?? []) as ItIntuneSoakCycleTimeline[] };
+}
+
+export async function listIntuneResilienceCorrelationTimeline(
+  limit = 50,
+): Promise<{
+  rows: ItIntuneResilienceCorrelationEvent[];
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb
+    .from('os_it_intune_resilience_correlation_timeline')
+    .select('breaker_id, event_kind, occurred_at, evidence_sha256, status')
+    .order('occurred_at', { ascending: false })
+    .limit(limit);
+  return error
+    ? { rows: [], error: error.message }
+    : { rows: (data ?? []) as ItIntuneResilienceCorrelationEvent[] };
 }
 
 export async function getIntunePhase42OpsReport(): Promise<{
@@ -1392,6 +1446,17 @@ export async function getIntunePhase43OpsReport(): Promise<{
 }> {
   const sb = await createPersistClient();
   const { data, error } = await sb.rpc('get_it_intune_phase43_ops_report');
+  return error
+    ? { report: null, error: error.message }
+    : { report: (data as Record<string, unknown> | null) ?? null };
+}
+
+export async function getIntunePhase44OpsReport(): Promise<{
+  report: Record<string, unknown> | null;
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc('get_it_intune_phase44_ops_report');
   return error
     ? { report: null, error: error.message }
     : { report: (data as Record<string, unknown> | null) ?? null };
@@ -1421,6 +1486,13 @@ export async function recordIntuneSoakCycleEvidence() {
         ok: true as const,
         detail: (data as Record<string, unknown> | null) ?? undefined,
       };
+}
+
+export async function runIntunePhase44ResilienceOps() {
+  const { processIntunePhase44ResilienceOps } = await import(
+    '@/lib/shared-services/it-intune-worker'
+  );
+  return processIntunePhase44ResilienceOps();
 }
 
 export async function updateIntuneOutagePostmortemDraft(input: {

@@ -15,9 +15,11 @@ import {
   getIntunePhase41Health,
   getIntunePhase42Health,
   getIntunePhase43Health,
+  getIntunePhase44Health,
   listIntuneOutagePostmortems,
   listIntuneThresholdRecommendations,
   listIntuneSoakCycleTimeline,
+  listIntuneResilienceCorrelationTimeline,
   listIntuneDispatchAttempts,
   listIntuneManualReviewSlo,
   listIntuneWorkerRuns,
@@ -58,9 +60,11 @@ export default async function ItAssetsModulePage() {
     phase41Health,
     phase42Health,
     phase43Health,
+    phase44Health,
     outagePostmortems,
     thresholdRecommendations,
     soakCycleTimeline,
+    resilienceCorrelation,
   ] = await Promise.all([
     listHardwareAssets(),
     listSoftwareLicenses(),
@@ -81,9 +85,11 @@ export default async function ItAssetsModulePage() {
     getIntunePhase41Health(),
     getIntunePhase42Health(),
     getIntunePhase43Health(),
+    getIntunePhase44Health(),
     listIntuneOutagePostmortems(),
     listIntuneThresholdRecommendations(),
     listIntuneSoakCycleTimeline(),
+    listIntuneResilienceCorrelationTimeline(),
   ]);
   const candidateTickets = listOffboardingCandidateTickets();
   const onboardingTickets = listOnboardingCandidateTickets();
@@ -129,14 +135,15 @@ export default async function ItAssetsModulePage() {
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">IT</Badge>
           <Badge variant="secondary">Phase 43</Badge>
+          <Badge variant="secondary">Phase 44</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Hardware &amp; licensing
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Aggregate outage postmortems, recommendation soak, and open→closed
-          cycle evidence after natural breaker recovery. Soak never closes or
-          resets open breakers.
+          Phase 43 soak cycle evidence plus Phase 44 breaker performance trends,
+          canary/outage ops alerts, and correlation across outages, tuning, and
+          recovery. Observe-only — never closes or resets open breakers.
         </p>
       </div>
 
@@ -177,6 +184,7 @@ export default async function ItAssetsModulePage() {
         intunePhase41Health={firmWide ? phase41Health.row : null}
         intunePhase42Health={firmWide ? phase42Health.row : null}
         intunePhase43Health={firmWide ? phase43Health.row : null}
+        intunePhase44Health={firmWide ? phase44Health.row : null}
         intuneOutagePostmortems={firmWide ? outagePostmortems.rows : []}
         intuneThresholdRecommendations={thresholdRecommendations.rows.filter(
           (recommendation) =>
@@ -185,6 +193,7 @@ export default async function ItAssetsModulePage() {
         intuneSoakCycleTimeline={soakCycleTimeline.rows.filter(
           (cycle) => firmWide || cycle.entity_id === ctx?.profile.entity_id,
         )}
+        intuneResilienceCorrelation={firmWide ? resilienceCorrelation.rows : []}
         canWrite={canWrite}
         canIntuneRetire={canIntuneRetire}
         canIntuneManualReview={canIntuneManualReview}
@@ -200,9 +209,11 @@ export default async function ItAssetsModulePage() {
           phase41Health.error ||
           phase42Health.error ||
           phase43Health.error ||
+          phase44Health.error ||
           outagePostmortems.error ||
           thresholdRecommendations.error ||
-          soakCycleTimeline.error
+          soakCycleTimeline.error ||
+          resilienceCorrelation.error
         }
       />
     </div>

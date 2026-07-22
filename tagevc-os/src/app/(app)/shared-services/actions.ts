@@ -21,6 +21,10 @@ import {
   proposeSloOwnerSuccession,
   archiveExpiredSloExportsPhase43,
   runSloOwnerSuccessionDrillPhase43,
+  suggestSloOwnerHandoffsPhase44,
+  resolveSloOwnerHandoffSuggestionPhase44,
+  registerSloSimulationScenarioPhase44,
+  replaySloSimulationScenarioPhase44,
   saveSloPolicyDraft,
   transitionSloPolicyDraft,
 } from '@/lib/shared-services/slo-policy';
@@ -426,6 +430,124 @@ export async function runSloOwnerSuccessionDrillAction(input: {
       message: result.eligibility_ok
         ? 'Succession drill recorded (eligible; live succession not mutated)'
         : 'Succession drill recorded (candidate not eligible; live succession not mutated)',
+    };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Failed' };
+  }
+}
+
+export async function suggestSloOwnerHandoffsAction(): Promise<TicketActionResult> {
+  const gate = await guardPermission('write:shared_services');
+  if (!gate.ok) return gate;
+  try {
+    const result = (await suggestSloOwnerHandoffsPhase44({
+      warningDays: 30,
+    })) as { suggested_count?: number };
+    revalidatePath('/shared-services');
+    return {
+      ok: true,
+      message: `Recorded ${result.suggested_count ?? 0} handoff suggestion(s) (not applied live)`,
+    };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Failed' };
+  }
+}
+
+export async function resolveSloOwnerHandoffSuggestionAction(input: {
+  suggestionId: string;
+  status: 'accepted' | 'dismissed' | 'expired';
+}): Promise<TicketActionResult> {
+  const gate = await guardPermission('write:shared_services');
+  if (!gate.ok) return gate;
+  const parsed = z.object({
+    suggestionId: z.string().uuid(),
+    status: z.enum(['accepted', 'dismissed', 'expired']),
+  }).safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: 'Invalid handoff resolution' };
+  }
+  try {
+    await resolveSloOwnerHandoffSuggestionPhase44({
+      actorId: gate.profile.id,
+      suggestionId: parsed.data.suggestionId,
+      status: parsed.data.status,
+    });
+    revalidatePath('/shared-services');
+    return {
+      ok: true,
+      message: `Handoff suggestion ${parsed.data.status} (live succession not mutated)`,
+    };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Failed' };
+  }
+}
+
+export async function registerSloSimulationScenarioAction(input: {
+  name: string;
+  windowStart: string;
+  windowEnd: string;
+  entityScope?: string[];
+  draftPolicyHash: string;
+  publishedPolicyHash?: string | null;
+}): Promise<TicketActionResult> {
+  const gate = await guardPermission('write:shared_services');
+  if (!gate.ok) return gate;
+  const parsed = z.object({
+    name: z.string().trim().min(3).max(120),
+    windowStart: z.string().datetime(),
+    windowEnd: z.string().datetime(),
+    entityScope: z.array(z.string().trim().min(1).max(100)).max(100).optional(),
+    draftPolicyHash: z.string().regex(/^[0-9a-f]{64}$/),
+    publishedPolicyHash: z
+      .string()
+      .regex(/^[0-9a-f]{64}$/)
+      .nullable()
+      .optional(),
+  }).safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: 'Invalid simulation scenario' };
+  }
+  try {
+    await registerSloSimulationScenarioPhase44({
+      actorId: gate.profile.id,
+      name: parsed.data.name,
+      windowStart: parsed.data.windowStart,
+      windowEnd: parsed.data.windowEnd,
+      entityScope: parsed.data.entityScope ?? [],
+      draftPolicyHash: parsed.data.draftPolicyHash,
+      publishedPolicyHash: parsed.data.publishedPolicyHash,
+    });
+    revalidatePath('/shared-services');
+    return { ok: true, message: 'Simulation scenario registered' };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Failed' };
+  }
+}
+
+export async function replaySloSimulationScenarioAction(input: {
+  scenarioId: string;
+  draftPolicyId?: string | null;
+}): Promise<TicketActionResult> {
+  const gate = await guardPermission('write:shared_services');
+  if (!gate.ok) return gate;
+  const parsed = z.object({
+    scenarioId: z.string().uuid(),
+    draftPolicyId: z.string().uuid().nullable().optional(),
+  }).safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: 'Invalid scenario replay' };
+  }
+  try {
+    await replaySloSimulationScenarioPhase44({
+      actorId: gate.profile.id,
+      scenarioId: parsed.data.scenarioId,
+      idempotencyKey: `ui:replay:${parsed.data.scenarioId}:${Date.now()}`,
+      draftPolicyId: parsed.data.draftPolicyId,
+    });
+    revalidatePath('/shared-services');
+    return {
+      ok: true,
+      message: 'Scenario replay recorded (counterfactual; production alerts unchanged)',
     };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : 'Failed' };
