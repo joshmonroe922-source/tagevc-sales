@@ -59,6 +59,8 @@ import type {
   ItIntunePhase40Health,
   ItIntunePhase41Health,
   ItIntunePhase42Health,
+  ItIntunePhase43Health,
+  ItIntuneSoakCycleTimeline,
   ItIntuneThresholdRecommendation,
   ItIntuneTuningProposal,
   ItLifecycleEvent,
@@ -114,8 +116,10 @@ export function ItAssetsClient({
   intunePhase40Health = null,
   intunePhase41Health = null,
   intunePhase42Health = null,
+  intunePhase43Health = null,
   intuneOutagePostmortems = [],
   intuneThresholdRecommendations = [],
+  intuneSoakCycleTimeline = [],
   canIntuneRetire = false,
   canIntuneManualReview = false,
   currentActorId = null,
@@ -152,8 +156,10 @@ export function ItAssetsClient({
   intunePhase40Health?: ItIntunePhase40Health | null;
   intunePhase41Health?: ItIntunePhase41Health | null;
   intunePhase42Health?: ItIntunePhase42Health | null;
+  intunePhase43Health?: ItIntunePhase43Health | null;
   intuneOutagePostmortems?: ItIntuneOutagePostmortem[];
   intuneThresholdRecommendations?: ItIntuneThresholdRecommendation[];
+  intuneSoakCycleTimeline?: ItIntuneSoakCycleTimeline[];
   canIntuneRetire?: boolean;
   canIntuneManualReview?: boolean;
   currentActorId?: string | null;
@@ -257,11 +263,21 @@ export function ItAssetsClient({
                 : ''}
             </>
           ) : null}
+          {intunePhase43Health ? (
+            <>
+              {' · '}cycles {Number(intunePhase43Health.cycle_complete_count)}{' '}
+              complete
+              {Number(intunePhase43Health.open_awaiting_close_count) > 0
+                ? ` · open awaiting natural close ${Number(intunePhase43Health.open_awaiting_close_count)}`
+                : ''}
+            </>
+          ) : null}
         </div>
       ) : null}
 
       {(intuneOutagePostmortems.length > 0 ||
-        intuneThresholdRecommendations.length > 0) && (
+        intuneThresholdRecommendations.length > 0 ||
+        intuneSoakCycleTimeline.length > 0) && (
         <section className="space-y-3 rounded-lg border p-4">
           <div>
             <h2 className="text-base font-semibold">
@@ -270,8 +286,8 @@ export function ItAssetsClient({
             <p className="text-xs text-muted-foreground">
               Aggregate-only postmortems and system recommendation drafts. Accepting
               a draft creates a Phase 40 tuning proposal for a second human — it never
-              closes or resets an open breaker. Phase 42 records soak status after
-              accept.
+              closes or resets an open breaker. Phase 42 records soak status; Phase 43
+              records open→closed cycle evidence only after natural recovery.
             </p>
             {canIntuneManualReview && intunePhase42Health ? (
               <div className="pt-1">
@@ -287,6 +303,28 @@ export function ItAssetsClient({
               </div>
             ) : null}
           </div>
+          {intuneSoakCycleTimeline.length > 0 ? (
+            <div className="space-y-2 text-xs">
+              <p className="font-medium">Soak open→closed cycle timeline</p>
+              {intuneSoakCycleTimeline.map((cycle) => (
+                <div
+                  key={cycle.cycle_id}
+                  className="border-b border-border/40 pb-2"
+                >
+                  {cycle.entity_id ?? 'firm'} · {cycle.provider}/{cycle.operation}{' '}
+                  · <strong>{cycle.cycle_status}</strong> · open{' '}
+                  {cycle.open_breaker_state} → closed ·{' '}
+                  {Number(cycle.cycle_elapsed_minutes)}m · samples{' '}
+                  {Number(cycle.failure_count)}/{Number(cycle.sample_count)} ·
+                  recorded {new Date(cycle.recorded_at).toLocaleString()}
+                  {cycle.postmortem_status
+                    ? ` · postmortem ${cycle.postmortem_status}`
+                    : ''}
+                  {' · '}never auto-reset
+                </div>
+              ))}
+            </div>
+          ) : null}
           {intuneOutagePostmortems.length > 0 ? (
             <div className="space-y-2 text-xs">
               <p className="font-medium">Postmortems</p>
@@ -440,6 +478,14 @@ export function ItAssetsClient({
                         }${
                           recommendation.soak_sample_count != null
                             ? ` · post-accept ${recommendation.soak_failure_count ?? 0}/${recommendation.soak_sample_count}`
+                            : ''
+                        }${
+                          recommendation.soak_cycle_status
+                            ? ` · cycle ${recommendation.soak_cycle_status}${
+                                recommendation.soak_cycle_elapsed_minutes != null
+                                  ? ` (${recommendation.soak_cycle_elapsed_minutes}m open→closed)`
+                                  : ''
+                              }`
                             : ''
                         }`
                       : recommendation.status === 'accepted'

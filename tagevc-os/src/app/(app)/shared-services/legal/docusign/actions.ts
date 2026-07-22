@@ -511,6 +511,51 @@ export async function runArchiveCampaignAction(input: {
   };
 }
 
+export async function runFirstQuarterlyGatedOpsAction(): Promise<DocuSignActionResult> {
+  const gate = await guardPermission('action:docusign_reconcile');
+  if (!gate.ok) return gate;
+  const { runFirstQuarterlyGatedOps } = await import(
+    '@/lib/docusign/archive-campaigns'
+  );
+  const result = await runFirstQuarterlyGatedOps({
+    trigger: 'manual',
+    requestedBy: gate.profile.id,
+    force: false,
+    limit: 5,
+    acknowledgeRunbook: true,
+  });
+  revalidateDocuSign();
+  const fq = result.firstQuarterly;
+  if (result.disposition === 'gated') {
+    return {
+      ok: true,
+      message: `First quarterly gated: ${result.gateReason ?? 'gates'} · remaining ${fq?.gates.remaining_unhashed ?? result.remainingUnhashed ?? 0} · quarantine ${fq?.gates.quarantine_backlog ?? result.quarantineBacklog ?? 0} · aged ${fq?.gates.quarantine_aged ? 'yes' : 'no'}`,
+    };
+  }
+  if (result.disposition === 'not_due') {
+    return {
+      ok: true,
+      message: 'First quarterly not due this quarter (gates unlocked; window closed)',
+    };
+  }
+  if (result.disposition === 'already_complete') {
+    return {
+      ok: true,
+      message: `First quarterly already complete · ${result.progressPct ?? 100}%${result.opsMilestone?.firstQuarterlyMilestone ? ' · first quarterly milestone recorded' : ''}${fq?.runbookCompleted ? ' · runbook completed' : ''}`,
+    };
+  }
+  if (result.ok || (result.governance?.claimed ?? 0) > 0) {
+    return {
+      ok: true,
+      message: `First quarterly gated ops: ${result.progressPct ?? 0}% · unlocked · run ${result.governance?.succeeded ?? 0} ok, ${result.governance?.unavailable ?? 0} unavailable, ${result.governance?.drift ?? 0} drift${result.governance?.checkpointed ? ' · checkpointed' : ''}${fq?.runbookStarted ? ' · runbook started' : ''}`,
+    };
+  }
+  return {
+    ok: false,
+    error: result.error || 'First quarterly gated ops failed',
+  };
+}
+
 export async function reviewArchiveQuarantineAction(input: {
   quarantineId: string;
   decision: 'acknowledge' | 'resolve';

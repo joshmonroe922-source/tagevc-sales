@@ -74,6 +74,23 @@ type Dashboard = {
     checked_at: string;
   }>;
   phase42Slo?: Record<string, unknown> | null;
+  firmWideVerifyMaterial?: Array<{
+    material_id: string;
+    key_id: string;
+    public_key_spki_sha256: string;
+    published_at?: string;
+    active?: boolean;
+  }>;
+  productionColdSchedules?: Array<{
+    schedule_id: string;
+    status: string;
+    cadence_hours: number;
+    due_package_count: number;
+    checked_package_count: number;
+    skipped_package_count: number;
+    scheduled_at: string;
+  }>;
+  phase43Slo?: Record<string, unknown> | null;
 };
 
 type ApiResult = {
@@ -84,6 +101,7 @@ type ApiResult = {
   bundle?: Record<string, unknown>;
   material?: Record<string, unknown>;
   run?: Record<string, unknown>;
+  schedule?: Record<string, unknown>;
   skipped?: boolean;
 };
 
@@ -240,8 +258,8 @@ export function SnapshotRetirementPhase40Admin() {
     setError(null);
     startTransition(async () => {
       try {
-        await post({ action: 'publish_verify_material' });
-        setMessage('Public ed25519 verify material published (fingerprint only).');
+        await post({ action: 'publish_firm_wide_verify' });
+        setMessage('Firm-wide public verify material published (no private keys).');
         await refresh();
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : 'Verify material publish failed');
@@ -311,6 +329,29 @@ export function SnapshotRetirementPhase40Admin() {
     });
   }
 
+  function runProductionColdHead() {
+    setMessage(null);
+    setError(null);
+    startTransition(async () => {
+      try {
+        const result = await post({
+          action: 'check_production_cold_retention',
+          idempotency_key: `phase43-prod-cold-${Date.now()}`,
+        });
+        setMessage(
+          result.schedule
+            ? `Production cold HEAD · ${String(result.schedule.status ?? 'recorded')} (non-qualifying).`
+            : 'Production cold HEAD schedule recorded (non-qualifying).',
+        );
+        await refresh();
+      } catch (cause) {
+        setError(
+          cause instanceof Error ? cause.message : 'Production cold HEAD failed',
+        );
+      }
+    });
+  }
+
   function scheduleCanary() {
     const packageRow = dashboard?.packages[0];
     if (!packageRow) {
@@ -371,15 +412,16 @@ export function SnapshotRetirementPhase40Admin() {
   return (
     <div className="mt-3 space-y-3 rounded-md border border-border/60 p-3 text-xs">
       <div className="flex flex-wrap items-center gap-2">
-        <p className="font-medium">Phase 40/41/42 signed retention evidence</p>
+        <p className="font-medium">Phase 40/41/42/43 signed retention evidence</p>
         <Badge variant="outline">Synthetic · non-qualifying</Badge>
       </div>
       <p className="text-muted-foreground">
         HMAC-signed metadata packages bind the current Phase 39 manifest and
         external artifact hashes. Phase 41 adds ed25519 externally verifiable
         receipts and warm/cold retention tiers. Phase 42 publishes public verify
-        material and cold HEAD cadence evidence. Canaries never qualify soak or
-        attestation.
+        material and cold HEAD cadence evidence. Phase 43 publishes the firm-wide
+        verify catalog and schedules production cold HEAD against retention
+        destinations. Canaries never qualify soak or attestation.
       </p>
       {dashboard?.packages[0] ? (
         <div>
@@ -427,6 +469,26 @@ export function SnapshotRetirementPhase40Admin() {
           {String(dashboard.phase42Slo.cold_verified_30d ?? 0)}
         </p>
       ) : null}
+      {(dashboard?.firmWideVerifyMaterial ?? []).slice(0, 3).map((material) => (
+        <p key={material.material_id} className="font-mono text-[10px] text-muted-foreground">
+          FIRM-WIDE VERIFY · {material.key_id} · {material.public_key_spki_sha256}
+        </p>
+      ))}
+      {(dashboard?.productionColdSchedules ?? []).slice(0, 3).map((schedule) => (
+        <p key={schedule.schedule_id} className="font-mono text-[10px] text-muted-foreground">
+          PROD COLD · {schedule.scheduled_at} · {schedule.status} · due{' '}
+          {schedule.due_package_count} · checked {schedule.checked_package_count} · cadence{' '}
+          {schedule.cadence_hours}h
+        </p>
+      ))}
+      {dashboard?.phase43Slo ? (
+        <p className="text-muted-foreground">
+          Phase 43 firm-wide keys ·{' '}
+          {String(dashboard.phase43Slo.firm_wide_verify_keys ?? 0)} · prod cold schedules 30d{' '}
+          {String(dashboard.phase43Slo.production_cold_schedules_30d ?? 0)} · completed{' '}
+          {String(dashboard.phase43Slo.production_cold_completed_30d ?? 0)}
+        </p>
+      ) : null}
       {dashboard?.checks.slice(0, 4).map((check) => (
         <p key={check.check_id} className="font-mono text-[10px] text-muted-foreground">
           {check.checked_at} · retention {check.status}
@@ -469,13 +531,16 @@ export function SnapshotRetirementPhase40Admin() {
           Issue ed25519 receipt
         </Button>
         <Button type="button" size="sm" variant="outline" disabled={pending} onClick={publishVerifyMaterial}>
-          Publish verify material
+          Publish firm-wide verify
         </Button>
         <Button type="button" size="sm" variant="outline" disabled={pending} onClick={downloadVerifyBundle}>
           Download verify bundle
         </Button>
         <Button type="button" size="sm" variant="outline" disabled={pending} onClick={runColdHeadCadence}>
           Run cold HEAD cadence
+        </Button>
+        <Button type="button" size="sm" variant="outline" disabled={pending} onClick={runProductionColdHead}>
+          Run production cold HEAD
         </Button>
         <Button type="button" size="sm" variant="outline" disabled={pending} onClick={scheduleCanary}>
           Schedule multi-hour canary

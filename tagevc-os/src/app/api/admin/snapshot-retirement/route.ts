@@ -15,10 +15,14 @@ import {
 import { createSnapshotExternalReceipt } from '@/lib/data/snapshot-retirement-phase41';
 import {
   exportSnapshotVerifyBundle,
-  getSnapshotPhase42VerifyColdDashboard,
   publishSnapshotVerifyMaterial,
   runColdRetentionHeadCadence,
 } from '@/lib/data/snapshot-retirement-phase42';
+import {
+  getSnapshotPhase43VerifyColdDashboard,
+  publishFirmWideVerifyMaterialPhase43,
+  runProductionColdHeadCadencePhase43,
+} from '@/lib/data/snapshot-retirement-phase43';
 import { captureException } from '@/lib/observability';
 import { guardPermission } from '@/lib/rbac/session';
 
@@ -97,6 +101,14 @@ const requestSchema = z.discriminatedUnion('action', [
     idempotency_key: idempotencyKeySchema,
   }),
   z.object({
+    action: z.literal('publish_firm_wide_verify'),
+  }),
+  z.object({
+    action: z.literal('check_production_cold_retention'),
+    idempotency_key: idempotencyKeySchema,
+    limit: z.number().int().min(1).max(100).default(25),
+  }),
+  z.object({
     action: z.literal('schedule_phase40_canary'),
     entity_id: z.string().trim().min(1).max(100).nullable().optional(),
     package_id: z.uuid(),
@@ -122,18 +134,21 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: gate.error }, { status: 403 });
   }
   try {
-    const [phase40, phase42] = await Promise.all([
+    const [phase40, phase43] = await Promise.all([
       getSnapshotPhase40Dashboard(),
-      getSnapshotPhase42VerifyColdDashboard(),
+      getSnapshotPhase43VerifyColdDashboard(),
     ]);
     if (!phase40.ok) {
       return NextResponse.json(phase40, { status: 503 });
     }
     return NextResponse.json({
       ...phase40,
-      verifyMaterial: phase42.ok ? phase42.verifyMaterial : [],
-      coldRuns: phase42.ok ? phase42.coldRuns : [],
-      phase42Slo: phase42.ok ? phase42.phase42Slo : null,
+      verifyMaterial: phase43.verifyMaterial,
+      coldRuns: phase43.coldRuns,
+      phase42Slo: phase43.phase42Slo,
+      firmWideVerifyMaterial: phase43.firmWideVerifyMaterial,
+      productionColdSchedules: phase43.productionColdSchedules,
+      phase43Slo: phase43.phase43Slo,
     });
   } catch (error) {
     captureException(error, { route: 'snapshot-retirement-phase40-dashboard' });
@@ -230,6 +245,11 @@ export async function POST(request: Request) {
           actorId: gate.profile.id,
         });
         break;
+      case 'publish_firm_wide_verify':
+        result = await publishFirmWideVerifyMaterialPhase43({
+          actorId: gate.profile.id,
+        });
+        break;
       case 'export_verify_bundle':
         result = await exportSnapshotVerifyBundle({
           receiptId: parsed.data.receipt_id,
@@ -240,6 +260,13 @@ export async function POST(request: Request) {
           actorId: gate.profile.id,
           packageId: parsed.data.package_id,
           idempotencyKey: parsed.data.idempotency_key,
+        });
+        break;
+      case 'check_production_cold_retention':
+        result = await runProductionColdHeadCadencePhase43({
+          actorId: gate.profile.id,
+          idempotencyKey: parsed.data.idempotency_key,
+          limit: parsed.data.limit,
         });
         break;
       case 'schedule_phase40_canary':

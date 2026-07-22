@@ -39,10 +39,11 @@ async function run(request: Request) {
       errorCode: ok ? null : 'revenue_ingestion_failure',
       errorDetail: ok ? null : result.details.join('; '),
       details: {
-        contract: 'phase42-v1',
+        contract: 'phase43-v1',
         bounded_pages: 10,
         bounded_records: 500,
         production_slo_ticks: true,
+        critical_ops_alerts: true,
       },
     });
     return NextResponse.json({ ok, result }, { status: ok ? 200 : 500 });
@@ -57,7 +58,7 @@ async function run(request: Request) {
       failed: 1,
       errorCode: 'revenue_worker_failure',
       errorDetail: message,
-      details: { contract: 'phase42-v1' },
+      details: { contract: 'phase43-v1' },
     });
     return NextResponse.json({ error: message }, { status: 500 });
   }

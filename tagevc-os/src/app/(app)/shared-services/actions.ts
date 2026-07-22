@@ -19,6 +19,8 @@ import {
   exportSloSimulation,
   recordSloExportAuditAccess,
   proposeSloOwnerSuccession,
+  archiveExpiredSloExportsPhase43,
+  runSloOwnerSuccessionDrillPhase43,
   saveSloPolicyDraft,
   transitionSloPolicyDraft,
 } from '@/lib/shared-services/slo-policy';
@@ -372,6 +374,58 @@ export async function proposeSloOwnerSuccessionAction(input: {
     return {
       ok: true,
       message: 'Owner succession proposed via Phase 40 replacement fields',
+    };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Failed' };
+  }
+}
+
+export async function archiveExpiredSloExportsAction(): Promise<TicketActionResult> {
+  const gate = await guardPermission('write:shared_services');
+  if (!gate.ok) return gate;
+  try {
+    const result = (await archiveExpiredSloExportsPhase43({
+      actorId: gate.profile.id,
+      limit: 25,
+    })) as { archived_count?: number; rows_deleted?: boolean };
+    revalidatePath('/shared-services');
+    return {
+      ok: true,
+      message: `Archived ${result.archived_count ?? 0} expired export(s) (metadata-only; rows retained)`,
+    };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Failed' };
+  }
+}
+
+export async function runSloOwnerSuccessionDrillAction(input: {
+  policyId: string;
+  entityId?: string | null;
+  candidateReplacementId: string;
+}): Promise<TicketActionResult> {
+  const gate = await guardPermission('write:shared_services');
+  if (!gate.ok) return gate;
+  const parsed = z.object({
+    policyId: z.string().uuid(),
+    entityId: z.string().trim().max(100).nullable().optional(),
+    candidateReplacementId: z.string().uuid(),
+  }).safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: 'Invalid succession drill' };
+  }
+  try {
+    const result = (await runSloOwnerSuccessionDrillPhase43({
+      actorId: gate.profile.id,
+      policyId: parsed.data.policyId,
+      entityId: parsed.data.entityId,
+      candidateReplacementId: parsed.data.candidateReplacementId,
+    })) as { eligibility_ok?: boolean; live_succession_mutated?: boolean };
+    revalidatePath('/shared-services');
+    return {
+      ok: true,
+      message: result.eligibility_ok
+        ? 'Succession drill recorded (eligible; live succession not mutated)'
+        : 'Succession drill recorded (candidate not eligible; live succession not mutated)',
     };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : 'Failed' };

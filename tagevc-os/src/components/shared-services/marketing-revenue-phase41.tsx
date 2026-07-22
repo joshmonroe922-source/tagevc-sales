@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import type {
   Phase41RevenueReport,
   Phase42RevenueSloReport,
+  Phase43RevenueOpsReport,
 } from '@/lib/shared-services/marketing-revenue-contracts';
 import {
   reviewMarketingRevenueCorrectionAction,
@@ -30,18 +31,29 @@ function severityClass(severity: string) {
   return 'border-muted-foreground/40 text-muted-foreground';
 }
 
+function deliveryClass(status: string) {
+  if (status === 'delivered') return 'border-emerald-600 text-emerald-800';
+  if (status === 'failed') return 'border-destructive text-destructive';
+  if (status === 'skipped_no_webhook') return 'border-amber-600 text-amber-800';
+  return 'border-muted-foreground/40 text-muted-foreground';
+}
+
 export function MarketingRevenuePhase41({
   report,
   error,
   canWrite = false,
   sloReport,
   sloError,
+  opsReport,
+  opsError,
 }: {
   report: Phase41RevenueReport;
   error?: string;
   canWrite?: boolean;
   sloReport?: Phase42RevenueSloReport;
   sloError?: string;
+  opsReport?: Phase43RevenueOpsReport;
+  opsError?: string;
 }) {
   const [pending, startTransition] = useTransition();
   const [actionError, setActionError] = useState<string | null>(null);
@@ -134,9 +146,29 @@ export function MarketingRevenuePhase41({
             >
               settlement {sloReport.settlement_severity}
             </span>
+            {opsReport ? (
+              <>
+                <span
+                  className={`rounded border px-2 py-0.5 text-[11px] ${severityClass(opsReport.binding_health)}`}
+                >
+                  credential binding {opsReport.binding_health}
+                </span>
+                <span
+                  className={`rounded border px-2 py-0.5 text-[11px] ${deliveryClass(opsReport.alert_delivery)}`}
+                >
+                  critical alerts {opsReport.alert_delivery}
+                  {opsReport.critical_alert_count > 0
+                    ? ` (${opsReport.critical_alert_count})`
+                    : ''}
+                </span>
+              </>
+            ) : null}
           </div>
           {sloError ? (
             <p className="text-xs text-destructive">{sloError}</p>
+          ) : null}
+          {opsError ? (
+            <p className="text-xs text-destructive">{opsError}</p>
           ) : null}
           <div className="grid gap-2 md:grid-cols-2">
             <div className="rounded border p-2 text-xs">

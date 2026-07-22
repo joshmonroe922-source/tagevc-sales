@@ -36,6 +36,7 @@ import {
 import { listDocuSignMappingReviews } from '@/lib/docusign/mapping-review-repo';
 import {
   getArchiveCampaignOpsReport,
+  getFirstQuarterlyOpsReport,
   listArchiveCampaigns,
 } from '@/lib/docusign/archive-campaigns';
 import { listArchiveGovernance } from '@/lib/docusign/archive-governance';
@@ -130,6 +131,7 @@ export default async function DocuSignModulePage({
     archiveGovernance,
     archiveCampaigns,
     archiveCampaignOps,
+    firstQuarterlyOps,
   ] = await Promise.all([
     listDocuSignEvents({
       limit: 40,
@@ -192,6 +194,7 @@ export default async function DocuSignModulePage({
     }),
     listArchiveCampaigns({ firmWide }),
     getArchiveCampaignOpsReport({ firmWide }),
+    getFirstQuarterlyOpsReport({ firmWide }),
   ]);
 
   const voidPolicy = process.env.DOCUSIGN_VOID_POLICY?.trim() || 'allow';
@@ -278,6 +281,9 @@ export default async function DocuSignModulePage({
           canWrite={canWrite}
           canReconcile={canReconcile}
           canArchiveReview={canArchiveReview}
+          firstQuarterlyCtaEligible={
+            firmWide && firstQuarterlyOps.cta.eligible
+          }
         />
         <DocuSignTemplateSendForm
           templates={templates.rows}
@@ -384,10 +390,13 @@ export default async function DocuSignModulePage({
               for manual review. Evidence contains identifiers and hashes only.
               Phase 41 campaigns track backfill completion and quarterly full
               integrity windows. Phase 42 adds ops readiness and quarantine aging
-              queue visibility.
+              queue visibility. Phase 43 unlocks the first quarterly when
+              backfill is zero and quarantine is aged, with runbook evidence and
+              a gated CTA.
               {archiveGovernance.error ? ` · ${archiveGovernance.error}` : ''}
               {archiveCampaigns.error ? ` · ${archiveCampaigns.error}` : ''}
               {archiveCampaignOps.error ? ` · ${archiveCampaignOps.error}` : ''}
+              {firstQuarterlyOps.error ? ` · ${firstQuarterlyOps.error}` : ''}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-xs">
@@ -424,6 +433,26 @@ export default async function DocuSignModulePage({
                   {archiveCampaignOps.readiness.first_quarterly_milestone_at
                     ? ` · First quarterly milestone ${new Date(archiveCampaignOps.readiness.first_quarterly_milestone_at).toLocaleString()}`
                     : ' · First quarterly milestone pending'}
+                </p>
+                <p className="text-muted-foreground">
+                  Phase 43 first quarterly:{' '}
+                  {firstQuarterlyOps.gates.quarterly_unlocked
+                    ? 'unlocked'
+                    : 'locked'}
+                  {firstQuarterlyOps.gates.quarantine_aged
+                    ? ' · quarantine aged'
+                    : ' · quarantine aging pending'}
+                  {firstQuarterlyOps.cta.eligible
+                    ? ' · CTA ready'
+                    : firstQuarterlyOps.gates.first_quarterly_completed
+                      ? ' · first quarterly complete'
+                      : ''}
+                  {firstQuarterlyOps.gates.unlock_recorded
+                    ? ' · unlock recorded'
+                    : ''}
+                  {firstQuarterlyOps.gates.runbook_ack_recorded
+                    ? ' · runbook ack'
+                    : ''}
                 </p>
               </div>
             ) : null}
@@ -462,6 +491,30 @@ export default async function DocuSignModulePage({
                   </div>
                 ))
               : null}
+            {firmWide && firstQuarterlyOps.runbook.length > 0 ? (
+              <div className="space-y-1">
+                <p className="text-muted-foreground">
+                  First quarterly runbook evidence
+                </p>
+                {firstQuarterlyOps.runbook.slice(0, 4).map((row) => (
+                  <div
+                    className="flex flex-wrap justify-between gap-2 border-b py-1"
+                    key={String(row.evidence_id)}
+                  >
+                    <span>
+                      {String(row.step_kind).replaceAll('_', ' ')}
+                      {row.gates_unlocked ? ' · unlocked' : ''}
+                      {row.cta_eligible ? ' · CTA' : ''}
+                    </span>
+                    <span>
+                      {row.created_at
+                        ? new Date(String(row.created_at)).toLocaleString()
+                        : '—'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
             {firmWide && archiveCampaignOps.milestones.length > 0 ? (
               <div className="space-y-1">
                 <p className="text-muted-foreground">Recent ops milestones</p>

@@ -5,6 +5,7 @@ export const REVENUE_TRANSFORM_VERSION = 'phase40-canonical-v1';
 export const REVENUE_REPORT_VERSION = 'phase40-v1';
 export const REVENUE_REPORT_VERSION_PHASE41 = 'phase41-v1';
 export const REVENUE_REPORT_VERSION_PHASE42 = 'phase42-v1';
+export const REVENUE_REPORT_VERSION_PHASE43 = 'phase43-v1';
 export const REVENUE_SLO_SEVERITIES = [
   'healthy',
   'warning',
@@ -12,6 +13,23 @@ export const REVENUE_SLO_SEVERITIES = [
   'unknown',
 ] as const;
 export type RevenueSloSeverity = (typeof REVENUE_SLO_SEVERITIES)[number];
+export const REVENUE_OPS_ALERT_DELIVERY = [
+  'delivered',
+  'skipped_no_webhook',
+  'failed',
+  'recorded',
+  'none',
+] as const;
+export type RevenueOpsAlertDelivery =
+  (typeof REVENUE_OPS_ALERT_DELIVERY)[number];
+export const REVENUE_BINDING_STATUSES = [
+  'healthy',
+  'missing_credential',
+  'missing_signature',
+  'missing_both',
+  'unknown',
+] as const;
+export type RevenueBindingStatus = (typeof REVENUE_BINDING_STATUSES)[number];
 export const MAX_REVENUE_PAGES = 10;
 export const MAX_REVENUE_RECORDS = 500;
 export const MAX_REVENUE_BODY_BYTES = 1_048_576;
@@ -218,6 +236,51 @@ export type Phase42RevenueSloReport = {
     authenticity_fail_rate: { warning: number; critical: number };
     settlement_rate: { warning: number; critical: number };
   };
+};
+
+export type Phase43CredentialBinding = {
+  binding_id: string;
+  entity_id: string;
+  source_id: string;
+  ledger_profile: string;
+  authenticity_mode: string;
+  credential_env_name: string;
+  signature_env_name: string | null;
+  credential_env_present: boolean;
+  signature_env_present: boolean | null;
+  signature_env_required: boolean;
+  binding_status: RevenueBindingStatus | string;
+  metrics_sha256: string;
+  created_at: string;
+};
+
+export type Phase43OpsAlert = {
+  alert_id: string;
+  entity_id: string;
+  source_id: string | null;
+  alert_kind:
+    | 'authenticity_critical'
+    | 'settlement_critical'
+    | 'credential_binding'
+    | string;
+  window_key: string;
+  severity: 'critical' | string;
+  destination_key: string;
+  delivery_status: RevenueOpsAlertDelivery | string;
+  response_code: number | null;
+  metrics_sha256: string;
+  created_at: string;
+};
+
+export type Phase43RevenueOpsReport = {
+  version: typeof REVENUE_REPORT_VERSION_PHASE43 | string;
+  window_days: number;
+  binding_health: RevenueSloSeverity | string;
+  alert_delivery: RevenueOpsAlertDelivery | string;
+  critical_alert_count: number;
+  bindings: Phase43CredentialBinding[];
+  alerts: Phase43OpsAlert[];
+  destination_key: string;
 };
 
 export type AuthenticityProbeEvidence = {

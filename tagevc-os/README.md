@@ -764,14 +764,31 @@ Apply after Phase 41:
 
 Docs: `docs/OS_PHASE42.md`
 
-### Phase 43+ backlog
+### Phase 43
 
-- Live production ledger credentials + ops alerts on SLO critical windows
-- Complete DocuSign backfill; first governed quarterly full campaign
-- Real Intune postmortem/soak loops through open/closed breaker cycles
-- SLO export retention archival + succession drills
-- Publish ed25519 keys firm-wide; cold HEAD against production destinations
-- Continue Stage 4e evidence and attestation soak; do not drop snapshots
+Ops loop closure: marketing critical SLO alerts and credential binding health,
+gated first DocuSign quarterly, Intune soak open→closed cycles, SLO export
+archival and succession drills, firm-wide snapshot verify and production cold
+HEAD.
+
+Apply after Phase 42:
+
+1. `phase43_marketing_slo_ops_alerts.sql`
+2. `phase43_docusign_first_quarterly_ops.sql`
+3. `phase43_intune_soak_cycle_evidence.sql`
+4. `phase43_slo_export_archival_succession_drills.sql`
+5. `phase43_snapshot_verify_cold_production.sql`
+
+Docs: `docs/OS_PHASE43.md`
+
+### Phase 44+ backlog
+
+- Live ledger secrets + critical alert delivery SLOs
+- Complete first DocuSign quarterly; recurring quarterlies
+- Real Intune soak cycles feeding postmortem reviews
+- Nightly SLO export archival + quarterly succession drills
+- Firm-wide ed25519 rotation; cold HEAD failure alerts
+- Continue Stage 4e soak; do not drop snapshots
 - Push · user admin
 
 ## Run locally

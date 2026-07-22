@@ -78,15 +78,7 @@ git diff --check
 
 ## Phase 43+ recommendations
 
-1. Bind live production ledger credentials and alert on authenticity/settlement
-   SLO critical windows in ops channels.
-2. Clear DocuSign backfill to zero remaining, age down quarantine, then execute
-   the first governed quarterly full integrity campaign with ops milestones.
-3. Close the loop on Intune soak: publish real postmortems, accept bounded
-   recommendations, observe soak through open/closed breaker cycles.
-4. Enforce SLO export retention purge policy (metadata-only archival) and run
-   succession drills from the coverage calendar.
-5. Publish ed25519 public keys firm-wide; schedule cold HEAD cadence against
-   production destinations; keep Stage 4e soak evidence accumulating.
-6. Continue Stage 4e soak and attestation governance. Do not drop
-   `os_store_snapshots` without the separately approved retirement operation.
+Phase 43 closed the ops loops. See `docs/OS_PHASE43.md` for apply order and
+Phase 44+ recommendations. Remaining theme: continue Stage 4e soak and
+attestation governance; do not drop `os_store_snapshots` without separately
+approved retirement.

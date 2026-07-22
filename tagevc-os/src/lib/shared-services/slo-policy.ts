@@ -83,6 +83,8 @@ export async function listSloPolicyAdministration() {
     { data: exports, error: exportError },
     { data: calendar, error: calendarError },
     { data: successionProposals, error: successionError },
+    { data: successionDrills, error: drillError },
+    { data: archivalReceipts, error: archivalError },
   ] = await Promise.all([
     sb
       .from('os_slo_policies')
@@ -131,13 +133,27 @@ export async function listSloPolicyAdministration() {
       )
       .order('proposed_at', { ascending: false })
       .limit(12),
+    sb
+      .from('os_slo_owner_succession_drills')
+      .select(
+        'drill_id,policy_id,entity_id,candidate_replacement_id,eligibility_ok,expires_at,drilled_at,live_succession_mutated',
+      )
+      .order('drilled_at', { ascending: false })
+      .limit(12),
+    sb
+      .from('os_slo_simulation_export_archival_receipts')
+      .select(
+        'receipt_id,export_id,metadata_digest,signature_key_id,retained_until,archived_at',
+      )
+      .order('archived_at', { ascending: false })
+      .limit(12),
   ]);
   errorMessage(policyError);
   errorMessage(ownerError);
   errorMessage(entityError);
   errorMessage(testError);
   errorMessage(assignmentError);
-  // Phase 40/41/42 governance surfaces should not take down Shared Services if a
+  // Phase 40/41/42/43 governance surfaces should not take down Shared Services if a
   // view/function grant is incomplete; degrade to empty panels instead.
   if (comparisonError) {
     console.error('slo draft comparisons unavailable', comparisonError.message);
@@ -156,6 +172,36 @@ export async function listSloPolicyAdministration() {
   }
   if (successionError) {
     console.error('slo succession proposals unavailable', successionError.message);
+  }
+  if (drillError) {
+    console.error('slo succession drills unavailable', drillError.message);
+  }
+  if (archivalError) {
+    console.error('slo export archival receipts unavailable', archivalError.message);
+  }
+  const archivedExportIds = new Set(
+    (archivalError ? [] : (archivalReceipts ?? [])).map(
+      (row: { export_id: string }) => row.export_id,
+    ),
+  );
+  // Soft-hide archived exports even when the direct table select still returns them.
+  let visibleExports = exportError ? [] : (exports ?? []);
+  if (!exportError && visibleExports.length) {
+    const exportIds = visibleExports.map(
+      (row: { export_id: string }) => row.export_id,
+    );
+    const { data: archivedHits, error: archivedHitError } = await sb
+      .from('os_slo_simulation_export_archival_receipts')
+      .select('export_id')
+      .in('export_id', exportIds);
+    if (!archivedHitError && archivedHits) {
+      for (const hit of archivedHits) {
+        archivedExportIds.add(hit.export_id as string);
+      }
+    }
+    visibleExports = visibleExports.filter(
+      (row: { export_id: string }) => !archivedExportIds.has(row.export_id),
+    );
   }
   const rows = ((policies ?? []) as SloPolicyRow[]).map((row) => {
     if (row.owner_id) return row;
@@ -180,9 +226,11 @@ export async function listSloPolicyAdministration() {
       : ((comparisons ?? []) as SloDraftComparison[]),
     simulations: simulationError ? [] : (simulations ?? []),
     ownerCoverage: coverageError ? [] : (coverage ?? []),
-    simulationExports: exportError ? [] : (exports ?? []),
+    simulationExports: visibleExports,
     coverageCalendar: calendarError ? [] : (calendar ?? []),
     successionProposals: successionError ? [] : (successionProposals ?? []),
+    successionDrills: drillError ? [] : (successionDrills ?? []),
+    archivalReceipts: archivalError ? [] : (archivalReceipts ?? []),
   };
 }
 
@@ -500,6 +548,74 @@ export async function proposeSloOwnerSuccession(input: {
     p_policy_id: input.policyId,
     p_entity_id: input.entityId ?? null,
     p_replacement_owner_id: input.replacementOwnerId,
+  });
+  errorMessage(error);
+  return data;
+}
+
+export async function listSloSimulationExportsPhase43(input: {
+  actorId: string;
+  includeExpired?: boolean;
+  includeArchived?: boolean;
+  limit?: number;
+}) {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc('list_slo_simulation_exports_phase43', {
+    p_actor_id: input.actorId,
+    p_include_expired: input.includeExpired ?? false,
+    p_include_archived: input.includeArchived ?? false,
+    p_limit: input.limit ?? 50,
+  });
+  errorMessage(error);
+  return data ?? [];
+}
+
+export async function archiveExpiredSloExportsPhase43(input: {
+  actorId: string;
+  limit?: number;
+}) {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc(
+    'archive_expired_slo_simulation_exports_phase43',
+    {
+      p_actor_id: input.actorId,
+      p_limit: input.limit ?? 25,
+    },
+  );
+  errorMessage(error);
+  return data;
+}
+
+export async function archiveSloSimulationExportPhase43(input: {
+  actorId: string;
+  exportId: string;
+  idempotencyKey: string;
+  detail?: Record<string, unknown>;
+}) {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc('archive_slo_simulation_export_phase43', {
+    p_actor_id: input.actorId,
+    p_export_id: input.exportId,
+    p_idempotency_key: input.idempotencyKey,
+    p_detail: input.detail ?? {},
+  });
+  errorMessage(error);
+  return data;
+}
+
+/** Drill only — does not call propose_slo_owner_succession_phase42. */
+export async function runSloOwnerSuccessionDrillPhase43(input: {
+  actorId: string;
+  policyId: string;
+  entityId?: string | null;
+  candidateReplacementId: string;
+}) {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc('run_slo_owner_succession_drill_phase43', {
+    p_actor_id: input.actorId,
+    p_policy_id: input.policyId,
+    p_entity_id: input.entityId ?? null,
+    p_candidate_replacement_id: input.candidateReplacementId,
   });
   errorMessage(error);
   return data;

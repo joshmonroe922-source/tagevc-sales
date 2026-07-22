@@ -3,6 +3,7 @@ import { guardPermission } from '@/lib/rbac/session';
 import {
   mapCampaignParam,
   runArchiveCampaignTick,
+  runFirstQuarterlyGatedOps,
 } from '@/lib/docusign/archive-campaigns';
 import { runArchiveGovernanceWorker } from '@/lib/docusign/archive-governance';
 import {
@@ -38,6 +39,9 @@ async function run(request: Request) {
   }
   const url = new URL(request.url);
   const campaignKind = mapCampaignParam(url.searchParams.get('campaign'));
+  const firstQuarterly =
+    url.searchParams.get('first_quarterly') === '1' ||
+    url.searchParams.get('phase') === '43';
   const kind: RunKind =
     url.searchParams.get('kind') === 'backfill'
       ? 'legacy_backfill'
@@ -46,31 +50,46 @@ async function run(request: Request) {
     url.searchParams.get('mode') === 'full' ? 'full' : 'sample';
   const force = url.searchParams.get('force') === '1';
 
-  if (campaignKind) {
+  if (campaignKind || firstQuarterly) {
+    const resolvedKind = campaignKind ?? 'quarterly_full_integrity';
+    const useFirstQuarterlyPath =
+      firstQuarterly || resolvedKind === 'quarterly_full_integrity';
     const worker = await startOperationalWorker({
       service: 'docusign',
-      workerName: `archive-campaign-${campaignKind === 'quarterly_full_integrity' ? 'quarterly' : 'backfill'}`,
+      workerName: `archive-campaign-${resolvedKind === 'quarterly_full_integrity' ? 'quarterly' : 'backfill'}`,
       triggerSource: auth.trigger,
       details: {
-        campaign_kind: campaignKind,
+        campaign_kind: resolvedKind,
         scan_mode: mode,
         force,
         batch_limit: 5,
+        first_quarterly_ops: useFirstQuarterlyPath,
       },
     });
-    const result = await runArchiveCampaignTick({
-      campaignKind,
-      trigger: auth.trigger,
-      requestedBy: auth.actor,
-      workerId: worker.invocationId,
-      force,
-      limit: 5,
-    });
+    const result = useFirstQuarterlyPath
+      ? await runFirstQuarterlyGatedOps({
+          trigger: auth.trigger,
+          requestedBy: auth.actor,
+          workerId: worker.invocationId,
+          force,
+          limit: 5,
+          acknowledgeRunbook: auth.trigger === 'manual',
+        })
+      : await runArchiveCampaignTick({
+          campaignKind: resolvedKind,
+          trigger: auth.trigger,
+          requestedBy: auth.actor,
+          workerId: worker.invocationId,
+          force,
+          limit: 5,
+        });
     const noop =
       result.disposition === 'not_due' ||
       result.disposition === 'gated' ||
       result.disposition === 'already_complete';
     const leaseConflict = result.disposition === 'busy';
+    const firstQuarterlyMeta =
+      'firstQuarterly' in result ? result.firstQuarterly : undefined;
     await finishOperationalWorker({
       workerRunId: worker.workerRunId,
       status: noop
@@ -104,6 +123,13 @@ async function run(request: Request) {
         ops_milestone_disposition: result.opsMilestone?.disposition ?? null,
         ops_first_quarterly:
           result.opsMilestone?.firstQuarterlyMilestone ?? false,
+        first_quarterly_unlocked:
+          firstQuarterlyMeta?.gates.quarterly_unlocked ?? null,
+        first_quarterly_cta_eligible: firstQuarterlyMeta?.ctaEligible ?? null,
+        first_quarterly_runbook_unlock:
+          firstQuarterlyMeta?.runbookUnlock?.disposition ?? null,
+        first_quarterly_runbook_completed:
+          firstQuarterlyMeta?.runbookCompleted?.disposition ?? null,
         archive_run_id: result.governance?.run_id ?? null,
         archive_status: result.governance?.status ?? null,
         checkpointed: result.governance?.checkpointed ?? false,

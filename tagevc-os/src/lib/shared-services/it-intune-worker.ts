@@ -158,6 +158,18 @@ async function runReadOnlyHealthCanaryWithToken(token: string): Promise<{
       error: phase42Error.message,
     };
   }
+  // Phase 43 records open→closed cycle evidence only when the breaker has
+  // naturally returned to closed. Never close or reset from soak.
+  const { error: phase43Error } = await sb.rpc(
+    'record_it_intune_soak_cycle_evidence_phase43',
+  );
+  if (phase43Error) {
+    return {
+      ok: false,
+      status: 'phase43_soak_cycle_failed',
+      error: phase43Error.message,
+    };
+  }
   return {
     ok: true,
     status: String((finished as { status?: string } | null)?.status ?? 'done'),
@@ -209,6 +221,30 @@ export async function processIntunePhase42Soak(): Promise<{
   );
   if (error) {
     return { ok: false, status: 'phase42_soak_failed', error: error.message };
+  }
+  return {
+    ok: true,
+    status: 'done',
+    detail: (data as Record<string, unknown> | null) ?? undefined,
+  };
+}
+
+export async function processIntunePhase43SoakCycle(): Promise<{
+  ok: boolean;
+  status: string;
+  detail?: Record<string, unknown>;
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc(
+    'record_it_intune_soak_cycle_evidence_phase43',
+  );
+  if (error) {
+    return {
+      ok: false,
+      status: 'phase43_soak_cycle_failed',
+      error: error.message,
+    };
   }
   return {
     ok: true,

@@ -10,6 +10,7 @@ import {
   runReminderWorkerAction,
   runArchiveGovernanceAction,
   runArchiveCampaignAction,
+  runFirstQuarterlyGatedOpsAction,
   reviewArchiveQuarantineAction,
   scheduleRemindersAction,
   sendFromTemplateAction,
@@ -22,10 +23,12 @@ export function DocuSignHubActions({
   canWrite,
   canReconcile,
   canArchiveReview,
+  firstQuarterlyCtaEligible = false,
 }: {
   canWrite: boolean;
   canReconcile: boolean;
   canArchiveReview: boolean;
+  firstQuarterlyCtaEligible?: boolean;
 }) {
   const [flash, setFlash] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -221,6 +224,16 @@ export function DocuSignHubActions({
             >
               Advance quarterly campaign
             </Button>
+            {firstQuarterlyCtaEligible ? (
+              <Button
+                type="button"
+                size="sm"
+                disabled={pending}
+                onClick={() => run(() => runFirstQuarterlyGatedOpsAction())}
+              >
+                Run first quarterly (gated)
+              </Button>
+            ) : null}
           </>
         ) : null}
         {canArchiveReview ? (

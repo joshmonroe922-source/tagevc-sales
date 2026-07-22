@@ -1290,15 +1290,19 @@ export async function dismissIntuneThresholdRecommendationAction(input: {
 export async function refreshIntuneRecommendationSoakAction(): Promise<ItAssetActionResult> {
   const gate = await guardPermission('action:intune_manual_review');
   if (!gate.ok) return gate;
-  const { observeIntuneRecommendationSoak } = await import(
-    '@/lib/shared-services/it-assets-repo'
-  );
-  const result = await observeIntuneRecommendationSoak();
-  if (!result.ok) return result;
+  const {
+    observeIntuneRecommendationSoak,
+    recordIntuneSoakCycleEvidence,
+  } = await import('@/lib/shared-services/it-assets-repo');
+  const soak = await observeIntuneRecommendationSoak();
+  if (!soak.ok) return soak;
+  const cycles = await recordIntuneSoakCycleEvidence();
+  if (!cycles.ok) return cycles;
   revalidateAssets();
-  const observed = Number(result.detail?.observations_recorded ?? 0);
+  const observed = Number(soak.detail?.observations_recorded ?? 0);
+  const recorded = Number(cycles.detail?.cycles_recorded ?? 0);
   return {
     ok: true,
-    message: `Recommendation soak observed ${observed} accepted draft(s) — breakers never closed or reset`,
+    message: `Recommendation soak observed ${observed} draft(s); recorded ${recorded} open→closed cycle(s) — breakers never closed or reset`,
   };
 }

@@ -994,6 +994,8 @@ export type ItIntuneThresholdRecommendation = {
     | 'rejected'
     | 'expired'
     | 'breaker_open_observed'
+    | 'breaker_closed_observed'
+    | 'cycle_complete'
     | null;
   soak_elapsed_minutes?: number | null;
   soak_sample_count?: number | null;
@@ -1002,6 +1004,12 @@ export type ItIntuneThresholdRecommendation = {
   soak_proposal_decision?: 'approve' | 'reject' | null;
   soak_observed_at?: string | null;
   soak_evidence_sha256?: string | null;
+  soak_cycle_id?: string | null;
+  soak_cycle_status?: 'cycle_complete' | null;
+  soak_cycle_elapsed_minutes?: number | null;
+  soak_cycle_open_at?: string | null;
+  soak_cycle_closed_at?: string | null;
+  soak_cycle_evidence_sha256?: string | null;
 };
 
 export type ItIntunePhase41Health = {
@@ -1020,6 +1028,41 @@ export type ItIntunePhase42Health = {
   healthy_count: number;
   degraded_count: number;
   breaker_open_observed_count: number;
+};
+
+export type ItIntunePhase43Health = {
+  cycle_evidence_count: number;
+  cycle_complete_count: number;
+  open_awaiting_close_count: number;
+};
+
+export type ItIntuneSoakCycleTimeline = {
+  cycle_id: string;
+  recommendation_id: string;
+  proposal_id: string;
+  breaker_id: string;
+  postmortem_id: string | null;
+  open_observation_id: string;
+  closed_observation_id: string;
+  open_observed_at: string;
+  closed_observed_at: string;
+  cycle_elapsed_minutes: number;
+  open_breaker_state: 'open' | 'half_open';
+  closed_breaker_state: 'closed';
+  cycle_status: 'cycle_complete';
+  sample_count: number;
+  failure_count: number;
+  failure_rate: number;
+  evidence_sha256: string;
+  recorded_at: string;
+  closes_or_resets_breaker: boolean;
+  entity_id: string | null;
+  provider: string;
+  operation: string;
+  breaker_state: 'closed' | 'open' | 'half_open';
+  accepted_at: string | null;
+  risk_class: string | null;
+  postmortem_status: string | null;
 };
 
 export async function listIntuneActions(
@@ -1274,7 +1317,7 @@ export async function listIntuneThresholdRecommendations(limit = 30): Promise<{
   const { data, error } = await sb
     .from('os_it_intune_recommendation_soak_status')
     .select(
-      'recommendation_id, episode_id, postmortem_id, breaker_id, status, base_config_version_no, recommended_failure_window_minutes, recommended_minimum_samples, recommended_failure_threshold, recommended_failure_rate_threshold, recommended_reset_success_threshold, risk_class, rationale, evidence_sha256, generated_at, expires_at, accepted_by, accepted_at, resulting_proposal_id, dismissed_by, dismissed_at, row_version, entity_id, provider, operation, breaker_state, breaker_version, soak_status, soak_elapsed_minutes, soak_sample_count, soak_failure_count, soak_failure_rate, soak_proposal_decision, soak_observed_at, soak_evidence_sha256',
+      'recommendation_id, episode_id, postmortem_id, breaker_id, status, base_config_version_no, recommended_failure_window_minutes, recommended_minimum_samples, recommended_failure_threshold, recommended_failure_rate_threshold, recommended_reset_success_threshold, risk_class, rationale, evidence_sha256, generated_at, expires_at, accepted_by, accepted_at, resulting_proposal_id, dismissed_by, dismissed_at, row_version, entity_id, provider, operation, breaker_state, breaker_version, soak_status, soak_elapsed_minutes, soak_sample_count, soak_failure_count, soak_failure_rate, soak_proposal_decision, soak_observed_at, soak_evidence_sha256, soak_cycle_id, soak_cycle_status, soak_cycle_elapsed_minutes, soak_cycle_open_at, soak_cycle_closed_at, soak_cycle_evidence_sha256',
     )
     .order('generated_at', { ascending: false })
     .limit(limit);
@@ -1299,6 +1342,39 @@ export async function getIntunePhase42Health(): Promise<{
     : { row: (data as ItIntunePhase42Health | null) ?? null };
 }
 
+export async function getIntunePhase43Health(): Promise<{
+  row: ItIntunePhase43Health | null;
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb
+    .from('os_it_intune_phase43_health')
+    .select(
+      'cycle_evidence_count, cycle_complete_count, open_awaiting_close_count',
+    )
+    .maybeSingle();
+  return error
+    ? { row: null, error: error.message }
+    : { row: (data as ItIntunePhase43Health | null) ?? null };
+}
+
+export async function listIntuneSoakCycleTimeline(limit = 30): Promise<{
+  rows: ItIntuneSoakCycleTimeline[];
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb
+    .from('os_it_intune_soak_cycle_timeline')
+    .select(
+      'cycle_id, recommendation_id, proposal_id, breaker_id, postmortem_id, open_observation_id, closed_observation_id, open_observed_at, closed_observed_at, cycle_elapsed_minutes, open_breaker_state, closed_breaker_state, cycle_status, sample_count, failure_count, failure_rate, evidence_sha256, recorded_at, closes_or_resets_breaker, entity_id, provider, operation, breaker_state, accepted_at, risk_class, postmortem_status',
+    )
+    .order('recorded_at', { ascending: false })
+    .limit(limit);
+  return error
+    ? { rows: [], error: error.message }
+    : { rows: (data ?? []) as ItIntuneSoakCycleTimeline[] };
+}
+
 export async function getIntunePhase42OpsReport(): Promise<{
   report: Record<string, unknown> | null;
   error?: string;
@@ -1310,10 +1386,34 @@ export async function getIntunePhase42OpsReport(): Promise<{
     : { report: (data as Record<string, unknown> | null) ?? null };
 }
 
+export async function getIntunePhase43OpsReport(): Promise<{
+  report: Record<string, unknown> | null;
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc('get_it_intune_phase43_ops_report');
+  return error
+    ? { report: null, error: error.message }
+    : { report: (data as Record<string, unknown> | null) ?? null };
+}
+
 export async function observeIntuneRecommendationSoak() {
   const sb = await createPersistClient();
   const { data, error } = await sb.rpc(
     'observe_it_intune_recommendation_soak_phase42',
+  );
+  return error
+    ? { ok: false as const, error: error.message }
+    : {
+        ok: true as const,
+        detail: (data as Record<string, unknown> | null) ?? undefined,
+      };
+}
+
+export async function recordIntuneSoakCycleEvidence() {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc(
+    'record_it_intune_soak_cycle_evidence_phase43',
   );
   return error
     ? { ok: false as const, error: error.message }

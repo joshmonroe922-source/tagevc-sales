@@ -3,11 +3,13 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
+  archiveExpiredSloExportsAction,
   exportSloSimulationAction,
   proposeSloOwnerSuccessionAction,
   recordSloExportAuditAccessAction,
   requestSloRouteTestAction,
   requestSloSimulationAction,
+  runSloOwnerSuccessionDrillAction,
   saveSloPolicyDraftAction,
   transitionSloPolicyDraftAction,
 } from '@/app/(app)/shared-services/actions';
@@ -232,6 +234,8 @@ export function SloPolicyAdmin({
   simulationExports = [],
   coverageCalendar = [],
   successionProposals = [],
+  successionDrills = [],
+  archivalReceipts = [],
 }: {
   activePolicies: SloPolicyRow[];
   drafts: SloPolicyRow[];
@@ -244,6 +248,8 @@ export function SloPolicyAdmin({
   simulationExports?: Array<Record<string, unknown>>;
   coverageCalendar?: Array<Record<string, unknown>>;
   successionProposals?: Array<Record<string, unknown>>;
+  successionDrills?: Array<Record<string, unknown>>;
+  archivalReceipts?: Array<Record<string, unknown>>;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -325,6 +331,27 @@ export function SloPolicyAdmin({
     });
   }
 
+  function runSuccessionDrill(coverage: Record<string, unknown>) {
+    if (!successionOwnerId) return;
+    startTransition(async () => {
+      const result = await runSloOwnerSuccessionDrillAction({
+        policyId: String(coverage.policy_id),
+        entityId: coverage.entity_id ? String(coverage.entity_id) : null,
+        candidateReplacementId: successionOwnerId,
+      });
+      setMessage(result.ok ? result.message ?? 'Drill recorded' : result.error);
+      if (result.ok) router.refresh();
+    });
+  }
+
+  function archiveExpiredExports() {
+    startTransition(async () => {
+      const result = await archiveExpiredSloExportsAction();
+      setMessage(result.ok ? result.message ?? 'Archived' : result.error);
+      if (result.ok) router.refresh();
+    });
+  }
+
   const calendarByDay = coverageCalendar.reduce<Record<string, number>>((acc, row) => {
     if (!row.covered) return acc;
     const day = String(row.coverage_day);
@@ -398,6 +425,21 @@ export function SloPolicyAdmin({
               </Button>
             </div>
           ))}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={pending}
+            onClick={archiveExpiredExports}
+          >
+            Archive expired exports
+          </Button>
+          {archivalReceipts.slice(0, 4).map((receipt) => (
+            <p key={String(receipt.receipt_id)} className="font-mono text-[10px] text-muted-foreground">
+              ARCHIVED · {String(receipt.archived_at)} · digest {String(receipt.metadata_digest)} ·
+              soft-hidden (row retained)
+            </p>
+          ))}
         </CardContent>
       </Card>
       {ownerCoverage.length ? (
@@ -434,12 +476,29 @@ export function SloPolicyAdmin({
                     Propose succession
                   </Button>
                 ) : null}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  disabled={pending || !successionOwnerId}
+                  onClick={() => runSuccessionDrill(coverage)}
+                >
+                  Run succession drill
+                </Button>
               </div>
             ))}
             {successionProposals.slice(0, 4).map((proposal) => (
               <p key={String(proposal.proposal_id)} className="font-mono text-[10px] text-muted-foreground">
                 SUCCESSION · {String(proposal.proposed_at)} · replacement{' '}
                 {String(proposal.replacement_owner_id)} · expires {String(proposal.expires_at)}
+              </p>
+            ))}
+            {successionDrills.slice(0, 4).map((drill) => (
+              <p key={String(drill.drill_id)} className="font-mono text-[10px] text-muted-foreground">
+                DRILL · {String(drill.drilled_at)} · candidate{' '}
+                {String(drill.candidate_replacement_id)} · eligible=
+                {String(drill.eligibility_ok)} · live_mutated=
+                {String(drill.live_succession_mutated ?? false)}
               </p>
             ))}
           </CardContent>

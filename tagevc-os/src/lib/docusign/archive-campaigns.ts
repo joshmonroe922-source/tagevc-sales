@@ -81,6 +81,56 @@ export type ArchiveQuarantineAgingRow = {
   age_bucket: '0_7' | '8_30' | '31_45' | 'over_45' | string;
 };
 
+export type FirstQuarterlyRunbookStepKind =
+  | 'gates_evaluated'
+  | 'unlock_recorded'
+  | 'runbook_ack'
+  | 'first_quarterly_started'
+  | 'first_quarterly_completed';
+
+export type FirstQuarterlyGates = {
+  contract_version: 'phase43-v1' | string;
+  remaining_unhashed: number;
+  quarantine_backlog: number;
+  quarantine_oldest_days: number;
+  aging_sla_days: number;
+  quarantine_backlog_gate: number;
+  backfill_complete: boolean;
+  quarantine_aged: boolean;
+  quarantine_backlog_ok: boolean;
+  quarterly_unlocked: boolean;
+  quarterly_full_due: boolean;
+  first_quarterly_completed: boolean;
+  first_quarterly_milestone_at: string | null;
+  unlock_recorded: boolean;
+  runbook_ack_recorded: boolean;
+  cta_eligible: boolean;
+};
+
+export type FirstQuarterlyRunbookResult = {
+  disposition: 'recorded' | 'already_recorded' | 'failed';
+  stepKind?: FirstQuarterlyRunbookStepKind;
+  evidenceId?: string;
+  evidenceSha256?: string;
+  gatesUnlocked?: boolean;
+  ctaEligible?: boolean;
+  error?: string;
+};
+
+export type FirstQuarterlyOpsReport = {
+  contractVersion: 'phase43-v1' | string;
+  gates: FirstQuarterlyGates;
+  cta: {
+    eligible: boolean;
+    label: string;
+    quarterly_unlocked: boolean;
+    first_quarterly_completed: boolean;
+    quarterly_full_due: boolean;
+  };
+  runbook: Array<Record<string, unknown>>;
+  error?: string;
+};
+
 type Claim = {
   disposition:
     | 'not_due'
@@ -531,5 +581,350 @@ export async function listArchiveQuarantineAging(input: {
   return {
     rows: (data as ArchiveQuarantineAgingRow[] | null) ?? [],
     error: error?.message,
+  };
+}
+
+const emptyFirstQuarterlyGates: FirstQuarterlyGates = {
+  contract_version: 'phase43-v1',
+  remaining_unhashed: 0,
+  quarantine_backlog: 0,
+  quarantine_oldest_days: 0,
+  aging_sla_days: 45,
+  quarantine_backlog_gate: 25,
+  backfill_complete: false,
+  quarantine_aged: false,
+  quarantine_backlog_ok: false,
+  quarterly_unlocked: false,
+  quarterly_full_due: false,
+  first_quarterly_completed: false,
+  first_quarterly_milestone_at: null,
+  unlock_recorded: false,
+  runbook_ack_recorded: false,
+  cta_eligible: false,
+};
+
+export async function evaluateFirstQuarterlyGates(input: {
+  firmWide: boolean;
+}): Promise<{ gates: FirstQuarterlyGates; error?: string }> {
+  if (!input.firmWide) {
+    return { gates: emptyFirstQuarterlyGates };
+  }
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc(
+    'evaluate_docusign_first_quarterly_gates_phase43',
+    { p_entity_id: null },
+  );
+  return {
+    gates: {
+      ...emptyFirstQuarterlyGates,
+      ...((data as Partial<FirstQuarterlyGates> | null) ?? {}),
+    },
+    error: error?.message,
+  };
+}
+
+export async function getFirstQuarterlyOpsReport(input: {
+  firmWide: boolean;
+}): Promise<FirstQuarterlyOpsReport> {
+  if (!input.firmWide) {
+    return {
+      contractVersion: 'phase43-v1',
+      gates: emptyFirstQuarterlyGates,
+      cta: {
+        eligible: false,
+        label: 'Run first quarterly (gated)',
+        quarterly_unlocked: false,
+        first_quarterly_completed: false,
+        quarterly_full_due: false,
+      },
+      runbook: [],
+    };
+  }
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc(
+    'get_docusign_first_quarterly_ops_phase43',
+    { p_entity_id: null },
+  );
+  const report = data as {
+    contract_version?: string;
+    gates?: Partial<FirstQuarterlyGates>;
+    cta?: Partial<FirstQuarterlyOpsReport['cta']>;
+    runbook?: Array<Record<string, unknown>>;
+  } | null;
+  const gates = {
+    ...emptyFirstQuarterlyGates,
+    ...(report?.gates ?? {}),
+  };
+  return {
+    contractVersion: report?.contract_version ?? 'phase43-v1',
+    gates,
+    cta: {
+      eligible: report?.cta?.eligible ?? gates.cta_eligible,
+      label: report?.cta?.label ?? 'Run first quarterly (gated)',
+      quarterly_unlocked:
+        report?.cta?.quarterly_unlocked ?? gates.quarterly_unlocked,
+      first_quarterly_completed:
+        report?.cta?.first_quarterly_completed ??
+        gates.first_quarterly_completed,
+      quarterly_full_due:
+        report?.cta?.quarterly_full_due ?? gates.quarterly_full_due,
+    },
+    runbook: report?.runbook ?? [],
+    error: error?.message,
+  };
+}
+
+export async function recordFirstQuarterlyRunbook(input: {
+  stepKind: FirstQuarterlyRunbookStepKind;
+  campaignId?: string | null;
+  recordedBy?: string | null;
+  metadata?: Record<string, unknown>;
+  idempotencyKey?: string | null;
+}): Promise<FirstQuarterlyRunbookResult> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc(
+    'record_docusign_first_quarterly_runbook_phase43',
+    {
+      p_step_kind: input.stepKind,
+      p_campaign_id: input.campaignId ?? null,
+      p_recorded_by: input.recordedBy ?? null,
+      p_metadata: input.metadata ?? {},
+      p_idempotency_key: input.idempotencyKey ?? null,
+      p_entity_id: null,
+    },
+  );
+  if (error) {
+    return { disposition: 'failed', error: error.message };
+  }
+  const row = data as {
+    disposition?: 'recorded' | 'already_recorded';
+    evidence_id?: string;
+    step_kind?: FirstQuarterlyRunbookStepKind;
+    evidence_sha256?: string;
+    gates_unlocked?: boolean;
+    cta_eligible?: boolean;
+  } | null;
+  return {
+    disposition: row?.disposition ?? 'recorded',
+    stepKind: row?.step_kind,
+    evidenceId: row?.evidence_id,
+    evidenceSha256: row?.evidence_sha256,
+    gatesUnlocked: row?.gates_unlocked,
+    ctaEligible: row?.cta_eligible,
+  };
+}
+
+async function maybeRecordFirstQuarterlyUnlock(input: {
+  recordedBy?: string | null;
+  campaignId?: string | null;
+}): Promise<FirstQuarterlyRunbookResult | null> {
+  const { gates, error } = await evaluateFirstQuarterlyGates({ firmWide: true });
+  if (error) {
+    return { disposition: 'failed', error };
+  }
+  await recordFirstQuarterlyRunbook({
+    stepKind: 'gates_evaluated',
+    campaignId: input.campaignId,
+    recordedBy: input.recordedBy,
+    metadata: {
+      contract_version: 'phase43-v1',
+      quarterly_unlocked: gates.quarterly_unlocked,
+      cta_eligible: gates.cta_eligible,
+    },
+    idempotencyKey: `phase43:fq:gates_evaluated:${new Date().toISOString().slice(0, 10)}`,
+  });
+  if (!gates.quarterly_unlocked) {
+    return null;
+  }
+  if (gates.unlock_recorded) {
+    return {
+      disposition: 'already_recorded',
+      stepKind: 'unlock_recorded',
+      gatesUnlocked: true,
+      ctaEligible: gates.cta_eligible,
+    };
+  }
+  const unlock = await recordFirstQuarterlyRunbook({
+    stepKind: 'unlock_recorded',
+    campaignId: input.campaignId,
+    recordedBy: input.recordedBy,
+    metadata: {
+      contract_version: 'phase43-v1',
+      remaining_unhashed: gates.remaining_unhashed,
+      quarantine_aged: gates.quarantine_aged,
+    },
+    idempotencyKey: 'phase43:fq:unlock_recorded:v1',
+  });
+  if (unlock.disposition !== 'failed' && gates.cta_eligible) {
+    await recordArchiveCampaignOpsMilestone({
+      eventKind: 'backfill_gate_cleared',
+      campaignId: input.campaignId,
+      campaignKind: 'quarterly_full_integrity',
+      remainingUnhashed: gates.remaining_unhashed,
+      quarantineBacklog: gates.quarantine_backlog,
+      quarantineOldestDays: gates.quarantine_oldest_days,
+      recordedBy: input.recordedBy,
+      metadata: {
+        contract_version: 'phase43-v1',
+        source: 'first_quarterly_unlock',
+      },
+      idempotencyKey: 'phase43:ops:backfill_gate_cleared:first_quarterly_unlock',
+    });
+  }
+  return unlock;
+}
+
+export async function runFirstQuarterlyGatedOps(input: {
+  trigger: 'cron' | 'manual';
+  requestedBy?: string | null;
+  workerId?: string;
+  force?: boolean;
+  limit?: number;
+  acknowledgeRunbook?: boolean;
+}): Promise<
+  ArchiveCampaignResult & {
+    firstQuarterly?: {
+      gates: FirstQuarterlyGates;
+      runbookUnlock?: FirstQuarterlyRunbookResult | null;
+      runbookAck?: FirstQuarterlyRunbookResult | null;
+      runbookStarted?: FirstQuarterlyRunbookResult | null;
+      runbookCompleted?: FirstQuarterlyRunbookResult | null;
+      ctaEligible: boolean;
+    };
+  }
+> {
+  const { gates, error: gatesError } = await evaluateFirstQuarterlyGates({
+    firmWide: true,
+  });
+  if (gatesError) {
+    return {
+      ok: false,
+      disposition: 'failed',
+      error: gatesError,
+      firstQuarterly: {
+        gates,
+        ctaEligible: false,
+      },
+    };
+  }
+
+  const runbookUnlock = await maybeRecordFirstQuarterlyUnlock({
+    recordedBy: input.requestedBy,
+  });
+
+  if (!gates.quarterly_unlocked) {
+    const gatedTick = await runArchiveCampaignTick({
+      campaignKind: 'quarterly_full_integrity',
+      trigger: input.trigger,
+      requestedBy: input.requestedBy,
+      workerId: input.workerId,
+      force: input.force ?? false,
+      limit: input.limit,
+    });
+    return {
+      ...gatedTick,
+      disposition: gatedTick.disposition === 'not_due' ? 'not_due' : 'gated',
+      gateReason:
+        gatedTick.gateReason ??
+        (!gates.backfill_complete
+          ? 'legacy_backfill_incomplete'
+          : !gates.quarantine_aged
+            ? 'quarantine_aging'
+            : 'quarantine_backlog_high'),
+      remainingUnhashed:
+        gatedTick.remainingUnhashed ?? gates.remaining_unhashed,
+      quarantineBacklog:
+        gatedTick.quarantineBacklog ?? gates.quarantine_backlog,
+      firstQuarterly: {
+        gates,
+        runbookUnlock,
+        ctaEligible: false,
+      },
+    };
+  }
+
+  // After the first quarterly milestone, fall through to the Phase 41/42 tick
+  // with unlock evidence only — do not re-emit first-run runbook steps.
+  if (gates.first_quarterly_completed) {
+    const result = await runArchiveCampaignTick({
+      campaignKind: 'quarterly_full_integrity',
+      trigger: input.trigger,
+      requestedBy: input.requestedBy,
+      workerId: input.workerId,
+      force: input.force ?? false,
+      limit: input.limit,
+    });
+    return {
+      ...result,
+      firstQuarterly: {
+        gates,
+        runbookUnlock,
+        ctaEligible: false,
+      },
+    };
+  }
+
+  let runbookAck: FirstQuarterlyRunbookResult | null = null;
+  if (input.acknowledgeRunbook || input.trigger === 'manual') {
+    runbookAck = await recordFirstQuarterlyRunbook({
+      stepKind: 'runbook_ack',
+      recordedBy: input.requestedBy,
+      metadata: {
+        contract_version: 'phase43-v1',
+        trigger: input.trigger,
+      },
+      idempotencyKey: `phase43:fq:runbook_ack:${input.trigger}:${input.requestedBy ?? 'cron'}`,
+    });
+  }
+
+  const runbookStarted = await recordFirstQuarterlyRunbook({
+    stepKind: 'first_quarterly_started',
+    recordedBy: input.requestedBy,
+    metadata: {
+      contract_version: 'phase43-v1',
+      trigger: input.trigger,
+      cta_eligible: gates.cta_eligible,
+    },
+    idempotencyKey: 'phase43:fq:first_quarterly_started:v1',
+  });
+
+  const result = await runArchiveCampaignTick({
+    campaignKind: 'quarterly_full_integrity',
+    trigger: input.trigger,
+    requestedBy: input.requestedBy,
+    workerId: input.workerId,
+    force: input.force ?? false,
+    limit: input.limit,
+  });
+
+  let runbookCompleted: FirstQuarterlyRunbookResult | null = null;
+  if (
+    result.disposition === 'already_complete' ||
+    (result.disposition === 'claimed' && result.status === 'completed') ||
+    result.opsMilestone?.firstQuarterlyMilestone
+  ) {
+    runbookCompleted = await recordFirstQuarterlyRunbook({
+      stepKind: 'first_quarterly_completed',
+      campaignId: result.campaignId,
+      recordedBy: input.requestedBy,
+      metadata: {
+        contract_version: 'phase43-v1',
+        disposition: result.disposition,
+        progress_pct: result.progressPct ?? null,
+      },
+      idempotencyKey: `phase43:fq:first_quarterly_completed:${result.campaignId ?? 'none'}`,
+    });
+  }
+
+  return {
+    ...result,
+    firstQuarterly: {
+      gates,
+      runbookUnlock,
+      runbookAck,
+      runbookStarted,
+      runbookCompleted,
+      ctaEligible: gates.cta_eligible,
+    },
   };
 }

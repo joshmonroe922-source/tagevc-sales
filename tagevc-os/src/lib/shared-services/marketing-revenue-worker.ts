@@ -14,6 +14,7 @@ import {
   type RevenueAuthenticityMode,
   type RevenueReceipt,
 } from '@/lib/shared-services/marketing-revenue-contracts';
+import { runPhase43RevenueOpsTick } from '@/lib/shared-services/marketing-phase43';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 
 type PullRun = {
@@ -442,6 +443,19 @@ export async function processMarketingRevenuePulls(limit = 1): Promise<{
       const message =
         sloCaught instanceof Error ? sloCaught.message : 'Phase 42 SLO tick failed';
       details.push(`phase42-slo:${entityId}: ${message}`);
+    }
+
+    // Phase 43: credential binding health + critical-window ops alerts.
+    const phase43 = await runPhase43RevenueOpsTick({
+      entityId,
+      days: 30,
+    });
+    if (!phase43.ok) {
+      details.push(`phase43-ops:${entityId}: ${phase43.error}`);
+    } else {
+      details.push(
+        `phase43-ops:${entityId}: bindings=${phase43.bindingsRecorded} alerts=${phase43.alertsRecorded} delivered=${phase43.delivered}`,
+      );
     }
   }
 

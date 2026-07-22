@@ -14,8 +14,10 @@ import {
   getIntunePhase40Health,
   getIntunePhase41Health,
   getIntunePhase42Health,
+  getIntunePhase43Health,
   listIntuneOutagePostmortems,
   listIntuneThresholdRecommendations,
+  listIntuneSoakCycleTimeline,
   listIntuneDispatchAttempts,
   listIntuneManualReviewSlo,
   listIntuneWorkerRuns,
@@ -55,8 +57,10 @@ export default async function ItAssetsModulePage() {
     phase40Health,
     phase41Health,
     phase42Health,
+    phase43Health,
     outagePostmortems,
     thresholdRecommendations,
+    soakCycleTimeline,
   ] = await Promise.all([
     listHardwareAssets(),
     listSoftwareLicenses(),
@@ -76,8 +80,10 @@ export default async function ItAssetsModulePage() {
     getIntunePhase40Health(),
     getIntunePhase41Health(),
     getIntunePhase42Health(),
+    getIntunePhase43Health(),
     listIntuneOutagePostmortems(),
     listIntuneThresholdRecommendations(),
+    listIntuneSoakCycleTimeline(),
   ]);
   const candidateTickets = listOffboardingCandidateTickets();
   const onboardingTickets = listOnboardingCandidateTickets();
@@ -122,15 +128,15 @@ export default async function ItAssetsModulePage() {
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">IT</Badge>
-          <Badge variant="secondary">Phase 42</Badge>
+          <Badge variant="secondary">Phase 43</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Hardware &amp; licensing
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Aggregate outage postmortems, recommendation soak observations after
-          accepted drafts, versioned maker-checked tuning, and fenced Intune
-          recovery. Soak never closes or resets open breakers.
+          Aggregate outage postmortems, recommendation soak, and open→closed
+          cycle evidence after natural breaker recovery. Soak never closes or
+          resets open breakers.
         </p>
       </div>
 
@@ -170,10 +176,14 @@ export default async function ItAssetsModulePage() {
         intunePhase40Health={firmWide ? phase40Health.row : null}
         intunePhase41Health={firmWide ? phase41Health.row : null}
         intunePhase42Health={firmWide ? phase42Health.row : null}
+        intunePhase43Health={firmWide ? phase43Health.row : null}
         intuneOutagePostmortems={firmWide ? outagePostmortems.rows : []}
         intuneThresholdRecommendations={thresholdRecommendations.rows.filter(
           (recommendation) =>
             firmWide || recommendation.entity_id === ctx?.profile.entity_id,
+        )}
+        intuneSoakCycleTimeline={soakCycleTimeline.rows.filter(
+          (cycle) => firmWide || cycle.entity_id === ctx?.profile.entity_id,
         )}
         canWrite={canWrite}
         canIntuneRetire={canIntuneRetire}
@@ -189,8 +199,10 @@ export default async function ItAssetsModulePage() {
           phase40Health.error ||
           phase41Health.error ||
           phase42Health.error ||
+          phase43Health.error ||
           outagePostmortems.error ||
-          thresholdRecommendations.error
+          thresholdRecommendations.error ||
+          soakCycleTimeline.error
         }
       />
     </div>

@@ -19,6 +19,7 @@ import { listPaidMetricOperations } from '@/lib/shared-services/marketing-paid-b
 import { getPaidAttributionReport } from '@/lib/shared-services/marketing-attribution';
 import { getPhase41RevenueReport } from '@/lib/shared-services/marketing-phase41';
 import { getPhase42RevenueSloReport } from '@/lib/shared-services/marketing-phase42';
+import { getPhase43RevenueOpsReport } from '@/lib/shared-services/marketing-phase43';
 
 export default async function MarketingModulePage({
   searchParams,
@@ -61,6 +62,7 @@ export default async function MarketingModulePage({
     attribution,
     authoritativeRevenue,
     productionSlos,
+    opsReport,
   ] = await Promise.all([
     listCampaigns(
       50,
@@ -94,6 +96,11 @@ export default async function MarketingModulePage({
       days: paidDays,
     }),
     getPhase42RevenueSloReport({
+      entityId: firmWide ? null : (ctx?.profile.entity_id ?? null),
+      firmWide,
+      days: paidDays,
+    }),
+    getPhase43RevenueOpsReport({
       entityId: firmWide ? null : (ctx?.profile.entity_id ?? null),
       firmWide,
       days: paidDays,
@@ -139,15 +146,15 @@ export default async function MarketingModulePage({
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">Marketing</Badge>
-          <Badge variant="secondary">Phase 42</Badge>
+          <Badge variant="secondary">Phase 43</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Multichannel Marketing
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
           Entity-bound paid delivery, production ledger authenticity, governed
-          corrections, settlement-lag visibility, and production SLO monitoring
-          over authoritative evidence.
+          corrections, settlement-lag visibility, production SLO monitoring, and
+          critical-window ops alerts over authoritative evidence.
         </p>
         {oauthFlash && (
           <p className="text-sm text-emerald-700">{oauthFlash}</p>
@@ -160,6 +167,8 @@ export default async function MarketingModulePage({
         canWrite={canWrite}
         sloReport={productionSlos.report}
         sloError={productionSlos.error}
+        opsReport={opsReport.report}
+        opsError={opsReport.error}
       />
 
       <MarketingClient
