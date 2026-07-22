@@ -9,6 +9,7 @@ import {
   refreshTemplateRecipientsAction,
   runReminderWorkerAction,
   runArchiveGovernanceAction,
+  runArchiveCampaignAction,
   reviewArchiveQuarantineAction,
   scheduleRemindersAction,
   sendFromTemplateAction,
@@ -189,6 +190,36 @@ export function DocuSignHubActions({
               }
             >
               Full archive integrity
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={pending}
+              onClick={() =>
+                run(() =>
+                  runArchiveCampaignAction({
+                    kind: 'legacy_backfill_completion',
+                  }),
+                )
+              }
+            >
+              Advance backfill campaign
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={pending}
+              onClick={() =>
+                run(() =>
+                  runArchiveCampaignAction({
+                    kind: 'quarterly_full_integrity',
+                  }),
+                )
+              }
+            >
+              Advance quarterly campaign
             </Button>
           </>
         ) : null}

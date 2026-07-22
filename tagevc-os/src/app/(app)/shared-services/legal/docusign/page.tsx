@@ -34,6 +34,7 @@ import {
   listDocuSignSendIntents,
 } from '@/lib/docusign/send-intents-repo';
 import { listDocuSignMappingReviews } from '@/lib/docusign/mapping-review-repo';
+import { listArchiveCampaigns } from '@/lib/docusign/archive-campaigns';
 import { listArchiveGovernance } from '@/lib/docusign/archive-governance';
 
 function formatBytes(n: number | null | undefined): string {
@@ -124,6 +125,7 @@ export default async function DocuSignModulePage({
     manualReview,
     mappingReview,
     archiveGovernance,
+    archiveCampaigns,
   ] = await Promise.all([
     listDocuSignEvents({
       limit: 40,
@@ -184,6 +186,7 @@ export default async function DocuSignModulePage({
       entityId: ctx?.profile.entity_id ?? null,
       firmWide,
     }),
+    listArchiveCampaigns({ firmWide }),
   ]);
 
   const voidPolicy = process.env.DOCUSIGN_VOID_POLICY?.trim() || 'allow';
@@ -373,10 +376,48 @@ export default async function DocuSignModulePage({
               Governed legacy backfill and scheduled byte rehashing. Availability
               failures remain distinct from content drift; drift is quarantined
               for manual review. Evidence contains identifiers and hashes only.
+              Phase 41 campaigns track backfill completion and quarterly full
+              integrity windows.
               {archiveGovernance.error ? ` · ${archiveGovernance.error}` : ''}
+              {archiveCampaigns.error ? ` · ${archiveCampaigns.error}` : ''}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-xs">
+            {firmWide ? (
+              <p className="text-muted-foreground">
+                Remaining unhashed: {archiveCampaigns.live.remaining_unhashed} ·
+                Quarantine backlog:{' '}
+                {archiveCampaigns.live.quarantine_backlog}
+                {archiveCampaigns.live.quarantine_oldest_days > 0
+                  ? ` · oldest ${archiveCampaigns.live.quarantine_oldest_days}d`
+                  : ''}{' '}
+                · Quarterly due:{' '}
+                {archiveCampaigns.live.quarterly_full_due ? 'yes' : 'no'}
+                {archiveCampaigns.lastFullScanAt
+                  ? ` · Last full scan ${new Date(archiveCampaigns.lastFullScanAt).toLocaleString()}`
+                  : ' · No completed full scan yet'}
+              </p>
+            ) : null}
+            {firmWide && archiveCampaigns.campaigns.length > 0
+              ? archiveCampaigns.campaigns.slice(0, 4).map((camp) => (
+                  <div
+                    className="flex flex-wrap justify-between gap-2 border-b py-1"
+                    key={String(camp.campaign_id)}
+                  >
+                    <span>
+                      {String(camp.campaign_kind).replaceAll('_', ' ')}
+                      {camp.gate_blocked
+                        ? ` · gated (${String(camp.gate_reason ?? 'gate')})`
+                        : ''}
+                    </span>
+                    <span>
+                      {String(camp.status)} · {String(camp.progress_pct)}% ·{' '}
+                      {String(camp.gate_remaining_unhashed)} remaining ·{' '}
+                      {String(camp.linked_run_count)} runs
+                    </span>
+                  </div>
+                ))
+              : null}
             {firmWide && archiveGovernance.runs.length > 0 ? (
               archiveGovernance.runs.slice(0, 6).map((run) => (
                 <div

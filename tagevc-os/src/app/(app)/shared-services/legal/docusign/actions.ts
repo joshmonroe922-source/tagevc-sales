@@ -464,6 +464,53 @@ export async function runArchiveGovernanceAction(input: {
     : { ok: false, error: result.error || 'Archive governance worker failed' };
 }
 
+export async function runArchiveCampaignAction(input: {
+  kind: 'legacy_backfill_completion' | 'quarterly_full_integrity';
+  force?: boolean;
+}): Promise<DocuSignActionResult> {
+  const gate = await guardPermission('action:docusign_reconcile');
+  if (!gate.ok) return gate;
+  const { runArchiveCampaignTick } = await import(
+    '@/lib/docusign/archive-campaigns'
+  );
+  const result = await runArchiveCampaignTick({
+    campaignKind: input.kind,
+    trigger: 'manual',
+    requestedBy: gate.profile.id,
+    force: input.force ?? false,
+    limit: 5,
+  });
+  revalidateDocuSign();
+  if (result.disposition === 'not_due') {
+    return {
+      ok: true,
+      message: 'Quarterly full integrity campaign is not due this quarter',
+    };
+  }
+  if (result.disposition === 'gated') {
+    return {
+      ok: true,
+      message: `Campaign gated: ${result.gateReason ?? 'gates'} · ${result.remainingUnhashed ?? 0} unhashed remaining · ${result.quarantineBacklog ?? 0} quarantine · ${result.progressPct ?? 0}%`,
+    };
+  }
+  if (result.disposition === 'already_complete') {
+    return {
+      ok: true,
+      message: `Campaign already complete · ${result.progressPct ?? 100}%`,
+    };
+  }
+  if (result.ok || (result.governance?.claimed ?? 0) > 0) {
+    return {
+      ok: true,
+      message: `Campaign ${input.kind.replaceAll('_', ' ')}: ${result.progressPct ?? 0}% · run ${result.governance?.succeeded ?? 0} ok, ${result.governance?.unavailable ?? 0} unavailable, ${result.governance?.drift ?? 0} drift${result.governance?.checkpointed ? ' · checkpointed' : ''}`,
+    };
+  }
+  return {
+    ok: false,
+    error: result.error || 'Archive campaign worker failed',
+  };
+}
+
 export async function reviewArchiveQuarantineAction(input: {
   quarantineId: string;
   decision: 'acknowledge' | 'resolve';

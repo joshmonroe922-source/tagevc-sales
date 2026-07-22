@@ -12,6 +12,7 @@ import {
   runSnapshotPhase40Worker,
   scheduleSnapshotPhase40Canary,
 } from '@/lib/data/snapshot-retirement-phase40';
+import { createSnapshotExternalReceipt } from '@/lib/data/snapshot-retirement-phase41';
 import { captureException } from '@/lib/observability';
 import { guardPermission } from '@/lib/rbac/session';
 
@@ -66,10 +67,16 @@ const requestSchema = z.discriminatedUnion('action', [
     artifact_size_bytes: z.number().int().min(1).max(1_099_511_627_776),
     content_type: z.string().trim().min(3).max(200),
     retained_until: z.iso.datetime(),
+    retention_tier: z.enum(['warm', 'cold']).default('warm'),
   }),
   z.object({
     action: z.literal('check_retention'),
     package_id: z.uuid(),
+  }),
+  z.object({
+    action: z.literal('create_external_receipt'),
+    package_id: z.uuid(),
+    idempotency_key: idempotencyKeySchema,
   }),
   z.object({
     action: z.literal('schedule_phase40_canary'),
@@ -176,10 +183,18 @@ export async function POST(request: Request) {
           artifactSizeBytes: parsed.data.artifact_size_bytes,
           contentType: parsed.data.content_type,
           retainedUntil: parsed.data.retained_until,
+          retentionTier: parsed.data.retention_tier,
         });
         break;
       case 'check_retention':
         result = await recordExternalRetentionCheck(parsed.data.package_id);
+        break;
+      case 'create_external_receipt':
+        result = await createSnapshotExternalReceipt({
+          actorId: gate.profile.id,
+          packageId: parsed.data.package_id,
+          idempotencyKey: parsed.data.idempotency_key,
+        });
         break;
       case 'schedule_phase40_canary':
         result = await scheduleSnapshotPhase40Canary({

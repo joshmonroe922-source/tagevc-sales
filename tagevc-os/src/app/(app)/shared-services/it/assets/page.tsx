@@ -12,6 +12,9 @@ import {
   listIntuneBreakerResetProposals,
   listIntuneTuningProposals,
   getIntunePhase40Health,
+  getIntunePhase41Health,
+  listIntuneOutagePostmortems,
+  listIntuneThresholdRecommendations,
   listIntuneDispatchAttempts,
   listIntuneManualReviewSlo,
   listIntuneWorkerRuns,
@@ -49,6 +52,9 @@ export default async function ItAssetsModulePage() {
     breakerResetProposals,
     tuningProposals,
     phase40Health,
+    phase41Health,
+    outagePostmortems,
+    thresholdRecommendations,
   ] = await Promise.all([
     listHardwareAssets(),
     listSoftwareLicenses(),
@@ -66,6 +72,9 @@ export default async function ItAssetsModulePage() {
     listIntuneBreakerResetProposals(),
     listIntuneTuningProposals(),
     getIntunePhase40Health(),
+    getIntunePhase41Health(),
+    listIntuneOutagePostmortems(),
+    listIntuneThresholdRecommendations(),
   ]);
   const candidateTickets = listOffboardingCandidateTickets();
   const onboardingTickets = listOnboardingCandidateTickets();
@@ -110,14 +119,14 @@ export default async function ItAssetsModulePage() {
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">IT</Badge>
-          <Badge variant="secondary">Phase 40</Badge>
+          <Badge variant="secondary">Phase 41</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Hardware &amp; licensing
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Versioned breaker tuning, aggregate outage correlation, independent
-          read-only health canaries, fenced dispatch recovery, and asset lifecycle.
+          Aggregate outage postmortems, bounded threshold recommendation drafts,
+          versioned maker-checked tuning, and fenced Intune recovery.
         </p>
       </div>
 
@@ -155,6 +164,12 @@ export default async function ItAssetsModulePage() {
             firmWide || proposal.entity_id === ctx?.profile.entity_id,
         )}
         intunePhase40Health={firmWide ? phase40Health.row : null}
+        intunePhase41Health={firmWide ? phase41Health.row : null}
+        intuneOutagePostmortems={firmWide ? outagePostmortems.rows : []}
+        intuneThresholdRecommendations={thresholdRecommendations.rows.filter(
+          (recommendation) =>
+            firmWide || recommendation.entity_id === ctx?.profile.entity_id,
+        )}
         canWrite={canWrite}
         canIntuneRetire={canIntuneRetire}
         canIntuneManualReview={canIntuneManualReview}
@@ -166,7 +181,10 @@ export default async function ItAssetsModulePage() {
           breakerHealth.error ||
           breakerResetProposals.error ||
           tuningProposals.error ||
-          phase40Health.error
+          phase40Health.error ||
+          phase41Health.error ||
+          outagePostmortems.error ||
+          thresholdRecommendations.error
         }
       />
     </div>

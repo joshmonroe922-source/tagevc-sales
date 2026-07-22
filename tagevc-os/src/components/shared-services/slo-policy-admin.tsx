@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
+  exportSloSimulationAction,
   requestSloRouteTestAction,
   requestSloSimulationAction,
   saveSloPolicyDraftAction,
@@ -226,6 +227,8 @@ export function SloPolicyAdmin({
   comparisons,
   simulations,
   ownerCoverage,
+  simulationExports = [],
+  coverageCalendar = [],
 }: {
   activePolicies: SloPolicyRow[];
   drafts: SloPolicyRow[];
@@ -235,6 +238,8 @@ export function SloPolicyAdmin({
   comparisons: SloDraftComparison[];
   simulations: Array<Record<string, unknown>>;
   ownerCoverage: Array<Record<string, unknown>>;
+  simulationExports?: Array<Record<string, unknown>>;
+  coverageCalendar?: Array<Record<string, unknown>>;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -280,6 +285,25 @@ export function SloPolicyAdmin({
     });
   }
 
+  function exportSimulation(simulationId: string) {
+    startTransition(async () => {
+      const result = await exportSloSimulationAction({
+        idempotencyKey: `ui:export:${crypto.randomUUID()}`,
+        simulationId,
+      });
+      setMessage(result.ok ? result.message ?? 'Exported' : result.error);
+      if (result.ok) router.refresh();
+    });
+  }
+
+  const calendarByDay = coverageCalendar.reduce<Record<string, number>>((acc, row) => {
+    if (!row.covered) return acc;
+    const day = String(row.coverage_day);
+    acc[day] = (acc[day] ?? 0) + 1;
+    return acc;
+  }, {});
+  const calendarDays = Object.keys(calendarByDay).sort().slice(0, 14);
+
   return (
     <section className="space-y-3">
       <div>
@@ -307,9 +331,29 @@ export function SloPolicyAdmin({
             <Input type="number" min={1} max={90} value={simulationDays} onChange={(event) => setSimulationDays(Number(event.target.value))} />
             <Button disabled={pending || !simulationDraftId} onClick={requestSimulation}>Queue counterfactual</Button>
           </div>
-          {simulations.map((simulation) => <p key={String(simulation.simulation_id)} className="text-xs">
-            COUNTERFACTUAL · {String(simulation.status)} · {String(simulation.source_evaluation_count)} immutable evaluations
-          </p>)}
+          {simulations.map((simulation) => (
+            <div key={String(simulation.simulation_id)} className="flex flex-wrap items-center gap-2 text-xs">
+              <p>
+                COUNTERFACTUAL · {String(simulation.status)} · {String(simulation.source_evaluation_count)} immutable evaluations
+              </p>
+              {simulation.status === 'completed' ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={pending}
+                  onClick={() => exportSimulation(String(simulation.simulation_id))}
+                >
+                  Export signed metadata
+                </Button>
+              ) : null}
+            </div>
+          ))}
+          {simulationExports.map((item) => (
+            <p key={String(item.export_id)} className="break-all font-mono text-[10px] text-muted-foreground">
+              EXPORT · {String(item.label)} · {String(item.metadata_digest)} · key {String(item.signature_key_id)}
+            </p>
+          ))}
         </CardContent>
       </Card>
       {ownerCoverage.length ? (
@@ -319,6 +363,21 @@ export function SloPolicyAdmin({
             {ownerCoverage.map((coverage) => <p key={`${String(coverage.policy_id)}:${String(coverage.entity_id)}`} className="text-xs">
               {String(coverage.days_remaining)} days · replacement {coverage.eligible_replacement_named ? 'eligible and named' : 'missing'}
             </p>)}
+          </CardContent>
+        </Card>
+      ) : null}
+      {calendarDays.length ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Owner coverage calendar</CardTitle>
+            <CardDescription>Next two weeks of published coverage windows with named replacements.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2 text-xs">
+            {calendarDays.map((day) => (
+              <Badge key={day} variant="outline">
+                {day} · {calendarByDay[day]} covered
+              </Badge>
+            ))}
           </CardContent>
         </Card>
       ) : null}

@@ -16,6 +16,7 @@ import {
 import {
   requestSloRouteTest,
   requestSloSimulation,
+  exportSloSimulation,
   saveSloPolicyDraft,
   transitionSloPolicyDraft,
 } from '@/lib/shared-services/slo-policy';
@@ -286,6 +287,31 @@ export async function requestSloSimulationAction(input: {
     return {
       ok: true,
       message: 'COUNTERFACTUAL simulation queued; production state is unchanged',
+    };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Failed' };
+  }
+}
+
+export async function exportSloSimulationAction(input: {
+  idempotencyKey: string;
+  simulationId: string;
+}): Promise<TicketActionResult> {
+  const gate = await guardPermission('write:shared_services');
+  if (!gate.ok) return gate;
+  const parsed = z.object({
+    idempotencyKey: z.string().min(8).max(120).regex(/^[A-Za-z0-9._:-]+$/),
+    simulationId: z.string().uuid(),
+  }).safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: 'Invalid simulation export request' };
+  }
+  try {
+    await exportSloSimulation({ ...parsed.data, actorId: gate.profile.id });
+    revalidatePath('/shared-services');
+    return {
+      ok: true,
+      message: 'COUNTERFACTUAL signed metadata export recorded',
     };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : 'Failed' };

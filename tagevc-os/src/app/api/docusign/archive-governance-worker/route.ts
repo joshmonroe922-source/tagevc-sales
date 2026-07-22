@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
 import { guardPermission } from '@/lib/rbac/session';
+import {
+  mapCampaignParam,
+  runArchiveCampaignTick,
+} from '@/lib/docusign/archive-campaigns';
 import { runArchiveGovernanceWorker } from '@/lib/docusign/archive-governance';
 import {
   finishOperationalWorker,
@@ -33,12 +37,81 @@ async function run(request: Request) {
     return NextResponse.json({ ok: false, error: auth.error }, { status: 403 });
   }
   const url = new URL(request.url);
+  const campaignKind = mapCampaignParam(url.searchParams.get('campaign'));
   const kind: RunKind =
     url.searchParams.get('kind') === 'backfill'
       ? 'legacy_backfill'
       : 'integrity_scan';
   const mode: ScanMode =
     url.searchParams.get('mode') === 'full' ? 'full' : 'sample';
+  const force = url.searchParams.get('force') === '1';
+
+  if (campaignKind) {
+    const worker = await startOperationalWorker({
+      service: 'docusign',
+      workerName: `archive-campaign-${campaignKind === 'quarterly_full_integrity' ? 'quarterly' : 'backfill'}`,
+      triggerSource: auth.trigger,
+      details: {
+        campaign_kind: campaignKind,
+        scan_mode: mode,
+        force,
+        batch_limit: 5,
+      },
+    });
+    const result = await runArchiveCampaignTick({
+      campaignKind,
+      trigger: auth.trigger,
+      requestedBy: auth.actor,
+      workerId: worker.invocationId,
+      force,
+      limit: 5,
+    });
+    const noop =
+      result.disposition === 'not_due' ||
+      result.disposition === 'gated' ||
+      result.disposition === 'already_complete';
+    const leaseConflict = result.disposition === 'busy';
+    await finishOperationalWorker({
+      workerRunId: worker.workerRunId,
+      status: noop
+        ? 'completed'
+        : result.governance?.checkpointed
+          ? 'partial'
+          : result.ok
+            ? 'completed'
+            : result.governance && result.governance.claimed > 0
+              ? 'partial'
+              : 'failed',
+      claimed: result.governance?.claimed ?? 0,
+      succeeded: result.governance?.succeeded ?? 0,
+      failed:
+        (result.governance?.unavailable ?? 0) + (result.governance?.drift ?? 0),
+      leaseConflicts: leaseConflict ? 1 : 0,
+      errorCode:
+        result.ok || noop
+          ? null
+          : 'docusign_archive_campaign_failed',
+      errorDetail: result.error ?? null,
+      details: {
+        campaign_id: result.campaignId ?? null,
+        campaign_disposition: result.disposition,
+        campaign_status: result.status ?? null,
+        progress_pct: result.progressPct ?? null,
+        gate_reason: result.gateReason ?? null,
+        remaining_unhashed: result.remainingUnhashed ?? null,
+        quarantine_backlog: result.quarantineBacklog ?? null,
+        archive_run_id: result.governance?.run_id ?? null,
+        archive_status: result.governance?.status ?? null,
+        checkpointed: result.governance?.checkpointed ?? false,
+      },
+    });
+    return NextResponse.json(result, {
+      status: result.ok || noop || (result.governance?.claimed ?? 0) > 0
+        ? 200
+        : 500,
+    });
+  }
+
   const worker = await startOperationalWorker({
     service: 'docusign',
     workerName: `archive-${kind === 'legacy_backfill' ? 'backfill' : 'integrity'}`,

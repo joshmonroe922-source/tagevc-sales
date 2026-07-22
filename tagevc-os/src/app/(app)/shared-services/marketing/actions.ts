@@ -24,6 +24,16 @@ import {
 } from '@/lib/rbac/entity-scope';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 import { recordPaidRevenueEvidence } from '@/lib/shared-services/marketing-attribution';
+import {
+  bindMarketingRevenueCampaign,
+  reviewMarketingRevenueCorrection,
+  upsertMarketingRevenueSource,
+} from '@/lib/shared-services/marketing-phase41';
+import {
+  REVENUE_AUTHENTICITY_MODES,
+  REVENUE_LEDGER_KINDS,
+  REVENUE_LEDGER_PROFILES,
+} from '@/lib/shared-services/marketing-revenue-contracts';
 
 export type MarketingActionResult =
   | { ok: true; message?: string }
@@ -818,4 +828,177 @@ export async function syncPaidCampaignAction(
     ok: true,
     message: `Queued ${res.queued} governed paid-metrics window(s)`,
   };
+}
+
+export async function reviewMarketingRevenueCorrectionAction(
+  correctionId: string,
+  decision: 'approved' | 'rejected',
+  reason: string,
+): Promise<MarketingActionResult> {
+  const gate = await guardPermission('write:marketing');
+  if (!gate.ok) return gate;
+  const sb = await createPersistClient();
+  const { data: correction, error: correctionError } = await sb
+    .from('os_marketing_revenue_corrections')
+    .select('correction_id,source_id,status')
+    .eq('correction_id', correctionId)
+    .maybeSingle();
+  if (correctionError || !correction) {
+    return {
+      ok: false,
+      error: correctionError?.message ?? 'Correction not found',
+    };
+  }
+  const { data: source, error: sourceError } = await sb
+    .from('os_marketing_revenue_sources')
+    .select('entity_id')
+    .eq('source_id', correction.source_id)
+    .single();
+  if (sourceError || !source) {
+    return {
+      ok: false,
+      error: sourceError?.message ?? 'Correction source not found',
+    };
+  }
+  if (
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      source.entity_id,
+    )
+  ) {
+    return {
+      ok: false,
+      error: entityScopeDeniedMessage(source.entity_id),
+    };
+  }
+  const result = await reviewMarketingRevenueCorrection({
+    correctionId,
+    actorId: gate.profile.id,
+    decision,
+    reason,
+  });
+  if (!result.ok) return result;
+  revalidateMarketing();
+  return {
+    ok: true,
+    message:
+      decision === 'approved'
+        ? `Approved correction ${correctionId}`
+        : `Rejected correction ${correctionId}`,
+  };
+}
+
+export async function upsertMarketingRevenueSourceAction(
+  _prev: MarketingActionResult | null,
+  formData: FormData,
+): Promise<MarketingActionResult> {
+  const gate = await guardPermission('write:marketing');
+  if (!gate.ok) return gate;
+  if (gate.profile.role !== 'visionary' && gate.profile.role !== 'admin') {
+    return {
+      ok: false,
+      error: 'Only visionary or admin roles may configure revenue sources',
+    };
+  }
+  const parsed = z
+    .object({
+      source_key: z.string().regex(/^[a-z0-9][a-z0-9_-]{2,63}$/),
+      display_name: z.string().min(2).max(200),
+      entity_id: z.string().min(1).max(100),
+      provider: z.enum(['meta_ads', 'linkedin_ads']),
+      ad_account_id: z.string().min(1).max(200),
+      external_account_id: z.string().min(1).max(300),
+      endpoint_url: z.string().url(),
+      credential_env_name: z.string().regex(/^[A-Z][A-Z0-9_]{2,127}$/),
+      signature_env_name: z
+        .string()
+        .regex(/^[A-Z][A-Z0-9_]{2,127}$/)
+        .optional(),
+      authenticity_mode: z.enum(REVENUE_AUTHENTICITY_MODES),
+      ledger_profile: z.enum(REVENUE_LEDGER_PROFILES),
+      ledger_kind: z.enum(REVENUE_LEDGER_KINDS),
+      config_status: z.enum(['disabled', 'ready', 'invalid']),
+    })
+    .safeParse({
+      source_key: formData.get('source_key'),
+      display_name: formData.get('display_name'),
+      entity_id: formData.get('entity_id'),
+      provider: formData.get('provider'),
+      ad_account_id: formData.get('ad_account_id'),
+      external_account_id: formData.get('external_account_id'),
+      endpoint_url: formData.get('endpoint_url'),
+      credential_env_name: formData.get('credential_env_name'),
+      signature_env_name: formData.get('signature_env_name') || undefined,
+      authenticity_mode: formData.get('authenticity_mode'),
+      ledger_profile: formData.get('ledger_profile') || 'sandbox_v1',
+      ledger_kind: formData.get('ledger_kind') || 'ad_platform',
+      config_status: formData.get('config_status') || 'disabled',
+    });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid' };
+  }
+  if (
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      parsed.data.entity_id,
+    )
+  ) {
+    return {
+      ok: false,
+      error: entityScopeDeniedMessage(parsed.data.entity_id),
+    };
+  }
+  const result = await upsertMarketingRevenueSource(parsed.data);
+  if (!result.ok) return result;
+  revalidateMarketing();
+  return {
+    ok: true,
+    message: `Configured revenue source ${result.source_key}`,
+  };
+}
+
+export async function bindMarketingRevenueCampaignAction(
+  sourceId: string,
+  sourceCampaignId: string,
+  campaignId: string,
+): Promise<MarketingActionResult> {
+  const gate = await guardPermission('write:marketing');
+  if (!gate.ok) return gate;
+  if (gate.profile.role !== 'visionary' && gate.profile.role !== 'admin') {
+    return {
+      ok: false,
+      error: 'Only visionary or admin roles may bind revenue campaigns',
+    };
+  }
+  const sb = await createPersistClient();
+  const { data: source, error: sourceError } = await sb
+    .from('os_marketing_revenue_sources')
+    .select('entity_id')
+    .eq('source_id', sourceId)
+    .maybeSingle();
+  if (sourceError || !source) {
+    return { ok: false, error: sourceError?.message ?? 'Source not found' };
+  }
+  if (
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      source.entity_id,
+    )
+  ) {
+    return {
+      ok: false,
+      error: entityScopeDeniedMessage(source.entity_id),
+    };
+  }
+  const result = await bindMarketingRevenueCampaign({
+    sourceId,
+    sourceCampaignId,
+    campaignId,
+  });
+  if (!result.ok) return result;
+  revalidateMarketing();
+  return { ok: true, message: `Bound campaign ${campaignId}` };
 }

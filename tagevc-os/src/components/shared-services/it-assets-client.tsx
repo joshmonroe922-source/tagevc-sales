@@ -31,6 +31,11 @@ import {
   reviewIntuneAmbiguityResolutionAction,
   reviewIntuneBreakerResetAction,
   reviewIntuneBreakerTuningAction,
+  updateIntuneOutagePostmortemDraftAction,
+  publishIntuneOutagePostmortemAction,
+  rejectIntuneOutagePostmortemAction,
+  acceptIntuneThresholdRecommendationAction,
+  dismissIntuneThresholdRecommendationAction,
   runIntuneWorkerAction,
   type ItAssetActionResult,
 } from '@/app/(app)/shared-services/it/assets/actions';
@@ -49,7 +54,10 @@ import type {
   ItIntuneAmbiguityResolution,
   ItIntuneBreakerHealth,
   ItIntuneBreakerResetProposal,
+  ItIntuneOutagePostmortem,
   ItIntunePhase40Health,
+  ItIntunePhase41Health,
+  ItIntuneThresholdRecommendation,
   ItIntuneTuningProposal,
   ItLifecycleEvent,
 } from '@/lib/shared-services/it-assets-repo';
@@ -102,6 +110,9 @@ export function ItAssetsClient({
   intuneBreakerResetProposals = [],
   intuneTuningProposals = [],
   intunePhase40Health = null,
+  intunePhase41Health = null,
+  intuneOutagePostmortems = [],
+  intuneThresholdRecommendations = [],
   canIntuneRetire = false,
   canIntuneManualReview = false,
   currentActorId = null,
@@ -136,6 +147,9 @@ export function ItAssetsClient({
   intuneBreakerResetProposals?: ItIntuneBreakerResetProposal[];
   intuneTuningProposals?: ItIntuneTuningProposal[];
   intunePhase40Health?: ItIntunePhase40Health | null;
+  intunePhase41Health?: ItIntunePhase41Health | null;
+  intuneOutagePostmortems?: ItIntuneOutagePostmortem[];
+  intuneThresholdRecommendations?: ItIntuneThresholdRecommendation[];
   canIntuneRetire?: boolean;
   canIntuneManualReview?: boolean;
   currentActorId?: string | null;
@@ -219,8 +233,241 @@ export function ItAssetsClient({
           {Number(intunePhase40Health.recovering_breaker_count)} half-open
           {' · '}last read-only canary success{' '}
           {intunePhase40Health.last_canary_success_at ?? 'never'}
+          {intunePhase41Health ? (
+            <>
+              {' · '}postmortems {Number(intunePhase41Health.draft_postmortem_count)}{' '}
+              draft / {Number(intunePhase41Health.published_postmortem_count)} published
+              {' · '}threshold drafts{' '}
+              {Number(intunePhase41Health.pending_recommendation_count)} pending
+            </>
+          ) : null}
         </div>
       ) : null}
+
+      {(intuneOutagePostmortems.length > 0 ||
+        intuneThresholdRecommendations.length > 0) && (
+        <section className="space-y-3 rounded-lg border p-4">
+          <div>
+            <h2 className="text-base font-semibold">
+              Outage postmortems &amp; threshold drafts
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Aggregate-only postmortems and system recommendation drafts. Accepting
+              a draft creates a Phase 40 tuning proposal for a second human — it never
+              closes or resets an open breaker.
+            </p>
+          </div>
+          {intuneOutagePostmortems.length > 0 ? (
+            <div className="space-y-2 text-xs">
+              <p className="font-medium">Postmortems</p>
+              {intuneOutagePostmortems.map((postmortem) => (
+                <div
+                  key={postmortem.postmortem_id}
+                  className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 pb-2"
+                >
+                  <span>
+                    {postmortem.provider}/{postmortem.operation} ·{' '}
+                    <strong>{postmortem.status}</strong> ·{' '}
+                    {postmortem.root_cause_class} · scopes{' '}
+                    {Number(postmortem.correlated_scope_count)} · failures{' '}
+                    {Number(postmortem.failure_count)}/
+                    {Number(postmortem.sample_count)}
+                    {postmortem.blameless_notes
+                      ? ` · notes ${postmortem.blameless_notes.slice(0, 80)}${
+                          postmortem.blameless_notes.length > 80 ? '…' : ''
+                        }`
+                      : ' · notes incomplete'}
+                  </span>
+                  {canIntuneManualReview && postmortem.status === 'draft' ? (
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={pending}
+                        onClick={() => {
+                          const rootCause = window.prompt(
+                            'Root cause class (provider_outage|threshold_too_sensitive|thin_sampling|multi_scope_correlation):',
+                            postmortem.root_cause_class === 'unknown'
+                              ? 'provider_outage'
+                              : postmortem.root_cause_class,
+                          );
+                          if (
+                            !rootCause ||
+                            ![
+                              'provider_outage',
+                              'threshold_too_sensitive',
+                              'thin_sampling',
+                              'multi_scope_correlation',
+                            ].includes(rootCause)
+                          ) {
+                            return;
+                          }
+                          const notes = window.prompt(
+                            'Blameless notes (20+ characters):',
+                            postmortem.blameless_notes || '',
+                          );
+                          if (!notes || notes.trim().length < 20) return;
+                          run(() =>
+                            updateIntuneOutagePostmortemDraftAction({
+                              postmortemId: postmortem.postmortem_id,
+                              rootCauseClass: rootCause as Exclude<
+                                ItIntuneOutagePostmortem['root_cause_class'],
+                                'unknown'
+                              >,
+                              blamelessNotes: notes.trim(),
+                              expectedRowVersion: postmortem.row_version,
+                            }),
+                          );
+                        }}
+                      >
+                        Edit draft
+                      </Button>
+                      {postmortem.drafted_by &&
+                      postmortem.drafted_by !== currentActorId &&
+                      postmortem.root_cause_class !== 'unknown' &&
+                      postmortem.blameless_notes.length >= 20 ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={pending}
+                          onClick={() => {
+                            const statement = window.prompt(
+                              'Independent publish statement (20+ characters):',
+                            );
+                            if (!statement || statement.trim().length < 20) return;
+                            run(() =>
+                              publishIntuneOutagePostmortemAction({
+                                postmortemId: postmortem.postmortem_id,
+                                statement: statement.trim(),
+                                expectedRowVersion: postmortem.row_version,
+                              }),
+                            );
+                          }}
+                        >
+                          Publish
+                        </Button>
+                      ) : postmortem.drafted_by === currentActorId ? (
+                        <span>Awaiting a different publisher</span>
+                      ) : null}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={pending}
+                        onClick={() => {
+                          const statement = window.prompt(
+                            'Reject statement (20+ characters):',
+                          );
+                          if (!statement || statement.trim().length < 20) return;
+                          run(() =>
+                            rejectIntuneOutagePostmortemAction({
+                              postmortemId: postmortem.postmortem_id,
+                              statement: statement.trim(),
+                              expectedRowVersion: postmortem.row_version,
+                            }),
+                          );
+                        }}
+                      >
+                        Reject
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {intuneThresholdRecommendations.length > 0 ? (
+            <div className="space-y-2 text-xs">
+              <p className="font-medium">System threshold recommendation drafts</p>
+              {intuneThresholdRecommendations.map((recommendation) => (
+                <div
+                  key={recommendation.recommendation_id}
+                  className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 pb-2"
+                >
+                  <span>
+                    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-950">
+                      system recommendation
+                    </span>{' '}
+                    {recommendation.entity_id ?? 'firm'} ·{' '}
+                    {recommendation.provider}/{recommendation.operation} ·{' '}
+                    <strong>{recommendation.status}</strong> ·{' '}
+                    {recommendation.risk_class} · window{' '}
+                    {recommendation.recommended_failure_window_minutes}m · samples{' '}
+                    {recommendation.recommended_minimum_samples} · threshold{' '}
+                    {recommendation.recommended_failure_threshold} @{' '}
+                    {Math.round(
+                      Number(recommendation.recommended_failure_rate_threshold) *
+                        100,
+                    )}
+                    % · breaker {recommendation.breaker_state}
+                    {' · '}
+                    {recommendation.rationale.slice(0, 100)}
+                    {recommendation.rationale.length > 100 ? '…' : ''}
+                  </span>
+                  {canIntuneManualReview &&
+                  recommendation.status === 'pending' ? (
+                    <div className="flex flex-wrap gap-2">
+                      {recommendation.breaker_state === 'closed' ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={pending}
+                          onClick={() => {
+                            const reason = window.prompt(
+                              'Accept as tuning proposal reason (20+ characters). A second human must still review:',
+                              recommendation.rationale,
+                            );
+                            if (!reason || reason.trim().length < 20) return;
+                            run(() =>
+                              acceptIntuneThresholdRecommendationAction({
+                                recommendationId:
+                                  recommendation.recommendation_id,
+                                reason: reason.trim(),
+                                expectedBreakerVersion:
+                                  recommendation.breaker_version,
+                                expectedRowVersion: recommendation.row_version,
+                              }),
+                            );
+                          }}
+                        >
+                          Accept → tuning proposal
+                        </Button>
+                      ) : (
+                        <span>
+                          Breaker {recommendation.breaker_state} — cannot accept until closed
+                        </span>
+                      )}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={pending}
+                        onClick={() => {
+                          const statement = window.prompt(
+                            'Dismiss statement (20+ characters):',
+                          );
+                          if (!statement || statement.trim().length < 20) return;
+                          run(() =>
+                            dismissIntuneThresholdRecommendationAction({
+                              recommendationId:
+                                recommendation.recommendation_id,
+                              statement: statement.trim(),
+                              expectedRowVersion: recommendation.row_version,
+                            }),
+                          );
+                        }}
+                      >
+                        Dismiss
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </section>
+      )}
 
       {canWrite && (
         <div className="grid gap-6 lg:grid-cols-2">

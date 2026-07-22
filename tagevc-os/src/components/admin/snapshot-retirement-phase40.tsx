@@ -20,7 +20,10 @@ type Dashboard = {
     signature_key_id: string;
     destination_key: string;
     retained_until: string;
+    retention_tier?: string;
     created_at: string;
+    qualification_eligible?: boolean;
+    attestation_eligible?: boolean;
   }>;
   checks: Array<{
     check_id: string;
@@ -45,12 +48,24 @@ type Dashboard = {
     attestation_eligible: boolean;
   }>;
   slo: Record<string, unknown> | null;
+  receipts?: Array<{
+    receipt_id: string;
+    package_id: string;
+    retention_tier: string;
+    receipt_sha256: string;
+    verify_key_id: string;
+    created_at: string;
+    qualification_eligible: boolean;
+    attestation_eligible: boolean;
+  }>;
+  phase41Slo?: Record<string, unknown> | null;
 };
 
 type ApiResult = {
   ok?: boolean;
   error?: string;
   package?: Record<string, unknown>;
+  receipt?: Record<string, unknown>;
 };
 
 function downloadSignedPackage(value: Record<string, unknown>) {
@@ -117,7 +132,12 @@ export function SnapshotRetirementPhase40Admin() {
       'Retention deadline (ISO timestamp):',
       new Date(Date.now() + 365 * 86_400_000).toISOString(),
     );
+    const retentionTier = window.prompt('Retention tier (warm|cold):', 'warm');
     if (!destinationKey || !artifactSha256 || !artifactSize || !retainedUntil) return;
+    if (retentionTier !== 'warm' && retentionTier !== 'cold') {
+      setError('retention_tier must be warm or cold');
+      return;
+    }
     setMessage(null);
     setError(null);
     startTransition(async () => {
@@ -132,6 +152,7 @@ export function SnapshotRetirementPhase40Admin() {
           artifact_size_bytes: Number(artifactSize),
           content_type: 'application/json',
           retained_until: retainedUntil.trim(),
+          retention_tier: retentionTier,
         });
         if (result.package) downloadSignedPackage(result.package);
         setMessage('Signed metadata-only export package created and downloaded.');
@@ -157,6 +178,40 @@ export function SnapshotRetirementPhase40Admin() {
         await refresh();
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : 'Retention check failed');
+      }
+    });
+  }
+
+  function createExternalReceipt() {
+    const packageRow = dashboard?.packages[0];
+    if (!packageRow) {
+      setError('Create a signed package before issuing an external receipt.');
+      return;
+    }
+    setMessage(null);
+    setError(null);
+    startTransition(async () => {
+      try {
+        const result = await post({
+          action: 'create_external_receipt',
+          package_id: packageRow.package_id,
+          idempotency_key: `phase41-ui-receipt-${Date.now()}`,
+        });
+        if (result.receipt) {
+          const blob = new Blob([JSON.stringify(result.receipt, null, 2)], {
+            type: 'application/json',
+          });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `snapshot-external-receipt-${String(result.receipt.receipt_id ?? Date.now())}.json`;
+          link.click();
+          URL.revokeObjectURL(url);
+        }
+        setMessage('Ed25519 external receipt created (non-qualifying).');
+        await refresh();
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : 'External receipt failed');
       }
     });
   }
@@ -221,18 +276,20 @@ export function SnapshotRetirementPhase40Admin() {
   return (
     <div className="mt-3 space-y-3 rounded-md border border-border/60 p-3 text-xs">
       <div className="flex flex-wrap items-center gap-2">
-        <p className="font-medium">Phase 40 signed retention evidence</p>
+        <p className="font-medium">Phase 40/41 signed retention evidence</p>
         <Badge variant="outline">Synthetic · non-qualifying</Badge>
       </div>
       <p className="text-muted-foreground">
         HMAC-signed metadata packages bind the current Phase 39 manifest and
-        external artifact hashes. Retention probes issue bounded HEAD requests
-        only; canaries never qualify soak or attestation.
+        external artifact hashes. Phase 41 adds ed25519 externally verifiable
+        receipts and warm/cold retention tiers. Canaries never qualify soak or
+        attestation.
       </p>
       {dashboard?.packages[0] ? (
         <div>
           <p>
-            Latest package · {dashboard.packages[0].destination_key} · key{' '}
+            Latest package · {dashboard.packages[0].destination_key} · tier{' '}
+            {dashboard.packages[0].retention_tier ?? 'warm'} · key{' '}
             {dashboard.packages[0].signature_key_id} · retained until{' '}
             {dashboard.packages[0].retained_until}
           </p>
@@ -243,6 +300,20 @@ export function SnapshotRetirementPhase40Admin() {
       ) : (
         <p className="text-muted-foreground">No Phase 40 package recorded.</p>
       )}
+      {(dashboard?.receipts ?? []).slice(0, 4).map((receipt) => (
+        <p key={receipt.receipt_id} className="font-mono text-[10px] text-muted-foreground">
+          {receipt.created_at} · ed25519 receipt · {receipt.retention_tier} · key{' '}
+          {receipt.verify_key_id} · qualifying={String(receipt.qualification_eligible)}
+        </p>
+      ))}
+      {dashboard?.phase41Slo ? (
+        <p className="text-muted-foreground">
+          Phase 41 receipts 30d · {String(dashboard.phase41Slo.receipts_30d ?? 0)} · cold{' '}
+          {String(dashboard.phase41Slo.cold_receipts_30d ?? 0)} · warm{' '}
+          {String(dashboard.phase41Slo.warm_receipts_30d ?? 0)} · packages cold{' '}
+          {String(dashboard.phase41Slo.packages_cold ?? 0)}
+        </p>
+      ) : null}
       {dashboard?.checks.slice(0, 4).map((check) => (
         <p key={check.check_id} className="font-mono text-[10px] text-muted-foreground">
           {check.checked_at} · retention {check.status}
@@ -280,6 +351,9 @@ export function SnapshotRetirementPhase40Admin() {
         </Button>
         <Button type="button" size="sm" variant="outline" disabled={pending} onClick={checkRetention}>
           Check external retention
+        </Button>
+        <Button type="button" size="sm" variant="outline" disabled={pending} onClick={createExternalReceipt}>
+          Issue ed25519 receipt
         </Button>
         <Button type="button" size="sm" variant="outline" disabled={pending} onClick={scheduleCanary}>
           Schedule multi-hour canary

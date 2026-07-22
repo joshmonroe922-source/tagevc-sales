@@ -192,6 +192,19 @@ SQL: `phase39_snapshot_retirement.sql`.
 
 SQL: `phase40_snapshot_retirement.sql`.
 
+## Phase 41 external receipts and cold tiers
+
+- Ed25519 externally verifiable receipts bind package/artifact hashes, warm|cold
+  retention tier, and public verify-key fingerprints.
+- Cold packages require ≥365 days retention at create time.
+- Receipts and packages remain explicitly non-qualifying for soak/attestation.
+- Phase 41 contains no insert, update, delete, rename, alter, truncate, or drop
+  against `os_store_snapshots`.
+
+SQL: `phase41_snapshot_external_receipts.sql`.
+
+Public verify keys: `SNAPSHOT_EXPORT_ED25519_PUBLIC_KEYS` (SPKI DER base64).
+
 ## Non-goals
 
 - Dropping the table in Phase 16–19  

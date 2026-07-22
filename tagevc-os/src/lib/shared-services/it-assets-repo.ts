@@ -929,6 +929,73 @@ export type ItIntuneOutageStatus = {
   updated_at: string;
 };
 
+export type ItIntuneOutagePostmortem = {
+  postmortem_id: string;
+  episode_id: string;
+  status: 'draft' | 'published' | 'rejected';
+  root_cause_class:
+    | 'provider_outage'
+    | 'threshold_too_sensitive'
+    | 'thin_sampling'
+    | 'multi_scope_correlation'
+    | 'unknown';
+  timeline_sha256: string;
+  blameless_notes: string;
+  blameless_notes_sha256: string;
+  aggregate_evidence_sha256: string;
+  drafted_by: string | null;
+  drafted_at: string;
+  published_by: string | null;
+  published_at: string | null;
+  row_version: number;
+  updated_at: string;
+  provider: string;
+  operation: string;
+  started_at: string;
+  resolved_at: string | null;
+  correlated_scope_count: number;
+  failure_count: number;
+  sample_count: number;
+};
+
+export type ItIntuneThresholdRecommendation = {
+  recommendation_id: string;
+  episode_id: string;
+  postmortem_id: string | null;
+  breaker_id: string;
+  status: 'pending' | 'accepted' | 'dismissed' | 'expired';
+  base_config_version_no: number;
+  recommended_failure_window_minutes: number;
+  recommended_minimum_samples: number;
+  recommended_failure_threshold: number;
+  recommended_failure_rate_threshold: number;
+  recommended_reset_success_threshold: number;
+  risk_class: 'standard' | 'riskier';
+  rationale: string;
+  evidence_sha256: string;
+  generated_at: string;
+  expires_at: string;
+  accepted_by: string | null;
+  accepted_at: string | null;
+  resulting_proposal_id: string | null;
+  dismissed_by: string | null;
+  dismissed_at: string | null;
+  row_version: number;
+  entity_id: string | null;
+  provider: string;
+  operation: string;
+  breaker_state: 'closed' | 'open' | 'half_open';
+  breaker_version: number;
+};
+
+export type ItIntunePhase41Health = {
+  draft_postmortem_count: number;
+  published_postmortem_count: number;
+  pending_recommendation_count: number;
+  accepted_recommendation_count: number;
+  unresolved_postmortem_backlog: number;
+};
+
 export async function listIntuneActions(
   limit = 50,
 ): Promise<{ rows: ItIntuneAction[]; error?: string }> {
@@ -1138,6 +1205,140 @@ export async function listIntuneOutageStatus(limit = 20): Promise<{
   return error
     ? { rows: [], error: error.message }
     : { rows: (data ?? []) as ItIntuneOutageStatus[] };
+}
+
+export async function getIntunePhase41Health(): Promise<{
+  row: ItIntunePhase41Health | null;
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb
+    .from('os_it_intune_phase41_health')
+    .select(
+      'draft_postmortem_count, published_postmortem_count, pending_recommendation_count, accepted_recommendation_count, unresolved_postmortem_backlog',
+    )
+    .maybeSingle();
+  return error
+    ? { row: null, error: error.message }
+    : { row: (data as ItIntunePhase41Health | null) ?? null };
+}
+
+export async function listIntuneOutagePostmortems(limit = 20): Promise<{
+  rows: ItIntuneOutagePostmortem[];
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb
+    .from('os_it_intune_outage_postmortem_status')
+    .select(
+      'postmortem_id, episode_id, status, root_cause_class, timeline_sha256, blameless_notes, blameless_notes_sha256, aggregate_evidence_sha256, drafted_by, drafted_at, published_by, published_at, row_version, updated_at, provider, operation, started_at, resolved_at, correlated_scope_count, failure_count, sample_count',
+    )
+    .order('updated_at', { ascending: false })
+    .limit(limit);
+  return error
+    ? { rows: [], error: error.message }
+    : { rows: (data ?? []) as ItIntuneOutagePostmortem[] };
+}
+
+export async function listIntuneThresholdRecommendations(limit = 30): Promise<{
+  rows: ItIntuneThresholdRecommendation[];
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb
+    .from('os_it_intune_threshold_recommendation_status')
+    .select(
+      'recommendation_id, episode_id, postmortem_id, breaker_id, status, base_config_version_no, recommended_failure_window_minutes, recommended_minimum_samples, recommended_failure_threshold, recommended_failure_rate_threshold, recommended_reset_success_threshold, risk_class, rationale, evidence_sha256, generated_at, expires_at, accepted_by, accepted_at, resulting_proposal_id, dismissed_by, dismissed_at, row_version, entity_id, provider, operation, breaker_state, breaker_version',
+    )
+    .order('generated_at', { ascending: false })
+    .limit(limit);
+  return error
+    ? { rows: [], error: error.message }
+    : { rows: (data ?? []) as ItIntuneThresholdRecommendation[] };
+}
+
+export async function updateIntuneOutagePostmortemDraft(input: {
+  postmortem_id: string;
+  actor_id: string;
+  root_cause_class: ItIntuneOutagePostmortem['root_cause_class'];
+  blameless_notes: string;
+  expected_row_version: number;
+}) {
+  const sb = await createPersistClient();
+  const { error } = await sb.rpc('update_it_intune_outage_postmortem_draft', {
+    p_postmortem_id: input.postmortem_id,
+    p_actor_id: input.actor_id,
+    p_root_cause_class: input.root_cause_class,
+    p_blameless_notes: input.blameless_notes,
+    p_expected_row_version: input.expected_row_version,
+  });
+  return error ? { ok: false as const, error: error.message } : { ok: true as const };
+}
+
+export async function publishIntuneOutagePostmortem(input: {
+  postmortem_id: string;
+  actor_id: string;
+  statement: string;
+  expected_row_version: number;
+}) {
+  const sb = await createPersistClient();
+  const { error } = await sb.rpc('publish_it_intune_outage_postmortem', {
+    p_postmortem_id: input.postmortem_id,
+    p_actor_id: input.actor_id,
+    p_statement: input.statement,
+    p_expected_row_version: input.expected_row_version,
+  });
+  return error ? { ok: false as const, error: error.message } : { ok: true as const };
+}
+
+export async function rejectIntuneOutagePostmortem(input: {
+  postmortem_id: string;
+  actor_id: string;
+  statement: string;
+  expected_row_version: number;
+}) {
+  const sb = await createPersistClient();
+  const { error } = await sb.rpc('reject_it_intune_outage_postmortem', {
+    p_postmortem_id: input.postmortem_id,
+    p_actor_id: input.actor_id,
+    p_statement: input.statement,
+    p_expected_row_version: input.expected_row_version,
+  });
+  return error ? { ok: false as const, error: error.message } : { ok: true as const };
+}
+
+export async function acceptIntuneThresholdRecommendation(input: {
+  recommendation_id: string;
+  actor_id: string;
+  reason: string;
+  expected_breaker_version: number;
+  expected_row_version: number;
+}) {
+  const sb = await createPersistClient();
+  const { error } = await sb.rpc('accept_it_intune_threshold_recommendation', {
+    p_recommendation_id: input.recommendation_id,
+    p_actor_id: input.actor_id,
+    p_reason: input.reason,
+    p_expected_breaker_version: input.expected_breaker_version,
+    p_expected_row_version: input.expected_row_version,
+  });
+  return error ? { ok: false as const, error: error.message } : { ok: true as const };
+}
+
+export async function dismissIntuneThresholdRecommendation(input: {
+  recommendation_id: string;
+  actor_id: string;
+  statement: string;
+  expected_row_version: number;
+}) {
+  const sb = await createPersistClient();
+  const { error } = await sb.rpc('dismiss_it_intune_threshold_recommendation', {
+    p_recommendation_id: input.recommendation_id,
+    p_actor_id: input.actor_id,
+    p_statement: input.statement,
+    p_expected_row_version: input.expected_row_version,
+  });
+  return error ? { ok: false as const, error: error.message } : { ok: true as const };
 }
 
 export async function approveIntuneAction(input: {

@@ -41,6 +41,10 @@
       "schedule": "0 4 * * *"
     },
     {
+      "path": "/api/docusign/archive-governance-worker?mode=full&campaign=quarterly",
+      "schedule": "0 5 1 * *"
+    },
+    {
       "path": "/api/admin/snapshot-retirement-worker",
       "schedule": "*/15 * * * *"
     },

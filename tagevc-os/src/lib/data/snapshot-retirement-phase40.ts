@@ -399,16 +399,30 @@ export async function createSnapshotExportPackage(input: {
   artifactSizeBytes: number;
   contentType: string;
   retainedUntil: string;
+  retentionTier?: 'warm' | 'cold';
 }) {
   const destinations = parseRetentionDestinations();
   if (!destinations[input.destinationKey]) {
     return { ok: false as const, error: 'Destination key is not allowlisted' };
   }
+  const retentionTier = input.retentionTier ?? 'warm';
+  if (retentionTier !== 'warm' && retentionTier !== 'cold') {
+    return { ok: false as const, error: 'retention_tier must be warm or cold' };
+  }
+  if (retentionTier === 'cold') {
+    const retainedMs = Date.parse(input.retainedUntil);
+    if (Number.isNaN(retainedMs) || retainedMs < Date.now() + 365 * 86_400_000) {
+      return {
+        ok: false as const,
+        error: 'Cold tier requires at least 365 days of retention',
+      };
+    }
+  }
   const sb = await createPersistClient();
   const { data: existing, error: existingError } = await sb
     .from('os_snapshot_export_packages')
     .select(
-      'package_id,entity_id,phase39_manifest_id,idempotency_key,canonical_package,canonical_package_text,package_sha256,signature_algorithm,signature_key_id,package_signature,destination_key,artifact_sha256,artifact_size_bytes,retained_until',
+      'package_id,entity_id,phase39_manifest_id,idempotency_key,canonical_package,canonical_package_text,package_sha256,signature_algorithm,signature_key_id,package_signature,destination_key,artifact_sha256,artifact_size_bytes,retained_until,retention_tier',
     )
     .eq('idempotency_key', input.idempotencyKey)
     .maybeSingle();
@@ -424,6 +438,8 @@ export async function createSnapshotExportPackage(input: {
       Number(existing.artifact_size_bytes) === input.artifactSizeBytes &&
       Date.parse(String(existing.retained_until)) === Date.parse(input.retainedUntil) &&
       artifact?.content_type === input.contentType &&
+      ((existing as { retention_tier?: string }).retention_tier ?? 'warm') ===
+        retentionTier &&
       sha256Text(String(existing.canonical_package_text)) ===
         existing.package_sha256 &&
       verifyCanonicalPackageSignature({
@@ -437,6 +453,8 @@ export async function createSnapshotExportPackage(input: {
           package: {
             ...existing,
             contract_version: PHASE40_CONTRACT_VERSION,
+            retention_tier: retentionTier,
+            qualification_eligible: false,
             replayed: true,
           },
         }
@@ -472,6 +490,7 @@ export async function createSnapshotExportPackage(input: {
       content_type: input.contentType,
       destination_key: input.destinationKey,
       retained_until: input.retainedUntil,
+      retention_tier: retentionTier,
       sha256: input.artifactSha256.toLowerCase(),
       size_bytes: input.artifactSizeBytes,
     },
@@ -537,6 +556,9 @@ export async function createSnapshotExportPackage(input: {
           signature_algorithm: signature.algorithm,
           signature_key_id: signature.keyId,
           package_signature: signature.signature,
+          retention_tier: retentionTier,
+          qualification_eligible: false,
+          attestation_eligible: false,
         },
       };
 }
@@ -729,7 +751,8 @@ export async function runSnapshotPhase40Worker(limit = PHASE40_MAX_WORKER_CLAIMS
 
 export async function getSnapshotPhase40Dashboard() {
   const sb = await createPersistClient();
-  const [manifests, packages, checks, orchestrations, slo] = await Promise.all([
+  const [manifests, packages, checks, orchestrations, slo, receipts, phase41Slo] =
+    await Promise.all([
     sb
       .from('os_snapshot_export_manifest_status')
       .select(
@@ -740,7 +763,7 @@ export async function getSnapshotPhase40Dashboard() {
     sb
       .from('os_snapshot_export_packages')
       .select(
-        'package_id,entity_id,phase39_manifest_id,package_sha256,signature_key_id,destination_key,retained_until,created_at',
+        'package_id,entity_id,phase39_manifest_id,package_sha256,signature_key_id,destination_key,retained_until,retention_tier,created_at,qualification_eligible,attestation_eligible',
       )
       .order('created_at', { ascending: false })
       .limit(10),
@@ -759,6 +782,14 @@ export async function getSnapshotPhase40Dashboard() {
       .order('created_at', { ascending: false })
       .limit(10),
     sb.from('os_snapshot_phase40_slo').select('*').maybeSingle(),
+    sb
+      .from('os_snapshot_external_receipts')
+      .select(
+        'receipt_id,package_id,retention_tier,receipt_sha256,verify_key_id,created_at,qualification_eligible,attestation_eligible',
+      )
+      .order('created_at', { ascending: false })
+      .limit(12),
+    sb.rpc('get_snapshot_phase41_receipt_slo'),
   ]);
   const error =
     manifests.error ??
@@ -774,5 +805,7 @@ export async function getSnapshotPhase40Dashboard() {
     checks: checks.data ?? [],
     orchestrations: orchestrations.data ?? [],
     slo: slo.data ?? null,
+    receipts: receipts.error ? [] : (receipts.data ?? []),
+    phase41Slo: phase41Slo.error ? null : (phase41Slo.data ?? null),
   };
 }

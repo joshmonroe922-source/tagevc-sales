@@ -62,7 +62,7 @@ describe('Phase 40 authoritative revenue contracts', () => {
         requestId: 'request-1',
         signature: `sha256=${signature}`,
         signatureSecret: 'test-secret',
-      }),
+      }).ok,
     ).toBe(true);
     expect(
       verifyRevenueAuthenticity({
@@ -71,7 +71,7 @@ describe('Phase 40 authoritative revenue contracts', () => {
         requestId: 'request-1',
         signature,
         signatureSecret: 'test-secret',
-      }),
+      }).ok,
     ).toBe(false);
   });
 

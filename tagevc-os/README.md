@@ -732,12 +732,29 @@ Docs: `docs/OS_PHASE39.md`
 
 Docs: `docs/OS_PHASE40.md`
 
-### Phase 41+ backlog
+### Phase 41
 
-- Production revenue-ledger connectors and broader authenticity modes
-- Quarterly full archive integrity campaigns and post-backfill cleanup
-- Intune outage postmortems and threshold recommendation drafts
-- SLO simulation exports and coverage calendars
+Production ledgers and authenticity modes, DocuSign archive campaigns, Intune
+postmortems with bounded threshold drafts, SLO simulation exports and coverage
+calendars, and externally verifiable cold snapshot receipts.
+
+Apply after Phase 40:
+
+1. `phase41_marketing_production_ledgers.sql`
+2. `phase41_docusign_archive_campaigns.sql`
+3. `phase41_intune_outage_postmortems.sql`
+4. `phase41_slo_exports_coverage.sql`
+5. `phase41_snapshot_external_receipts.sql`
+
+Docs: `docs/OS_PHASE41.md`
+
+### Phase 42+ backlog
+
+- Live production revenue ledger endpoints + authenticity/settlement SLOs
+- Complete DocuSign legacy backfill; first governed quarterly full scan
+- Real Intune postmortems; soak accepted threshold recommendations
+- Operationalize SLO exports and coverage succession planning
+- Publish ed25519 public keys; exercise cold retention destinations
 - Continue Stage 4e evidence and attestation soak; do not drop snapshots
 - Push · user admin
 

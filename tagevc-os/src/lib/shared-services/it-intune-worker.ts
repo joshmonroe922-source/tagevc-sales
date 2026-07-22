@@ -134,6 +134,18 @@ async function runReadOnlyHealthCanaryWithToken(token: string): Promise<{
       error: correlationError.message,
     };
   }
+  // Phase 41 follow-ups seed aggregate postmortems and bounded recommendation
+  // drafts only. They never close, reset, or mutate breaker state.
+  const { error: phase41Error } = await sb.rpc(
+    'generate_it_intune_phase41_followups',
+  );
+  if (phase41Error) {
+    return {
+      ok: false,
+      status: 'phase41_followups_failed',
+      error: phase41Error.message,
+    };
+  }
   return {
     ok: true,
     status: String((finished as { status?: string } | null)?.status ?? 'done'),
@@ -153,6 +165,24 @@ export async function processReadOnlyIntuneHealthCanary(): Promise<{
     return { ok: false, status: 'token_failed', error: token.detail };
   }
   return runReadOnlyHealthCanaryWithToken(token.token);
+}
+
+export async function processIntunePhase41Followups(): Promise<{
+  ok: boolean;
+  status: string;
+  detail?: Record<string, unknown>;
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc('generate_it_intune_phase41_followups');
+  if (error) {
+    return { ok: false, status: 'phase41_followups_failed', error: error.message };
+  }
+  return {
+    ok: true,
+    status: 'done',
+    detail: (data as Record<string, unknown> | null) ?? undefined,
+  };
 }
 
 export async function processIntuneActions(): Promise<{

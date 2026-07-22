@@ -11,6 +11,7 @@ import {
   verifyRevenueAuthenticity,
   type CanonicalRevenueRow,
   type Phase40RevenueReport,
+  type RevenueAuthenticityMode,
   type RevenueReceipt,
 } from '@/lib/shared-services/marketing-revenue-contracts';
 import { createPersistClient } from '@/lib/supabase/persist-client';
@@ -28,10 +29,11 @@ type PullRun = {
 
 type RevenueSource = {
   source_id: string;
+  entity_id: string;
   endpoint_url: string;
   credential_env_name: string;
   signature_env_name: string | null;
-  authenticity_mode: 'hmac_sha256' | 'request_id';
+  authenticity_mode: RevenueAuthenticityMode;
   config_status: string;
 };
 
@@ -43,6 +45,45 @@ function serviceClient() {
   }
   return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
+function requiresSignatureSecret(mode: RevenueAuthenticityMode): boolean {
+  return (
+    mode === 'hmac_sha256' ||
+    mode === 'signed_headers_v1' ||
+    mode === 'jwt_bearer_v1'
+  );
+}
+
+async function recordAuthenticityProbe(
+  sb: ReturnType<typeof serviceClient>,
+  input: {
+    source_id: string;
+    run_id: string;
+    entity_id: string;
+    authenticity_mode: RevenueAuthenticityMode;
+    probe_result: 'verified' | 'failed';
+    page_number: number;
+    error_code?: string;
+    evidence: ReturnType<typeof verifyRevenueAuthenticity>['evidence'];
+  },
+) {
+  await sb.rpc('record_marketing_revenue_authenticity_probe', {
+    p_probe: {
+      source_id: input.source_id,
+      run_id: input.run_id,
+      entity_id: input.entity_id,
+      authenticity_mode: input.authenticity_mode,
+      probe_result: input.probe_result,
+      page_number: input.page_number,
+      request_id_sha256: input.evidence.request_id_sha256,
+      body_sha256: input.evidence.body_sha256,
+      header_digest_sha256: input.evidence.header_digest_sha256,
+      claims_digest_sha256: input.evidence.claims_digest_sha256,
+      error_code: input.error_code ?? null,
+      metadata: input.evidence.metadata,
+    },
   });
 }
 
@@ -106,6 +147,12 @@ async function pullSource(
   run: PullRun,
   source: RevenueSource,
   heartbeat: () => Promise<void>,
+  onProbe: (input: {
+    page_number: number;
+    probe_result: 'verified' | 'failed';
+    error_code?: string;
+    evidence: ReturnType<typeof verifyRevenueAuthenticity>['evidence'];
+  }) => Promise<void>,
 ): Promise<{
   rows: CanonicalRevenueRow[];
   receipts: RevenueReceipt[];
@@ -122,7 +169,10 @@ async function pullSource(
   const signatureSecret = source.signature_env_name
     ? process.env[source.signature_env_name]?.trim()
     : undefined;
-  if (!credential || (source.authenticity_mode === 'hmac_sha256' && !signatureSecret)) {
+  if (
+    !credential ||
+    (requiresSignatureSecret(source.authenticity_mode) && !signatureSecret)
+  ) {
     throw Object.assign(new Error('Revenue source credential or signature secret is missing'), {
       retryable: false,
       code: 'source_secret_missing',
@@ -175,13 +225,26 @@ async function pullSource(
       requestId: parsed.data.request_id,
       signature: response.headers.get('x-source-signature'),
       signatureSecret,
+      contentSha256Header: response.headers.get('x-content-sha256'),
+      sourceJwt: response.headers.get('x-source-jwt'),
     });
-    if (!authentic) {
+    if (!authentic.ok) {
+      await onProbe({
+        page_number: pageNumber,
+        probe_result: 'failed',
+        error_code: 'authenticity_failed',
+        evidence: authentic.evidence,
+      });
       throw Object.assign(new Error('Revenue source authenticity verification failed'), {
         retryable: false,
         code: 'authenticity_failed',
       });
     }
+    await onProbe({
+      page_number: pageNumber,
+      probe_result: 'verified',
+      evidence: authentic.evidence,
+    });
     if (
       expectedRecords !== null &&
       expectedRecords !== parsed.data.expected_records
@@ -278,7 +341,7 @@ export async function processMarketingRevenuePulls(limit = 1): Promise<{
       const { data: source, error: sourceError } = await sb
         .from('os_marketing_revenue_sources')
         .select(
-          'source_id,endpoint_url,credential_env_name,signature_env_name,authenticity_mode,config_status',
+          'source_id,entity_id,endpoint_url,credential_env_name,signature_env_name,authenticity_mode,config_status',
         )
         .eq('source_id', run.source_id)
         .single();
@@ -288,22 +351,38 @@ export async function processMarketingRevenuePulls(limit = 1): Promise<{
           code: 'source_missing',
         });
       }
-      const result = await pullSource(run, source as RevenueSource, async () => {
-        const { data: alive, error: heartbeatError } = await sb.rpc(
-          'heartbeat_marketing_revenue_pull',
-          {
-            p_run_id: run.run_id,
-            p_lease_token: run.lease_token,
-            p_lease_seconds: 180,
-          },
-        );
-        if (heartbeatError || alive !== true) {
-          throw Object.assign(new Error(heartbeatError?.message ?? 'Revenue pull lease expired'), {
-            retryable: true,
-            code: 'lease_lost',
+      const result = await pullSource(
+        run,
+        source as RevenueSource,
+        async () => {
+          const { data: alive, error: heartbeatError } = await sb.rpc(
+            'heartbeat_marketing_revenue_pull',
+            {
+              p_run_id: run.run_id,
+              p_lease_token: run.lease_token,
+              p_lease_seconds: 180,
+            },
+          );
+          if (heartbeatError || alive !== true) {
+            throw Object.assign(
+              new Error(heartbeatError?.message ?? 'Revenue pull lease expired'),
+              {
+                retryable: true,
+                code: 'lease_lost',
+              },
+            );
+          }
+        },
+        async (probe) => {
+          await recordAuthenticityProbe(sb, {
+            source_id: run.source_id,
+            run_id: run.run_id,
+            entity_id: run.entity_id,
+            authenticity_mode: (source as RevenueSource).authenticity_mode,
+            ...probe,
           });
-        }
-      });
+        },
+      );
       const { data: completion, error: completeError } = await sb.rpc(
         'complete_marketing_revenue_pull',
         {

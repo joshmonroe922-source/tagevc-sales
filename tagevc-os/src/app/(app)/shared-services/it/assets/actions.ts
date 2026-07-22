@@ -1016,3 +1016,273 @@ export async function reviewIntuneBreakerTuningAction(input: {
         : 'Tuning proposal rejected',
   };
 }
+
+export async function updateIntuneOutagePostmortemDraftAction(input: {
+  postmortemId: string;
+  rootCauseClass:
+    | 'provider_outage'
+    | 'threshold_too_sensitive'
+    | 'thin_sampling'
+    | 'multi_scope_correlation'
+    | 'unknown';
+  blamelessNotes: string;
+  expectedRowVersion: number;
+}): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('action:intune_manual_review');
+  if (!gate.ok) return gate;
+  const parsed = z
+    .object({
+      postmortemId: z.string().uuid(),
+      rootCauseClass: z.enum([
+        'provider_outage',
+        'threshold_too_sensitive',
+        'thin_sampling',
+        'multi_scope_correlation',
+        'unknown',
+      ]),
+      blamelessNotes: z.string().trim().min(20).max(4000),
+      expectedRowVersion: z.number().int().nonnegative(),
+    })
+    .safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? 'Invalid postmortem draft',
+    };
+  }
+  const { updateIntuneOutagePostmortemDraft } = await import(
+    '@/lib/shared-services/it-assets-repo'
+  );
+  const result = await updateIntuneOutagePostmortemDraft({
+    postmortem_id: parsed.data.postmortemId,
+    actor_id: gate.profile.id,
+    root_cause_class: parsed.data.rootCauseClass,
+    blameless_notes: parsed.data.blamelessNotes,
+    expected_row_version: parsed.data.expectedRowVersion,
+  });
+  if (!result.ok) return result;
+  revalidateAssets();
+  return { ok: true, message: 'Postmortem draft updated' };
+}
+
+export async function publishIntuneOutagePostmortemAction(input: {
+  postmortemId: string;
+  statement: string;
+  expectedRowVersion: number;
+}): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('action:intune_manual_review');
+  if (!gate.ok) return gate;
+  const parsed = z
+    .object({
+      postmortemId: z.string().uuid(),
+      statement: z.string().trim().min(20).max(1000),
+      expectedRowVersion: z.number().int().nonnegative(),
+    })
+    .safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? 'Invalid postmortem publish',
+    };
+  }
+  const service = await createPersistClient();
+  const { data: postmortem, error } = await service
+    .from('os_it_intune_outage_postmortems')
+    .select('drafted_by')
+    .eq('postmortem_id', parsed.data.postmortemId)
+    .single();
+  if (error || !postmortem) {
+    return { ok: false, error: error?.message ?? 'Postmortem not found' };
+  }
+  if (postmortem.drafted_by === gate.profile.id) {
+    return {
+      ok: false,
+      error: 'The drafter cannot publish this postmortem',
+    };
+  }
+  const { publishIntuneOutagePostmortem } = await import(
+    '@/lib/shared-services/it-assets-repo'
+  );
+  const result = await publishIntuneOutagePostmortem({
+    postmortem_id: parsed.data.postmortemId,
+    actor_id: gate.profile.id,
+    statement: parsed.data.statement,
+    expected_row_version: parsed.data.expectedRowVersion,
+  });
+  if (!result.ok) return result;
+  revalidateAssets();
+  return { ok: true, message: 'Postmortem published' };
+}
+
+export async function rejectIntuneOutagePostmortemAction(input: {
+  postmortemId: string;
+  statement: string;
+  expectedRowVersion: number;
+}): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('action:intune_manual_review');
+  if (!gate.ok) return gate;
+  const parsed = z
+    .object({
+      postmortemId: z.string().uuid(),
+      statement: z.string().trim().min(20).max(1000),
+      expectedRowVersion: z.number().int().nonnegative(),
+    })
+    .safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? 'Invalid postmortem reject',
+    };
+  }
+  const { rejectIntuneOutagePostmortem } = await import(
+    '@/lib/shared-services/it-assets-repo'
+  );
+  const result = await rejectIntuneOutagePostmortem({
+    postmortem_id: parsed.data.postmortemId,
+    actor_id: gate.profile.id,
+    statement: parsed.data.statement,
+    expected_row_version: parsed.data.expectedRowVersion,
+  });
+  if (!result.ok) return result;
+  revalidateAssets();
+  return { ok: true, message: 'Postmortem rejected' };
+}
+
+export async function acceptIntuneThresholdRecommendationAction(input: {
+  recommendationId: string;
+  reason: string;
+  expectedBreakerVersion: number;
+  expectedRowVersion: number;
+}): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('action:intune_manual_review');
+  if (!gate.ok) return gate;
+  const parsed = z
+    .object({
+      recommendationId: z.string().uuid(),
+      reason: z.string().trim().min(20).max(1000),
+      expectedBreakerVersion: z.number().int().nonnegative(),
+      expectedRowVersion: z.number().int().nonnegative(),
+    })
+    .safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? 'Invalid recommendation accept',
+    };
+  }
+  const service = await createPersistClient();
+  const { data: recommendation, error } = await service
+    .from('os_it_intune_threshold_recommendation_drafts')
+    .select('breaker_id')
+    .eq('recommendation_id', parsed.data.recommendationId)
+    .single();
+  if (error || !recommendation) {
+    return { ok: false, error: error?.message ?? 'Recommendation not found' };
+  }
+  const { data: breaker, error: breakerError } = await service
+    .from('os_it_intune_provider_breakers')
+    .select('entity_id, state')
+    .eq('breaker_id', recommendation.breaker_id)
+    .single();
+  if (breakerError || !breaker) {
+    return { ok: false, error: breakerError?.message ?? 'Breaker not found' };
+  }
+  if (breaker.state === 'open' || breaker.state === 'half_open') {
+    return {
+      ok: false,
+      error: 'Recommendation cannot close, reset, or modify an open breaker',
+    };
+  }
+  if (
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      breaker.entity_id,
+    )
+  ) {
+    return {
+      ok: false,
+      error: entityScopeDeniedMessage(breaker.entity_id ?? 'firm-wide'),
+    };
+  }
+  const { acceptIntuneThresholdRecommendation } = await import(
+    '@/lib/shared-services/it-assets-repo'
+  );
+  const result = await acceptIntuneThresholdRecommendation({
+    recommendation_id: parsed.data.recommendationId,
+    actor_id: gate.profile.id,
+    reason: parsed.data.reason,
+    expected_breaker_version: parsed.data.expectedBreakerVersion,
+    expected_row_version: parsed.data.expectedRowVersion,
+  });
+  if (!result.ok) return result;
+  revalidateAssets();
+  return {
+    ok: true,
+    message:
+      'System recommendation accepted as a tuning proposal — independent review still required',
+  };
+}
+
+export async function dismissIntuneThresholdRecommendationAction(input: {
+  recommendationId: string;
+  statement: string;
+  expectedRowVersion: number;
+}): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('action:intune_manual_review');
+  if (!gate.ok) return gate;
+  const parsed = z
+    .object({
+      recommendationId: z.string().uuid(),
+      statement: z.string().trim().min(20).max(1000),
+      expectedRowVersion: z.number().int().nonnegative(),
+    })
+    .safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? 'Invalid recommendation dismiss',
+    };
+  }
+  const service = await createPersistClient();
+  const { data: recommendation, error } = await service
+    .from('os_it_intune_threshold_recommendation_drafts')
+    .select('breaker_id')
+    .eq('recommendation_id', parsed.data.recommendationId)
+    .single();
+  if (error || !recommendation) {
+    return { ok: false, error: error?.message ?? 'Recommendation not found' };
+  }
+  const { data: breaker, error: breakerError } = await service
+    .from('os_it_intune_provider_breakers')
+    .select('entity_id')
+    .eq('breaker_id', recommendation.breaker_id)
+    .single();
+  if (breakerError || !breaker) {
+    return { ok: false, error: breakerError?.message ?? 'Breaker not found' };
+  }
+  if (
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      breaker.entity_id,
+    )
+  ) {
+    return {
+      ok: false,
+      error: entityScopeDeniedMessage(breaker.entity_id ?? 'firm-wide'),
+    };
+  }
+  const { dismissIntuneThresholdRecommendation } = await import(
+    '@/lib/shared-services/it-assets-repo'
+  );
+  const result = await dismissIntuneThresholdRecommendation({
+    recommendation_id: parsed.data.recommendationId,
+    actor_id: gate.profile.id,
+    statement: parsed.data.statement,
+    expected_row_version: parsed.data.expectedRowVersion,
+  });
+  if (!result.ok) return result;
+  revalidateAssets();
+  return { ok: true, message: 'Recommendation dismissed' };
+}

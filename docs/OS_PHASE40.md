@@ -105,11 +105,15 @@ git diff --check
 
 ## Phase 41+ recommendations
 
-1. Wire production revenue ledgers and expand connector authenticity modes.
-2. Complete legacy archive backfill and promote full integrity scans to a
-   governed quarterly schedule.
-3. Add Intune outage postmortems and automatic threshold recommendation drafts.
-4. Add SLO simulation result exports and coverage calendar views.
-5. Add externally verifiable signed export receipts and colder retention tiers.
+Phase 41 implemented items 1–5 below. Remaining:
+
+1. ~~Wire production revenue ledgers and expand connector authenticity modes.~~
+2. ~~Complete legacy archive backfill and promote full integrity scans to a
+   governed quarterly schedule.~~ (campaign rails; completion is operational)
+3. ~~Add Intune outage postmortems and automatic threshold recommendation drafts.~~
+4. ~~Add SLO simulation result exports and coverage calendar views.~~
+5. ~~Add externally verifiable signed export receipts and colder retention tiers.~~
 6. Continue Stage 4e soak and attestation governance. Do not drop
    `os_store_snapshots` without the separately approved retirement operation.
+
+See `docs/OS_PHASE41.md` for apply order and Phase 42+ recommendations.

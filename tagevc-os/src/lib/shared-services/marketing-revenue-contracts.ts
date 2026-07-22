@@ -3,9 +3,26 @@ import { z } from 'zod';
 
 export const REVENUE_TRANSFORM_VERSION = 'phase40-canonical-v1';
 export const REVENUE_REPORT_VERSION = 'phase40-v1';
+export const REVENUE_REPORT_VERSION_PHASE41 = 'phase41-v1';
 export const MAX_REVENUE_PAGES = 10;
 export const MAX_REVENUE_RECORDS = 500;
 export const MAX_REVENUE_BODY_BYTES = 1_048_576;
+
+export const REVENUE_AUTHENTICITY_MODES = [
+  'hmac_sha256',
+  'request_id',
+  'signed_headers_v1',
+  'jwt_bearer_v1',
+] as const;
+
+export type RevenueAuthenticityMode =
+  (typeof REVENUE_AUTHENTICITY_MODES)[number];
+
+export const REVENUE_LEDGER_PROFILES = ['production_v1', 'sandbox_v1'] as const;
+export const REVENUE_LEDGER_KINDS = [
+  'ad_platform',
+  'production_ledger',
+] as const;
 
 const micros = z.string().regex(/^\d{1,18}$/);
 const hash = z.string().regex(/^[0-9a-f]{64}$/);
@@ -85,6 +102,9 @@ export type Phase40RevenueReport = {
     display_name: string;
     config_status: string;
     authenticity_status: string;
+    authenticity_mode?: string;
+    ledger_profile?: string;
+    ledger_kind?: string;
     checkpoint_at: string | null;
     run_count: number;
     expected_records: number;
@@ -107,25 +127,215 @@ export type Phase40RevenueReport = {
   }>;
 };
 
+export type Phase41PendingCorrection = {
+  correction_id: string;
+  source_id: string;
+  source_key: string;
+  entity_id: string;
+  proposed_revision: number;
+  reason: string;
+  proposed_canonical_sha256: string;
+  created_at: string;
+  revenue_event_id: string;
+  attribution_model: string;
+  currency: string;
+  amount_micros: string;
+};
+
+export type Phase41SettlementLag = {
+  available: boolean;
+  overdue_count: number;
+  settled_late_count: number;
+  max_lag_days: number | null;
+  average_lag_days: number | null;
+  by_status: Array<{
+    lag_status: string;
+    evidence_count: number;
+    max_lag_days: number | null;
+    average_lag_days: number | null;
+  }>;
+};
+
+export type Phase41RevenueReport = Phase40RevenueReport & {
+  version: typeof REVENUE_REPORT_VERSION_PHASE41 | string;
+  authenticity_modes: Array<{
+    authenticity_mode: string;
+    source_count: number;
+    verified_count: number;
+    failed_count: number;
+    unchecked_count: number;
+  }>;
+  pending_correction_queue: Phase41PendingCorrection[];
+  settlement_lag: Phase41SettlementLag;
+};
+
+export type AuthenticityProbeEvidence = {
+  request_id_sha256: string | null;
+  body_sha256: string;
+  header_digest_sha256: string | null;
+  claims_digest_sha256: string | null;
+  metadata: { content_type?: string | null; alg?: string | null; kid?: string | null };
+};
+
+function safeEqualHex(expected: string, supplied: string): boolean {
+  const left = Buffer.from(expected, 'utf8');
+  const right = Buffer.from(supplied, 'utf8');
+  if (left.length !== right.length) return false;
+  return timingSafeEqual(left, right);
+}
+
+function decodeJwtPart(part: string): unknown {
+  const normalized = part.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized.padEnd(
+    normalized.length + ((4 - (normalized.length % 4)) % 4),
+    '=',
+  );
+  return JSON.parse(Buffer.from(padded, 'base64').toString('utf8'));
+}
+
 export function sha256(value: string): string {
   return createHash('sha256').update(value, 'utf8').digest('hex');
 }
 
 export function verifyRevenueAuthenticity(input: {
-  mode: 'hmac_sha256' | 'request_id';
+  mode: RevenueAuthenticityMode;
   rawBody: string;
   requestId: string;
   signature: string | null;
   signatureSecret?: string;
-}): boolean {
-  if (input.mode === 'request_id') return input.requestId.length > 0;
-  if (!input.signatureSecret || !input.signature) return false;
-  const supplied = input.signature.replace(/^sha256=/i, '').toLowerCase();
-  if (!hash.safeParse(supplied).success) return false;
-  const expected = createHmac('sha256', input.signatureSecret)
-    .update(input.rawBody, 'utf8')
-    .digest('hex');
-  return timingSafeEqual(Buffer.from(expected), Buffer.from(supplied));
+  contentSha256Header?: string | null;
+  sourceJwt?: string | null;
+}): { ok: boolean; evidence: AuthenticityProbeEvidence } {
+  const bodySha = sha256(input.rawBody);
+  const requestIdSha =
+    input.requestId.length > 0 ? sha256(input.requestId) : null;
+  const baseEvidence: AuthenticityProbeEvidence = {
+    request_id_sha256: requestIdSha,
+    body_sha256: bodySha,
+    header_digest_sha256: null,
+    claims_digest_sha256: null,
+    metadata: {},
+  };
+
+  if (input.mode === 'request_id') {
+    return { ok: input.requestId.length > 0, evidence: baseEvidence };
+  }
+
+  if (!input.signatureSecret) {
+    return { ok: false, evidence: baseEvidence };
+  }
+
+  if (input.mode === 'hmac_sha256') {
+    if (!input.signature) return { ok: false, evidence: baseEvidence };
+    const supplied = input.signature.replace(/^sha256=/i, '').toLowerCase();
+    if (!hash.safeParse(supplied).success) {
+      return { ok: false, evidence: baseEvidence };
+    }
+    const expected = createHmac('sha256', input.signatureSecret)
+      .update(input.rawBody, 'utf8')
+      .digest('hex');
+    return {
+      ok: safeEqualHex(expected, supplied),
+      evidence: baseEvidence,
+    };
+  }
+
+  if (input.mode === 'signed_headers_v1') {
+    const contentHeader = (input.contentSha256Header ?? '').toLowerCase();
+    if (!hash.safeParse(contentHeader).success || !safeEqualHex(bodySha, contentHeader)) {
+      return { ok: false, evidence: baseEvidence };
+    }
+    if (!input.signature || input.requestId.length === 0) {
+      return { ok: false, evidence: baseEvidence };
+    }
+    const canonical = `${input.requestId}\n${bodySha}`;
+    const headerDigest = sha256(canonical);
+    const supplied = input.signature.replace(/^sha256=/i, '').toLowerCase();
+    if (!hash.safeParse(supplied).success) {
+      return {
+        ok: false,
+        evidence: { ...baseEvidence, header_digest_sha256: headerDigest },
+      };
+    }
+    const expected = createHmac('sha256', input.signatureSecret)
+      .update(canonical, 'utf8')
+      .digest('hex');
+    return {
+      ok: safeEqualHex(expected, supplied),
+      evidence: { ...baseEvidence, header_digest_sha256: headerDigest },
+    };
+  }
+
+  // jwt_bearer_v1 — fail closed on missing/malformed token, alg, claims, or expiry
+  const token = input.sourceJwt?.trim() ?? '';
+  const parts = token.split('.');
+  if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2]) {
+    return { ok: false, evidence: baseEvidence };
+  }
+  try {
+    const header = decodeJwtPart(parts[0]) as {
+      alg?: string;
+      kid?: string;
+      typ?: string;
+    };
+    if (header.alg !== 'HS256') {
+      return {
+        ok: false,
+        evidence: {
+          ...baseEvidence,
+          metadata: { alg: header.alg ?? null, kid: header.kid },
+        },
+      };
+    }
+    const signingInput = `${parts[0]}.${parts[1]}`;
+    const expectedSig = createHmac('sha256', input.signatureSecret)
+      .update(signingInput, 'utf8')
+      .digest('base64url');
+    if (!safeEqualHex(expectedSig, parts[2])) {
+      return {
+        ok: false,
+        evidence: {
+          ...baseEvidence,
+          metadata: { alg: 'HS256', kid: header.kid },
+        },
+      };
+    }
+    const claims = decodeJwtPart(parts[1]) as {
+      request_id?: string;
+      body_sha256?: string;
+      exp?: number;
+    };
+    const claimsDigest = sha256(
+      JSON.stringify({
+        request_id: claims.request_id ?? null,
+        body_sha256: claims.body_sha256 ?? null,
+        exp: claims.exp ?? null,
+      }),
+    );
+    const evidence: AuthenticityProbeEvidence = {
+      ...baseEvidence,
+      claims_digest_sha256: claimsDigest,
+      metadata: { alg: 'HS256', kid: header.kid },
+    };
+    if (
+      typeof claims.request_id !== 'string' ||
+      claims.request_id !== input.requestId ||
+      typeof claims.body_sha256 !== 'string' ||
+      !safeEqualHex(bodySha, claims.body_sha256.toLowerCase())
+    ) {
+      return { ok: false, evidence };
+    }
+    if (
+      typeof claims.exp === 'number' &&
+      Number.isFinite(claims.exp) &&
+      claims.exp * 1000 < Date.now()
+    ) {
+      return { ok: false, evidence };
+    }
+    return { ok: true, evidence };
+  } catch {
+    return { ok: false, evidence: baseEvidence };
+  }
 }
 
 export function canonicalizeRevenueRecord(

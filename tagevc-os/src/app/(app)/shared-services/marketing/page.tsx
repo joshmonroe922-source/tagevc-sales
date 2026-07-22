@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { MarketingClient } from '@/components/shared-services/marketing-client';
-import { MarketingRevenuePhase40 } from '@/components/shared-services/marketing-revenue-phase40';
+import { MarketingRevenuePhase41 } from '@/components/shared-services/marketing-revenue-phase41';
 import { Badge } from '@/components/ui/badge';
 import { listBrandVoices } from '@/lib/shared-services/marketing-brand';
 import { getMarketingAnalyticsSummary } from '@/lib/shared-services/marketing-analytics';
@@ -17,7 +17,7 @@ import { getSessionContext, requirePermission } from '@/lib/rbac/session';
 import { isFirmWideAccess } from '@/lib/rbac/entity-scope';
 import { listPaidMetricOperations } from '@/lib/shared-services/marketing-paid-backfill';
 import { getPaidAttributionReport } from '@/lib/shared-services/marketing-attribution';
-import { getPhase40RevenueReport } from '@/lib/shared-services/marketing-revenue-worker';
+import { getPhase41RevenueReport } from '@/lib/shared-services/marketing-phase41';
 
 export default async function MarketingModulePage({
   searchParams,
@@ -86,7 +86,7 @@ export default async function MarketingModulePage({
       firmWide,
       days: paidDays,
     }),
-    getPhase40RevenueReport({
+    getPhase41RevenueReport({
       entityId: firmWide ? null : (ctx?.profile.entity_id ?? null),
       firmWide,
       days: paidDays,
@@ -132,23 +132,24 @@ export default async function MarketingModulePage({
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">Marketing</Badge>
-          <Badge variant="secondary">Phase 40</Badge>
+          <Badge variant="secondary">Phase 41</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Multichannel Marketing
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Entity-bound paid delivery, authoritative revenue ingestion, governed
-          corrections, and aligned attribution-model reconciliation.
+          Entity-bound paid delivery, production ledger authenticity, governed
+          corrections, and settlement-lag visibility over authoritative evidence.
         </p>
         {oauthFlash && (
           <p className="text-sm text-emerald-700">{oauthFlash}</p>
         )}
       </div>
 
-      <MarketingRevenuePhase40
+      <MarketingRevenuePhase41
         report={authoritativeRevenue.report}
         error={authoritativeRevenue.error}
+        canWrite={canWrite}
       />
 
       <MarketingClient

@@ -1,4 +1,9 @@
+import { createHash, createHmac } from 'node:crypto';
 import { createPersistClient } from '@/lib/supabase/persist-client';
+
+export const PHASE41_SLO_CONTRACT_VERSION = 'phase41-v1';
+export const PHASE41_SLO_COUNTERFACTUAL_LABEL =
+  'COUNTERFACTUAL — no production state mutated';
 
 export type SloPolicyRow = {
   policy_id: string;
@@ -58,7 +63,9 @@ export async function listSloPolicyAdministration() {
     { data: assignments, error: assignmentError },
     { data: comparisons, error: comparisonError },
     { data: simulations, error: simulationError },
-    { data: coverage, error: coverageError }] =
+    { data: coverage, error: coverageError },
+    { data: exports, error: exportError },
+    { data: calendar, error: calendarError }] =
     await Promise.all([
       sb
         .from('os_slo_policies')
@@ -96,13 +103,17 @@ export async function listSloPolicyAdministration() {
       sb.from('os_slo_owner_coverage_metrics').select(
         'policy_id,entity_id,owner_id,replacement_owner_id,expires_at,days_remaining,warning,eligible_replacement_named',
       ).order('expires_at').limit(50),
+      sb.from('os_slo_simulation_exports').select(
+        'export_id,simulation_id,counterfactual,label,metadata_digest,signature_key_id,result_count,exported_at',
+      ).order('exported_at', { ascending: false }).limit(12),
+      sb.rpc('get_slo_owner_coverage_calendar_phase41', { p_days_ahead: 30 }),
     ]);
   errorMessage(policyError);
   errorMessage(ownerError);
   errorMessage(entityError);
   errorMessage(testError);
   errorMessage(assignmentError);
-  // Phase 40 governance surfaces should not take down Shared Services if a
+  // Phase 40/41 governance surfaces should not take down Shared Services if a
   // view/function grant is incomplete; degrade to empty panels instead.
   if (comparisonError) {
     console.error('slo draft comparisons unavailable', comparisonError.message);
@@ -112,6 +123,12 @@ export async function listSloPolicyAdministration() {
   }
   if (coverageError) {
     console.error('slo owner coverage unavailable', coverageError.message);
+  }
+  if (exportError) {
+    console.error('slo simulation exports unavailable', exportError.message);
+  }
+  if (calendarError) {
+    console.error('slo coverage calendar unavailable', calendarError.message);
   }
   const rows = ((policies ?? []) as SloPolicyRow[]).map((row) => {
     if (row.owner_id) return row;
@@ -136,7 +153,54 @@ export async function listSloPolicyAdministration() {
       : ((comparisons ?? []) as SloDraftComparison[]),
     simulations: simulationError ? [] : (simulations ?? []),
     ownerCoverage: coverageError ? [] : (coverage ?? []),
+    simulationExports: exportError ? [] : (exports ?? []),
+    coverageCalendar: calendarError ? [] : (calendar ?? []),
   };
+}
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map(canonicalJson).join(',')}]`;
+  }
+  if (value && typeof value === 'object') {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+      .map(([key, child]) => `${JSON.stringify(key)}:${canonicalJson(child)}`)
+      .join(',')}}`;
+  }
+  const primitive = JSON.stringify(value);
+  if (primitive === undefined) {
+    throw new Error('Canonical JSON contains a non-JSON value');
+  }
+  return primitive;
+}
+
+function sha256Text(value: string): string {
+  return createHash('sha256').update(value, 'utf8').digest('hex');
+}
+
+function sloExportSigningConfig(): { key: Buffer; keyId: string } {
+  const keyId = process.env.SLO_SIMULATION_EXPORT_HMAC_KEY_ID?.trim() ?? '';
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$/.test(keyId)) {
+    throw new Error('SLO_SIMULATION_EXPORT_HMAC_KEY_ID is not configured');
+  }
+  let encoded = '';
+  const keyringRaw = process.env.SLO_SIMULATION_EXPORT_HMAC_KEYS?.trim();
+  if (keyringRaw) {
+    const keyring = JSON.parse(keyringRaw) as Record<string, unknown>;
+    const candidate = keyring[keyId];
+    encoded = typeof candidate === 'string' ? candidate.trim() : '';
+  } else {
+    encoded = process.env.SLO_SIMULATION_EXPORT_HMAC_KEY?.trim() ?? '';
+  }
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)) {
+    throw new Error(`SLO simulation export signing key is unavailable: ${keyId}`);
+  }
+  const key = Buffer.from(encoded, 'base64');
+  if (key.length < 32) {
+    throw new Error('SLO simulation export signing keys must decode to at least 32 bytes');
+  }
+  return { key, keyId };
 }
 
 export async function saveSloPolicyDraft(input: {
@@ -276,6 +340,86 @@ export async function requestSloRouteTest(input: {
     p_adapter: input.adapter,
     p_destination_key: input.destinationKey,
     p_owner_id: input.ownerId ?? null,
+    p_actor_id: input.actorId,
+  });
+  errorMessage(error);
+  return data;
+}
+
+export async function exportSloSimulation(input: {
+  idempotencyKey: string;
+  simulationId: string;
+  actorId: string;
+}) {
+  const sb = await createPersistClient();
+  const { data: simulation, error: simulationError } = await sb
+    .from('os_slo_simulations')
+    .select(
+      'simulation_id,draft_policy_id,source_policy_id,status,counterfactual,starts_at,ends_at',
+    )
+    .eq('simulation_id', input.simulationId)
+    .maybeSingle();
+  errorMessage(simulationError);
+  if (!simulation || simulation.status !== 'completed' || !simulation.counterfactual) {
+    throw new Error('Only completed counterfactual simulations can be exported');
+  }
+  const { data: results, error: resultsError } = await sb
+    .from('os_slo_simulation_results')
+    .select(
+      'source_evaluation_id,evaluation_bucket,historical_severity,counterfactual_severity',
+    )
+    .eq('simulation_id', input.simulationId)
+    .order('evaluation_bucket')
+    .order('source_evaluation_id');
+  errorMessage(resultsError);
+  const rows = results ?? [];
+  const severitySummary = {
+    healthy: rows.filter((row) => row.counterfactual_severity === 'healthy').length,
+    warning: rows.filter((row) => row.counterfactual_severity === 'warning').length,
+    critical: rows.filter((row) => row.counterfactual_severity === 'critical').length,
+    unknown: rows.filter((row) => row.counterfactual_severity === 'unknown').length,
+  };
+  const resultDigest = sha256Text(
+    rows
+      .map((row) => {
+        const ms = Date.parse(String(row.evaluation_bucket));
+        if (Number.isNaN(ms)) {
+          throw new Error('Simulation result bucket is not a valid timestamp');
+        }
+        return sha256Text(
+          `${row.source_evaluation_id}|${ms}|${row.historical_severity}|${row.counterfactual_severity}`,
+        );
+      })
+      .join(','),
+  );
+  const metadata = {
+    contract_version: PHASE41_SLO_CONTRACT_VERSION,
+    counterfactual: true,
+    draft_policy_id: simulation.draft_policy_id,
+    ends_at: simulation.ends_at,
+    label: PHASE41_SLO_COUNTERFACTUAL_LABEL,
+    result_count: rows.length,
+    result_digest: resultDigest,
+    severity_summary: severitySummary,
+    simulation_id: simulation.simulation_id,
+    source_policy_id: simulation.source_policy_id,
+    starts_at: simulation.starts_at,
+  };
+  const metadataCanonicalText = canonicalJson(metadata);
+  const metadataDigest = sha256Text(metadataCanonicalText);
+  const { key, keyId } = sloExportSigningConfig();
+  const metadataSignature = createHmac('sha256', key)
+    .update(metadataCanonicalText)
+    .digest('hex');
+  const { data, error } = await sb.rpc('export_slo_simulation_phase41', {
+    p_idempotency_key: input.idempotencyKey,
+    p_simulation_id: input.simulationId,
+    p_metadata: metadata,
+    p_metadata_canonical_text: metadataCanonicalText,
+    p_metadata_digest: metadataDigest,
+    p_signature_algorithm: 'hmac-sha256',
+    p_signature_key_id: keyId,
+    p_metadata_signature: metadataSignature,
     p_actor_id: input.actorId,
   });
   errorMessage(error);
