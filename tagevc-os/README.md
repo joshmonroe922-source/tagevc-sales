@@ -799,13 +799,35 @@ Apply after Phase 43:
 
 Docs: `docs/OS_PHASE44.md`
 
-### Phase 45+ backlog
+### Phase 45
 
-- Tune correction auto-reject + attribution conflict SLOs; webhook delivery rates
-- Complete first DocuSign quarterly; recurring quarterlies with drift budgets
-- Intune multi-cycle performance trends feeding postmortem quality
-- Nightly SLO scenario replay + quarterly handoff digests
-- Firm-wide ed25519 dual-key rotation; consecutive cold HEAD pages
+Automation maturity and gate discipline: tuned auto-reject rules and webhook
+delivery SLOs, DocuSign gate-clearing with drift budgets, Intune postmortem
+quality gates before tuning promote, nightly SLO scenario replay and quarterly
+handoff digests, dual-key ed25519 snapshot rotation with consecutive-failure
+paging. Stage 4e non-qualifying flags remain false; no snapshot relation
+mutations.
+
+Apply after Phase 44:
+
+1. `phase45_marketing_revenue_ops.sql`
+2. `phase45_docusign_archive_ops.sql`
+3. `phase45_intune_resilience_ops.sql`
+4. `phase45_slo_governance_ops.sql`
+5. `phase45_snapshot_key_rotation_ops.sql`
+
+Docs: `docs/OS_PHASE45.md`
+
+Optional env: `SNAPSHOT_CONSECUTIVE_FAILURE_THRESHOLD` (default 3); reuse
+`SLO_WEBHOOK_OPS_ALERTS` + `SLO_WEBHOOK_ALLOWED_HOSTS` for paging.
+
+### Phase 46+ backlog
+
+- Promote tuned auto-reject rules after healthy webhook delivery SLOs
+- Complete first DocuSign quarterly; arm recurring quarterlies; tighten drift budgets
+- Dual-approver waived Intune promote exceptions; deeper postmortem quality scores
+- Firm-wide nightly scenario replay + published quarterly handoff digests
+- Finish ed25519 dual-key cutovers; on-call paging for consecutive failures
 - Continue Stage 4e soak; do not drop snapshots
 - Push · user admin
 

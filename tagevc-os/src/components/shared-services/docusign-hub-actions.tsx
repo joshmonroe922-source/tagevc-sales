@@ -27,6 +27,9 @@ export function DocuSignHubActions({
   phase44DriftHealth,
   phase44BackfillHealth,
   phase44AlertDelivery,
+  phase45GateProgress,
+  phase45DriftBudgetHealth,
+  phase45CadenceHealth,
 }: {
   canWrite: boolean;
   canReconcile: boolean;
@@ -35,6 +38,9 @@ export function DocuSignHubActions({
   phase44DriftHealth?: string;
   phase44BackfillHealth?: string;
   phase44AlertDelivery?: string;
+  phase45GateProgress?: string;
+  phase45DriftBudgetHealth?: string;
+  phase45CadenceHealth?: string;
 }) {
   const [flash, setFlash] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -44,26 +50,46 @@ export function DocuSignHubActions({
     phase44DriftHealth != null ||
     phase44BackfillHealth != null ||
     phase44AlertDelivery != null;
+  const showPhase45Badges =
+    phase45GateProgress != null ||
+    phase45DriftBudgetHealth != null ||
+    phase45CadenceHealth != null;
 
-  const badges = showPhase44Badges ? (
-    <div className="flex flex-wrap gap-2 text-[11px]">
-      {phase44DriftHealth ? (
-        <span className="rounded border border-border/70 px-2 py-0.5 text-muted-foreground">
-          Phase 44 drift {phase44DriftHealth}
-        </span>
-      ) : null}
-      {phase44BackfillHealth ? (
-        <span className="rounded border border-border/70 px-2 py-0.5 text-muted-foreground">
-          Phase 44 backfill {phase44BackfillHealth}
-        </span>
-      ) : null}
-      {phase44AlertDelivery ? (
-        <span className="rounded border border-border/70 px-2 py-0.5 text-muted-foreground">
-          Phase 44 alerts {phase44AlertDelivery}
-        </span>
-      ) : null}
-    </div>
-  ) : null;
+  const badges =
+    showPhase44Badges || showPhase45Badges ? (
+      <div className="flex flex-wrap gap-2 text-[11px]">
+        {phase44DriftHealth ? (
+          <span className="rounded border border-border/70 px-2 py-0.5 text-muted-foreground">
+            Phase 44 drift {phase44DriftHealth}
+          </span>
+        ) : null}
+        {phase44BackfillHealth ? (
+          <span className="rounded border border-border/70 px-2 py-0.5 text-muted-foreground">
+            Phase 44 backfill {phase44BackfillHealth}
+          </span>
+        ) : null}
+        {phase44AlertDelivery ? (
+          <span className="rounded border border-border/70 px-2 py-0.5 text-muted-foreground">
+            Phase 44 alerts {phase44AlertDelivery}
+          </span>
+        ) : null}
+        {phase45GateProgress ? (
+          <span className="rounded border border-border/70 px-2 py-0.5 text-muted-foreground">
+            Phase 45 gate {phase45GateProgress}
+          </span>
+        ) : null}
+        {phase45DriftBudgetHealth ? (
+          <span className="rounded border border-border/70 px-2 py-0.5 text-muted-foreground">
+            Phase 45 drift budget {phase45DriftBudgetHealth}
+          </span>
+        ) : null}
+        {phase45CadenceHealth ? (
+          <span className="rounded border border-border/70 px-2 py-0.5 text-muted-foreground">
+            Phase 45 cadence {phase45CadenceHealth}
+          </span>
+        ) : null}
+      </div>
+    ) : null;
 
   if (!canWrite) return badges;
 

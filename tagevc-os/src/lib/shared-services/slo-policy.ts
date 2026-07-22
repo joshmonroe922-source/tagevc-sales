@@ -88,6 +88,9 @@ export async function listSloPolicyAdministration() {
     { data: handoffSuggestions, error: handoffError },
     { data: simulationScenarios, error: scenarioError },
     { data: phase44Report, error: phase44ReportError },
+    { data: nightlyReplayRuns, error: nightlyReplayError },
+    { data: handoffDigests, error: handoffDigestError },
+    { data: phase45Report, error: phase45ReportError },
   ] = await Promise.all([
     sb
       .from('os_slo_policies')
@@ -165,6 +168,21 @@ export async function listSloPolicyAdministration() {
       .order('created_at', { ascending: false })
       .limit(12),
     sb.rpc('get_slo_phase44_governance_report'),
+    sb
+      .from('os_slo_nightly_scenario_replay_runs')
+      .select(
+        'run_id,scheduled_for,scenarios_claimed,succeeded,failed,material_risk_count,status,evidence_sha256,completed_at,created_at',
+      )
+      .order('scheduled_for', { ascending: false })
+      .limit(12),
+    sb
+      .from('os_slo_owner_handoff_digests')
+      .select(
+        'digest_id,digest_quarter,suggestion_count,expiry_count,accepted_count,digest_sha256,generated_at',
+      )
+      .order('generated_at', { ascending: false })
+      .limit(8),
+    sb.rpc('get_slo_phase45_governance_report'),
   ]);
   errorMessage(policyError);
   errorMessage(ownerError);
@@ -205,6 +223,15 @@ export async function listSloPolicyAdministration() {
   }
   if (phase44ReportError) {
     console.error('slo phase44 governance report unavailable', phase44ReportError.message);
+  }
+  if (nightlyReplayError) {
+    console.error('slo nightly replay runs unavailable', nightlyReplayError.message);
+  }
+  if (handoffDigestError) {
+    console.error('slo handoff digests unavailable', handoffDigestError.message);
+  }
+  if (phase45ReportError) {
+    console.error('slo phase45 governance report unavailable', phase45ReportError.message);
   }
   const archivedExportIds = new Set(
     (archivalError ? [] : (archivalReceipts ?? [])).map(
@@ -261,6 +288,9 @@ export async function listSloPolicyAdministration() {
     handoffSuggestions: handoffError ? [] : (handoffSuggestions ?? []),
     simulationScenarios: scenarioError ? [] : (simulationScenarios ?? []),
     phase44Report: phase44ReportError ? null : (phase44Report ?? null),
+    nightlyReplayRuns: nightlyReplayError ? [] : (nightlyReplayRuns ?? []),
+    handoffDigests: handoffDigestError ? [] : (handoffDigests ?? []),
+    phase45Report: phase45ReportError ? null : (phase45Report ?? null),
   };
 }
 
@@ -788,6 +818,110 @@ export async function processSloGovernancePhase44(input?: { actorId?: string }) 
   return {
     handoffs,
     archival,
+    alerts: alertError ? null : alerts,
+  };
+}
+
+export const PHASE45_SLO_CONTRACT_VERSION = 'phase45-v1';
+
+export async function enqueueSloNightlyScenarioReplayPhase45(input?: {
+  actorId?: string;
+  scheduledFor?: string | null;
+}) {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc(
+    'enqueue_slo_nightly_scenario_replay_phase45',
+    {
+      p_actor_id: input?.actorId ?? null,
+      p_scheduled_for: input?.scheduledFor ?? null,
+    },
+  );
+  errorMessage(error);
+  return data;
+}
+
+export async function runSloNightlyScenarioReplayPhase45(input: {
+  actorId?: string | null;
+  limit?: number;
+  scheduledFor?: string | null;
+}) {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc(
+    'run_slo_nightly_scenario_replay_phase45',
+    {
+      p_actor_id: input.actorId ?? null,
+      p_limit: input.limit ?? 50,
+      p_scheduled_for: input.scheduledFor ?? null,
+    },
+  );
+  errorMessage(error);
+  return data;
+}
+
+export async function generateSloOwnerHandoffDigestPhase45(input?: {
+  actorId?: string;
+  digestQuarter?: string | null;
+}) {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc(
+    'generate_slo_owner_handoff_digest_phase45',
+    {
+      p_actor_id: input?.actorId ?? null,
+      p_digest_quarter: input?.digestQuarter ?? null,
+    },
+  );
+  errorMessage(error);
+  return data;
+}
+
+export async function getSloPhase45GovernanceReport() {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc('get_slo_phase45_governance_report');
+  if (error) {
+    console.error('slo phase45 governance report unavailable', error.message);
+    return null;
+  }
+  return data;
+}
+
+export async function processSloGovernancePhase45(input?: { actorId?: string }) {
+  const sb = await createPersistClient();
+  let nightly: unknown = null;
+  try {
+    nightly = await runSloNightlyScenarioReplayPhase45({
+      actorId: input?.actorId ?? null,
+      limit: 50,
+    });
+  } catch (error) {
+    console.error(
+      'slo phase45 nightly replay unavailable',
+      error instanceof Error ? error.message : error,
+    );
+  }
+
+  let digest: unknown = null;
+  try {
+    digest = await generateSloOwnerHandoffDigestPhase45({
+      actorId: input?.actorId,
+    });
+  } catch (error) {
+    console.error(
+      'slo phase45 handoff digest unavailable',
+      error instanceof Error ? error.message : error,
+    );
+  }
+
+  const { data: alerts, error: alertError } = await sb.rpc(
+    'scan_slo_phase45_ops_alerts',
+    { p_actor_id: input?.actorId ?? null },
+  );
+  if (alertError) {
+    console.error('slo phase45 ops alert scan unavailable', alertError.message);
+  }
+
+  return {
+    nightly,
+    digest,
     alerts: alertError ? null : alerts,
   };
 }

@@ -103,7 +103,7 @@ describe('Phase 43 snapshot firm-wide verify and production cold HEAD', () => {
     expect(route).toContain('publish_firm_wide_verify');
     expect(route).toContain('check_production_cold_retention');
     expect(route).toMatch(
-      /getSnapshotPhase43VerifyColdDashboard|getSnapshotPhase44OpsDashboard/,
+      /getSnapshotPhase43VerifyColdDashboard|getSnapshotPhase44OpsDashboard|getSnapshotPhase45OpsDashboard/,
     );
     expect(ui).toContain('Publish firm-wide verify');
     expect(ui).toContain('Run production cold HEAD');

@@ -7,6 +7,7 @@ export const REVENUE_REPORT_VERSION_PHASE41 = 'phase41-v1';
 export const REVENUE_REPORT_VERSION_PHASE42 = 'phase42-v1';
 export const REVENUE_REPORT_VERSION_PHASE43 = 'phase43-v1';
 export const REVENUE_REPORT_VERSION_PHASE44 = 'phase44-v1';
+export const REVENUE_REPORT_VERSION_PHASE45 = 'phase45-v1';
 export const REVENUE_SLO_SEVERITIES = [
   'healthy',
   'warning',
@@ -394,6 +395,85 @@ export type Phase44RevenueOpsReport = {
   conflicts: Phase44AttributionConflict[];
   snapshots: Phase44ReconciliationSnapshot[];
   alerts: Phase44OpsAlert[];
+  destination_key: string;
+};
+
+export const REVENUE_PHASE45_ALERT_KINDS = [
+  'webhook_delivery_critical',
+  'auto_reject_rule_tuned',
+  'correction_workflow_stale',
+  'validation_fail_rate_elevated',
+] as const;
+export type RevenuePhase45AlertKind =
+  (typeof REVENUE_PHASE45_ALERT_KINDS)[number];
+
+export type Phase45AutoRejectRuleVersion = {
+  version_id: string;
+  version_no: number;
+  rule_key: string;
+  thresholds: Record<string, unknown>;
+  status: 'proposed' | 'active' | string;
+  proposed_version_id: string | null;
+  metrics_sha256: string;
+  created_at: string;
+  created_by: string | null;
+};
+
+export type Phase45WebhookDeliverySloSnapshot = {
+  snapshot_id: string;
+  entity_id: string | null;
+  window_start: string;
+  window_end: string;
+  delivered_count: number;
+  failed_count: number;
+  skipped_count: number;
+  recorded_count: number;
+  success_rate: number | null;
+  severity: RevenueSloSeverity | string;
+  metrics_sha256: string;
+  created_at: string;
+};
+
+export type Phase45CorrectionWorkflowSnapshot = {
+  snapshot_id: string;
+  entity_id: string | null;
+  pending_count: number;
+  validated_passed: number;
+  validated_failed: number;
+  auto_rejected: number;
+  oldest_pending_hours: number | null;
+  pass_rate: number | null;
+  auto_reject_rate: number | null;
+  metrics_sha256: string;
+  created_at: string;
+};
+
+export type Phase45OpsAlert = {
+  alert_id: string;
+  entity_id: string;
+  source_id: string | null;
+  alert_kind: RevenuePhase45AlertKind | string;
+  window_key: string;
+  severity: 'critical' | string;
+  destination_key: string;
+  delivery_status: RevenueOpsAlertDelivery | string;
+  response_code: number | null;
+  metrics_sha256: string;
+  created_at: string;
+};
+
+export type Phase45RevenueOpsReport = {
+  version: typeof REVENUE_REPORT_VERSION_PHASE45 | string;
+  window_days: number;
+  webhook_delivery_health: RevenueSloSeverity | string;
+  workflow_health: RevenueSloSeverity | string;
+  alert_delivery: RevenueOpsAlertDelivery | string;
+  active_rule: Phase45AutoRejectRuleVersion | null;
+  thresholds: Record<string, unknown>;
+  webhook_snapshots: Phase45WebhookDeliverySloSnapshot[];
+  workflow_snapshots: Phase45CorrectionWorkflowSnapshot[];
+  rule_versions: Phase45AutoRejectRuleVersion[];
+  alerts: Phase45OpsAlert[];
   destination_key: string;
 };
 

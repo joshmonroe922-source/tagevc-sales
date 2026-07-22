@@ -6,6 +6,7 @@ import type {
   Phase42RevenueSloReport,
   Phase43RevenueOpsReport,
   Phase44RevenueOpsReport,
+  Phase45RevenueOpsReport,
 } from '@/lib/shared-services/marketing-revenue-contracts';
 import {
   reviewMarketingRevenueCorrectionAction,
@@ -50,6 +51,8 @@ export function MarketingRevenuePhase41({
   opsError,
   phase44OpsReport,
   phase44OpsError,
+  phase45OpsReport,
+  phase45OpsError,
 }: {
   report: Phase41RevenueReport;
   error?: string;
@@ -60,6 +63,8 @@ export function MarketingRevenuePhase41({
   opsError?: string;
   phase44OpsReport?: Phase44RevenueOpsReport;
   phase44OpsError?: string;
+  phase45OpsReport?: Phase45RevenueOpsReport;
+  phase45OpsError?: string;
 }) {
   const [pending, startTransition] = useTransition();
   const [actionError, setActionError] = useState<string | null>(null);
@@ -221,6 +226,32 @@ export function MarketingRevenuePhase41({
                 </span>
               </>
             ) : null}
+            {phase45OpsReport ? (
+              <>
+                <span
+                  className={`rounded border px-2 py-0.5 text-[11px] ${severityClass(phase45OpsReport.webhook_delivery_health)}`}
+                >
+                  webhook delivery {phase45OpsReport.webhook_delivery_health}
+                </span>
+                <span
+                  className={`rounded border px-2 py-0.5 text-[11px] ${severityClass(phase45OpsReport.workflow_health)}`}
+                >
+                  workflow health {phase45OpsReport.workflow_health}
+                </span>
+                <span
+                  className={`rounded border px-2 py-0.5 text-[11px] ${
+                    phase45OpsReport.active_rule
+                      ? 'border-emerald-600 text-emerald-800'
+                      : 'border-muted-foreground/40 text-muted-foreground'
+                  }`}
+                >
+                  auto-reject{' '}
+                  {phase45OpsReport.active_rule
+                    ? `v${phase45OpsReport.active_rule.version_no}`
+                    : 'defaults'}
+                </span>
+              </>
+            ) : null}
           </div>
           {sloError ? (
             <p className="text-xs text-destructive">{sloError}</p>
@@ -230,6 +261,9 @@ export function MarketingRevenuePhase41({
           ) : null}
           {phase44OpsError ? (
             <p className="text-xs text-destructive">{phase44OpsError}</p>
+          ) : null}
+          {phase45OpsError ? (
+            <p className="text-xs text-destructive">{phase45OpsError}</p>
           ) : null}
           <div className="grid gap-2 md:grid-cols-2">
             <div className="rounded border p-2 text-xs">

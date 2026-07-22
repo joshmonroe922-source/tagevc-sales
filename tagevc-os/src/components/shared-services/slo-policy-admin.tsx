@@ -11,6 +11,8 @@ import {
   requestSloSimulationAction,
   resolveSloOwnerHandoffSuggestionAction,
   runSloOwnerSuccessionDrillAction,
+  runSloNightlyScenarioReplayAction,
+  generateSloOwnerHandoffDigestAction,
   saveSloPolicyDraftAction,
   suggestSloOwnerHandoffsAction,
   transitionSloPolicyDraftAction,
@@ -241,6 +243,9 @@ export function SloPolicyAdmin({
   handoffSuggestions = [],
   simulationScenarios = [],
   phase44Report = null,
+  nightlyReplayRuns = [],
+  handoffDigests = [],
+  phase45Report = null,
 }: {
   activePolicies: SloPolicyRow[];
   drafts: SloPolicyRow[];
@@ -258,6 +263,9 @@ export function SloPolicyAdmin({
   handoffSuggestions?: Array<Record<string, unknown>>;
   simulationScenarios?: Array<Record<string, unknown>>;
   phase44Report?: Record<string, unknown> | null;
+  nightlyReplayRuns?: Array<Record<string, unknown>>;
+  handoffDigests?: Array<Record<string, unknown>>;
+  phase45Report?: Record<string, unknown> | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -378,6 +386,22 @@ export function SloPolicyAdmin({
         status,
       });
       setMessage(result.ok ? result.message ?? 'Resolved' : result.error);
+      if (result.ok) router.refresh();
+    });
+  }
+
+  function runNightlyReplay() {
+    startTransition(async () => {
+      const result = await runSloNightlyScenarioReplayAction();
+      setMessage(result.ok ? result.message ?? 'Nightly replay recorded' : result.error);
+      if (result.ok) router.refresh();
+    });
+  }
+
+  function generateHandoffDigest() {
+    startTransition(async () => {
+      const result = await generateSloOwnerHandoffDigestAction();
+      setMessage(result.ok ? result.message ?? 'Digest recorded' : result.error);
       if (result.ok) router.refresh();
     });
   }
@@ -591,6 +615,53 @@ export function SloPolicyAdmin({
                 Phase 44 · scenarios {String(phase44Report.scenarios ?? 0)} · open handoffs{' '}
                 {String(phase44Report.handoff_suggestions_open ?? 0)} · revisions 30d{' '}
                 {String(phase44Report.policy_revisions_30d ?? 0)}
+              </p>
+            ) : null}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={pending}
+                onClick={runNightlyReplay}
+              >
+                Run nightly scenario replay
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={pending}
+                onClick={generateHandoffDigest}
+              >
+                Generate handoff digest
+              </Button>
+            </div>
+            {nightlyReplayRuns.slice(0, 4).map((run) => (
+              <p
+                key={String(run.run_id)}
+                className="font-mono text-[10px] text-muted-foreground"
+              >
+                NIGHTLY · {String(run.scheduled_for)} · {String(run.status)} · claimed{' '}
+                {String(run.scenarios_claimed)} · ok {String(run.succeeded)} · failed{' '}
+                {String(run.failed)} · material {String(run.material_risk_count)}
+              </p>
+            ))}
+            {handoffDigests.slice(0, 4).map((digest) => (
+              <p
+                key={String(digest.digest_id)}
+                className="font-mono text-[10px] text-muted-foreground"
+              >
+                DIGEST · {String(digest.digest_quarter)} · suggestions{' '}
+                {String(digest.suggestion_count)} · expiry {String(digest.expiry_count)} ·
+                accepted {String(digest.accepted_count)}
+              </p>
+            ))}
+            {phase45Report ? (
+              <p className="text-muted-foreground">
+                Phase 45 · nightly 30d {String(phase45Report.nightly_replay_runs_30d ?? 0)} ·
+                digests {String(phase45Report.handoff_digests ?? 0)} · upcoming ownership{' '}
+                {String(phase45Report.upcoming_ownership_change_count ?? 0)}
               </p>
             ) : null}
           </CardContent>

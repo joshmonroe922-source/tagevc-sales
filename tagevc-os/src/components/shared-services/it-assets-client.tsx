@@ -38,6 +38,7 @@ import {
   dismissIntuneThresholdRecommendationAction,
   refreshIntuneRecommendationSoakAction,
   refreshIntunePhase44ResilienceOpsAction,
+  refreshIntunePhase45QualityGateOpsAction,
   runIntuneWorkerAction,
   type ItAssetActionResult,
 } from '@/app/(app)/shared-services/it/assets/actions';
@@ -62,6 +63,9 @@ import type {
   ItIntunePhase42Health,
   ItIntunePhase43Health,
   ItIntunePhase44Health,
+  ItIntunePhase45Health,
+  ItIntunePostmortemQualityStatus,
+  ItIntuneTuningPromoteGateStatus,
   ItIntuneResilienceCorrelationEvent,
   ItIntuneSoakCycleTimeline,
   ItIntuneThresholdRecommendation,
@@ -121,10 +125,13 @@ export function ItAssetsClient({
   intunePhase42Health = null,
   intunePhase43Health = null,
   intunePhase44Health = null,
+  intunePhase45Health = null,
   intuneOutagePostmortems = [],
   intuneThresholdRecommendations = [],
   intuneSoakCycleTimeline = [],
   intuneResilienceCorrelation = [],
+  intunePostmortemQuality = [],
+  intunePromoteGates = [],
   canIntuneRetire = false,
   canIntuneManualReview = false,
   currentActorId = null,
@@ -163,10 +170,13 @@ export function ItAssetsClient({
   intunePhase42Health?: ItIntunePhase42Health | null;
   intunePhase43Health?: ItIntunePhase43Health | null;
   intunePhase44Health?: ItIntunePhase44Health | null;
+  intunePhase45Health?: ItIntunePhase45Health | null;
   intuneOutagePostmortems?: ItIntuneOutagePostmortem[];
   intuneThresholdRecommendations?: ItIntuneThresholdRecommendation[];
   intuneSoakCycleTimeline?: ItIntuneSoakCycleTimeline[];
   intuneResilienceCorrelation?: ItIntuneResilienceCorrelationEvent[];
+  intunePostmortemQuality?: ItIntunePostmortemQualityStatus[];
+  intunePromoteGates?: ItIntuneTuningPromoteGateStatus[];
   canIntuneRetire?: boolean;
   canIntuneManualReview?: boolean;
   currentActorId?: string | null;
@@ -207,6 +217,12 @@ export function ItAssetsClient({
   }
 
   const renewals = upcomingLicenseRenewals(licenses, 30);
+  const qualityByPostmortem = new Map(
+    intunePostmortemQuality.map((row) => [row.postmortem_id, row]),
+  );
+  const promoteGateByRecommendation = new Map(
+    intunePromoteGates.map((row) => [row.recommendation_id, row]),
+  );
 
   return (
     <div className="space-y-8">
@@ -291,13 +307,29 @@ export function ItAssetsClient({
               {Number(intunePhase44Health.correlation_events_7d)}
             </>
           ) : null}
+          {intunePhase45Health ? (
+            <>
+              {' · '}quality reviews{' '}
+              {Number(intunePhase45Health.quality_review_count)}
+              {' · '}promote ready{' '}
+              {Number(intunePhase45Health.promote_ready_latest_count)}
+              {Number(intunePhase45Health.promote_blocked_7d) > 0
+                ? ` · promote blocked 7d ${Number(intunePhase45Health.promote_blocked_7d)}`
+                : ''}
+              {Number(intunePhase45Health.trend_degraded_7d) > 0
+                ? ` · trend degraded 7d ${Number(intunePhase45Health.trend_degraded_7d)}`
+                : ''}
+            </>
+          ) : null}
         </div>
       ) : null}
 
       {(intuneOutagePostmortems.length > 0 ||
         intuneThresholdRecommendations.length > 0 ||
         intuneSoakCycleTimeline.length > 0 ||
-        intuneResilienceCorrelation.length > 0) && (
+        intuneResilienceCorrelation.length > 0 ||
+        intunePostmortemQuality.length > 0 ||
+        intunePromoteGates.length > 0) && (
         <section className="space-y-3 rounded-lg border p-4">
           <div>
             <h2 className="text-base font-semibold">
@@ -309,6 +341,7 @@ export function ItAssetsClient({
               closes or resets an open breaker. Phase 42 records soak status; Phase 43
               records open→closed cycle evidence only after natural recovery. Phase 44
               adds performance trends, canary/outage ops alerts, and correlation.
+              Phase 45 quality-gates promote behind multi-cycle healthy trends.
             </p>
             {canIntuneManualReview && intunePhase42Health ? (
               <div className="flex flex-wrap gap-2 pt-1">
@@ -329,6 +362,17 @@ export function ItAssetsClient({
                   onClick={() => run(() => refreshIntunePhase44ResilienceOpsAction())}
                 >
                   Refresh resilience ops
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={pending}
+                  onClick={() =>
+                    run(() => refreshIntunePhase45QualityGateOpsAction())
+                  }
+                >
+                  Refresh quality gates
                 </Button>
               </div>
             ) : null}
@@ -378,7 +422,9 @@ export function ItAssetsClient({
           {intuneOutagePostmortems.length > 0 ? (
             <div className="space-y-2 text-xs">
               <p className="font-medium">Postmortems</p>
-              {intuneOutagePostmortems.map((postmortem) => (
+              {intuneOutagePostmortems.map((postmortem) => {
+                const quality = qualityByPostmortem.get(postmortem.postmortem_id);
+                return (
                 <div
                   key={postmortem.postmortem_id}
                   className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 pb-2"
@@ -390,6 +436,29 @@ export function ItAssetsClient({
                     {Number(postmortem.correlated_scope_count)} · failures{' '}
                     {Number(postmortem.failure_count)}/
                     {Number(postmortem.sample_count)}
+                    {quality ? (
+                      <>
+                        {' · '}
+                        <span
+                          className={
+                            quality.ready_for_tuning_promote
+                              ? 'rounded bg-emerald-100 px-1.5 py-0.5 text-emerald-950'
+                              : Number(quality.quality_score) < 0.6
+                                ? 'rounded bg-amber-100 px-1.5 py-0.5 text-amber-950'
+                                : 'rounded bg-slate-100 px-1.5 py-0.5 text-slate-900'
+                          }
+                        >
+                          quality {Math.round(Number(quality.quality_score) * 100)}%
+                          {quality.ready_for_tuning_promote
+                            ? ' · promote-ready'
+                            : quality.trend_healthy
+                              ? ' · trend ok'
+                              : ' · trend weak'}
+                          {' · '}
+                          {Number(quality.cycle_complete_count)} cycles
+                        </span>
+                      </>
+                    ) : null}
                     {postmortem.blameless_notes
                       ? ` · notes ${postmortem.blameless_notes.slice(0, 80)}${
                           postmortem.blameless_notes.length > 80 ? '…' : ''
@@ -492,13 +561,25 @@ export function ItAssetsClient({
                     </div>
                   ) : null}
                 </div>
-              ))}
+                );
+              })}
             </div>
           ) : null}
           {intuneThresholdRecommendations.length > 0 ? (
             <div className="space-y-2 text-xs">
               <p className="font-medium">System threshold recommendation drafts</p>
-              {intuneThresholdRecommendations.map((recommendation) => (
+              {intuneThresholdRecommendations.map((recommendation) => {
+                const promoteGate = promoteGateByRecommendation.get(
+                  recommendation.recommendation_id,
+                );
+                const promoteBlocked =
+                  recommendation.status === 'pending' &&
+                  promoteGate != null &&
+                  promoteGate.gate_status === 'blocked';
+                const promoteReady =
+                  promoteGate?.gate_status === 'ready' ||
+                  promoteGate?.gate_status === 'waived';
+                return (
                 <div
                   key={recommendation.recommendation_id}
                   className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 pb-2"
@@ -519,6 +600,31 @@ export function ItAssetsClient({
                         100,
                     )}
                     % · breaker {recommendation.breaker_state}
+                    {promoteGate ? (
+                      <>
+                        {' · '}
+                        <span
+                          className={
+                            promoteReady
+                              ? 'rounded bg-emerald-100 px-1.5 py-0.5 text-emerald-950'
+                              : 'rounded bg-rose-100 px-1.5 py-0.5 text-rose-950'
+                          }
+                        >
+                          promote {promoteGate.gate_status}
+                          {' · '}
+                          {Number(promoteGate.multi_cycle_count)} cycles
+                          {' · '}
+                          trend {promoteGate.failure_rate_trend}
+                        </span>
+                      </>
+                    ) : recommendation.status === 'pending' ? (
+                      <>
+                        {' · '}
+                        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-900">
+                          promote gate pending eval
+                        </span>
+                      </>
+                    ) : null}
                     {recommendation.status === 'accepted' &&
                     recommendation.soak_status
                       ? ` · soak ${recommendation.soak_status}${
@@ -548,7 +654,17 @@ export function ItAssetsClient({
                   {canIntuneManualReview &&
                   recommendation.status === 'pending' ? (
                     <div className="flex flex-wrap gap-2">
-                      {recommendation.breaker_state === 'closed' ? (
+                      {recommendation.breaker_state !== 'closed' ? (
+                        <span>
+                          Breaker {recommendation.breaker_state} — cannot accept until closed
+                        </span>
+                      ) : promoteBlocked || !promoteReady ? (
+                        <span>
+                          Promote gate{' '}
+                          {promoteGate?.gate_status ?? 'pending'} — need multi-cycle
+                          healthy trends before Accept → tuning proposal
+                        </span>
+                      ) : (
                         <Button
                           type="button"
                           size="sm"
@@ -573,10 +689,6 @@ export function ItAssetsClient({
                         >
                           Accept → tuning proposal
                         </Button>
-                      ) : (
-                        <span>
-                          Breaker {recommendation.breaker_state} — cannot accept until closed
-                        </span>
                       )}
                       <Button
                         type="button"
@@ -603,7 +715,8 @@ export function ItAssetsClient({
                     </div>
                   ) : null}
                 </div>
-              ))}
+                );
+              })}
             </div>
           ) : null}
         </section>

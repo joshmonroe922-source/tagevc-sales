@@ -118,8 +118,8 @@ describe('Phase 44 snapshot retention ops', () => {
     expect(lib).not.toMatch(/PRIVATE_KEY(?!S)/);
     expect(route).toContain('verify_package_integrity');
     expect(route).toContain('schedule_phase44_canary');
-    expect(route).toContain('getSnapshotPhase44OpsDashboard');
-    expect(worker).toContain('runSnapshotPhase44CanaryWorker');
+    expect(route).toContain('getSnapshotPhase45OpsDashboard');
+    expect(worker).toContain('runSnapshotPhase45OpsWorker');
     expect(ui).toContain('Verify package integrity');
     expect(ui).toContain('Schedule Phase 44 canary');
     expect(ui).toContain('phase44Slo');

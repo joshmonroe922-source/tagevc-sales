@@ -25,6 +25,8 @@ import {
   resolveSloOwnerHandoffSuggestionPhase44,
   registerSloSimulationScenarioPhase44,
   replaySloSimulationScenarioPhase44,
+  runSloNightlyScenarioReplayPhase45,
+  generateSloOwnerHandoffDigestPhase45,
   saveSloPolicyDraft,
   transitionSloPolicyDraft,
 } from '@/lib/shared-services/slo-policy';
@@ -548,6 +550,65 @@ export async function replaySloSimulationScenarioAction(input: {
     return {
       ok: true,
       message: 'Scenario replay recorded (counterfactual; production alerts unchanged)',
+    };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Failed' };
+  }
+}
+
+export async function runSloNightlyScenarioReplayAction(): Promise<TicketActionResult> {
+  const gate = await guardPermission('write:shared_services');
+  if (!gate.ok) return gate;
+  try {
+    const result = (await runSloNightlyScenarioReplayPhase45({
+      actorId: gate.profile.id,
+      limit: 50,
+    })) as {
+      status?: string;
+      succeeded?: number;
+      failed?: number;
+      scenarios_claimed?: number;
+    };
+    revalidatePath('/shared-services');
+    return {
+      ok: true,
+      message: `Nightly scenario replay ${result.status ?? 'completed'} · claimed ${result.scenarios_claimed ?? 0} · ok ${result.succeeded ?? 0} · failed ${result.failed ?? 0} (counterfactual)`,
+    };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Failed' };
+  }
+}
+
+export async function generateSloOwnerHandoffDigestAction(input?: {
+  digestQuarter?: string | null;
+}): Promise<TicketActionResult> {
+  const gate = await guardPermission('write:shared_services');
+  if (!gate.ok) return gate;
+  const parsed = z
+    .object({
+      digestQuarter: z
+        .string()
+        .regex(/^[0-9]{4}-Q[1-4]$/)
+        .nullable()
+        .optional(),
+    })
+    .safeParse(input ?? {});
+  if (!parsed.success) {
+    return { ok: false, error: 'Invalid handoff digest quarter' };
+  }
+  try {
+    const result = (await generateSloOwnerHandoffDigestPhase45({
+      actorId: gate.profile.id,
+      digestQuarter: parsed.data.digestQuarter,
+    })) as {
+      digest_quarter?: string;
+      suggestion_count?: number;
+      accepted_count?: number;
+    };
+    revalidatePath('/shared-services');
+    return {
+      ok: true,
+      message: `Handoff digest ${result.digest_quarter ?? ''} · suggestions ${result.suggestion_count ?? 0} · accepted ${result.accepted_count ?? 0}`,
     };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : 'Failed' };

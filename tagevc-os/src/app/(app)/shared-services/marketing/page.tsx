@@ -21,6 +21,7 @@ import { getPhase41RevenueReport } from '@/lib/shared-services/marketing-phase41
 import { getPhase42RevenueSloReport } from '@/lib/shared-services/marketing-phase42';
 import { getPhase43RevenueOpsReport } from '@/lib/shared-services/marketing-phase43';
 import { getPhase44RevenueOpsReport } from '@/lib/shared-services/marketing-phase44';
+import { getPhase45RevenueOpsReport } from '@/lib/shared-services/marketing-phase45';
 
 export default async function MarketingModulePage({
   searchParams,
@@ -65,6 +66,7 @@ export default async function MarketingModulePage({
     productionSlos,
     opsReport,
     phase44OpsReport,
+    phase45OpsReport,
   ] = await Promise.all([
     listCampaigns(
       50,
@@ -112,6 +114,11 @@ export default async function MarketingModulePage({
       firmWide,
       days: paidDays,
     }),
+    getPhase45RevenueOpsReport({
+      entityId: firmWide ? null : (ctx?.profile.entity_id ?? null),
+      firmWide,
+      days: paidDays,
+    }),
   ]);
   if (!firmWide && ctx?.profile.entity_id) {
     const entityId = ctx.profile.entity_id;
@@ -153,15 +160,15 @@ export default async function MarketingModulePage({
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">Marketing</Badge>
-          <Badge variant="secondary">Phase 44</Badge>
+          <Badge variant="secondary">Phase 45</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Multichannel Marketing
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Entity-bound paid delivery, production ledger authenticity, governed
-          corrections with fail-closed validation, attribution conflict tracking,
-          reconciliation gap snapshots, and critical-window ops alerts over
+          Entity-bound paid delivery, production ledger authenticity, tuned
+          fail-closed auto-reject rules, attribution conflict tracking,
+          webhook delivery SLOs, and correction workflow monitoring over
           authoritative evidence.
         </p>
         {oauthFlash && (
@@ -179,6 +186,8 @@ export default async function MarketingModulePage({
         opsError={opsReport.error}
         phase44OpsReport={phase44OpsReport.report}
         phase44OpsError={phase44OpsReport.error}
+        phase45OpsReport={phase45OpsReport.report}
+        phase45OpsError={phase45OpsReport.error}
       />
 
       <MarketingClient

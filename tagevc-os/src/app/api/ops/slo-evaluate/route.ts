@@ -6,7 +6,7 @@ import {
   finishOperationalWorker,
   startOperationalWorker,
 } from '@/lib/shared-services/operational-health';
-import { processSloGovernancePhase40, processSloGovernancePhase44 } from '@/lib/shared-services/slo-policy';
+import { processSloGovernancePhase40, processSloGovernancePhase44, processSloGovernancePhase45 } from '@/lib/shared-services/slo-policy';
 
 async function run(source: 'cron' | 'admin') {
   const worker = await startOperationalWorker({
@@ -18,6 +18,7 @@ async function run(source: 'cron' | 'admin') {
     const result = await evaluateSharedServiceSlos();
     const governance = await processSloGovernancePhase40();
     const phase44 = await processSloGovernancePhase44();
+    const phase45 = await processSloGovernancePhase45();
     for (const transition of result.transitions) {
       captureMessage(
         `Shared Services SLO ${transition.transition}: ${transition.service}/${transition.metric_key}`,
@@ -49,6 +50,9 @@ async function run(source: 'cron' | 'admin') {
         simulations_completed: governance.completed,
         phase44_handoffs: phase44.handoffs,
         phase44_alerts: phase44.alerts,
+        phase45_nightly: phase45.nightly,
+        phase45_digest: phase45.digest,
+        phase45_alerts: phase45.alerts,
       },
     });
     return NextResponse.json({
@@ -59,6 +63,7 @@ async function run(source: 'cron' | 'admin') {
       transition_count: result.transitions.length,
       simulations: governance,
       phase44,
+      phase45,
     });
   } catch (error) {
     captureException(error, { route: 'slo-evaluate' });

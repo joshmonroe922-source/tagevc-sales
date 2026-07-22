@@ -183,6 +183,16 @@ async function runReadOnlyHealthCanaryWithToken(token: string): Promise<{
       error: phase44.error,
     };
   }
+  // Phase 45: postmortem quality reviews → promote gate eval → alerts.
+  // Observe-only; never close or reset breakers.
+  const phase45 = await runIntunePhase45QualityGateOpsTick(sb);
+  if (!phase45.ok) {
+    return {
+      ok: false,
+      status: 'phase45_quality_gate_ops_failed',
+      error: phase45.error,
+    };
+  }
   return {
     ok: true,
     status: String((finished as { status?: string } | null)?.status ?? 'done'),
@@ -417,6 +427,151 @@ export async function processIntunePhase44ResilienceOps(): Promise<{
     status: 'done',
     detail: {
       snapshots_recorded: result.snapshotsRecorded,
+      alerts_recorded: result.alertsRecorded,
+      delivered: result.delivered,
+      skipped: result.skipped,
+      failed: result.failed,
+      closes_or_resets_breaker: false,
+    },
+  };
+}
+
+type Phase45CriticalWindow = {
+  alert_kind: string;
+  window_key: string;
+  severity?: string;
+  recommendation_id?: string | null;
+  proposal_id?: string | null;
+  postmortem_id?: string | null;
+};
+
+async function runIntunePhase45QualityGateOpsTick(
+  sb: Awaited<ReturnType<typeof createPersistClient>>,
+): Promise<
+  | {
+      ok: true;
+      reviewsRecorded: number;
+      gatesRecorded: number;
+      alertsRecorded: number;
+      delivered: number;
+      skipped: number;
+      failed: number;
+    }
+  | { ok: false; error: string }
+> {
+  const { data: reviewData, error: reviewError } = await sb.rpc(
+    'review_it_intune_postmortem_quality_phase45',
+  );
+  if (reviewError) {
+    return { ok: false, error: reviewError.message };
+  }
+
+  const { data: gateData, error: gateError } = await sb.rpc(
+    'evaluate_it_intune_tuning_promote_gate_phase45',
+  );
+  if (gateError) {
+    return { ok: false, error: gateError.message };
+  }
+
+  const { data: windows, error: windowError } = await sb.rpc(
+    'list_it_intune_phase45_critical_windows',
+    { p_window_hours: 24 },
+  );
+  if (windowError) {
+    return { ok: false, error: windowError.message };
+  }
+
+  const pending = ((windows as { pending?: Phase45CriticalWindow[] } | null)
+    ?.pending ?? []) as Phase45CriticalWindow[];
+  let alertsRecorded = 0;
+  let delivered = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  for (const window of pending.slice(0, 50)) {
+    const delivery = await deliverIntuneOpsWebhook({
+      kind: 'it_intune_phase45_ops_alert',
+      version: 'phase45-v1',
+      alert_kind: window.alert_kind,
+      window_key: window.window_key,
+      severity: window.severity ?? 'warning',
+      recommendation_id: window.recommendation_id ?? null,
+      proposal_id: window.proposal_id ?? null,
+      postmortem_id: window.postmortem_id ?? null,
+      destination_key: INTUNE_OPS_DESTINATION_KEY,
+      entity_identifiers_included: false,
+      closes_or_resets_breaker: false,
+    });
+
+    const { data: recorded, error: recordError } = await sb.rpc(
+      'record_it_intune_phase45_ops_alert',
+      {
+        p_alert: {
+          alert_kind: window.alert_kind,
+          window_key: window.window_key,
+          severity: window.severity ?? 'warning',
+          recommendation_id: window.recommendation_id ?? null,
+          proposal_id: window.proposal_id ?? null,
+          postmortem_id: window.postmortem_id ?? null,
+          destination_key: INTUNE_OPS_DESTINATION_KEY,
+          delivery_status: delivery.delivery_status,
+          response_code: delivery.response_code,
+          aggregate_evidence: {
+            evidence_version: 'phase45-v1',
+            entity_identifiers_included: false,
+            closes_or_resets_breaker: false,
+          },
+        },
+      },
+    );
+    if (recordError) {
+      return { ok: false, error: recordError.message };
+    }
+    if ((recorded as { inserted?: boolean } | null)?.inserted) {
+      alertsRecorded += 1;
+      if (delivery.delivery_status === 'delivered') delivered += 1;
+      else if (delivery.delivery_status === 'skipped_no_webhook') skipped += 1;
+      else failed += 1;
+    }
+  }
+
+  return {
+    ok: true,
+    reviewsRecorded: Number(
+      (reviewData as { reviews_recorded?: number } | null)?.reviews_recorded ??
+        0,
+    ),
+    gatesRecorded: Number(
+      (gateData as { gates_recorded?: number } | null)?.gates_recorded ?? 0,
+    ),
+    alertsRecorded,
+    delivered,
+    skipped,
+    failed,
+  };
+}
+
+export async function processIntunePhase45QualityGateOps(): Promise<{
+  ok: boolean;
+  status: string;
+  detail?: Record<string, unknown>;
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const result = await runIntunePhase45QualityGateOpsTick(sb);
+  if (!result.ok) {
+    return {
+      ok: false,
+      status: 'phase45_quality_gate_ops_failed',
+      error: result.error,
+    };
+  }
+  return {
+    ok: true,
+    status: 'done',
+    detail: {
+      reviews_recorded: result.reviewsRecorded,
+      gates_recorded: result.gatesRecorded,
       alerts_recorded: result.alertsRecorded,
       delivered: result.delivered,
       skipped: result.skipped,

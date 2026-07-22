@@ -1205,9 +1205,31 @@ export async function acceptIntuneThresholdRecommendationAction(input: {
       error: entityScopeDeniedMessage(breaker.entity_id ?? 'firm-wide'),
     };
   }
-  const { acceptIntuneThresholdRecommendation } = await import(
-    '@/lib/shared-services/it-assets-repo'
-  );
+  const {
+    evaluateIntuneTuningPromoteGate,
+    getIntuneTuningPromoteGate,
+    acceptIntuneThresholdRecommendation,
+  } = await import('@/lib/shared-services/it-assets-repo');
+  // Phase 45: require multi-cycle promote gate before accept.
+  const evaluated = await evaluateIntuneTuningPromoteGate({
+    recommendation_id: parsed.data.recommendationId,
+  });
+  if (!evaluated.ok) return evaluated;
+  const { gate: promoteGate, error: promoteGateError } =
+    await getIntuneTuningPromoteGate({
+      recommendation_id: parsed.data.recommendationId,
+    });
+  if (promoteGateError) {
+    return { ok: false, error: promoteGateError };
+  }
+  const gateStatus = String(promoteGate?.gate_status ?? 'blocked');
+  if (gateStatus !== 'ready' && gateStatus !== 'waived') {
+    return {
+      ok: false,
+      error:
+        'Phase 45 promote gate blocked — need multi-cycle healthy trends before Accept → tuning proposal',
+    };
+  }
   const result = await acceptIntuneThresholdRecommendation({
     recommendation_id: parsed.data.recommendationId,
     actor_id: gate.profile.id,
@@ -1323,5 +1345,28 @@ export async function refreshIntunePhase44ResilienceOpsAction(): Promise<ItAsset
   return {
     ok: true,
     message: `Phase 44 resilience ops: ${snaps} performance snapshot(s), ${alerts} alert(s) — breakers never closed or reset`,
+  };
+}
+
+export async function refreshIntunePhase45QualityGateOpsAction(): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('action:intune_manual_review');
+  if (!gate.ok) return gate;
+  const { runIntunePhase45QualityGateOps } = await import(
+    '@/lib/shared-services/it-assets-repo'
+  );
+  const result = await runIntunePhase45QualityGateOps();
+  if (!result.ok) {
+    return {
+      ok: false,
+      error: result.error ?? 'Phase 45 quality gate ops failed',
+    };
+  }
+  revalidateAssets();
+  const reviews = Number(result.detail?.reviews_recorded ?? 0);
+  const gates = Number(result.detail?.gates_recorded ?? 0);
+  const alerts = Number(result.detail?.alerts_recorded ?? 0);
+  return {
+    ok: true,
+    message: `Phase 45 quality gates: ${reviews} review(s), ${gates} promote gate(s), ${alerts} alert(s) — breakers never closed or reset`,
   };
 }

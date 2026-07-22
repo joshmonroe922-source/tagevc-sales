@@ -1049,6 +1049,52 @@ export type ItIntunePhase44Health = {
   correlation_events_7d: number;
 };
 
+export type ItIntunePhase45Health = {
+  quality_review_count: number;
+  quality_ready_count: number;
+  quality_low_7d: number;
+  promote_gate_count: number;
+  promote_ready_latest_count: number;
+  promote_blocked_7d: number;
+  trend_degraded_7d: number;
+  ops_alert_count: number;
+  alerts_delivered_count: number;
+  alerts_undelivered_count: number;
+};
+
+export type ItIntunePostmortemQualityStatus = {
+  review_id: string;
+  postmortem_id: string;
+  quality_score: number;
+  checklist: Record<string, unknown>;
+  cycle_complete_count: number;
+  trend_healthy: boolean;
+  ready_for_tuning_promote: boolean;
+  evidence_sha256: string;
+  recorded_at: string;
+  postmortem_status: string;
+  root_cause_class: string;
+};
+
+export type ItIntuneTuningPromoteGateStatus = {
+  gate_id: string;
+  recommendation_id: string;
+  proposal_id: string | null;
+  gate_status: 'blocked' | 'ready' | 'waived';
+  block_reasons: Array<Record<string, unknown>>;
+  multi_cycle_count: number;
+  failure_rate_trend:
+    | 'improving'
+    | 'stable'
+    | 'degrading'
+    | 'insufficient_data';
+  evidence_sha256: string;
+  recorded_at: string;
+  recommendation_status: string;
+  breaker_id: string;
+  postmortem_id: string | null;
+};
+
 export type ItIntuneResilienceCorrelationEvent = {
   breaker_id: string | null;
   event_kind: string;
@@ -1395,6 +1441,56 @@ export async function getIntunePhase44Health(): Promise<{
     : { row: (data as ItIntunePhase44Health | null) ?? null };
 }
 
+export async function getIntunePhase45Health(): Promise<{
+  row: ItIntunePhase45Health | null;
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb
+    .from('os_it_intune_phase45_health')
+    .select(
+      'quality_review_count, quality_ready_count, quality_low_7d, promote_gate_count, promote_ready_latest_count, promote_blocked_7d, trend_degraded_7d, ops_alert_count, alerts_delivered_count, alerts_undelivered_count',
+    )
+    .maybeSingle();
+  return error
+    ? { row: null, error: error.message }
+    : { row: (data as ItIntunePhase45Health | null) ?? null };
+}
+
+export async function listIntunePostmortemQualityStatus(limit = 50): Promise<{
+  rows: ItIntunePostmortemQualityStatus[];
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb
+    .from('os_it_intune_postmortem_quality_status')
+    .select(
+      'review_id, postmortem_id, quality_score, checklist, cycle_complete_count, trend_healthy, ready_for_tuning_promote, evidence_sha256, recorded_at, postmortem_status, root_cause_class',
+    )
+    .order('recorded_at', { ascending: false })
+    .limit(limit);
+  return error
+    ? { rows: [], error: error.message }
+    : { rows: (data ?? []) as ItIntunePostmortemQualityStatus[] };
+}
+
+export async function listIntuneTuningPromoteGateStatus(limit = 50): Promise<{
+  rows: ItIntuneTuningPromoteGateStatus[];
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb
+    .from('os_it_intune_tuning_promote_gate_status')
+    .select(
+      'gate_id, recommendation_id, proposal_id, gate_status, block_reasons, multi_cycle_count, failure_rate_trend, evidence_sha256, recorded_at, recommendation_status, breaker_id, postmortem_id',
+    )
+    .order('recorded_at', { ascending: false })
+    .limit(limit);
+  return error
+    ? { rows: [], error: error.message }
+    : { rows: (data ?? []) as ItIntuneTuningPromoteGateStatus[] };
+}
+
 export async function listIntuneSoakCycleTimeline(limit = 30): Promise<{
   rows: ItIntuneSoakCycleTimeline[];
   error?: string;
@@ -1462,6 +1558,60 @@ export async function getIntunePhase44OpsReport(): Promise<{
     : { report: (data as Record<string, unknown> | null) ?? null };
 }
 
+export async function getIntunePhase45OpsReport(): Promise<{
+  report: Record<string, unknown> | null;
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc('get_it_intune_phase45_ops_report');
+  return error
+    ? { report: null, error: error.message }
+    : { report: (data as Record<string, unknown> | null) ?? null };
+}
+
+export async function getIntuneTuningPromoteGate(input: {
+  recommendation_id?: string;
+  proposal_id?: string;
+}): Promise<{
+  gate: Record<string, unknown> | null;
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc(
+    'get_it_intune_tuning_promote_gate_phase45',
+    {
+      p_recommendation_id: input.recommendation_id ?? null,
+      p_proposal_id: input.proposal_id ?? null,
+    },
+  );
+  return error
+    ? { gate: null, error: error.message }
+    : { gate: (data as Record<string, unknown> | null) ?? null };
+}
+
+export async function evaluateIntuneTuningPromoteGate(input?: {
+  recommendation_id?: string;
+  proposal_id?: string;
+}): Promise<{
+  ok: true;
+  detail?: Record<string, unknown>;
+} | { ok: false; error: string }> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc(
+    'evaluate_it_intune_tuning_promote_gate_phase45',
+    {
+      p_recommendation_id: input?.recommendation_id ?? null,
+      p_proposal_id: input?.proposal_id ?? null,
+    },
+  );
+  return error
+    ? { ok: false, error: error.message }
+    : {
+        ok: true,
+        detail: (data as Record<string, unknown> | null) ?? undefined,
+      };
+}
+
 export async function observeIntuneRecommendationSoak() {
   const sb = await createPersistClient();
   const { data, error } = await sb.rpc(
@@ -1493,6 +1643,13 @@ export async function runIntunePhase44ResilienceOps() {
     '@/lib/shared-services/it-intune-worker'
   );
   return processIntunePhase44ResilienceOps();
+}
+
+export async function runIntunePhase45QualityGateOps() {
+  const { processIntunePhase45QualityGateOps } = await import(
+    '@/lib/shared-services/it-intune-worker'
+  );
+  return processIntunePhase45QualityGateOps();
 }
 
 export async function updateIntuneOutagePostmortemDraft(input: {
@@ -1553,13 +1710,18 @@ export async function acceptIntuneThresholdRecommendation(input: {
   expected_row_version: number;
 }) {
   const sb = await createPersistClient();
-  const { error } = await sb.rpc('accept_it_intune_threshold_recommendation', {
-    p_recommendation_id: input.recommendation_id,
-    p_actor_id: input.actor_id,
-    p_reason: input.reason,
-    p_expected_breaker_version: input.expected_breaker_version,
-    p_expected_row_version: input.expected_row_version,
-  });
+  // Phase 45: evaluate promote gate then accept only when ready/waived.
+  // Never closes or resets breakers.
+  const { error } = await sb.rpc(
+    'accept_it_intune_threshold_recommendation_phase45',
+    {
+      p_recommendation_id: input.recommendation_id,
+      p_actor_id: input.actor_id,
+      p_reason: input.reason,
+      p_expected_breaker_version: input.expected_breaker_version,
+      p_expected_row_version: input.expected_row_version,
+    },
+  );
   return error ? { ok: false as const, error: error.message } : { ok: true as const };
 }
 

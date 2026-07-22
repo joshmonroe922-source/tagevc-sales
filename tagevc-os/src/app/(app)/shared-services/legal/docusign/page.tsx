@@ -40,6 +40,7 @@ import {
   listArchiveCampaigns,
 } from '@/lib/docusign/archive-campaigns';
 import { getArchivePhase44OpsReport } from '@/lib/docusign/archive-phase44';
+import { getArchivePhase45OpsReport } from '@/lib/docusign/archive-phase45';
 import { listArchiveGovernance } from '@/lib/docusign/archive-governance';
 
 function formatBytes(n: number | null | undefined): string {
@@ -134,6 +135,7 @@ export default async function DocuSignModulePage({
     archiveCampaignOps,
     firstQuarterlyOps,
     phase44Ops,
+    phase45Ops,
   ] = await Promise.all([
     listDocuSignEvents({
       limit: 40,
@@ -198,6 +200,7 @@ export default async function DocuSignModulePage({
     getArchiveCampaignOpsReport({ firmWide }),
     getFirstQuarterlyOpsReport({ firmWide }),
     getArchivePhase44OpsReport({ firmWide }),
+    getArchivePhase45OpsReport({ firmWide }),
   ]);
 
   const voidPolicy = process.env.DOCUSIGN_VOID_POLICY?.trim() || 'allow';
@@ -271,6 +274,7 @@ export default async function DocuSignModulePage({
           <Badge variant="secondary">Phase 40</Badge>
           <Badge variant="secondary">Phase 42</Badge>
           <Badge variant="secondary">Phase 44</Badge>
+          <Badge variant="secondary">Phase 45</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">DocuSign</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
@@ -296,6 +300,15 @@ export default async function DocuSignModulePage({
           }
           phase44AlertDelivery={
             firmWide ? phase44Ops.report.alert_delivery : undefined
+          }
+          phase45GateProgress={
+            firmWide ? phase45Ops.report.gate_clearing_progress : undefined
+          }
+          phase45DriftBudgetHealth={
+            firmWide ? phase45Ops.report.drift_budget_health : undefined
+          }
+          phase45CadenceHealth={
+            firmWide ? phase45Ops.report.cadence_health : undefined
           }
         />
         <DocuSignTemplateSendForm
@@ -406,12 +419,14 @@ export default async function DocuSignModulePage({
               queue visibility. Phase 43 unlocks the first quarterly when
               backfill is zero and quarantine is aged, with runbook evidence and
               a gated CTA. Phase 44 adds drift/backfill snapshots and integrity
-              ops alerts.
+              ops alerts. Phase 45 tracks gate-clearing checklist evidence,
+              signed-archive drift budgets, and recurring integrity cadence.
               {archiveGovernance.error ? ` · ${archiveGovernance.error}` : ''}
               {archiveCampaigns.error ? ` · ${archiveCampaigns.error}` : ''}
               {archiveCampaignOps.error ? ` · ${archiveCampaignOps.error}` : ''}
               {firstQuarterlyOps.error ? ` · ${firstQuarterlyOps.error}` : ''}
               {phase44Ops.error ? ` · ${phase44Ops.error}` : ''}
+              {phase45Ops.error ? ` · ${phase45Ops.error}` : ''}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-xs">
@@ -478,6 +493,25 @@ export default async function DocuSignModulePage({
                     : ''}
                   {phase44Ops.report.latest_backfill?.completeness_pct != null
                     ? ` · completeness ${String(phase44Ops.report.latest_backfill.completeness_pct)}%`
+                    : ''}
+                </p>
+                <p className="text-muted-foreground">
+                  Phase 45 gate:{' '}
+                  {phase45Ops.report.gate_clearing_progress} (
+                  {phase45Ops.report.steps_cleared}/
+                  {phase45Ops.report.steps_total}) · drift budget{' '}
+                  {phase45Ops.report.drift_budget_health} · cadence{' '}
+                  {phase45Ops.report.cadence_health}
+                  {phase45Ops.report.recurring_quarterly_armed
+                    ? ' · recurring armed'
+                    : phase45Ops.report.first_quarterly_ready
+                      ? ' · first quarterly ready'
+                      : ''}
+                  {phase45Ops.report.latest_cadence?.sample_overdue
+                    ? ' · sample overdue'
+                    : ''}
+                  {phase45Ops.report.latest_cadence?.full_overdue
+                    ? ' · full overdue'
                     : ''}
                 </p>
               </div>

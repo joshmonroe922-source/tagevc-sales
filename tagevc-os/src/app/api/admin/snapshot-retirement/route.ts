@@ -23,10 +23,15 @@ import {
   runProductionColdHeadCadencePhase43,
 } from '@/lib/data/snapshot-retirement-phase43';
 import {
-  getSnapshotPhase44OpsDashboard,
   scheduleSnapshotPhase44CanaryOps,
   verifySnapshotExportPackageIntegrityPhase44,
 } from '@/lib/data/snapshot-retirement-phase44';
+import {
+  activateSnapshotDualKeyPhase45,
+  announceSnapshotEd25519RotationPhase45,
+  completeSnapshotEd25519CutoverPhase45,
+  getSnapshotPhase45OpsDashboard,
+} from '@/lib/data/snapshot-retirement-phase45';
 import { captureException } from '@/lib/observability';
 import { guardPermission } from '@/lib/rbac/session';
 
@@ -139,6 +144,29 @@ const requestSchema = z.discriminatedUnion('action', [
       }
     }),
   z.object({
+    action: z.literal('announce_ed25519_rotation'),
+    previous_key_id: z
+      .string()
+      .trim()
+      .min(3)
+      .max(64)
+      .regex(/^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$/),
+    next_key_id: z
+      .string()
+      .trim()
+      .min(3)
+      .max(64)
+      .regex(/^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$/),
+  }),
+  z.object({
+    action: z.literal('activate_dual_key'),
+    rotation_id: z.uuid(),
+  }),
+  z.object({
+    action: z.literal('complete_ed25519_cutover'),
+    rotation_id: z.uuid(),
+  }),
+  z.object({
     action: z.literal('schedule_phase40_canary'),
     entity_id: z.string().trim().min(1).max(100).nullable().optional(),
     package_id: z.uuid(),
@@ -164,25 +192,29 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: gate.error }, { status: 403 });
   }
   try {
-    const [phase40, phase44] = await Promise.all([
+    const [phase40, phase45] = await Promise.all([
       getSnapshotPhase40Dashboard(),
-      getSnapshotPhase44OpsDashboard(),
+      getSnapshotPhase45OpsDashboard(),
     ]);
     if (!phase40.ok) {
       return NextResponse.json(phase40, { status: 503 });
     }
     return NextResponse.json({
       ...phase40,
-      verifyMaterial: phase44.verifyMaterial,
-      coldRuns: phase44.coldRuns,
-      phase42Slo: phase44.phase42Slo,
-      firmWideVerifyMaterial: phase44.firmWideVerifyMaterial,
-      productionColdSchedules: phase44.productionColdSchedules,
-      phase43Slo: phase44.phase43Slo,
-      integrityChecks: phase44.integrityChecks,
-      retentionAlerts: phase44.retentionAlerts,
-      phase44CanarySchedules: phase44.phase44CanarySchedules,
-      phase44Slo: phase44.phase44Slo,
+      verifyMaterial: phase45.verifyMaterial,
+      coldRuns: phase45.coldRuns,
+      phase42Slo: phase45.phase42Slo,
+      firmWideVerifyMaterial: phase45.firmWideVerifyMaterial,
+      productionColdSchedules: phase45.productionColdSchedules,
+      phase43Slo: phase45.phase43Slo,
+      integrityChecks: phase45.integrityChecks,
+      retentionAlerts: phase45.retentionAlerts,
+      phase44CanarySchedules: phase45.phase44CanarySchedules,
+      phase44Slo: phase45.phase44Slo,
+      ed25519Rotations: phase45.ed25519Rotations,
+      consecutiveFailureCounters: phase45.consecutiveFailureCounters,
+      phase45OpsAlerts: phase45.phase45OpsAlerts,
+      phase45Slo: phase45.phase45Slo,
     });
   } catch (error) {
     captureException(error, { route: 'snapshot-retirement-phase40-dashboard' });
@@ -315,6 +347,25 @@ export async function POST(request: Request) {
           packageId: parsed.data.package_id,
           definitionId: parsed.data.definition_id,
           cadenceHours: parsed.data.cadence_hours,
+        });
+        break;
+      case 'announce_ed25519_rotation':
+        result = await announceSnapshotEd25519RotationPhase45({
+          actorId: gate.profile.id,
+          previousKeyId: parsed.data.previous_key_id,
+          nextKeyId: parsed.data.next_key_id,
+        });
+        break;
+      case 'activate_dual_key':
+        result = await activateSnapshotDualKeyPhase45({
+          actorId: gate.profile.id,
+          rotationId: parsed.data.rotation_id,
+        });
+        break;
+      case 'complete_ed25519_cutover':
+        result = await completeSnapshotEd25519CutoverPhase45({
+          actorId: gate.profile.id,
+          rotationId: parsed.data.rotation_id,
         });
         break;
       case 'schedule_phase40_canary':

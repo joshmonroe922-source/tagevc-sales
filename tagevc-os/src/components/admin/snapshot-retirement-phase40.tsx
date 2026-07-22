@@ -110,6 +110,24 @@ type Dashboard = {
     created_at: string;
   }>;
   phase44Slo?: Record<string, unknown> | null;
+  ed25519Rotations?: Array<{
+    rotation_id: string;
+    previous_key_id: string;
+    next_key_id: string;
+    status: string;
+    cutover_started_at: string;
+    cutover_completed_at: string | null;
+    created_at: string;
+  }>;
+  consecutiveFailureCounters?: Array<{
+    counter_kind: string;
+    consecutive_count: number;
+    last_failure_at: string | null;
+    last_success_at: string | null;
+    updated_at: string;
+  }>;
+  phase45OpsAlerts?: Array<Record<string, unknown>>;
+  phase45Slo?: Record<string, unknown> | null;
 };
 
 type ApiResult = {
@@ -123,6 +141,7 @@ type ApiResult = {
   schedule?: Record<string, unknown>;
   check?: Record<string, unknown>;
   skipped?: boolean;
+  rotation?: Record<string, unknown>;
 };
 
 function downloadSignedPackage(value: Record<string, unknown>) {
@@ -429,6 +448,97 @@ export function SnapshotRetirementPhase40Admin() {
     });
   }
 
+  function announceEd25519Rotation() {
+    const previous = window.prompt(
+      'Previous ed25519 key id:',
+      'snapshot-ed25519-2026-01',
+    );
+    if (!previous) return;
+    const next = window.prompt('Next ed25519 key id:', 'snapshot-ed25519-2026-07');
+    if (!next) return;
+    setMessage(null);
+    setError(null);
+    startTransition(async () => {
+      try {
+        const result = await post({
+          action: 'announce_ed25519_rotation',
+          previous_key_id: previous,
+          next_key_id: next,
+        });
+        setMessage(
+          result.rotation
+            ? `Ed25519 rotation announced · ${String(result.rotation.status ?? 'announced')} (public metadata only).`
+            : 'Ed25519 rotation announced (public metadata only).',
+        );
+        await refresh();
+      } catch (cause) {
+        setError(
+          cause instanceof Error ? cause.message : 'Ed25519 rotation announce failed',
+        );
+      }
+    });
+  }
+
+  function activateDualKey() {
+    const open = (dashboard?.ed25519Rotations ?? []).find(
+      (row) => row.status === 'announced',
+    );
+    if (!open) {
+      setError('Announce an ed25519 rotation before activating dual-key.');
+      return;
+    }
+    setMessage(null);
+    setError(null);
+    startTransition(async () => {
+      try {
+        const result = await post({
+          action: 'activate_dual_key',
+          rotation_id: open.rotation_id,
+        });
+        setMessage(
+          result.rotation
+            ? `Dual-key active · ${String(result.rotation.status ?? 'dual_active')} (non-qualifying).`
+            : 'Dual-key activated (non-qualifying).',
+        );
+        await refresh();
+      } catch (cause) {
+        setError(
+          cause instanceof Error ? cause.message : 'Dual-key activation failed',
+        );
+      }
+    });
+  }
+
+  function completeEd25519Cutover() {
+    const open = (dashboard?.ed25519Rotations ?? []).find(
+      (row) => row.status === 'dual_active',
+    );
+    if (!open) {
+      setError('Activate dual-key before completing cutover.');
+      return;
+    }
+    setMessage(null);
+    setError(null);
+    startTransition(async () => {
+      try {
+        const result = await post({
+          action: 'complete_ed25519_cutover',
+          rotation_id: open.rotation_id,
+        });
+        setMessage(
+          result.rotation
+            ? `Ed25519 cutover complete · ${String(result.rotation.status ?? 'cutover_complete')} (non-qualifying).`
+            : 'Ed25519 cutover completed (non-qualifying).',
+        );
+        await refresh();
+      } catch (cause) {
+        setError(
+          cause instanceof Error ? cause.message : 'Ed25519 cutover failed',
+        );
+      }
+    });
+  }
+
   function scheduleCanary() {
     const packageRow = dashboard?.packages[0];
     if (!packageRow) {
@@ -489,7 +599,7 @@ export function SnapshotRetirementPhase40Admin() {
   return (
     <div className="mt-3 space-y-3 rounded-md border border-border/60 p-3 text-xs">
       <div className="flex flex-wrap items-center gap-2">
-        <p className="font-medium">Phase 40/41/42/43/44 signed retention evidence</p>
+        <p className="font-medium">Phase 40/41/42/43/44/45 signed retention evidence</p>
         <Badge variant="outline">Synthetic · non-qualifying</Badge>
       </div>
       <p className="text-muted-foreground">
@@ -499,7 +609,8 @@ export function SnapshotRetirementPhase40Admin() {
         material and cold HEAD cadence evidence. Phase 43 publishes the firm-wide
         verify catalog and schedules production cold HEAD against retention
         destinations. Phase 44 adds package integrity evidence, retention ops
-        alerts, and recurring multi-hour canary schedules. Canaries never qualify
+        alerts, and recurring multi-hour canary schedules. Phase 45 adds dual-key
+        ed25519 rotation and consecutive failure paging. Canaries never qualify
         soak or attestation.
       </p>
       {dashboard?.packages[0] ? (
@@ -600,6 +711,41 @@ export function SnapshotRetirementPhase40Admin() {
           {String(dashboard.phase44Slo.active_canary_schedules ?? 0)}
         </p>
       ) : null}
+      {(dashboard?.ed25519Rotations ?? []).slice(0, 3).map((rotation) => (
+        <p
+          key={rotation.rotation_id}
+          className="font-mono text-[10px] text-muted-foreground"
+        >
+          ED25519 ROT · {rotation.status} · {rotation.previous_key_id} →{' '}
+          {rotation.next_key_id}
+        </p>
+      ))}
+      {(dashboard?.consecutiveFailureCounters ?? []).map((counter) => (
+        <p
+          key={counter.counter_kind}
+          className="font-mono text-[10px] text-muted-foreground"
+        >
+          CONSEC · {counter.counter_kind} · {counter.consecutive_count}
+        </p>
+      ))}
+      {(dashboard?.phase45OpsAlerts ?? []).slice(0, 3).map((alert) => (
+        <p
+          key={String(alert.alert_id)}
+          className="font-mono text-[10px] text-muted-foreground"
+        >
+          P45 ALERT · {String(alert.created_at)} · {String(alert.alert_kind)} · n=
+          {String(alert.consecutive_count ?? 0)}
+        </p>
+      ))}
+      {dashboard?.phase45Slo ? (
+        <p className="text-muted-foreground">
+          Phase 45 rotations 365d ·{' '}
+          {String(dashboard.phase45Slo.rotations_365d ?? 0)} · open{' '}
+          {String(dashboard.phase45Slo.open_rotations ?? 0)} · cold consec{' '}
+          {String(dashboard.phase45Slo.cold_head_consecutive ?? 0)} · integrity consec{' '}
+          {String(dashboard.phase45Slo.integrity_consecutive ?? 0)}
+        </p>
+      ) : null}
       {dashboard?.checks.slice(0, 4).map((check) => (
         <p key={check.check_id} className="font-mono text-[10px] text-muted-foreground">
           {check.checked_at} · retention {check.status}
@@ -658,6 +804,15 @@ export function SnapshotRetirementPhase40Admin() {
         </Button>
         <Button type="button" size="sm" variant="outline" disabled={pending} onClick={schedulePhase44Canary}>
           Schedule Phase 44 canary
+        </Button>
+        <Button type="button" size="sm" variant="outline" disabled={pending} onClick={announceEd25519Rotation}>
+          Announce ed25519 rotation
+        </Button>
+        <Button type="button" size="sm" variant="outline" disabled={pending} onClick={activateDualKey}>
+          Activate dual-key
+        </Button>
+        <Button type="button" size="sm" variant="outline" disabled={pending} onClick={completeEd25519Cutover}>
+          Complete cutover
         </Button>
         <Button type="button" size="sm" variant="outline" disabled={pending} onClick={scheduleCanary}>
           Schedule multi-hour canary

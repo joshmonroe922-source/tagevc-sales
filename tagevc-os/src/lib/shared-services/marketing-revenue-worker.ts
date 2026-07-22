@@ -16,6 +16,7 @@ import {
 } from '@/lib/shared-services/marketing-revenue-contracts';
 import { runPhase43RevenueOpsTick } from '@/lib/shared-services/marketing-phase43';
 import { runPhase44RevenueOpsTick } from '@/lib/shared-services/marketing-phase44';
+import { runPhase45RevenueOpsTick } from '@/lib/shared-services/marketing-phase45';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 
 type PullRun = {
@@ -469,6 +470,19 @@ export async function processMarketingRevenuePulls(limit = 1): Promise<{
     } else {
       details.push(
         `phase44-ops:${entityId}: validated=${phase44.validations.passed + phase44.validations.failed + phase44.validations.auto_rejected} conflicts=${phase44.conflictsInserted} snapshots=${phase44.snapshotsRecorded} alerts=${phase44.alertsRecorded}`,
+      );
+    }
+
+    // Phase 45: webhook delivery SLOs, workflow snapshots, tuned-rule alerts.
+    const phase45 = await runPhase45RevenueOpsTick({
+      entityId,
+      days: 30,
+    });
+    if (!phase45.ok) {
+      details.push(`phase45-ops:${entityId}: ${phase45.error}`);
+    } else {
+      details.push(
+        `phase45-ops:${entityId}: webhook=${phase45.webhookSnapshots} workflow=${phase45.workflowSnapshots} alerts=${phase45.alertsRecorded}`,
       );
     }
   }
