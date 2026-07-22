@@ -1210,7 +1210,7 @@ export async function acceptIntuneThresholdRecommendationAction(input: {
     getIntuneTuningPromoteGate,
     acceptIntuneThresholdRecommendation,
   } = await import('@/lib/shared-services/it-assets-repo');
-  // Phase 45: require multi-cycle promote gate before accept.
+  // Phase 46: require ready scorecard or dual-approved waive before accept.
   const evaluated = await evaluateIntuneTuningPromoteGate({
     recommendation_id: parsed.data.recommendationId,
   });
@@ -1223,11 +1223,12 @@ export async function acceptIntuneThresholdRecommendationAction(input: {
     return { ok: false, error: promoteGateError };
   }
   const gateStatus = String(promoteGate?.gate_status ?? 'blocked');
-  if (gateStatus !== 'ready' && gateStatus !== 'waived') {
+  const dualApproved = promoteGate?.dual_approved_waive === true;
+  if (gateStatus !== 'ready' && !(gateStatus === 'waived' && dualApproved)) {
     return {
       ok: false,
       error:
-        'Phase 45 promote gate blocked — need multi-cycle healthy trends before Accept → tuning proposal',
+        'Phase 46 promote gate blocked — need ready scorecard or dual-approved waive before Accept → tuning proposal',
     };
   }
   const result = await acceptIntuneThresholdRecommendation({
@@ -1368,5 +1369,181 @@ export async function refreshIntunePhase45QualityGateOpsAction(): Promise<ItAsse
   return {
     ok: true,
     message: `Phase 45 quality gates: ${reviews} review(s), ${gates} promote gate(s), ${alerts} alert(s) — breakers never closed or reset`,
+  };
+}
+
+export async function refreshIntunePhase46QualityWaiveOpsAction(): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('action:intune_manual_review');
+  if (!gate.ok) return gate;
+  const { runIntunePhase46QualityWaiveOps } = await import(
+    '@/lib/shared-services/it-assets-repo'
+  );
+  const result = await runIntunePhase46QualityWaiveOps();
+  if (!result.ok) {
+    return {
+      ok: false,
+      error: result.error ?? 'Phase 46 quality/waive ops failed',
+    };
+  }
+  revalidateAssets();
+  const scorecards = Number(result.detail?.scorecards_recorded ?? 0);
+  const gates = Number(result.detail?.gates_recorded ?? 0);
+  const alerts = Number(result.detail?.alerts_recorded ?? 0);
+  return {
+    ok: true,
+    message: `Phase 46 scorecards/waives: ${scorecards} scorecard(s), ${gates} promote gate(s), ${alerts} alert(s) — breakers never closed or reset`,
+  };
+}
+
+export async function proposeIntunePromoteWaiveAction(input: {
+  recommendationId: string;
+  reason: string;
+}): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('action:intune_manual_review');
+  if (!gate.ok) return gate;
+  const parsed = z
+    .object({
+      recommendationId: z.string().uuid(),
+      reason: z.string().trim().min(20).max(1000),
+    })
+    .safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? 'Invalid waive proposal',
+    };
+  }
+  const service = await createPersistClient();
+  const { data: recommendation, error } = await service
+    .from('os_it_intune_threshold_recommendation_drafts')
+    .select('breaker_id')
+    .eq('recommendation_id', parsed.data.recommendationId)
+    .single();
+  if (error || !recommendation) {
+    return { ok: false, error: error?.message ?? 'Recommendation not found' };
+  }
+  const { data: breaker, error: breakerError } = await service
+    .from('os_it_intune_provider_breakers')
+    .select('entity_id')
+    .eq('breaker_id', recommendation.breaker_id)
+    .single();
+  if (breakerError || !breaker) {
+    return { ok: false, error: breakerError?.message ?? 'Breaker not found' };
+  }
+  if (
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      breaker.entity_id,
+    )
+  ) {
+    return {
+      ok: false,
+      error: entityScopeDeniedMessage(breaker.entity_id ?? 'firm-wide'),
+    };
+  }
+  const { proposeIntunePromoteWaive } = await import(
+    '@/lib/shared-services/it-assets-repo'
+  );
+  const result = await proposeIntunePromoteWaive({
+    recommendation_id: parsed.data.recommendationId,
+    actor_id: gate.profile.id,
+    reason: parsed.data.reason,
+  });
+  if (!result.ok) return result;
+  revalidateAssets();
+  return {
+    ok: true,
+    message:
+      'Promote waive proposed — a different approver must dual-approve before Accept',
+  };
+}
+
+export async function reviewIntunePromoteWaiveAction(input: {
+  proposalId: string;
+  decision: 'approve' | 'reject';
+  statement: string;
+  expectedRowVersion: number;
+}): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('action:intune_manual_review');
+  if (!gate.ok) return gate;
+  const parsed = z
+    .object({
+      proposalId: z.string().uuid(),
+      decision: z.enum(['approve', 'reject']),
+      statement: z.string().trim().min(20).max(1000),
+      expectedRowVersion: z.number().int().nonnegative(),
+    })
+    .safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? 'Invalid waive review',
+    };
+  }
+  const service = await createPersistClient();
+  const { data: proposal, error } = await service
+    .from('os_it_intune_promote_waive_proposals')
+    .select('recommendation_id, proposed_by')
+    .eq('proposal_id', parsed.data.proposalId)
+    .single();
+  if (error || !proposal) {
+    return { ok: false, error: error?.message ?? 'Waive proposal not found' };
+  }
+  if (proposal.proposed_by === gate.profile.id) {
+    return {
+      ok: false,
+      error: 'The proposer cannot dual-approve this promote waive',
+    };
+  }
+  const { data: recommendation, error: recoError } = await service
+    .from('os_it_intune_threshold_recommendation_drafts')
+    .select('breaker_id')
+    .eq('recommendation_id', proposal.recommendation_id)
+    .single();
+  if (recoError || !recommendation) {
+    return {
+      ok: false,
+      error: recoError?.message ?? 'Recommendation not found',
+    };
+  }
+  const { data: breaker, error: breakerError } = await service
+    .from('os_it_intune_provider_breakers')
+    .select('entity_id')
+    .eq('breaker_id', recommendation.breaker_id)
+    .single();
+  if (breakerError || !breaker) {
+    return { ok: false, error: breakerError?.message ?? 'Breaker not found' };
+  }
+  if (
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      breaker.entity_id,
+    )
+  ) {
+    return {
+      ok: false,
+      error: entityScopeDeniedMessage(breaker.entity_id ?? 'firm-wide'),
+    };
+  }
+  const { reviewIntunePromoteWaive } = await import(
+    '@/lib/shared-services/it-assets-repo'
+  );
+  const result = await reviewIntunePromoteWaive({
+    proposal_id: parsed.data.proposalId,
+    actor_id: gate.profile.id,
+    decision: parsed.data.decision,
+    statement: parsed.data.statement,
+    expected_row_version: parsed.data.expectedRowVersion,
+  });
+  if (!result.ok) return result;
+  revalidateAssets();
+  return {
+    ok: true,
+    message:
+      parsed.data.decision === 'approve'
+        ? 'Promote waive dual-approved — Accept → tuning proposal is unblocked'
+        : 'Promote waive rejected',
   };
 }

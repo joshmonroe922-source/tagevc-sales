@@ -128,6 +128,25 @@ type Dashboard = {
   }>;
   phase45OpsAlerts?: Array<Record<string, unknown>>;
   phase45Slo?: Record<string, unknown> | null;
+  cutoverAcceptances?: Array<{
+    acceptance_id: string;
+    rotation_id: string;
+    verifier_kind: string;
+    acceptance_sha256: string;
+    previous_key_id: string;
+    next_key_id: string;
+    dual_acceptance_complete: boolean;
+    created_at: string;
+  }>;
+  oncallRoutes?: Array<{
+    route_id: string;
+    destination_key: string;
+    route_status: string;
+    last_paged_at: string | null;
+    updated_at: string;
+  }>;
+  oncallDeliveries?: Array<Record<string, unknown>>;
+  phase46Slo?: Record<string, unknown> | null;
 };
 
 type ApiResult = {
@@ -142,6 +161,7 @@ type ApiResult = {
   check?: Record<string, unknown>;
   skipped?: boolean;
   rotation?: Record<string, unknown>;
+  acceptance?: Record<string, unknown>;
 };
 
 function downloadSignedPackage(value: Record<string, unknown>) {
@@ -527,13 +547,46 @@ export function SnapshotRetirementPhase40Admin() {
         });
         setMessage(
           result.rotation
-            ? `Ed25519 cutover complete · ${String(result.rotation.status ?? 'cutover_complete')} (non-qualifying).`
-            : 'Ed25519 cutover completed (non-qualifying).',
+            ? `Ed25519 cutover complete · ${String(result.rotation.status ?? 'cutover_complete')} (dual-acceptance; non-qualifying).`
+            : 'Ed25519 cutover completed (dual-acceptance; non-qualifying).',
         );
         await refresh();
       } catch (cause) {
         setError(
           cause instanceof Error ? cause.message : 'Ed25519 cutover failed',
+        );
+      }
+    });
+  }
+
+  function recordCutoverAcceptance() {
+    const open = (dashboard?.ed25519Rotations ?? []).find(
+      (row) => row.status === 'dual_active' || row.status === 'cutover_complete',
+    );
+    if (!open) {
+      setError('Announce and activate a dual-key rotation before recording acceptance.');
+      return;
+    }
+    setMessage(null);
+    setError(null);
+    startTransition(async () => {
+      try {
+        const result = await post({
+          action: 'record_cutover_acceptance',
+          rotation_id: open.rotation_id,
+          verifier_kind: 'admin',
+          previous_key_id: open.previous_key_id,
+          next_key_id: open.next_key_id,
+        });
+        setMessage(
+          result.acceptance
+            ? `Cutover acceptance recorded · ${String(result.acceptance.verifier_kind ?? 'admin')} · dual=${String(result.acceptance.dual_acceptance_complete ?? false)} (public key ids only).`
+            : 'Cutover acceptance recorded (public key ids only).',
+        );
+        await refresh();
+      } catch (cause) {
+        setError(
+          cause instanceof Error ? cause.message : 'Cutover acceptance failed',
         );
       }
     });
@@ -746,6 +799,41 @@ export function SnapshotRetirementPhase40Admin() {
           {String(dashboard.phase45Slo.integrity_consecutive ?? 0)}
         </p>
       ) : null}
+      {(dashboard?.cutoverAcceptances ?? []).slice(0, 4).map((acceptance) => (
+        <p
+          key={acceptance.acceptance_id}
+          className="font-mono text-[10px] text-muted-foreground"
+        >
+          ACCEPT · {acceptance.verifier_kind} · {acceptance.previous_key_id}→
+          {acceptance.next_key_id} · dual={String(acceptance.dual_acceptance_complete)}
+        </p>
+      ))}
+      {(dashboard?.oncallRoutes ?? []).map((route) => (
+        <p
+          key={route.route_id}
+          className="font-mono text-[10px] text-muted-foreground"
+        >
+          ONCALL · {route.destination_key} · {route.route_status} · last{' '}
+          {route.last_paged_at ?? 'never'}
+        </p>
+      ))}
+      {(dashboard?.oncallDeliveries ?? []).slice(0, 3).map((delivery) => (
+        <p
+          key={String(delivery.delivery_id)}
+          className="font-mono text-[10px] text-muted-foreground"
+        >
+          PAGE · {String(delivery.created_at)} · {String(delivery.delivery_status)} ·{' '}
+          {String(delivery.window_key)}
+        </p>
+      ))}
+      {dashboard?.phase46Slo ? (
+        <p className="text-muted-foreground">
+          Phase 46 cutover acceptances 365d ·{' '}
+          {String(dashboard.phase46Slo.cutover_acceptances_365d ?? 0)} · dual ready{' '}
+          {String(dashboard.phase46Slo.dual_acceptance_ready ?? 0)} · oncall delivered 30d{' '}
+          {String(dashboard.phase46Slo.oncall_delivered_30d ?? 0)}
+        </p>
+      ) : null}
       {dashboard?.checks.slice(0, 4).map((check) => (
         <p key={check.check_id} className="font-mono text-[10px] text-muted-foreground">
           {check.checked_at} · retention {check.status}
@@ -810,6 +898,9 @@ export function SnapshotRetirementPhase40Admin() {
         </Button>
         <Button type="button" size="sm" variant="outline" disabled={pending} onClick={activateDualKey}>
           Activate dual-key
+        </Button>
+        <Button type="button" size="sm" variant="outline" disabled={pending} onClick={recordCutoverAcceptance}>
+          Record cutover acceptance
         </Button>
         <Button type="button" size="sm" variant="outline" disabled={pending} onClick={completeEd25519Cutover}>
           Complete cutover

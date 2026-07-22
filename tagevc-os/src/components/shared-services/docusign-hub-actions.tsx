@@ -30,6 +30,9 @@ export function DocuSignHubActions({
   phase45GateProgress,
   phase45DriftBudgetHealth,
   phase45CadenceHealth,
+  phase46FirstQuarterlyStatus,
+  phase46RecurringStatus,
+  phase46CadenceHealth,
 }: {
   canWrite: boolean;
   canReconcile: boolean;
@@ -41,6 +44,9 @@ export function DocuSignHubActions({
   phase45GateProgress?: string;
   phase45DriftBudgetHealth?: string;
   phase45CadenceHealth?: string;
+  phase46FirstQuarterlyStatus?: string;
+  phase46RecurringStatus?: string;
+  phase46CadenceHealth?: string;
 }) {
   const [flash, setFlash] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -54,9 +60,13 @@ export function DocuSignHubActions({
     phase45GateProgress != null ||
     phase45DriftBudgetHealth != null ||
     phase45CadenceHealth != null;
+  const showPhase46Badges =
+    phase46FirstQuarterlyStatus != null ||
+    phase46RecurringStatus != null ||
+    phase46CadenceHealth != null;
 
   const badges =
-    showPhase44Badges || showPhase45Badges ? (
+    showPhase44Badges || showPhase45Badges || showPhase46Badges ? (
       <div className="flex flex-wrap gap-2 text-[11px]">
         {phase44DriftHealth ? (
           <span className="rounded border border-border/70 px-2 py-0.5 text-muted-foreground">
@@ -86,6 +96,21 @@ export function DocuSignHubActions({
         {phase45CadenceHealth ? (
           <span className="rounded border border-border/70 px-2 py-0.5 text-muted-foreground">
             Phase 45 cadence {phase45CadenceHealth}
+          </span>
+        ) : null}
+        {phase46FirstQuarterlyStatus ? (
+          <span className="rounded border border-border/70 px-2 py-0.5 text-muted-foreground">
+            Phase 46 first quarterly {phase46FirstQuarterlyStatus}
+          </span>
+        ) : null}
+        {phase46RecurringStatus ? (
+          <span className="rounded border border-border/70 px-2 py-0.5 text-muted-foreground">
+            Phase 46 recurring {phase46RecurringStatus}
+          </span>
+        ) : null}
+        {phase46CadenceHealth ? (
+          <span className="rounded border border-border/70 px-2 py-0.5 text-muted-foreground">
+            Phase 46 cadence {phase46CadenceHealth}
           </span>
         ) : null}
       </div>

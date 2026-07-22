@@ -39,6 +39,9 @@ import {
   refreshIntuneRecommendationSoakAction,
   refreshIntunePhase44ResilienceOpsAction,
   refreshIntunePhase45QualityGateOpsAction,
+  refreshIntunePhase46QualityWaiveOpsAction,
+  proposeIntunePromoteWaiveAction,
+  reviewIntunePromoteWaiveAction,
   runIntuneWorkerAction,
   type ItAssetActionResult,
 } from '@/app/(app)/shared-services/it/assets/actions';
@@ -64,7 +67,10 @@ import type {
   ItIntunePhase43Health,
   ItIntunePhase44Health,
   ItIntunePhase45Health,
+  ItIntunePhase46Health,
   ItIntunePostmortemQualityStatus,
+  ItIntunePostmortemQualityScorecardStatus,
+  ItIntunePromoteWaiveStatus,
   ItIntuneTuningPromoteGateStatus,
   ItIntuneResilienceCorrelationEvent,
   ItIntuneSoakCycleTimeline,
@@ -126,11 +132,14 @@ export function ItAssetsClient({
   intunePhase43Health = null,
   intunePhase44Health = null,
   intunePhase45Health = null,
+  intunePhase46Health = null,
   intuneOutagePostmortems = [],
   intuneThresholdRecommendations = [],
   intuneSoakCycleTimeline = [],
   intuneResilienceCorrelation = [],
   intunePostmortemQuality = [],
+  intunePostmortemScorecards = [],
+  intunePromoteWaives = [],
   intunePromoteGates = [],
   canIntuneRetire = false,
   canIntuneManualReview = false,
@@ -171,11 +180,14 @@ export function ItAssetsClient({
   intunePhase43Health?: ItIntunePhase43Health | null;
   intunePhase44Health?: ItIntunePhase44Health | null;
   intunePhase45Health?: ItIntunePhase45Health | null;
+  intunePhase46Health?: ItIntunePhase46Health | null;
   intuneOutagePostmortems?: ItIntuneOutagePostmortem[];
   intuneThresholdRecommendations?: ItIntuneThresholdRecommendation[];
   intuneSoakCycleTimeline?: ItIntuneSoakCycleTimeline[];
   intuneResilienceCorrelation?: ItIntuneResilienceCorrelationEvent[];
   intunePostmortemQuality?: ItIntunePostmortemQualityStatus[];
+  intunePostmortemScorecards?: ItIntunePostmortemQualityScorecardStatus[];
+  intunePromoteWaives?: ItIntunePromoteWaiveStatus[];
   intunePromoteGates?: ItIntuneTuningPromoteGateStatus[];
   canIntuneRetire?: boolean;
   canIntuneManualReview?: boolean;
@@ -220,8 +232,14 @@ export function ItAssetsClient({
   const qualityByPostmortem = new Map(
     intunePostmortemQuality.map((row) => [row.postmortem_id, row]),
   );
+  const scorecardByPostmortem = new Map(
+    intunePostmortemScorecards.map((row) => [row.postmortem_id, row]),
+  );
   const promoteGateByRecommendation = new Map(
     intunePromoteGates.map((row) => [row.recommendation_id, row]),
+  );
+  const waiveByRecommendation = new Map(
+    intunePromoteWaives.map((row) => [row.recommendation_id, row]),
   );
 
   return (
@@ -321,6 +339,20 @@ export function ItAssetsClient({
                 : ''}
             </>
           ) : null}
+          {intunePhase46Health ? (
+            <>
+              {' · '}scorecards{' '}
+              {Number(intunePhase46Health.scorecard_count)}
+              {' · '}score ready{' '}
+              {Number(intunePhase46Health.scorecard_ready_count)}
+              {Number(intunePhase46Health.waive_pending_count) > 0
+                ? ` · waive pending ${Number(intunePhase46Health.waive_pending_count)}`
+                : ''}
+              {Number(intunePhase46Health.dual_approve_required_7d) > 0
+                ? ` · dual-approve required 7d ${Number(intunePhase46Health.dual_approve_required_7d)}`
+                : ''}
+            </>
+          ) : null}
         </div>
       ) : null}
 
@@ -329,6 +361,8 @@ export function ItAssetsClient({
         intuneSoakCycleTimeline.length > 0 ||
         intuneResilienceCorrelation.length > 0 ||
         intunePostmortemQuality.length > 0 ||
+        intunePostmortemScorecards.length > 0 ||
+        intunePromoteWaives.length > 0 ||
         intunePromoteGates.length > 0) && (
         <section className="space-y-3 rounded-lg border p-4">
           <div>
@@ -341,7 +375,8 @@ export function ItAssetsClient({
               closes or resets an open breaker. Phase 42 records soak status; Phase 43
               records open→closed cycle evidence only after natural recovery. Phase 44
               adds performance trends, canary/outage ops alerts, and correlation.
-              Phase 45 quality-gates promote behind multi-cycle healthy trends.
+              Phase 45 quality-gates promote behind multi-cycle healthy trends. Phase 46
+              deepens scorecards and requires dual-approver waive for promote exceptions.
             </p>
             {canIntuneManualReview && intunePhase42Health ? (
               <div className="flex flex-wrap gap-2 pt-1">
@@ -373,6 +408,17 @@ export function ItAssetsClient({
                   }
                 >
                   Refresh quality gates
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={pending}
+                  onClick={() =>
+                    run(() => refreshIntunePhase46QualityWaiveOpsAction())
+                  }
+                >
+                  Refresh scorecards / waives
                 </Button>
               </div>
             ) : null}
@@ -424,6 +470,9 @@ export function ItAssetsClient({
               <p className="font-medium">Postmortems</p>
               {intuneOutagePostmortems.map((postmortem) => {
                 const quality = qualityByPostmortem.get(postmortem.postmortem_id);
+                const scorecard = scorecardByPostmortem.get(
+                  postmortem.postmortem_id,
+                );
                 return (
                 <div
                   key={postmortem.postmortem_id}
@@ -436,7 +485,44 @@ export function ItAssetsClient({
                     {Number(postmortem.correlated_scope_count)} · failures{' '}
                     {Number(postmortem.failure_count)}/
                     {Number(postmortem.sample_count)}
-                    {quality ? (
+                    {scorecard ? (
+                      <>
+                        {' · '}
+                        <span
+                          className={
+                            scorecard.ready_for_tuning_promote
+                              ? 'rounded bg-emerald-100 px-1.5 py-0.5 text-emerald-950'
+                              : Number(scorecard.composite_score) < 0.6
+                                ? 'rounded bg-amber-100 px-1.5 py-0.5 text-amber-950'
+                                : 'rounded bg-slate-100 px-1.5 py-0.5 text-slate-900'
+                          }
+                        >
+                          score{' '}
+                          {Math.round(Number(scorecard.composite_score) * 100)}%
+                          {' · '}trend{' '}
+                          {Math.round(
+                            Number(scorecard.cycle_trend_component) * 100,
+                          )}
+                          % · corr{' '}
+                          {Math.round(
+                            Number(scorecard.correlation_coverage_component) *
+                              100,
+                          )}
+                          % · root{' '}
+                          {Math.round(
+                            Number(scorecard.root_cause_component) * 100,
+                          )}
+                          % · notes{' '}
+                          {Math.round(
+                            Number(scorecard.notes_quality_component) * 100,
+                          )}
+                          %
+                          {scorecard.ready_for_tuning_promote
+                            ? ' · promote-ready'
+                            : ''}
+                        </span>
+                      </>
+                    ) : quality ? (
                       <>
                         {' · '}
                         <span
@@ -572,13 +658,23 @@ export function ItAssetsClient({
                 const promoteGate = promoteGateByRecommendation.get(
                   recommendation.recommendation_id,
                 );
+                const waive = waiveByRecommendation.get(
+                  recommendation.recommendation_id,
+                );
+                const dualApprovedWaive =
+                  waive?.status === 'approved' &&
+                  waive.decided_by != null &&
+                  waive.decided_by !== waive.proposed_by &&
+                  Date.parse(waive.expires_at) > Date.now();
                 const promoteBlocked =
                   recommendation.status === 'pending' &&
                   promoteGate != null &&
-                  promoteGate.gate_status === 'blocked';
+                  promoteGate.gate_status === 'blocked' &&
+                  !dualApprovedWaive;
                 const promoteReady =
                   promoteGate?.gate_status === 'ready' ||
-                  promoteGate?.gate_status === 'waived';
+                  (promoteGate?.gate_status === 'waived' && dualApprovedWaive) ||
+                  dualApprovedWaive;
                 return (
                 <div
                   key={recommendation.recommendation_id}
@@ -625,6 +721,15 @@ export function ItAssetsClient({
                         </span>
                       </>
                     ) : null}
+                    {waive ? (
+                      <>
+                        {' · '}
+                        <span className="rounded bg-violet-100 px-1.5 py-0.5 text-violet-950">
+                          waive {waive.status}
+                          {dualApprovedWaive ? ' · dual-approved' : ''}
+                        </span>
+                      </>
+                    ) : null}
                     {recommendation.status === 'accepted' &&
                     recommendation.soak_status
                       ? ` · soak ${recommendation.soak_status}${
@@ -658,13 +763,7 @@ export function ItAssetsClient({
                         <span>
                           Breaker {recommendation.breaker_state} — cannot accept until closed
                         </span>
-                      ) : promoteBlocked || !promoteReady ? (
-                        <span>
-                          Promote gate{' '}
-                          {promoteGate?.gate_status ?? 'pending'} — need multi-cycle
-                          healthy trends before Accept → tuning proposal
-                        </span>
-                      ) : (
+                      ) : promoteReady ? (
                         <Button
                           type="button"
                           size="sm"
@@ -689,7 +788,93 @@ export function ItAssetsClient({
                         >
                           Accept → tuning proposal
                         </Button>
+                      ) : (
+                        <span>
+                          Promote gate{' '}
+                          {promoteGate?.gate_status ?? 'pending'} — need ready
+                          scorecard or dual-approved waive before Accept → tuning
+                          proposal
+                        </span>
                       )}
+                      {promoteBlocked &&
+                      (!waive ||
+                        waive.status === 'rejected' ||
+                        waive.status === 'expired') ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={pending}
+                          onClick={() => {
+                            const reason = window.prompt(
+                              'Propose promote waive reason (20+ characters). A different approver must dual-approve:',
+                            );
+                            if (!reason || reason.trim().length < 20) return;
+                            run(() =>
+                              proposeIntunePromoteWaiveAction({
+                                recommendationId:
+                                  recommendation.recommendation_id,
+                                reason: reason.trim(),
+                              }),
+                            );
+                          }}
+                        >
+                          Propose waive
+                        </Button>
+                      ) : null}
+                      {waive?.status === 'proposed' &&
+                      waive.proposed_by !== currentActorId ? (
+                        <>
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={pending}
+                            onClick={() => {
+                              const statement = window.prompt(
+                                'Dual-approve waive statement (20+ characters):',
+                              );
+                              if (!statement || statement.trim().length < 20)
+                                return;
+                              run(() =>
+                                reviewIntunePromoteWaiveAction({
+                                  proposalId: waive.proposal_id,
+                                  decision: 'approve',
+                                  statement: statement.trim(),
+                                  expectedRowVersion: waive.row_version,
+                                }),
+                              );
+                            }}
+                          >
+                            Dual-approve waive
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={pending}
+                            onClick={() => {
+                              const statement = window.prompt(
+                                'Reject waive statement (20+ characters):',
+                              );
+                              if (!statement || statement.trim().length < 20)
+                                return;
+                              run(() =>
+                                reviewIntunePromoteWaiveAction({
+                                  proposalId: waive.proposal_id,
+                                  decision: 'reject',
+                                  statement: statement.trim(),
+                                  expectedRowVersion: waive.row_version,
+                                }),
+                              );
+                            }}
+                          >
+                            Reject waive
+                          </Button>
+                        </>
+                      ) : waive?.status === 'proposed' &&
+                        waive.proposed_by === currentActorId ? (
+                        <span>Awaiting a different dual-approver</span>
+                      ) : null}
                       <Button
                         type="button"
                         size="sm"

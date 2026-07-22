@@ -8,6 +8,7 @@ import {
 import { runArchiveGovernanceWorker } from '@/lib/docusign/archive-governance';
 import { runArchivePhase44OpsTick } from '@/lib/docusign/archive-phase44';
 import { runArchivePhase45OpsTick } from '@/lib/docusign/archive-phase45';
+import { runArchivePhase46OpsTick } from '@/lib/docusign/archive-phase46';
 import {
   finishOperationalWorker,
   startOperationalWorker,
@@ -99,6 +100,7 @@ async function run(request: Request) {
       : undefined;
     const phase44 = await runArchivePhase44OpsTick();
     const phase45 = await runArchivePhase45OpsTick();
+    const phase46 = await runArchivePhase46OpsTick();
     await finishOperationalWorker({
       workerRunId: worker.workerRunId,
       status: noop
@@ -151,10 +153,16 @@ async function run(request: Request) {
           ? phase45.gateStepsRecorded
           : null,
         phase45_ops_error: phase45.ok ? null : phase45.error,
+        phase46_ops_ok: phase46.ok,
+        phase46_alerts_recorded: phase46.ok ? phase46.alertsRecorded : null,
+        phase46_completion_status: phase46.ok
+          ? phase46.completionStatus
+          : null,
+        phase46_ops_error: phase46.ok ? null : phase46.error,
       },
     });
     return NextResponse.json(
-      { ...result, phase44, phase45 },
+      { ...result, phase44, phase45, phase46 },
       {
         status: result.ok || noop || (result.governance?.claimed ?? 0) > 0
           ? 200
@@ -180,6 +188,7 @@ async function run(request: Request) {
   const leaseConflict = /busy|not due|lease/i.test(result.error ?? '');
   const phase44 = await runArchivePhase44OpsTick();
   const phase45 = await runArchivePhase45OpsTick();
+  const phase46 = await runArchivePhase46OpsTick();
   await finishOperationalWorker({
     workerRunId: worker.workerRunId,
     status: result.checkpointed
@@ -211,10 +220,16 @@ async function run(request: Request) {
         ? phase45.gateStepsRecorded
         : null,
       phase45_ops_error: phase45.ok ? null : phase45.error,
+      phase46_ops_ok: phase46.ok,
+      phase46_alerts_recorded: phase46.ok ? phase46.alertsRecorded : null,
+      phase46_completion_status: phase46.ok
+        ? phase46.completionStatus
+        : null,
+      phase46_ops_error: phase46.ok ? null : phase46.error,
     },
   });
   return NextResponse.json(
-    { ...result, phase44, phase45 },
+    { ...result, phase44, phase45, phase46 },
     {
       status: result.ok || result.claimed > 0 ? 200 : 500,
     },

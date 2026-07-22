@@ -7,6 +7,7 @@ import type {
   Phase43RevenueOpsReport,
   Phase44RevenueOpsReport,
   Phase45RevenueOpsReport,
+  Phase46RevenueOpsReport,
 } from '@/lib/shared-services/marketing-revenue-contracts';
 import {
   reviewMarketingRevenueCorrectionAction,
@@ -53,6 +54,8 @@ export function MarketingRevenuePhase41({
   phase44OpsError,
   phase45OpsReport,
   phase45OpsError,
+  phase46OpsReport,
+  phase46OpsError,
 }: {
   report: Phase41RevenueReport;
   error?: string;
@@ -65,6 +68,8 @@ export function MarketingRevenuePhase41({
   phase44OpsError?: string;
   phase45OpsReport?: Phase45RevenueOpsReport;
   phase45OpsError?: string;
+  phase46OpsReport?: Phase46RevenueOpsReport;
+  phase46OpsError?: string;
 }) {
   const [pending, startTransition] = useTransition();
   const [actionError, setActionError] = useState<string | null>(null);
@@ -252,6 +257,29 @@ export function MarketingRevenuePhase41({
                 </span>
               </>
             ) : null}
+            {phase46OpsReport ? (
+              <>
+                <span
+                  className={`rounded border px-2 py-0.5 text-[11px] ${severityClass(phase46OpsReport.promotion_gate_health)}`}
+                >
+                  promotion gate {phase46OpsReport.promotion_gate_health}
+                  {phase46OpsReport.promotion_gate
+                    ? ` (${phase46OpsReport.promotion_gate.webhook_slo_windows_healthy}/${phase46OpsReport.promotion_gate.webhook_slo_windows_required})`
+                    : ''}
+                </span>
+                <span
+                  className={`rounded border px-2 py-0.5 text-[11px] ${severityClass(phase46OpsReport.webhook_reliability_health)}`}
+                >
+                  webhook reliability{' '}
+                  {phase46OpsReport.webhook_reliability_health}
+                </span>
+                <span
+                  className={`rounded border px-2 py-0.5 text-[11px] ${severityClass(phase46OpsReport.rule_performance_health)}`}
+                >
+                  rule performance {phase46OpsReport.rule_performance_health}
+                </span>
+              </>
+            ) : null}
           </div>
           {sloError ? (
             <p className="text-xs text-destructive">{sloError}</p>
@@ -264,6 +292,9 @@ export function MarketingRevenuePhase41({
           ) : null}
           {phase45OpsError ? (
             <p className="text-xs text-destructive">{phase45OpsError}</p>
+          ) : null}
+          {phase46OpsError ? (
+            <p className="text-xs text-destructive">{phase46OpsError}</p>
           ) : null}
           <div className="grid gap-2 md:grid-cols-2">
             <div className="rounded border p-2 text-xs">

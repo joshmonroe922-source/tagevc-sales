@@ -193,6 +193,16 @@ async function runReadOnlyHealthCanaryWithToken(token: string): Promise<{
       error: phase45.error,
     };
   }
+  // Phase 46: deeper scorecards → promote gate/waive eval → alerts.
+  // Observe-only; never close or reset breakers.
+  const phase46 = await runIntunePhase46QualityWaiveOpsTick(sb);
+  if (!phase46.ok) {
+    return {
+      ok: false,
+      status: 'phase46_quality_waive_ops_failed',
+      error: phase46.error,
+    };
+  }
   return {
     ok: true,
     status: String((finished as { status?: string } | null)?.status ?? 'done'),
@@ -571,6 +581,151 @@ export async function processIntunePhase45QualityGateOps(): Promise<{
     status: 'done',
     detail: {
       reviews_recorded: result.reviewsRecorded,
+      gates_recorded: result.gatesRecorded,
+      alerts_recorded: result.alertsRecorded,
+      delivered: result.delivered,
+      skipped: result.skipped,
+      failed: result.failed,
+      closes_or_resets_breaker: false,
+    },
+  };
+}
+
+type Phase46CriticalWindow = {
+  alert_kind: string;
+  window_key: string;
+  severity?: string;
+  recommendation_id?: string | null;
+  waive_proposal_id?: string | null;
+  postmortem_id?: string | null;
+};
+
+async function runIntunePhase46QualityWaiveOpsTick(
+  sb: Awaited<ReturnType<typeof createPersistClient>>,
+): Promise<
+  | {
+      ok: true;
+      scorecardsRecorded: number;
+      gatesRecorded: number;
+      alertsRecorded: number;
+      delivered: number;
+      skipped: number;
+      failed: number;
+    }
+  | { ok: false; error: string }
+> {
+  const { data: scoreData, error: scoreError } = await sb.rpc(
+    'score_it_intune_postmortem_quality_phase46',
+  );
+  if (scoreError) {
+    return { ok: false, error: scoreError.message };
+  }
+
+  const { data: gateData, error: gateError } = await sb.rpc(
+    'evaluate_it_intune_tuning_promote_gate_phase46',
+  );
+  if (gateError) {
+    return { ok: false, error: gateError.message };
+  }
+
+  const { data: windows, error: windowError } = await sb.rpc(
+    'list_it_intune_phase46_critical_windows',
+    { p_window_hours: 24 },
+  );
+  if (windowError) {
+    return { ok: false, error: windowError.message };
+  }
+
+  const pending = ((windows as { pending?: Phase46CriticalWindow[] } | null)
+    ?.pending ?? []) as Phase46CriticalWindow[];
+  let alertsRecorded = 0;
+  let delivered = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  for (const window of pending.slice(0, 50)) {
+    const delivery = await deliverIntuneOpsWebhook({
+      kind: 'it_intune_phase46_ops_alert',
+      version: 'phase46-v1',
+      alert_kind: window.alert_kind,
+      window_key: window.window_key,
+      severity: window.severity ?? 'warning',
+      recommendation_id: window.recommendation_id ?? null,
+      waive_proposal_id: window.waive_proposal_id ?? null,
+      postmortem_id: window.postmortem_id ?? null,
+      destination_key: INTUNE_OPS_DESTINATION_KEY,
+      entity_identifiers_included: false,
+      closes_or_resets_breaker: false,
+    });
+
+    const { data: recorded, error: recordError } = await sb.rpc(
+      'record_it_intune_phase46_ops_alert',
+      {
+        p_alert: {
+          alert_kind: window.alert_kind,
+          window_key: window.window_key,
+          severity: window.severity ?? 'warning',
+          recommendation_id: window.recommendation_id ?? null,
+          waive_proposal_id: window.waive_proposal_id ?? null,
+          postmortem_id: window.postmortem_id ?? null,
+          destination_key: INTUNE_OPS_DESTINATION_KEY,
+          delivery_status: delivery.delivery_status,
+          response_code: delivery.response_code,
+          aggregate_evidence: {
+            evidence_version: 'phase46-v1',
+            entity_identifiers_included: false,
+            closes_or_resets_breaker: false,
+          },
+        },
+      },
+    );
+    if (recordError) {
+      return { ok: false, error: recordError.message };
+    }
+    if ((recorded as { inserted?: boolean } | null)?.inserted) {
+      alertsRecorded += 1;
+      if (delivery.delivery_status === 'delivered') delivered += 1;
+      else if (delivery.delivery_status === 'skipped_no_webhook') skipped += 1;
+      else failed += 1;
+    }
+  }
+
+  return {
+    ok: true,
+    scorecardsRecorded: Number(
+      (scoreData as { scorecards_recorded?: number } | null)
+        ?.scorecards_recorded ?? 0,
+    ),
+    gatesRecorded: Number(
+      (gateData as { gates_recorded?: number } | null)?.gates_recorded ?? 0,
+    ),
+    alertsRecorded,
+    delivered,
+    skipped,
+    failed,
+  };
+}
+
+export async function processIntunePhase46QualityWaiveOps(): Promise<{
+  ok: boolean;
+  status: string;
+  detail?: Record<string, unknown>;
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const result = await runIntunePhase46QualityWaiveOpsTick(sb);
+  if (!result.ok) {
+    return {
+      ok: false,
+      status: 'phase46_quality_waive_ops_failed',
+      error: result.error,
+    };
+  }
+  return {
+    ok: true,
+    status: 'done',
+    detail: {
+      scorecards_recorded: result.scorecardsRecorded,
       gates_recorded: result.gatesRecorded,
       alerts_recorded: result.alertsRecorded,
       delivered: result.delivered,

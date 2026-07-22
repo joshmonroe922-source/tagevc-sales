@@ -13,6 +13,8 @@ import {
   runSloOwnerSuccessionDrillAction,
   runSloNightlyScenarioReplayAction,
   generateSloOwnerHandoffDigestAction,
+  runSloFirmWideNightlyReplayAction,
+  publishSloOwnerHandoffDigestAction,
   saveSloPolicyDraftAction,
   suggestSloOwnerHandoffsAction,
   transitionSloPolicyDraftAction,
@@ -246,6 +248,10 @@ export function SloPolicyAdmin({
   nightlyReplayRuns = [],
   handoffDigests = [],
   phase45Report = null,
+  firmWideReplayRuns = [],
+  digestPublications = [],
+  ownershipChangeAlerts = [],
+  phase46Report = null,
 }: {
   activePolicies: SloPolicyRow[];
   drafts: SloPolicyRow[];
@@ -266,6 +272,10 @@ export function SloPolicyAdmin({
   nightlyReplayRuns?: Array<Record<string, unknown>>;
   handoffDigests?: Array<Record<string, unknown>>;
   phase45Report?: Record<string, unknown> | null;
+  firmWideReplayRuns?: Array<Record<string, unknown>>;
+  digestPublications?: Array<Record<string, unknown>>;
+  ownershipChangeAlerts?: Array<Record<string, unknown>>;
+  phase46Report?: Record<string, unknown> | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -402,6 +412,25 @@ export function SloPolicyAdmin({
     startTransition(async () => {
       const result = await generateSloOwnerHandoffDigestAction();
       setMessage(result.ok ? result.message ?? 'Digest recorded' : result.error);
+      if (result.ok) router.refresh();
+    });
+  }
+
+  function runFirmWideReplay() {
+    startTransition(async () => {
+      const result = await runSloFirmWideNightlyReplayAction();
+      setMessage(result.ok ? result.message ?? 'Firm-wide replay recorded' : result.error);
+      if (result.ok) router.refresh();
+    });
+  }
+
+  function publishHandoffDigest() {
+    startTransition(async () => {
+      const result = await publishSloOwnerHandoffDigestAction({
+        recipientCount: 0,
+        destinationKey: 'ops_alerts',
+      });
+      setMessage(result.ok ? result.message ?? 'Digest published' : result.error);
       if (result.ok) router.refresh();
     });
   }
@@ -636,6 +665,24 @@ export function SloPolicyAdmin({
               >
                 Generate handoff digest
               </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={pending}
+                onClick={runFirmWideReplay}
+              >
+                Run firm-wide nightly replay
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={pending}
+                onClick={publishHandoffDigest}
+              >
+                Publish handoff digest
+              </Button>
             </div>
             {nightlyReplayRuns.slice(0, 4).map((run) => (
               <p
@@ -645,6 +692,17 @@ export function SloPolicyAdmin({
                 NIGHTLY · {String(run.scheduled_for)} · {String(run.status)} · claimed{' '}
                 {String(run.scenarios_claimed)} · ok {String(run.succeeded)} · failed{' '}
                 {String(run.failed)} · material {String(run.material_risk_count)}
+              </p>
+            ))}
+            {firmWideReplayRuns.slice(0, 4).map((run) => (
+              <p
+                key={String(run.run_id)}
+                className="font-mono text-[10px] text-muted-foreground"
+              >
+                FIRM-WIDE · {String(run.scheduled_for)} · {String(run.status)} · claimed{' '}
+                {String(run.scenarios_claimed)} · material {String(run.material_risk_count)} ·
+                flag {String(run.firm_wide_flag_count)} · ok {String(run.succeeded)} · failed{' '}
+                {String(run.failed)}
               </p>
             ))}
             {handoffDigests.slice(0, 4).map((digest) => (
@@ -657,11 +715,42 @@ export function SloPolicyAdmin({
                 accepted {String(digest.accepted_count)}
               </p>
             ))}
+            {digestPublications.slice(0, 4).map((publication) => (
+              <p
+                key={String(publication.publication_id)}
+                className="font-mono text-[10px] text-muted-foreground"
+              >
+                PUBLISH · {String(publication.digest_quarter)} ·{' '}
+                {String(publication.publish_status)} · recipients{' '}
+                {String(publication.recipient_count)} · dest{' '}
+                {String(publication.destination_key)}
+              </p>
+            ))}
+            {ownershipChangeAlerts.slice(0, 3).map((alert) => (
+              <p
+                key={String(alert.alert_id)}
+                className="font-mono text-[10px] text-muted-foreground"
+              >
+                OWNERSHIP · {String(alert.severity)} · {String(alert.window_key)} · expires{' '}
+                {String(alert.expires_at ?? '')}
+              </p>
+            ))}
             {phase45Report ? (
               <p className="text-muted-foreground">
                 Phase 45 · nightly 30d {String(phase45Report.nightly_replay_runs_30d ?? 0)} ·
                 digests {String(phase45Report.handoff_digests ?? 0)} · upcoming ownership{' '}
                 {String(phase45Report.upcoming_ownership_change_count ?? 0)}
+              </p>
+            ) : null}
+            {phase46Report ? (
+              <p className="text-muted-foreground">
+                Phase 46 · firm-wide 30d{' '}
+                {String(phase46Report.firm_wide_replay_runs_30d ?? 0)} · publications{' '}
+                {String(phase46Report.digest_publications ?? 0)} · ownership alerts{' '}
+                {String(phase46Report.ownership_change_alerts_30d ?? 0)} · without handoff{' '}
+                {String(
+                  phase46Report.upcoming_ownership_change_without_handoff_count ?? 0,
+                )}
               </p>
             ) : null}
           </CardContent>

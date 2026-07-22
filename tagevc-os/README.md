@@ -821,13 +821,36 @@ Docs: `docs/OS_PHASE45.md`
 Optional env: `SNAPSHOT_CONSECUTIVE_FAILURE_THRESHOLD` (default 3); reuse
 `SLO_WEBHOOK_OPS_ALERTS` + `SLO_WEBHOOK_ALLOWED_HOSTS` for paging.
 
-### Phase 46+ backlog
+### Phase 46
 
-- Promote tuned auto-reject rules after healthy webhook delivery SLOs
-- Complete first DocuSign quarterly; arm recurring quarterlies; tighten drift budgets
-- Dual-approver waived Intune promote exceptions; deeper postmortem quality scores
-- Firm-wide nightly scenario replay + published quarterly handoff digests
-- Finish ed25519 dual-key cutovers; on-call paging for consecutive failures
+Controlled promotion and production cadence: auto-reject promotion gated on
+healthy webhook delivery SLOs, first DocuSign quarterly completion with
+recurring arms and tightened drift budgets, dual-approver Intune promote
+waives with deeper postmortem scorecards, firm-wide nightly SLO scenario
+replay with published handoff digests, and dual-acceptance ed25519 cutovers
+with on-call page routing. Stage 4e non-qualifying flags remain false; no
+snapshot relation mutations.
+
+Apply after Phase 45:
+
+1. `phase46_marketing_revenue_ops.sql`
+2. `phase46_docusign_archive_ops.sql`
+3. `phase46_intune_resilience_ops.sql`
+4. `phase46_slo_governance_ops.sql`
+5. `phase46_snapshot_cutover_ops.sql`
+
+Docs: `docs/OS_PHASE46.md`
+
+Optional env: `SNAPSHOT_ONCALL_WEBHOOK` (allowlisted via
+`SLO_WEBHOOK_ALLOWED_HOSTS`); falls back to `SLO_WEBHOOK_OPS_ALERTS`.
+
+### Phase 47+ backlog
+
+- Expand auto-reject promotion SLOs to multi-entity cohorts; close attribution conflicts
+- Run first armed DocuSign recurring quarterly under tightened drift budgets
+- Require dual-approve waive expiry SLOs; correlate scorecards with outage MTTR
+- Auto-notify owners on published handoff digests (still no full push system)
+- Offline verify-script dual acceptance as default cutover path; on-call ack SLOs
 - Continue Stage 4e soak; do not drop snapshots
 - Push · user admin
 

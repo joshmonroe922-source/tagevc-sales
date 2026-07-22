@@ -41,6 +41,7 @@ import {
 } from '@/lib/docusign/archive-campaigns';
 import { getArchivePhase44OpsReport } from '@/lib/docusign/archive-phase44';
 import { getArchivePhase45OpsReport } from '@/lib/docusign/archive-phase45';
+import { getArchivePhase46OpsReport } from '@/lib/docusign/archive-phase46';
 import { listArchiveGovernance } from '@/lib/docusign/archive-governance';
 
 function formatBytes(n: number | null | undefined): string {
@@ -136,6 +137,7 @@ export default async function DocuSignModulePage({
     firstQuarterlyOps,
     phase44Ops,
     phase45Ops,
+    phase46Ops,
   ] = await Promise.all([
     listDocuSignEvents({
       limit: 40,
@@ -201,6 +203,7 @@ export default async function DocuSignModulePage({
     getFirstQuarterlyOpsReport({ firmWide }),
     getArchivePhase44OpsReport({ firmWide }),
     getArchivePhase45OpsReport({ firmWide }),
+    getArchivePhase46OpsReport({ firmWide }),
   ]);
 
   const voidPolicy = process.env.DOCUSIGN_VOID_POLICY?.trim() || 'allow';
@@ -275,6 +278,7 @@ export default async function DocuSignModulePage({
           <Badge variant="secondary">Phase 42</Badge>
           <Badge variant="secondary">Phase 44</Badge>
           <Badge variant="secondary">Phase 45</Badge>
+          <Badge variant="secondary">Phase 46</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">DocuSign</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
@@ -309,6 +313,15 @@ export default async function DocuSignModulePage({
           }
           phase45CadenceHealth={
             firmWide ? phase45Ops.report.cadence_health : undefined
+          }
+          phase46FirstQuarterlyStatus={
+            firmWide ? phase46Ops.report.first_quarterly_status : undefined
+          }
+          phase46RecurringStatus={
+            firmWide ? phase46Ops.report.recurring_quarterly_status : undefined
+          }
+          phase46CadenceHealth={
+            firmWide ? phase46Ops.report.cadence_health : undefined
           }
         />
         <DocuSignTemplateSendForm
@@ -421,12 +434,16 @@ export default async function DocuSignModulePage({
               a gated CTA. Phase 44 adds drift/backfill snapshots and integrity
               ops alerts. Phase 45 tracks gate-clearing checklist evidence,
               signed-archive drift budgets, and recurring integrity cadence.
+              Phase 46 completes the first quarterly review, arms recurring
+              quarterlies, tightens drift budgets from baselines, and improves
+              cadence visibility.
               {archiveGovernance.error ? ` · ${archiveGovernance.error}` : ''}
               {archiveCampaigns.error ? ` · ${archiveCampaigns.error}` : ''}
               {archiveCampaignOps.error ? ` · ${archiveCampaignOps.error}` : ''}
               {firstQuarterlyOps.error ? ` · ${firstQuarterlyOps.error}` : ''}
               {phase44Ops.error ? ` · ${phase44Ops.error}` : ''}
               {phase45Ops.error ? ` · ${phase45Ops.error}` : ''}
+              {phase46Ops.error ? ` · ${phase46Ops.error}` : ''}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-xs">
@@ -512,6 +529,19 @@ export default async function DocuSignModulePage({
                     : ''}
                   {phase45Ops.report.latest_cadence?.full_overdue
                     ? ' · full overdue'
+                    : ''}
+                </p>
+                <p className="text-muted-foreground">
+                  Phase 46 first quarterly:{' '}
+                  {phase46Ops.report.first_quarterly_status} · recurring{' '}
+                  {phase46Ops.report.recurring_quarterly_status} · drift
+                  revision {phase46Ops.report.drift_revision_status} · cadence{' '}
+                  {phase46Ops.report.cadence_health}
+                  {phase46Ops.report.latest_arm?.next_due
+                    ? ` · next due ${new Date(String(phase46Ops.report.latest_arm.next_due)).toLocaleString()}`
+                    : ''}
+                  {phase46Ops.report.latest_cadence?.quarterly_overdue
+                    ? ' · quarterly overdue'
                     : ''}
                 </p>
               </div>

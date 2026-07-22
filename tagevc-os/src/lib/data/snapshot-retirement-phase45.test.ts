@@ -128,8 +128,12 @@ describe('Phase 45 snapshot key rotation ops', () => {
     expect(route).toContain('announce_ed25519_rotation');
     expect(route).toContain('activate_dual_key');
     expect(route).toContain('complete_ed25519_cutover');
-    expect(route).toContain('getSnapshotPhase45OpsDashboard');
-    expect(worker).toContain('runSnapshotPhase45OpsWorker');
+    expect(route).toMatch(
+      /getSnapshotPhase45OpsDashboard|getSnapshotPhase46OpsDashboard/,
+    );
+    expect(worker).toMatch(
+      /runSnapshotPhase45OpsWorker|runSnapshotPhase46OpsWorker/,
+    );
     expect(ui).toContain('Announce ed25519 rotation');
     expect(ui).toContain('Activate dual-key');
     expect(ui).toContain('Complete cutover');

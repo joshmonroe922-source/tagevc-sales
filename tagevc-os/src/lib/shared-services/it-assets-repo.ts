@@ -1062,6 +1062,19 @@ export type ItIntunePhase45Health = {
   alerts_undelivered_count: number;
 };
 
+export type ItIntunePhase46Health = {
+  scorecard_count: number;
+  scorecard_ready_count: number;
+  quality_score_low_7d: number;
+  waive_pending_count: number;
+  waive_approved_count: number;
+  waive_decision_count: number;
+  ops_alert_count: number;
+  alerts_delivered_count: number;
+  alerts_undelivered_count: number;
+  dual_approve_required_7d: number;
+};
+
 export type ItIntunePostmortemQualityStatus = {
   review_id: string;
   postmortem_id: string;
@@ -1074,6 +1087,43 @@ export type ItIntunePostmortemQualityStatus = {
   recorded_at: string;
   postmortem_status: string;
   root_cause_class: string;
+};
+
+export type ItIntunePostmortemQualityScorecardStatus = {
+  scorecard_id: string;
+  postmortem_id: string;
+  cycle_trend_component: number;
+  correlation_coverage_component: number;
+  root_cause_component: number;
+  notes_quality_component: number;
+  composite_score: number;
+  checklist: Record<string, unknown>;
+  cycle_complete_count: number;
+  correlation_event_kinds: number;
+  ready_for_tuning_promote: boolean;
+  evidence_sha256: string;
+  recorded_at: string;
+  postmortem_status: string;
+  root_cause_class: string;
+};
+
+export type ItIntunePromoteWaiveStatus = {
+  proposal_id: string;
+  recommendation_id: string;
+  proposed_by: string;
+  proposed_reason: string;
+  status: 'proposed' | 'approved' | 'rejected' | 'expired';
+  proposed_at: string;
+  expires_at: string;
+  row_version: number;
+  evidence_sha256: string;
+  decision_id: string | null;
+  decided_by: string | null;
+  decision_status: 'approved' | 'rejected' | null;
+  decided_at: string | null;
+  recommendation_status: string;
+  breaker_id: string;
+  postmortem_id: string | null;
 };
 
 export type ItIntuneTuningPromoteGateStatus = {
@@ -1457,6 +1507,22 @@ export async function getIntunePhase45Health(): Promise<{
     : { row: (data as ItIntunePhase45Health | null) ?? null };
 }
 
+export async function getIntunePhase46Health(): Promise<{
+  row: ItIntunePhase46Health | null;
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb
+    .from('os_it_intune_phase46_health')
+    .select(
+      'scorecard_count, scorecard_ready_count, quality_score_low_7d, waive_pending_count, waive_approved_count, waive_decision_count, ops_alert_count, alerts_delivered_count, alerts_undelivered_count, dual_approve_required_7d',
+    )
+    .maybeSingle();
+  return error
+    ? { row: null, error: error.message }
+    : { row: (data as ItIntunePhase46Health | null) ?? null };
+}
+
 export async function listIntunePostmortemQualityStatus(limit = 50): Promise<{
   rows: ItIntunePostmortemQualityStatus[];
   error?: string;
@@ -1472,6 +1538,42 @@ export async function listIntunePostmortemQualityStatus(limit = 50): Promise<{
   return error
     ? { rows: [], error: error.message }
     : { rows: (data ?? []) as ItIntunePostmortemQualityStatus[] };
+}
+
+export async function listIntunePostmortemQualityScorecards(
+  limit = 50,
+): Promise<{
+  rows: ItIntunePostmortemQualityScorecardStatus[];
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb
+    .from('os_it_intune_postmortem_quality_scorecard_status')
+    .select(
+      'scorecard_id, postmortem_id, cycle_trend_component, correlation_coverage_component, root_cause_component, notes_quality_component, composite_score, checklist, cycle_complete_count, correlation_event_kinds, ready_for_tuning_promote, evidence_sha256, recorded_at, postmortem_status, root_cause_class',
+    )
+    .order('recorded_at', { ascending: false })
+    .limit(limit);
+  return error
+    ? { rows: [], error: error.message }
+    : { rows: (data ?? []) as ItIntunePostmortemQualityScorecardStatus[] };
+}
+
+export async function listIntunePromoteWaiveStatus(limit = 50): Promise<{
+  rows: ItIntunePromoteWaiveStatus[];
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb
+    .from('os_it_intune_promote_waive_status')
+    .select(
+      'proposal_id, recommendation_id, proposed_by, proposed_reason, status, proposed_at, expires_at, row_version, evidence_sha256, decision_id, decided_by, decision_status, decided_at, recommendation_status, breaker_id, postmortem_id',
+    )
+    .order('proposed_at', { ascending: false })
+    .limit(limit);
+  return error
+    ? { rows: [], error: error.message }
+    : { rows: (data ?? []) as ItIntunePromoteWaiveStatus[] };
 }
 
 export async function listIntuneTuningPromoteGateStatus(limit = 50): Promise<{
@@ -1569,6 +1671,17 @@ export async function getIntunePhase45OpsReport(): Promise<{
     : { report: (data as Record<string, unknown> | null) ?? null };
 }
 
+export async function getIntunePhase46OpsReport(): Promise<{
+  report: Record<string, unknown> | null;
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc('get_it_intune_phase46_ops_report');
+  return error
+    ? { report: null, error: error.message }
+    : { report: (data as Record<string, unknown> | null) ?? null };
+}
+
 export async function getIntuneTuningPromoteGate(input: {
   recommendation_id?: string;
   proposal_id?: string;
@@ -1578,7 +1691,7 @@ export async function getIntuneTuningPromoteGate(input: {
 }> {
   const sb = await createPersistClient();
   const { data, error } = await sb.rpc(
-    'get_it_intune_tuning_promote_gate_phase45',
+    'get_it_intune_tuning_promote_gate_phase46',
     {
       p_recommendation_id: input.recommendation_id ?? null,
       p_proposal_id: input.proposal_id ?? null,
@@ -1598,7 +1711,7 @@ export async function evaluateIntuneTuningPromoteGate(input?: {
 } | { ok: false; error: string }> {
   const sb = await createPersistClient();
   const { data, error } = await sb.rpc(
-    'evaluate_it_intune_tuning_promote_gate_phase45',
+    'evaluate_it_intune_tuning_promote_gate_phase46',
     {
       p_recommendation_id: input?.recommendation_id ?? null,
       p_proposal_id: input?.proposal_id ?? null,
@@ -1650,6 +1763,63 @@ export async function runIntunePhase45QualityGateOps() {
     '@/lib/shared-services/it-intune-worker'
   );
   return processIntunePhase45QualityGateOps();
+}
+
+export async function runIntunePhase46QualityWaiveOps() {
+  const { processIntunePhase46QualityWaiveOps } = await import(
+    '@/lib/shared-services/it-intune-worker'
+  );
+  return processIntunePhase46QualityWaiveOps();
+}
+
+export async function proposeIntunePromoteWaive(input: {
+  recommendation_id: string;
+  actor_id: string;
+  reason: string;
+  expected_row_version?: number | null;
+}) {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc(
+    'propose_it_intune_promote_waive_phase46',
+    {
+      p_recommendation_id: input.recommendation_id,
+      p_actor_id: input.actor_id,
+      p_reason: input.reason,
+      p_expected_row_version: input.expected_row_version ?? null,
+    },
+  );
+  return error
+    ? { ok: false as const, error: error.message }
+    : {
+        ok: true as const,
+        detail: (data as Record<string, unknown> | null) ?? undefined,
+      };
+}
+
+export async function reviewIntunePromoteWaive(input: {
+  proposal_id: string;
+  actor_id: string;
+  decision: 'approve' | 'reject';
+  statement: string;
+  expected_row_version: number;
+}) {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc(
+    'review_it_intune_promote_waive_phase46',
+    {
+      p_proposal_id: input.proposal_id,
+      p_actor_id: input.actor_id,
+      p_decision: input.decision,
+      p_statement: input.statement,
+      p_expected_row_version: input.expected_row_version,
+    },
+  );
+  return error
+    ? { ok: false as const, error: error.message }
+    : {
+        ok: true as const,
+        detail: (data as Record<string, unknown> | null) ?? undefined,
+      };
 }
 
 export async function updateIntuneOutagePostmortemDraft(input: {
@@ -1710,10 +1880,10 @@ export async function acceptIntuneThresholdRecommendation(input: {
   expected_row_version: number;
 }) {
   const sb = await createPersistClient();
-  // Phase 45: evaluate promote gate then accept only when ready/waived.
+  // Phase 46: ready scorecard or dual-approved waive before accept.
   // Never closes or resets breakers.
   const { error } = await sb.rpc(
-    'accept_it_intune_threshold_recommendation_phase45',
+    'accept_it_intune_threshold_recommendation_phase46',
     {
       p_recommendation_id: input.recommendation_id,
       p_actor_id: input.actor_id,

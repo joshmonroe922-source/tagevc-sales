@@ -159,12 +159,12 @@ describe('Phase 45 Intune resilience quality gates', () => {
     expect(repo).toContain('getIntunePhase45OpsReport');
     expect(repo).toContain('runIntunePhase45QualityGateOps');
     expect(repo).toContain(
-      'accept_it_intune_threshold_recommendation_phase45',
+      'accept_it_intune_threshold_recommendation_phase46',
     );
     expect(actions).toContain('evaluateIntuneTuningPromoteGate');
     expect(actions).toContain('getIntuneTuningPromoteGate');
     expect(actions).toContain('refreshIntunePhase45QualityGateOpsAction');
-    expect(actions).toContain('Phase 45 promote gate blocked');
+    expect(actions).toContain('Phase 46 promote gate blocked');
     expect(client).toContain('intunePhase45Health');
     expect(client).toContain('intunePostmortemQuality');
     expect(client).toContain('intunePromoteGates');

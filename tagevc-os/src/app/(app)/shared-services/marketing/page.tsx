@@ -22,6 +22,7 @@ import { getPhase42RevenueSloReport } from '@/lib/shared-services/marketing-phas
 import { getPhase43RevenueOpsReport } from '@/lib/shared-services/marketing-phase43';
 import { getPhase44RevenueOpsReport } from '@/lib/shared-services/marketing-phase44';
 import { getPhase45RevenueOpsReport } from '@/lib/shared-services/marketing-phase45';
+import { getPhase46RevenueOpsReport } from '@/lib/shared-services/marketing-phase46';
 
 export default async function MarketingModulePage({
   searchParams,
@@ -67,6 +68,7 @@ export default async function MarketingModulePage({
     opsReport,
     phase44OpsReport,
     phase45OpsReport,
+    phase46OpsReport,
   ] = await Promise.all([
     listCampaigns(
       50,
@@ -119,6 +121,11 @@ export default async function MarketingModulePage({
       firmWide,
       days: paidDays,
     }),
+    getPhase46RevenueOpsReport({
+      entityId: firmWide ? null : (ctx?.profile.entity_id ?? null),
+      firmWide,
+      days: paidDays,
+    }),
   ]);
   if (!firmWide && ctx?.profile.entity_id) {
     const entityId = ctx.profile.entity_id;
@@ -160,16 +167,16 @@ export default async function MarketingModulePage({
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">Marketing</Badge>
-          <Badge variant="secondary">Phase 45</Badge>
+          <Badge variant="secondary">Phase 46</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Multichannel Marketing
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Entity-bound paid delivery, production ledger authenticity, tuned
-          fail-closed auto-reject rules, attribution conflict tracking,
-          webhook delivery SLOs, and correction workflow monitoring over
-          authoritative evidence.
+          Entity-bound paid delivery, production ledger authenticity, gated
+          auto-reject promotions after healthy webhook SLOs, rule performance
+          snapshots, webhook reliability trends, and correction workflow
+          monitoring over authoritative evidence.
         </p>
         {oauthFlash && (
           <p className="text-sm text-emerald-700">{oauthFlash}</p>
@@ -188,6 +195,8 @@ export default async function MarketingModulePage({
         phase44OpsError={phase44OpsReport.error}
         phase45OpsReport={phase45OpsReport.report}
         phase45OpsError={phase45OpsReport.error}
+        phase46OpsReport={phase46OpsReport.report}
+        phase46OpsError={phase46OpsReport.error}
       />
 
       <MarketingClient

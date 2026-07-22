@@ -8,6 +8,7 @@ export const REVENUE_REPORT_VERSION_PHASE42 = 'phase42-v1';
 export const REVENUE_REPORT_VERSION_PHASE43 = 'phase43-v1';
 export const REVENUE_REPORT_VERSION_PHASE44 = 'phase44-v1';
 export const REVENUE_REPORT_VERSION_PHASE45 = 'phase45-v1';
+export const REVENUE_REPORT_VERSION_PHASE46 = 'phase46-v1';
 export const REVENUE_SLO_SEVERITIES = [
   'healthy',
   'warning',
@@ -474,6 +475,100 @@ export type Phase45RevenueOpsReport = {
   workflow_snapshots: Phase45CorrectionWorkflowSnapshot[];
   rule_versions: Phase45AutoRejectRuleVersion[];
   alerts: Phase45OpsAlert[];
+  destination_key: string;
+};
+
+export const REVENUE_PHASE46_ALERT_KINDS = [
+  'auto_reject_promotion_blocked',
+  'auto_reject_promoted',
+  'webhook_reliability_degraded',
+  'rule_performance_anomaly',
+] as const;
+export type RevenuePhase46AlertKind =
+  (typeof REVENUE_PHASE46_ALERT_KINDS)[number];
+
+export type Phase46PromotionGate = {
+  version?: string;
+  gate_passed: boolean;
+  entity_id?: string | null;
+  webhook_slo_windows_required: number;
+  webhook_slo_windows_healthy: number;
+  windows_sampled?: number;
+  latest_severity?: string | null;
+  latest_success_rate?: number | null;
+  block_reason?: string | null;
+};
+
+export type Phase46AutoRejectPromotion = {
+  promotion_id: string;
+  rule_version_id: string | null;
+  version_no: number | null;
+  webhook_slo_windows_required: number;
+  webhook_slo_windows_healthy: number;
+  promotion_status: 'blocked' | 'promoted' | 'rejected' | string;
+  block_reason: string | null;
+  metrics_sha256: string;
+  created_at: string;
+  actor_id: string | null;
+};
+
+export type Phase46AutoRejectPerformanceSnapshot = {
+  snapshot_id: string;
+  entity_id: string | null;
+  rule_version_id: string | null;
+  rule_key: string;
+  version_no: number | null;
+  auto_reject_count: number;
+  validation_pass_count: number;
+  fail_count: number;
+  auto_reject_rate: number | null;
+  validation_pass_rate: number | null;
+  fail_rate: number | null;
+  precision_rate: number | null;
+  metrics_sha256: string;
+  created_at: string;
+};
+
+export type Phase46WebhookReliabilitySnapshot = {
+  snapshot_id: string;
+  entity_id: string | null;
+  window_start: string;
+  window_end: string;
+  rolling_success_rate: number | null;
+  consecutive_healthy_windows: number;
+  windows_sampled: number;
+  severity: RevenueSloSeverity | string;
+  metrics_sha256: string;
+  created_at: string;
+};
+
+export type Phase46OpsAlert = {
+  alert_id: string;
+  entity_id: string;
+  source_id: string | null;
+  alert_kind: RevenuePhase46AlertKind | string;
+  window_key: string;
+  severity: 'critical' | string;
+  destination_key: string;
+  delivery_status: RevenueOpsAlertDelivery | string;
+  response_code: number | null;
+  metrics_sha256: string;
+  created_at: string;
+};
+
+export type Phase46RevenueOpsReport = {
+  version: typeof REVENUE_REPORT_VERSION_PHASE46 | string;
+  window_days: number;
+  promotion_gate_health: RevenueSloSeverity | string;
+  webhook_reliability_health: RevenueSloSeverity | string;
+  rule_performance_health: RevenueSloSeverity | string;
+  alert_delivery: RevenueOpsAlertDelivery | string;
+  promotion_gate: Phase46PromotionGate | null;
+  thresholds: Record<string, unknown>;
+  promotions: Phase46AutoRejectPromotion[];
+  performance_snapshots: Phase46AutoRejectPerformanceSnapshot[];
+  reliability_snapshots: Phase46WebhookReliabilitySnapshot[];
+  alerts: Phase46OpsAlert[];
   destination_key: string;
 };
 

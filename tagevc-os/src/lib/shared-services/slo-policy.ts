@@ -91,6 +91,10 @@ export async function listSloPolicyAdministration() {
     { data: nightlyReplayRuns, error: nightlyReplayError },
     { data: handoffDigests, error: handoffDigestError },
     { data: phase45Report, error: phase45ReportError },
+    { data: firmWideReplayRuns, error: firmWideReplayError },
+    { data: digestPublications, error: digestPublicationError },
+    { data: ownershipChangeAlerts, error: ownershipChangeAlertError },
+    { data: phase46Report, error: phase46ReportError },
   ] = await Promise.all([
     sb
       .from('os_slo_policies')
@@ -183,6 +187,28 @@ export async function listSloPolicyAdministration() {
       .order('generated_at', { ascending: false })
       .limit(8),
     sb.rpc('get_slo_phase45_governance_report'),
+    sb
+      .from('os_slo_firm_wide_nightly_replay_runs')
+      .select(
+        'run_id,schedule_id,scheduled_for,scenarios_claimed,succeeded,failed,material_risk_count,firm_wide_flag_count,status,evidence_sha256,completed_at,created_at',
+      )
+      .order('scheduled_for', { ascending: false })
+      .limit(12),
+    sb
+      .from('os_slo_owner_handoff_digest_publications')
+      .select(
+        'publication_id,digest_id,digest_quarter,publish_status,published_at,recipient_count,destination_key,digest_sha256,created_at',
+      )
+      .order('created_at', { ascending: false })
+      .limit(8),
+    sb
+      .from('os_slo_ownership_change_alerts')
+      .select(
+        'alert_id,alert_kind,window_key,ownership_id,expires_at,severity,metrics_sha256,created_at',
+      )
+      .order('created_at', { ascending: false })
+      .limit(12),
+    sb.rpc('get_slo_phase46_governance_report'),
   ]);
   errorMessage(policyError);
   errorMessage(ownerError);
@@ -232,6 +258,18 @@ export async function listSloPolicyAdministration() {
   }
   if (phase45ReportError) {
     console.error('slo phase45 governance report unavailable', phase45ReportError.message);
+  }
+  if (firmWideReplayError) {
+    console.error('slo firm-wide nightly replay runs unavailable', firmWideReplayError.message);
+  }
+  if (digestPublicationError) {
+    console.error('slo handoff digest publications unavailable', digestPublicationError.message);
+  }
+  if (ownershipChangeAlertError) {
+    console.error('slo ownership-change alerts unavailable', ownershipChangeAlertError.message);
+  }
+  if (phase46ReportError) {
+    console.error('slo phase46 governance report unavailable', phase46ReportError.message);
   }
   const archivedExportIds = new Set(
     (archivalError ? [] : (archivalReceipts ?? [])).map(
@@ -291,6 +329,12 @@ export async function listSloPolicyAdministration() {
     nightlyReplayRuns: nightlyReplayError ? [] : (nightlyReplayRuns ?? []),
     handoffDigests: handoffDigestError ? [] : (handoffDigests ?? []),
     phase45Report: phase45ReportError ? null : (phase45Report ?? null),
+    firmWideReplayRuns: firmWideReplayError ? [] : (firmWideReplayRuns ?? []),
+    digestPublications: digestPublicationError ? [] : (digestPublications ?? []),
+    ownershipChangeAlerts: ownershipChangeAlertError
+      ? []
+      : (ownershipChangeAlerts ?? []),
+    phase46Report: phase46ReportError ? null : (phase46Report ?? null),
   };
 }
 
@@ -923,5 +967,100 @@ export async function processSloGovernancePhase45(input?: { actorId?: string }) 
     nightly,
     digest,
     alerts: alertError ? null : alerts,
+  };
+}
+
+export const PHASE46_SLO_CONTRACT_VERSION = 'phase46-v1';
+
+export async function runSloFirmWideNightlyReplayPhase46(input?: {
+  actorId?: string | null;
+  scheduledFor?: string | null;
+  scheduleKey?: string | null;
+}) {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc(
+    'run_slo_firm_wide_nightly_replay_phase46',
+    {
+      p_actor_id: input?.actorId ?? null,
+      p_scheduled_for: input?.scheduledFor ?? null,
+      p_schedule_key: input?.scheduleKey ?? 'firm_wide_nightly',
+    },
+  );
+  errorMessage(error);
+  return data;
+}
+
+export async function publishSloOwnerHandoffDigestPhase46(input?: {
+  actorId?: string;
+  digestQuarter?: string | null;
+  destinationKey?: string | null;
+  recipientCount?: number;
+}) {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc(
+    'publish_slo_owner_handoff_digest_phase46',
+    {
+      p_actor_id: input?.actorId ?? null,
+      p_digest_quarter: input?.digestQuarter ?? null,
+      p_destination_key: input?.destinationKey ?? 'ops_alerts',
+      p_recipient_count: input?.recipientCount ?? 0,
+    },
+  );
+  errorMessage(error);
+  return data;
+}
+
+export async function getSloPhase46GovernanceReport() {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc('get_slo_phase46_governance_report');
+  if (error) {
+    console.error('slo phase46 governance report unavailable', error.message);
+    return null;
+  }
+  return data;
+}
+
+export async function processSloGovernancePhase46(input?: { actorId?: string }) {
+  const sb = await createPersistClient();
+  let firmWide: unknown = null;
+  try {
+    firmWide = await runSloFirmWideNightlyReplayPhase46({
+      actorId: input?.actorId ?? null,
+    });
+  } catch (error) {
+    console.error(
+      'slo phase46 firm-wide nightly replay unavailable',
+      error instanceof Error ? error.message : error,
+    );
+  }
+
+  let publication: unknown = null;
+  try {
+    publication = await publishSloOwnerHandoffDigestPhase46({
+      actorId: input?.actorId,
+      recipientCount: 0,
+    });
+  } catch (error) {
+    console.error(
+      'slo phase46 handoff digest publish unavailable',
+      error instanceof Error ? error.message : error,
+    );
+  }
+
+  const { data: ownershipAlerts, error: ownershipAlertError } = await sb.rpc(
+    'scan_slo_ownership_change_alerts_phase46',
+    { p_actor_id: input?.actorId ?? null, p_days_ahead: 60 },
+  );
+  if (ownershipAlertError) {
+    console.error(
+      'slo phase46 ownership-change alert scan unavailable',
+      ownershipAlertError.message,
+    );
+  }
+
+  return {
+    firmWide,
+    publication,
+    ownershipAlerts: ownershipAlertError ? null : ownershipAlerts,
   };
 }

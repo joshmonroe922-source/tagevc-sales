@@ -17,11 +17,14 @@ import {
   getIntunePhase43Health,
   getIntunePhase44Health,
   getIntunePhase45Health,
+  getIntunePhase46Health,
   listIntuneOutagePostmortems,
   listIntuneThresholdRecommendations,
   listIntuneSoakCycleTimeline,
   listIntuneResilienceCorrelationTimeline,
   listIntunePostmortemQualityStatus,
+  listIntunePostmortemQualityScorecards,
+  listIntunePromoteWaiveStatus,
   listIntuneTuningPromoteGateStatus,
   listIntuneDispatchAttempts,
   listIntuneManualReviewSlo,
@@ -65,11 +68,14 @@ export default async function ItAssetsModulePage() {
     phase43Health,
     phase44Health,
     phase45Health,
+    phase46Health,
     outagePostmortems,
     thresholdRecommendations,
     soakCycleTimeline,
     resilienceCorrelation,
     postmortemQuality,
+    postmortemScorecards,
+    promoteWaives,
     promoteGates,
   ] = await Promise.all([
     listHardwareAssets(),
@@ -93,11 +99,14 @@ export default async function ItAssetsModulePage() {
     getIntunePhase43Health(),
     getIntunePhase44Health(),
     getIntunePhase45Health(),
+    getIntunePhase46Health(),
     listIntuneOutagePostmortems(),
     listIntuneThresholdRecommendations(),
     listIntuneSoakCycleTimeline(),
     listIntuneResilienceCorrelationTimeline(),
     listIntunePostmortemQualityStatus(),
+    listIntunePostmortemQualityScorecards(),
+    listIntunePromoteWaiveStatus(),
     listIntuneTuningPromoteGateStatus(),
   ]);
   const candidateTickets = listOffboardingCandidateTickets();
@@ -195,6 +204,7 @@ export default async function ItAssetsModulePage() {
         intunePhase43Health={firmWide ? phase43Health.row : null}
         intunePhase44Health={firmWide ? phase44Health.row : null}
         intunePhase45Health={firmWide ? phase45Health.row : null}
+        intunePhase46Health={firmWide ? phase46Health.row : null}
         intuneOutagePostmortems={firmWide ? outagePostmortems.rows : []}
         intuneThresholdRecommendations={thresholdRecommendations.rows.filter(
           (recommendation) =>
@@ -205,6 +215,8 @@ export default async function ItAssetsModulePage() {
         )}
         intuneResilienceCorrelation={firmWide ? resilienceCorrelation.rows : []}
         intunePostmortemQuality={firmWide ? postmortemQuality.rows : []}
+        intunePostmortemScorecards={firmWide ? postmortemScorecards.rows : []}
+        intunePromoteWaives={firmWide ? promoteWaives.rows : []}
         intunePromoteGates={firmWide ? promoteGates.rows : []}
         canWrite={canWrite}
         canIntuneRetire={canIntuneRetire}
@@ -223,11 +235,14 @@ export default async function ItAssetsModulePage() {
           phase43Health.error ||
           phase44Health.error ||
           phase45Health.error ||
+          phase46Health.error ||
           outagePostmortems.error ||
           thresholdRecommendations.error ||
           soakCycleTimeline.error ||
           resilienceCorrelation.error ||
           postmortemQuality.error ||
+          postmortemScorecards.error ||
+          promoteWaives.error ||
           promoteGates.error
         }
       />

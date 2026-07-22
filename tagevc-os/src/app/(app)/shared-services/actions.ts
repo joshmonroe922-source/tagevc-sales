@@ -27,6 +27,8 @@ import {
   replaySloSimulationScenarioPhase44,
   runSloNightlyScenarioReplayPhase45,
   generateSloOwnerHandoffDigestPhase45,
+  runSloFirmWideNightlyReplayPhase46,
+  publishSloOwnerHandoffDigestPhase46,
   saveSloPolicyDraft,
   transitionSloPolicyDraft,
 } from '@/lib/shared-services/slo-policy';
@@ -609,6 +611,76 @@ export async function generateSloOwnerHandoffDigestAction(input?: {
     return {
       ok: true,
       message: `Handoff digest ${result.digest_quarter ?? ''} · suggestions ${result.suggestion_count ?? 0} · accepted ${result.accepted_count ?? 0}`,
+    };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Failed' };
+  }
+}
+
+export async function runSloFirmWideNightlyReplayAction(): Promise<TicketActionResult> {
+  const gate = await guardPermission('write:shared_services');
+  if (!gate.ok) return gate;
+  try {
+    const result = (await runSloFirmWideNightlyReplayPhase46({
+      actorId: gate.profile.id,
+    })) as {
+      status?: string;
+      succeeded?: number;
+      failed?: number;
+      scenarios_claimed?: number;
+      material_risk_count?: number;
+    };
+    revalidatePath('/shared-services');
+    return {
+      ok: true,
+      message: `Firm-wide nightly replay ${result.status ?? 'completed'} · claimed ${result.scenarios_claimed ?? 0} · material ${result.material_risk_count ?? 0} · ok ${result.succeeded ?? 0} · failed ${result.failed ?? 0} (counterfactual)`,
+    };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Failed' };
+  }
+}
+
+export async function publishSloOwnerHandoffDigestAction(input?: {
+  digestQuarter?: string | null;
+  destinationKey?: string | null;
+  recipientCount?: number;
+}): Promise<TicketActionResult> {
+  const gate = await guardPermission('write:shared_services');
+  if (!gate.ok) return gate;
+  const parsed = z
+    .object({
+      digestQuarter: z
+        .string()
+        .regex(/^[0-9]{4}-Q[1-4]$/)
+        .nullable()
+        .optional(),
+      destinationKey: z
+        .string()
+        .regex(/^[a-z][a-z0-9_]{0,62}$/)
+        .nullable()
+        .optional(),
+      recipientCount: z.number().int().min(0).max(100000).optional(),
+    })
+    .safeParse(input ?? {});
+  if (!parsed.success) {
+    return { ok: false, error: 'Invalid handoff digest publish input' };
+  }
+  try {
+    const result = (await publishSloOwnerHandoffDigestPhase46({
+      actorId: gate.profile.id,
+      digestQuarter: parsed.data.digestQuarter,
+      destinationKey: parsed.data.destinationKey,
+      recipientCount: parsed.data.recipientCount ?? 0,
+    })) as {
+      digest_quarter?: string;
+      publish_status?: string;
+      recipient_count?: number;
+      destination_key?: string;
+    };
+    revalidatePath('/shared-services');
+    return {
+      ok: true,
+      message: `Handoff digest publish ${result.publish_status ?? 'published'} · ${result.digest_quarter ?? ''} · recipients ${result.recipient_count ?? 0} · dest ${result.destination_key ?? 'ops_alerts'}`,
     };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : 'Failed' };
