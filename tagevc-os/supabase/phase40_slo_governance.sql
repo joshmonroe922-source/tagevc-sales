@@ -385,6 +385,20 @@ drop trigger if exists os_slo_owner_coverage_evidence_no_truncate on public.os_s
 create trigger os_slo_owner_coverage_evidence_no_truncate before truncate
   on public.os_slo_owner_coverage_evidence for each statement execute function public.prevent_append_only_change();
 
+create or replace function public.phase40_replacement_eligible(
+  p_owner_id uuid, p_entity_id text
+) returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select case
+    when p_owner_id is null then false
+    else public.phase39_owner_authorized(p_owner_id, p_entity_id)
+  end;
+$$;
+
 create or replace view public.os_slo_owner_coverage_metrics
 with (security_invoker=true) as
 select p.policy_id,p.service,p.metric_key,o.entity_id,o.owner_id,o.expires_at,
@@ -392,7 +406,7 @@ select p.policy_id,p.service,p.metric_key,o.entity_id,o.owner_id,o.expires_at,
   greatest(0,ceil(extract(epoch from(o.expires_at-now()))/86400))::integer as days_remaining,
   (o.expires_at<=now()+interval '30 days') as warning,
   (o.replacement_owner_id is not null
-    and public.phase39_owner_authorized(o.replacement_owner_id,o.entity_id)) as eligible_replacement_named
+    and public.phase40_replacement_eligible(o.replacement_owner_id,o.entity_id)) as eligible_replacement_named
 from public.os_slo_policies p
 join public.os_slo_owners o on o.service=p.service and o.metric_key=p.metric_key
   and o.active and o.effective_at<=now() and (o.expires_at is null or o.expires_at>now())
@@ -540,7 +554,7 @@ grant select on public.os_slo_policy_draft_comparisons,
   public.os_slo_simulations,public.os_slo_simulation_jobs,
   public.os_slo_simulation_results,public.os_slo_simulation_evidence,
   public.os_slo_owner_coverage_metrics,public.os_slo_owner_coverage_alerts,
-  public.os_slo_owner_coverage_evidence to authenticated;
+  public.os_slo_owner_coverage_evidence to authenticated, service_role;
 revoke insert,update,delete,truncate on public.os_slo_simulations,
   public.os_slo_simulation_jobs,public.os_slo_simulation_results,
   public.os_slo_simulation_evidence,public.os_slo_owner_coverage_alerts,
@@ -551,6 +565,9 @@ revoke all on function public.claim_slo_simulation_jobs_phase40(integer,integer)
 revoke all on function public.run_slo_simulation_job_phase40(uuid,uuid) from public,authenticated;
 revoke all on function public.scan_slo_owner_expiry_phase40(integer) from public,authenticated;
 revoke all on function public.publish_slo_policy_draft_phase40(uuid,uuid,bigint,timestamptz,timestamptz,uuid) from public,authenticated;
+grant execute on function public.phase40_normalized_policy(public.os_slo_policies),
+  public.phase40_replacement_eligible(uuid,text)
+  to authenticated, service_role;
 grant execute on function public.save_slo_policy_draft_phase40(uuid,uuid,text,text,numeric,numeric,integer,integer,integer,integer,jsonb,uuid,text,timestamptz,timestamptz,uuid,uuid,bigint),
   public.request_slo_simulation_phase40(text,uuid,text[],timestamptz,timestamptz,integer,uuid),
   public.claim_slo_simulation_jobs_phase40(integer,integer),

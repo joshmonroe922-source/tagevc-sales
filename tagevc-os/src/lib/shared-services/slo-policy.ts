@@ -102,9 +102,17 @@ export async function listSloPolicyAdministration() {
   errorMessage(entityError);
   errorMessage(testError);
   errorMessage(assignmentError);
-  errorMessage(comparisonError);
-  errorMessage(simulationError);
-  errorMessage(coverageError);
+  // Phase 40 governance surfaces should not take down Shared Services if a
+  // view/function grant is incomplete; degrade to empty panels instead.
+  if (comparisonError) {
+    console.error('slo draft comparisons unavailable', comparisonError.message);
+  }
+  if (simulationError) {
+    console.error('slo simulations unavailable', simulationError.message);
+  }
+  if (coverageError) {
+    console.error('slo owner coverage unavailable', coverageError.message);
+  }
   const rows = ((policies ?? []) as SloPolicyRow[]).map((row) => {
     if (row.owner_id) return row;
     const assignment = assignments?.find(
@@ -123,9 +131,11 @@ export async function listSloPolicyAdministration() {
     owners: (owners ?? []) as SloOwnerOption[],
     entities: entities ?? [],
     routeTests: tests ?? [],
-    comparisons: (comparisons ?? []) as SloDraftComparison[],
-    simulations: simulations ?? [],
-    ownerCoverage: coverage ?? [],
+    comparisons: comparisonError
+      ? []
+      : ((comparisons ?? []) as SloDraftComparison[]),
+    simulations: simulationError ? [] : (simulations ?? []),
+    ownerCoverage: coverageError ? [] : (coverage ?? []),
   };
 }
 
