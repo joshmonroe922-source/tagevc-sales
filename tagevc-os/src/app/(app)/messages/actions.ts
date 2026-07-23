@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { getSessionContext } from '@/lib/rbac/session';
+import { isFirmWideAccess } from '@/lib/rbac/entity-scope';
 import { createClient } from '@/lib/supabase/server';
 import {
   listDirectoryProfiles,
@@ -11,6 +12,8 @@ import {
 } from '@/lib/messaging/repo';
 import { resolveMentions } from '@/lib/messaging/mentions';
 import { logActivity } from '@/lib/data/activity';
+import { decideCrossEntityMessage } from '@/lib/multi-sub/messaging';
+import type { AppRole } from '@/lib/types/roles';
 
 async function requireUser() {
   const ctx = await getSessionContext();
@@ -99,9 +102,65 @@ export async function loadMessagesAction(conversationId: string) {
   return { ok: true as const, messages: result.messages };
 }
 
+async function assertCrossEntityMessagingAllowed(input: {
+  actorId: string;
+  actorRole: AppRole;
+  actorEntityId: string | null | undefined;
+  peerId: string;
+  kind: 'dm' | 'channel' | 'group';
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const firmWide = isFirmWideAccess(input.actorRole, input.actorEntityId);
+
+  const rpc = await supabase.rpc('can_cross_entity_message_ms_p3', {
+    p_actor_id: input.actorId,
+    p_peer_id: input.peerId,
+    p_kind: input.kind,
+  });
+  if (!rpc.error && rpc.data && typeof rpc.data === 'object') {
+    const row = rpc.data as { allowed?: boolean; reason?: string };
+    if (row.allowed === false) {
+      return {
+        ok: false,
+        error: `Cross-entity ${input.kind} blocked (${row.reason ?? 'policy'}).`,
+      };
+    }
+    return { ok: true };
+  }
+
+  // Fail-soft before SQL P3 apply: local policy spine.
+  const { data: peer } = await supabase
+    .from('profiles')
+    .select('entity_id')
+    .eq('id', input.peerId)
+    .maybeSingle();
+  const decision = decideCrossEntityMessage({
+    actorEntityId: input.actorEntityId,
+    peerEntityId: (peer as { entity_id?: string | null } | null)?.entity_id,
+    kind: input.kind,
+    firmWideOperator: firmWide,
+  });
+  if (!decision.allowed) {
+    return {
+      ok: false,
+      error: `Cross-entity ${input.kind} blocked (${decision.reason}).`,
+    };
+  }
+  return { ok: true };
+}
+
 export async function startDirectMessageAction(otherUserId: string) {
   const auth = await requireUser();
   if (!auth.ok) return auth;
+
+  const gate = await assertCrossEntityMessagingAllowed({
+    actorId: auth.profile.id,
+    actorRole: auth.profile.role,
+    actorEntityId: auth.profile.entity_id,
+    peerId: otherUserId,
+    kind: 'dm',
+  });
+  if (!gate.ok) return gate;
 
   const supabase = await createClient();
   const { data, error } = await supabase.rpc('create_or_get_dm', {
@@ -137,6 +196,17 @@ export async function startChannelAction(input: {
 }) {
   const auth = await requireUser();
   if (!auth.ok) return auth;
+
+  for (const peerId of input.memberIds ?? []) {
+    const gate = await assertCrossEntityMessagingAllowed({
+      actorId: auth.profile.id,
+      actorRole: auth.profile.role,
+      actorEntityId: auth.profile.entity_id,
+      peerId,
+      kind: 'channel',
+    });
+    if (!gate.ok) return gate;
+  }
 
   const supabase = await createClient();
   const { data, error } = await supabase.rpc('create_channel', {

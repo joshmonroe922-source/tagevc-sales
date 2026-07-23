@@ -138,7 +138,7 @@ Auth: `CRON_SECRET` / `DIGEST_SECRET` Bearer or `write:it_assets` session.
 |---------|--------|
 | Entity registry + ENT-INDA alias | **Ready** (SQL + TS) |
 | Ticketing multi-entity + subsidiary API | **Ready** (fail-closed creates; auth requires secrets in prod) |
-| Messaging multi-entity | **Mostly ready** — RPCs + badges; live channel auto-create is lazy/TODO |
+| Messaging multi-entity | **Ready** — RPCs + badges; DM/channel open gated by cross-entity policy |
 | SS operator UX | **Ready** on `/shared-services` |
 | Identity lifecycle JML | **Ready** (control center; ties into existing IT on/offboarding) |
 | Parent health panels | **Ready** (partial feed until SQL applied in env) |
@@ -149,9 +149,8 @@ Auth: `CRON_SECRET` / `DIGEST_SECRET` Bearer or `write:it_assets` session.
 
 - Seed/demo data still uses `ENT-002` in places; alias layer covers equivalence
   but operators should prefer `ENT-INDA` going forward.
-- Messaging cross-entity enforcement is RPC/policy-level; existing
-  `create_or_get_dm` should call `can_cross_entity_message_ms_p3` before open
-  (app hook TODO if not yet wired on every path).
+- Messaging cross-entity enforcement: `startDirectMessageAction` /
+  `startChannelAction` call `can_cross_entity_message_ms_p3` (TS fail-soft).
 - Subsidiary API is powerless until secrets are configured in production.
 - Do not auto-approve capital / dual-approve gates — unchanged.
 

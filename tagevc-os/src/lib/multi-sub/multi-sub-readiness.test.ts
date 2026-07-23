@@ -314,5 +314,11 @@ describe('Multi-subsidiary readiness P1–P6', () => {
       'utf8',
     );
     expect(page).toContain('SsMultiSubOperatorPanels');
+    const messagesActions = readFileSync(
+      resolve(process.cwd(), 'src/app/(app)/messages/actions.ts'),
+      'utf8',
+    );
+    expect(messagesActions).toContain('can_cross_entity_message_ms_p3');
+    expect(messagesActions).toContain('decideCrossEntityMessage');
   });
 });
