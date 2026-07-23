@@ -21,6 +21,12 @@ export const MAIN_NAV: NavItem[] = [
     description: 'Firm health at a glance',
   },
   {
+    module: 'command_center',
+    href: '/think-tank',
+    label: 'Think Tank',
+    description: 'Personal Grok operating advisor',
+  },
+  {
     module: 'firm',
     href: '/firm',
     label: 'Firm',

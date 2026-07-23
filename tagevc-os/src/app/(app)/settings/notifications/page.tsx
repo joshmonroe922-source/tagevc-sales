@@ -19,12 +19,20 @@ export default async function NotificationSettingsPage() {
   return (
     <div className="space-y-6">
       <header className="space-y-2">
-        <Link
-          href="/activity"
-          className="text-sm text-muted-foreground hover:text-foreground"
-        >
-          ← Activity
-        </Link>
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <Link
+            href="/activity"
+            className="text-muted-foreground hover:text-foreground"
+          >
+            ← Activity
+          </Link>
+          <Link
+            href="/think-tank"
+            className="text-muted-foreground underline-offset-4 hover:underline"
+          >
+            Open Think Tank →
+          </Link>
+        </div>
         <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#3a414f]">
           Notification preferences
         </h1>

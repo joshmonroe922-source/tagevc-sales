@@ -49,6 +49,7 @@ function Metric({
 }
 
 const MODULE_QUICK_NAV = [
+  { href: '/think-tank', label: 'Think Tank' },
   { href: '/deal-flow', label: 'Deal Flow' },
   { href: '/deal-flow/vc', label: 'VC pipeline' },
   { href: '/deal-flow/vc/intake', label: 'Lead Intake' },
@@ -108,7 +109,13 @@ export default async function CommandCenterPage() {
               <span className="text-foreground">
                 {APP_ROLE_LABELS[profile.role]}
               </span>
-              .
+              .{' '}
+              <Link
+                href="/think-tank"
+                className="font-medium text-foreground underline-offset-4 hover:underline"
+              >
+                Open Think Tank →
+              </Link>
             </>
           ) : null}
         </p>
