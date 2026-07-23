@@ -259,6 +259,8 @@ export type CreateTicketInput = {
   sla_due_at?: string;
   /** Optional assignee display name (Phase 29 SLA routing). */
   assignee_name?: string;
+  /** Stable external id (e.g. Recruit SS-R619-*) — avoids TK-### collisions across serverless isolates. */
+  ticket_id?: string;
   /** Phase 4.5 — document AI follow-ups */
   ai_generated?: boolean;
   source_doc_id?: string | null;
@@ -314,9 +316,16 @@ export function createTicket(input: CreateTicketInput): Ticket {
   const store = getTicketStore();
   const diagnosis = diagnoseTicket(input);
   const ts = new Date().toISOString();
+  const requestedId = input.ticket_id?.trim();
+  if (
+    requestedId &&
+    store.tickets.some((t) => t.ticket_id === requestedId)
+  ) {
+    throw new Error(`ticket_id already exists: ${requestedId}`);
+  }
   const ticket: Ticket = {
     id: randomUUID(),
-    ticket_id: nextTicketId(store.tickets),
+    ticket_id: requestedId || nextTicketId(store.tickets),
     title: input.title.trim(),
     description: input.description?.trim() || null,
     desired_outcome: input.desired_outcome?.trim() || null,

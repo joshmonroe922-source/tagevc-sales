@@ -1,6 +1,14 @@
 import { NextResponse } from 'next/server';
 
-import { createTicket } from '@/lib/data/ticket-store';
+import {
+  fetchAllTickets,
+  syncTickets,
+} from '@/lib/data/normalized/tickets-repo';
+import {
+  createTicket,
+  getTicket,
+  hydrateTicketStore,
+} from '@/lib/data/ticket-store';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 import type { SsService } from '@/lib/types';
 
@@ -83,23 +91,78 @@ export async function POST(request: Request) {
     .filter(Boolean)
     .join('\n');
 
-  const ticket = createTicket({
-    title: `[R619] ${body.subject}`,
-    description: [body.body?.trim() || 'Recruit portal ticket', '', links].join(
-      '\n',
-    ),
-    desired_outcome: 'Resolve Shared Services request for Recruit 619',
-    service: mapKind(body.kind),
-    priority: 'P2',
-    requester_name: 'Recruit 619 Portal',
-    entity_id: entityId,
-    company_name: 'Recruit 619',
-    links,
-  });
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()) {
+    return NextResponse.json(
+      { error: 'Server misconfigured: SUPABASE_SERVICE_ROLE_KEY required' },
+      { status: 503 },
+    );
+  }
+
+  // Hydrate before allocate — cold serverless isolates otherwise mint colliding TK-### ids.
+  await hydrateTicketStore();
+
+  // Use Recruit ticket id as Tage ticket_id so upserts cannot overwrite unrelated TK rows.
+  const stableTicketId = body.ticketId.trim();
+  const existing = getTicket(stableTicketId);
+  if (existing) {
+    return NextResponse.json({
+      ok: true,
+      tageTicketId: existing.ticket_id,
+      entityId: existing.entity_id ?? entityId,
+      deduped: true,
+    });
+  }
+
+  const sqlTickets = await fetchAllTickets();
+  if (sqlTickets?.some((t) => t.ticket_id === stableTicketId)) {
+    return NextResponse.json({
+      ok: true,
+      tageTicketId: stableTicketId,
+      entityId,
+      deduped: true,
+    });
+  }
+
+  let ticket;
+  try {
+    ticket = createTicket({
+      ticket_id: stableTicketId,
+      title: `[R619] ${body.subject}`,
+      description: [
+        body.body?.trim() || 'Recruit portal ticket',
+        '',
+        links,
+      ].join('\n'),
+      desired_outcome: 'Resolve Shared Services request for Recruit 619',
+      service: mapKind(body.kind),
+      priority: 'P2',
+      requester_name: 'Recruit 619 Portal',
+      entity_id: entityId,
+      company_name: 'Recruit 619',
+      links,
+    });
+  } catch (err) {
+    return NextResponse.json(
+      {
+        error:
+          err instanceof Error ? err.message : 'Failed to create ticket',
+      },
+      { status: 409 },
+    );
+  }
+
+  // Await durable writes — fire-and-forget sync is dropped on Vercel serverless.
+  const synced = await syncTickets([ticket]);
+  if (!synced) {
+    return NextResponse.json(
+      { error: 'Failed to persist ticket to os_tickets' },
+      { status: 502 },
+    );
+  }
 
   try {
     const admin = await createPersistClient();
-    await admin.from('os_recruit_inbound_tickets').upsert(
+    const { error } = await admin.from('os_recruit_inbound_tickets').upsert(
       {
         entity_id: entityId,
         recruit_ticket_id: body.ticketId,
@@ -114,8 +177,29 @@ export async function POST(request: Request) {
       },
       { onConflict: 'entity_id,recruit_ticket_id' },
     );
+    if (error) {
+      console.error('[recruit-ss-intake] inbound upsert failed', error.message);
+      return NextResponse.json(
+        {
+          ok: true,
+          tageTicketId: ticket.ticket_id,
+          entityId,
+          warning: 'ticket persisted; inbound ledger upsert failed',
+        },
+        { status: 200 },
+      );
+    }
   } catch (err) {
-    console.warn('[recruit-ss-intake] persist failed', err);
+    console.error('[recruit-ss-intake] inbound persist failed', err);
+    return NextResponse.json(
+      {
+        ok: true,
+        tageTicketId: ticket.ticket_id,
+        entityId,
+        warning: 'ticket persisted; inbound ledger upsert failed',
+      },
+      { status: 200 },
+    );
   }
 
   return NextResponse.json({
