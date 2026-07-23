@@ -17,8 +17,8 @@ export default async function AdminPage() {
           Admin
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Ops tooling for schema normalization, write cutover, soak health, and
-          Stage 4 readiness. User/role management remains forthcoming.
+          Users, roles, and system health tools. Day-to-day work lives in the
+          modules above.
         </p>
       </header>
 
@@ -26,10 +26,9 @@ export default async function AdminPage() {
         <Link href="/admin/normalization">
           <Card className="h-full transition-colors hover:border-[#3a414f]/35">
             <CardHeader>
-              <CardTitle className="text-base">Normalization health</CardTitle>
+              <CardTitle className="text-base">System health</CardTitle>
               <CardDescription>
-              Snapshot write/read gates, soak last-run, Stage 4e checklist,
-              soft-archive and archive export.
+                Data readiness, soak checks, and archive tools.
               </CardDescription>
             </CardHeader>
           </Card>
@@ -38,7 +37,7 @@ export default async function AdminPage() {
           <CardHeader>
             <CardTitle className="text-base">Users & roles</CardTitle>
             <CardDescription>
-              Profiles and enum libraries — coming in a later phase.
+              Add and manage access — coming soon.
             </CardDescription>
           </CardHeader>
         </Card>

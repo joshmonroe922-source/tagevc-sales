@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { DealFlowTrackTabs } from '@/components/deal-flow/deal-flow-track-tabs';
 import { CreateMaTargetForm, MaStageSelect } from '@/components/deal-flow/ma-actions';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -19,21 +20,20 @@ export default async function MaPipelinePage() {
 
   return (
     <div className="space-y-8">
-      <header className="space-y-2">
+      <header className="space-y-3">
         <Link
           href="/deal-flow"
           className="text-sm text-muted-foreground hover:text-foreground"
         >
-          ← Deal Flow hub
+          ← Deal Flow
         </Link>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#3a414f]">
-              Deal Flow · M&A
+              M&A deals
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-              Platform / add-on / merger buys. Stage moves spawn M&A Process
-              Library tasks once per MA-## template.
+              Platform, add-on, and merger targets from sourcing through close.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -41,6 +41,7 @@ export default async function MaPipelinePage() {
             <Badge variant="outline">{exclusivity} in exclusivity</Badge>
           </div>
         </div>
+        <DealFlowTrackTabs active="ma" />
       </header>
 
       <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9">

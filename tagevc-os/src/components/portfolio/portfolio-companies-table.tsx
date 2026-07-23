@@ -8,6 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { entityDisplayName } from '@/lib/entities/display-name';
 import { formatDate, formatRunway, formatUsdK } from '@/lib/format';
 import type { PortfolioCompany } from '@/lib/types';
 
@@ -40,18 +41,16 @@ export function PortfolioCompaniesTable({
                   href={`/portfolio/${c.portfolio_id}`}
                   className="font-medium text-[#3a414f] underline-offset-4 hover:underline"
                 >
-                  {c.company_name}
+                  {entityDisplayName(c)}
                 </Link>
                 <div className="text-xs text-muted-foreground">
-                  {c.portfolio_id}
-                  {c.deal_id ? ` · ${c.deal_id}` : ''}
-                  {' · '}
                   <Link
                     href={`/entities/${c.entity_id}`}
                     className="underline-offset-2 hover:underline"
                   >
-                    {c.entity_id}
+                    Open company
                   </Link>
+                  {c.deal_id ? ` · Deal ${c.deal_id}` : ''}
                 </div>
               </TableCell>
               <TableCell>{c.path ?? '—'}</TableCell>

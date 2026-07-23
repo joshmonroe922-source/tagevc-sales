@@ -246,7 +246,7 @@ export function FirmOpsCommandPhase61Client({
 
         <section className="space-y-2">
           <h3 className="text-sm font-medium tracking-wide text-[#7c7871] uppercase">
-            Module quick-nav
+            Jump to
           </h3>
           <div className="flex flex-wrap gap-2">
             {report.modules.map((mod) => (

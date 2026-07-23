@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  Building2,
   Briefcase,
   FileText,
   History,
@@ -14,14 +13,13 @@ import {
   MessageSquare,
   Settings,
   Ticket,
-  Warehouse,
 } from 'lucide-react';
 import { stopImpersonationAction } from '@/app/(app)/impersonation/actions';
 import { RoleSwitcher } from '@/components/layout/role-switcher';
 import { MessagesUnreadBadge } from '@/components/messaging/messages-unread-badge';
 import { ActivityUnreadBadge } from '@/components/layout/activity-unread-badge';
 import { createClient } from '@/lib/supabase/client';
-import { MAIN_NAV } from '@/lib/nav';
+import { MAIN_NAV, type NavItem } from '@/lib/nav';
 import {
   roleCanAccessModule,
   type AppRole,
@@ -36,8 +34,8 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   command_center: Home,
   messages: MessageSquare,
   deal_flow_vc: Briefcase,
-  deal_flow_ma: Building2,
-  deal_flow_re: Warehouse,
+  deal_flow_ma: Briefcase,
+  deal_flow_re: Briefcase,
   portfolio: LayoutDashboard,
   shared_services: Ticket,
   firm: Landmark,
@@ -54,6 +52,96 @@ type Props = {
   impersonatableRoles: AppRole[];
 };
 
+function isNavActive(pathname: string, href: string): boolean {
+  if (href === '/deal-flow/vc/intake') {
+    return (
+      pathname === '/deal-flow/vc/intake' ||
+      pathname.startsWith('/deal-flow/vc/intake/')
+    );
+  }
+  if (href === '/deal-flow') {
+    // Lead Intake is a sibling under Business Development — do not light both.
+    if (
+      pathname === '/deal-flow/vc/intake' ||
+      pathname.startsWith('/deal-flow/vc/intake/')
+    ) {
+      return false;
+    }
+    return (
+      pathname === '/deal-flow' ||
+      pathname.startsWith('/deal-flow/vc') ||
+      pathname.startsWith('/deal-flow/ma') ||
+      pathname.startsWith('/deal-flow/re')
+    );
+  }
+  if (href === '/entities') {
+    return pathname === '/entities' || pathname.startsWith('/entities/');
+  }
+  if (href === '/portfolio') {
+    return pathname === '/portfolio' || pathname.startsWith('/portfolio/');
+  }
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function filterNavForRole(items: NavItem[], role: AppRole): NavItem[] {
+  const out: NavItem[] = [];
+  for (const item of items) {
+    if (!roleCanAccessModule(role, item.module)) continue;
+    const children = item.children
+      ? filterNavForRole(item.children, role)
+      : undefined;
+    if (!item.href && (!children || children.length === 0)) continue;
+    out.push({ ...item, children });
+  }
+  return out;
+}
+
+function NavLink({
+  item,
+  pathname,
+  nested = false,
+}: {
+  item: NavItem;
+  pathname: string;
+  nested?: boolean;
+}) {
+  if (!item.href) return null;
+  const Icon =
+    item.href === '/activity'
+      ? History
+      : item.href === '/messages'
+        ? MessageSquare
+        : (ICONS[item.module] ?? Home);
+  const active = isNavActive(pathname, item.href);
+
+  return (
+    <Link
+      href={item.href}
+      className={cn(
+        'flex items-start gap-3 rounded-md px-3 py-2.5 text-sm transition-colors',
+        nested && 'py-2 pl-9',
+        active
+          ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+          : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground',
+      )}
+    >
+      {!nested ? <Icon className="mt-0.5 size-4 shrink-0" /> : null}
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-2">
+          <span className="block font-medium">{item.label}</span>
+          {item.href === '/messages' ? <MessagesUnreadBadge /> : null}
+          {item.href === '/activity' ? <ActivityUnreadBadge /> : null}
+        </span>
+        {item.description && !nested ? (
+          <span className="mt-0.5 block text-xs opacity-70">
+            {item.description}
+          </span>
+        ) : null}
+      </span>
+    </Link>
+  );
+}
+
 export function AppSidebar({
   role,
   realRole,
@@ -64,7 +152,7 @@ export function AppSidebar({
 }: Props) {
   const pathname = usePathname();
   const router = useRouter();
-  const items = MAIN_NAV.filter((item) => roleCanAccessModule(role, item.module));
+  const items = filterNavForRole(MAIN_NAV, role);
   const showSwitcher = realRole === 'visionary' && impersonatableRoles.length > 0;
 
   async function signOut() {
@@ -90,46 +178,38 @@ export function AppSidebar({
 
       <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 pb-4">
         {items.map((item) => {
-          const Icon =
-            item.href === '/activity'
-              ? History
-              : item.href === '/messages'
-                ? MessageSquare
-                : (ICONS[item.module] ?? Home);
-          const active =
-            item.href === '/deal-flow'
-              ? pathname === '/deal-flow'
-              : item.href === '/deal-flow/vc'
-                ? pathname === '/deal-flow/vc' ||
-                  (pathname.startsWith('/deal-flow/vc/') &&
-                    !pathname.startsWith('/deal-flow/vc/intake'))
-                : pathname === item.href ||
-                  pathname.startsWith(`${item.href}/`);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                'flex items-start gap-3 rounded-md px-3 py-2.5 text-sm transition-colors',
-                active
-                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                  : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground',
-              )}
-            >
-              <Icon className="mt-0.5 size-4 shrink-0" />
-              <span className="min-w-0 flex-1">
-                <span className="flex items-center gap-2">
-                  <span className="block font-medium">{item.label}</span>
-                  {item.href === '/messages' ? <MessagesUnreadBadge /> : null}
-                  {item.href === '/activity' ? <ActivityUnreadBadge /> : null}
-                </span>
-                {item.description ? (
-                  <span className="mt-0.5 block text-xs opacity-70">
-                    {item.description}
+          if (item.children?.length) {
+            const GroupIcon = ICONS[item.module] ?? Briefcase;
+            return (
+              <div key={item.label} className="space-y-0.5 pt-1">
+                <div className="flex items-start gap-3 px-3 py-2 text-sm text-sidebar-foreground/80">
+                  <GroupIcon className="mt-0.5 size-4 shrink-0" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-medium">{item.label}</span>
+                    {item.description ? (
+                      <span className="mt-0.5 block text-xs opacity-70">
+                        {item.description}
+                      </span>
+                    ) : null}
                   </span>
-                ) : null}
-              </span>
-            </Link>
+                </div>
+                {item.children.map((child) => (
+                  <NavLink
+                    key={child.href ?? child.label}
+                    item={child}
+                    pathname={pathname}
+                    nested
+                  />
+                ))}
+              </div>
+            );
+          }
+          return (
+            <NavLink
+              key={item.href ?? item.label}
+              item={item}
+              pathname={pathname}
+            />
           );
         })}
       </nav>

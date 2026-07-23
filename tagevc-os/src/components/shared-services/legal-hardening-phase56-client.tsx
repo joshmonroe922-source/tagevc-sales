@@ -420,17 +420,12 @@ export function LegalHardeningPhase56Client({
         <section className="space-y-2">
           <h3 className="font-medium">Subsidiary legal visibility</h3>
           <p className="text-xs text-muted-foreground">
-            ENT-R619 first; ENT-INDA when evidence exists.
+            Recruit 619 first; Instant NDA when data is available.
           </p>
           <div className="grid gap-2 sm:grid-cols-2">
             {report.subsidiaries.map((sub) => (
               <div className="rounded border p-2 text-xs" key={sub.entity_id}>
-                <p className="font-medium">
-                  {sub.name}{' '}
-                  <span className="font-mono text-muted-foreground">
-                    {sub.entity_id}
-                  </span>
-                </p>
+                <p className="font-medium">{sub.name}</p>
                 <p className="text-muted-foreground">
                   {governanceStatusLabel(String(sub.visibility_status))} · open{' '}
                   {sub.open_count} · overdue {sub.overdue_count}

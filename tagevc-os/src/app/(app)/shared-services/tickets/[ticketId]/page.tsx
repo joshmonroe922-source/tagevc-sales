@@ -16,6 +16,7 @@ import {
   getTicket,
   listAuditsForTicket,
 } from '@/lib/data/ticket-store';
+import { entityDisplayName } from '@/lib/entities/display-name';
 import { ticketContextHeader } from '@/lib/multi-sub/ss-operator';
 import { forbidLabel } from '@/lib/shared-services/forbid-list';
 import { formatDate } from '@/lib/format';
@@ -88,15 +89,20 @@ export default async function TicketDetailPage({ params }: Props) {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Intake</CardTitle>
-            <CardDescription>§7B step 1 — human opens ticket.</CardDescription>
+            <CardTitle className="text-base">Request details</CardTitle>
+            <CardDescription>Who asked, for which company, and when it’s due.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <Row label="Requester" value={ticket.requester_name ?? '—'} />
             <Row label="Assignee" value={ticket.assignee_name ?? '—'} />
-            <Row label="Company" value={ticket.company_name ?? '—'} />
-            <Row label="Entity" value={ticket.entity_id ?? '—'} />
-            <Row label="SLA due" value={formatDate(ticket.sla_due_at)} />
+            <Row
+              label="Company"
+              value={entityDisplayName({
+                company_name: ticket.company_name,
+                entity_id: ticket.entity_id,
+              })}
+            />
+            <Row label="Due" value={formatDate(ticket.sla_due_at)} />
             <Row label="Links" value={ticket.links ?? '—'} />
             {ticket.ai_generated ? (
               <>

@@ -4,7 +4,8 @@ export default function Page() {
   return (
     <StubPage
       title="Firm"
-      description="Capital allocation, firm rhythm, and governance (How We Run)."
+      description="Capital allocation, governance, and the firm operating rhythm."
+      footnote="Firm capital, board rhythm, and governance workflows will land here in a later phase."
     />
   );
 }

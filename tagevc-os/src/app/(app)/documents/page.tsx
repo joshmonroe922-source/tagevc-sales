@@ -35,12 +35,11 @@ export default async function DocumentsPage() {
     <div className="space-y-8">
       <header className="space-y-2">
         <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#3a414f]">
-          Documents
+          Document Library
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Library by entity_id + DocuSign workflow. Capital docs require human
-          Send. Webhook:{' '}
-          <code className="text-xs">POST /api/docusign/webhook</code>
+          Company files and signing workflows. Capital documents always need a
+          human to send.
         </p>
       </header>
 
@@ -51,8 +50,8 @@ export default async function DocumentsPage() {
               <CardHeader>
                 <CardTitle className="text-base">{e.canonical_name}</CardTitle>
                 <CardDescription>
-                  {e.entity_id} ·{' '}
-                  {docs.filter((d) => d.entity_id === e.entity_id).length} docs
+                  {docs.filter((d) => d.entity_id === e.entity_id).length}{' '}
+                  documents
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -62,10 +61,10 @@ export default async function DocumentsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Folder taxonomy</CardTitle>
+          <CardTitle className="text-base">Folder structure</CardTitle>
           <CardDescription>
-            /Entities/&#123;entity_id&#125;/01_Corporate … 07_Signed · Firm paths:{' '}
-            {FIRM_FOLDERS.join(', ')}
+            Each company has standard folders (corporate through signed). Firm
+            paths: {FIRM_FOLDERS.join(', ')}
           </CardDescription>
         </CardHeader>
       </Card>

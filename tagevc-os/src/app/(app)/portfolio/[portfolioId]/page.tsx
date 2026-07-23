@@ -17,7 +17,7 @@ export default async function PortfolioCompanyPage({ params }: Props) {
     <EntityOperatingViewPanel
       view={view}
       backHref="/portfolio"
-      backLabel="← Portfolio Active"
+      backLabel="← Portfolio Snapshot"
     />
   );
 }

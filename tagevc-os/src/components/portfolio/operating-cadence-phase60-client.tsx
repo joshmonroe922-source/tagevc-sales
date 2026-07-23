@@ -26,6 +26,7 @@ import {
   type ReviewPacketKind,
   type RiskMilestoneKind,
 } from '@/lib/portfolio/operating-cadence-phase60';
+import { entityDisplayName } from '@/lib/entities/display-name';
 
 export function OperatingCadencePhase60Client({
   report: initialReport,
@@ -123,9 +124,9 @@ export function OperatingCadencePhase60Client({
               Portfolio operating cadence · Phase 60
             </CardTitle>
             <CardDescription>
-              Weekly Visionary/COO board: company health, risks/milestones,
-              review packets, handoff completeness, and subsidiary links
-              (ENT-R619 first; ENT-INDA when present).
+              Weekly Visionary/COO board: company health, risks and milestones,
+              review packets, handoff completeness, and company links (Recruit
+              619 first; Instant NDA when present).
             </CardDescription>
           </div>
           <Badge variant="secondary" className="font-normal">
@@ -140,12 +141,12 @@ export function OperatingCadencePhase60Client({
               htmlFor="p60-entity"
               className="text-xs font-medium text-muted-foreground"
             >
-              Entity filter
+              Company filter
             </label>
             <input
               id="p60-entity"
               className="h-9 w-44 rounded-md border border-border bg-background px-2 text-sm"
-              placeholder={report.entity_filter_hint}
+              placeholder="Recruit 619"
               value={entityId}
               onChange={(e) => setEntityId(e.target.value)}
             />
@@ -157,7 +158,7 @@ export function OperatingCadencePhase60Client({
             href="/entities/ENT-R619"
             className="text-sm font-medium text-[#3a414f] underline-offset-4 hover:underline"
           >
-            Open Recruit 619 →
+            Open Recruit 619
           </Link>
         </div>
 
@@ -213,12 +214,15 @@ export function OperatingCadencePhase60Client({
                 key={sub.entity_id}
                 className="rounded-md border border-border px-3 py-2 text-xs"
               >
-                <span className="font-medium">{sub.name}</span>
-                {' · '}
-                {sub.entity_id}
+                <span className="font-medium">
+                  {entityDisplayName({
+                    name: sub.name,
+                    entity_id: sub.entity_id,
+                  })}
+                </span>
                 {' · '}
                 {boardStatusLabel(String(sub.link_status))}
-                {sub.portfolio_id ? ` · ${sub.portfolio_id}` : null}
+                {sub.portfolio_id ? ` · linked` : null}
                 {sub.todo ? (
                   <span className="block text-muted-foreground">{sub.todo}</span>
                 ) : null}
@@ -309,7 +313,9 @@ export function OperatingCadencePhase60Client({
                   {row.title}
                   {' · '}
                   {row.status}
-                  {row.entity_id ? ` · ${row.entity_id}` : null}
+                  {row.entity_id
+                    ? ` · ${entityDisplayName(row.entity_id)}`
+                    : null}
                 </li>
               ))}
             </ul>

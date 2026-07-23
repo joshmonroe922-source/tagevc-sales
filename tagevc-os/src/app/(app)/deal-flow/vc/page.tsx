@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { CreateLeadForm } from '@/components/deal-flow/create-lead-form';
+import { DealFlowTrackTabs } from '@/components/deal-flow/deal-flow-track-tabs';
 import {
   PipelineStageSummary,
   PipelineTable,
@@ -21,38 +22,37 @@ export default async function VcDealFlowPage() {
 
   return (
     <div className="space-y-8">
-      <header className="space-y-2">
+      <header className="space-y-3">
         <Link
           href="/deal-flow"
           className="text-sm text-muted-foreground hover:text-foreground"
         >
-          ← Deal Flow hub
+          ← Deal Flow
         </Link>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#3a414f]">
-              Deal Flow · VC
+              Venture deals
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-              Pipeline Active — one row per company. Stage moves spawn Lead
-              Process Library tasks once per template.
+              Active leads and deals — move stages to spawn process tasks.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary">{leads.length} active leads</Badge>
-            <Badge variant="outline">{ready} ready for DD</Badge>
+            <Badge variant="outline">{ready} ready for diligence</Badge>
             <Badge variant="outline">{openTasks.length} open tasks</Badge>
             <Link
               href="/deal-flow/vc/intake"
               className="text-sm font-medium underline-offset-4 hover:underline"
             >
-              Lead intake →
+              Lead Intake →
             </Link>
             <Link
               href="/deal-flow/vc/deals"
               className="text-sm font-medium underline-offset-4 hover:underline"
             >
-              Deal Active ({deals.length}) →
+              View deals ({deals.length}) →
             </Link>
             <Link
               href="/deal-flow/vc/ic"
@@ -62,6 +62,7 @@ export default async function VcDealFlowPage() {
             </Link>
           </div>
         </div>
+        <DealFlowTrackTabs active="vc" />
       </header>
 
       <PipelineStageSummary leads={leads} />

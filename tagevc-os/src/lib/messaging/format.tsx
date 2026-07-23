@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { createElement, Fragment } from 'react';
+import { entityDisplayName } from '@/lib/entities/display-name';
 
 /** Lightweight formatting: URLs, **bold**, and newlines. */
 export function formatMessageBody(body: string): ReactNode {
@@ -90,19 +91,20 @@ export function linkedObjectLabel(
   refId: string | null | undefined,
 ): string {
   if (!refType || !refId) return '';
+  if (refType === 'entity') {
+    return entityDisplayName(refId);
+  }
   const type =
     refType === 'lead'
       ? 'Lead'
       : refType === 'deal'
         ? 'Deal'
-        : refType === 'entity'
-          ? 'Entity'
-          : refType === 'task'
-            ? 'Task'
-            : refType === 'ticket'
-              ? 'Ticket'
-              : refType === 'document'
-                ? 'Document'
-                : refType;
+        : refType === 'task'
+          ? 'Task'
+          : refType === 'ticket'
+            ? 'Ticket'
+            : refType === 'document'
+              ? 'Document'
+              : refType;
   return `${type} ${refId}`;
 }

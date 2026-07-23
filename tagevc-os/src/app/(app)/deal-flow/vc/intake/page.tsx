@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { CreateLeadForm } from '@/components/deal-flow/create-lead-form';
-import { Badge } from '@/components/ui/badge';
 import {
   Card,
   CardContent,
@@ -18,6 +17,7 @@ import {
 } from '@/components/ui/table';
 import { listSubsidiaryEntities } from '@/lib/data/entity-os';
 import { listScopedAllLeads } from '@/lib/data/pipeline-scope';
+import { entityDisplayName } from '@/lib/entities/display-name';
 import { formatDate } from '@/lib/format';
 
 /**
@@ -37,22 +37,19 @@ export default async function LeadIntakePage() {
     <div className="space-y-8">
       <header className="space-y-2">
         <Link
-          href="/deal-flow/vc"
+          href="/deal-flow"
           className="text-sm text-muted-foreground hover:text-foreground"
         >
-          ← Deal Flow · VC
+          ← Deal Flow
         </Link>
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#3a414f]">
-            Inbound Lead Intake
+            Lead Intake
           </h1>
-          <Badge variant="outline">LD-###</Badge>
         </div>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Log company + source + owner. Creates Pipeline Active at{' '}
-          <strong>Sourced</strong> and spawns Lead Process Library tasks
-          (acknowledge inbound within 48h). Lifecycle: Intake → Pipeline → Deal
-          → issue ENT-* → Portfolio.
+          Log a company, source, and owner. New opportunities start here, then
+          move through Deal Flow and into portfolio companies after close.
         </p>
       </header>
 
@@ -67,7 +64,7 @@ export default async function LeadIntakePage() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Inbound source</CardDescription>
+            <CardDescription>Incoming</CardDescription>
             <CardTitle className="font-heading text-2xl tabular-nums">
               {inbound.length}
             </CardTitle>
@@ -75,7 +72,7 @@ export default async function LeadIntakePage() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Entity follow-on targets</CardDescription>
+            <CardDescription>Company follow-ons</CardDescription>
             <CardTitle className="font-heading text-2xl tabular-nums">
               {entities.length}
             </CardTitle>
@@ -90,15 +87,16 @@ export default async function LeadIntakePage() {
         }))}
         defaultSource="Inbound"
         showRelatedEntity
-        title="Website / associate intake"
-        description="Required: company, source, owner. Link related_entity_id when inbound references a portfolio company (e.g. Instant NDA)."
+        title="New opportunity"
+        description="Required: company, source, and owner. Link a related company when this is a follow-on (for example Instant NDA)."
       />
 
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Recent intake</CardTitle>
           <CardDescription>
-            Includes archived origin leads that closed into Entity Master.
+            Newest opportunities, including ones that already closed into a
+            company.
           </CardDescription>
         </CardHeader>
         <CardContent className="overflow-hidden rounded-lg border border-border p-0">
@@ -108,7 +106,7 @@ export default async function LeadIntakePage() {
                 <TableHead>Lead</TableHead>
                 <TableHead>Source</TableHead>
                 <TableHead>Stage</TableHead>
-                <TableHead>Entity link</TableHead>
+                <TableHead>Company link</TableHead>
                 <TableHead>Created</TableHead>
               </TableRow>
             </TableHeader>
@@ -146,7 +144,7 @@ export default async function LeadIntakePage() {
                         href={`/entities/${l.related_entity_id}`}
                         className="text-sm underline-offset-4 hover:underline"
                       >
-                        {l.related_entity_id}
+                        {entityDisplayName(l.related_entity_id)}
                       </Link>
                     ) : (
                       '—'

@@ -2,6 +2,7 @@ import {
   getSsHubCardModules,
   type SsHubModule,
 } from '@/lib/shared-services/modules';
+import { entityDisplayName } from '@/lib/entities/display-name';
 import { entityIdsEquivalent } from '@/lib/multi-sub/entity-registry';
 import type { SsService, Ticket } from '@/lib/types';
 
@@ -171,7 +172,10 @@ export function buildRelatedLinks(ticket: Ticket): SsInboxRelatedLink[] {
   ];
   if (ticket.entity_id) {
     links.push({
-      label: ticket.entity_id,
+      label: entityDisplayName({
+        entity_id: ticket.entity_id,
+        company_name: ticket.company_name,
+      }),
       href: `/entities/${ticket.entity_id}`,
       kind: 'entity',
     });

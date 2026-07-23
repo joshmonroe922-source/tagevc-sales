@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { DealFlowTrackTabs } from '@/components/deal-flow/deal-flow-track-tabs';
 import { Badge } from '@/components/ui/badge';
 import {
   Card,
@@ -31,44 +32,45 @@ export default async function DealFlowHubPage() {
   const tracks = [
     {
       href: '/deal-flow/vc',
-      title: 'VC Invest',
+      title: 'VC',
       description:
-        'Pipeline Active → Ready for DD → Deal Active → IC → wire → Portfolio Handoff.',
+        'Source leads, diligence, investment committee, close, then hand off to portfolio.',
       stats: [
         `${leads.length} leads`,
         `${deals.length} deals`,
         `${icPending} IC open`,
       ],
-      accent: "border-[#3a414f]",
+      accent: 'border-[#3a414f]',
     },
     {
       href: '/deal-flow/ma',
-      title: 'M&A Buy',
+      title: 'M&A',
       description:
-        'Sourced → CIM → Mgmt → IOI → LOI → DD → Docs → Closing → Integration.',
-      stats: [`${ma.length} targets`, 'QoE · LOI · Integration'],
-      accent: "border-[#4a5568]",
+        'Source targets through CIM, LOI, diligence, closing, and integration.',
+      stats: [`${ma.length} targets`, 'LOI · diligence · close'],
+      accent: 'border-[#4a5568]',
     },
     {
       href: '/deal-flow/re',
-      title: 'RE Buy',
+      title: 'Real Estate',
       description:
-        'Residential + Commercial. Sourced → Screen → UW → Offer → PSA → Diligence → Closing → Onboard.',
-      stats: [`${re.length} assets`, `${resi} resi`, `${cre} CRE`],
-      accent: "border-[#6b5b4f]",
+        'Residential and commercial assets from screen through underwriting to close.',
+      stats: [`${re.length} assets`, `${resi} residential`, `${cre} commercial`],
+      accent: 'border-[#6b5b4f]',
     },
   ];
 
   return (
     <div className="space-y-8">
-      <header className="space-y-2">
+      <header className="space-y-3">
         <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#3a414f]">
           Deal Flow
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Three tracks — VC Invest, M&A Buy, RE Buy. Join pre-close on company /
-          asset name; post-close handoff into Portfolio Active.
+          Venture, M&A, and real estate pipelines in one place. Use the tracks
+          below — or Lead Intake for new opportunities.
         </p>
+        <DealFlowTrackTabs active="hub" />
       </header>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -97,10 +99,16 @@ export default async function DealFlowHubPage() {
 
       <div className="flex flex-wrap gap-4 text-sm">
         <Link
+          href="/deal-flow/vc/intake"
+          className="font-medium underline-offset-4 hover:underline"
+        >
+          Lead Intake →
+        </Link>
+        <Link
           href="/deal-flow/vc/deals"
           className="font-medium underline-offset-4 hover:underline"
         >
-          VC Deal Active →
+          View deals →
         </Link>
         <Link
           href="/deal-flow/vc/ic"
@@ -112,7 +120,7 @@ export default async function DealFlowHubPage() {
           href="/portfolio"
           className="font-medium underline-offset-4 hover:underline"
         >
-          Portfolio Active →
+          Portfolio Snapshot →
         </Link>
       </div>
     </div>

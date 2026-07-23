@@ -146,7 +146,7 @@ describe('Phase 61 firm ops command completeness', () => {
 
     expect(page).toContain('FirmOpsCommandPhase61Client');
     expect(page).toContain('getFirmOpsCommandPhase61Report');
-    expect(page).toContain('Module quick-nav');
+    expect(page).toContain('Quick links');
     expect(page).toContain('/entities/ENT-R619');
 
     expect(actions).toContain('refreshFirmOpsCommandPhase61Action');
@@ -157,6 +157,6 @@ describe('Phase 61 firm ops command completeness', () => {
     expect(ui).toContain('ENT-R619');
     expect(ui).toContain('Action queues');
     expect(ui).toContain('Stale / breach board');
-    expect(ui).toContain('Module quick-nav');
+    expect(ui).toContain('/entities/ENT-R619');
   });
 });

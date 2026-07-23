@@ -38,6 +38,7 @@ import {
   formatUsdK,
 } from '@/lib/format';
 import { CORE_KPI_CATALOG } from '@/lib/portfolio/core-kpis';
+import { entityDisplayName } from '@/lib/entities/display-name';
 import type { EntityLinkedTask, EntityOperatingView } from '@/lib/types';
 
 function formatKpiValue(
@@ -144,19 +145,15 @@ export function EntityOperatingViewPanel({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-2">
             <p className="text-xs font-medium tracking-[0.16em] text-muted-foreground uppercase">
-              Subsidiary Operating System
+              Company
             </p>
             <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#3a414f]">
               {entity.canonical_name}
             </h1>
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline">{entity.entity_id}</Badge>
               <Badge variant="secondary">{entity.entity_type}</Badge>
               {entity.industry_module ? (
                 <Badge variant="secondary">{entity.industry_module}</Badge>
-              ) : null}
-              {portfolio ? (
-                <Badge variant="outline">{portfolio.portfolio_id}</Badge>
               ) : null}
               {portfolio ? <HealthBadge health={portfolio.health} /> : null}
             </div>
@@ -170,7 +167,7 @@ export function EntityOperatingViewPanel({
             <StartChatButton
               refType="entity"
               refId={entity.entity_id}
-              title={`${entity.entity_id} · ${entity.canonical_name}`}
+              title={entity.canonical_name}
               entityId={entity.entity_id}
             />
             {portfolio ? (
@@ -178,20 +175,20 @@ export function EntityOperatingViewPanel({
                 href={`/portfolio/${portfolio.portfolio_id}`}
                 className="underline-offset-4 hover:underline"
               >
-                Portfolio Active
+                View portfolio snapshot
               </Link>
             ) : null}
             <Link
               href={`/documents/entities/${entity.entity_id}`}
               className="underline-offset-4 hover:underline"
             >
-              Document library
+              Open documents
             </Link>
             <Link
               href="/deal-flow/vc/intake"
               className="underline-offset-4 hover:underline"
             >
-              Lead intake
+              Lead Intake
             </Link>
           </div>
         </div>
@@ -202,17 +199,16 @@ export function EntityOperatingViewPanel({
         <section id="rollup" className="scroll-mt-24 space-y-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <SectionHeading
-              title="Subsidiary Rollup"
-              description="Phase 53 Recruit 619 ops pulse — open reqs, pipeline, interviews, offers, placements. Fail-soft when the subsidiary feed is partial or missing."
+              title="Company performance summary"
+              description="Open roles, pipeline, interviews, offers, and placements. Shows partial data when the company feed is incomplete."
             />
             <SubsidiaryRollupRefreshButton
               entityId={view.subsidiary_rollup.entity_id}
             />
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline">Phase 53</Badge>
             <Badge variant="secondary">
-              Freshness · {view.subsidiary_rollup.freshness}
+              Data freshness · {view.subsidiary_rollup.freshness}
             </Badge>
             <Badge variant="outline">
               Feed · {view.subsidiary_rollup.feed_status}
@@ -329,24 +325,31 @@ export function EntityOperatingViewPanel({
       <section id="overview" className="scroll-mt-24 space-y-4">
         <SectionHeading
           title="Overview"
-          description="Entity Master + Portfolio Active pulse. Health and Top Risk are CORE."
+          description="Company profile and operating pulse. Health and top risk are required."
         />
         <div className="grid gap-4 lg:grid-cols-2">
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between gap-2">
-                <CardTitle className="text-base">Entity Master</CardTitle>
+                <CardTitle className="text-base">Company profile</CardTitle>
                 <StandardBadge standard="CORE" />
               </div>
               <CardDescription>
-                Canonical registry join after close (ENT-*).
+                Legal name, ownership, and close details.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <Row label="Legal name" value={entity.legal_name ?? '—'} />
               <Row label="Status" value={entity.status} />
               <Row label="Track origin" value={entity.track_origin ?? '—'} />
-              <Row label="Parent" value={entity.parent_entity_id ?? '—'} />
+              <Row
+                label="Parent"
+                value={
+                  entity.parent_entity_id
+                    ? entityDisplayName(entity.parent_entity_id)
+                    : '—'
+                }
+              />
               <Row label="QBE key" value={entity.qbe_class_or_company ?? '—'} />
               <Row label="COO owner" value={entity.coo_owner ?? '—'} />
               <Row label="Board lead" value={entity.board_lead ?? '—'} />
@@ -661,7 +664,7 @@ export function EntityOperatingViewPanel({
       <section id="docs" className="scroll-mt-24 space-y-4">
         <SectionHeading
           title="Documents"
-          description="Library paths under /Entities/{entity_id}/…"
+          description="Company files in the Document Library."
         />
         {view.documents.length === 0 ? (
           <p className="text-sm text-muted-foreground">
@@ -670,7 +673,7 @@ export function EntityOperatingViewPanel({
               href={`/documents/entities/${entity.entity_id}`}
               className="underline underline-offset-2"
             >
-              Open library
+              Open documents
             </Link>
           </p>
         ) : (

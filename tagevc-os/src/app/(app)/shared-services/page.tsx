@@ -14,11 +14,6 @@ import { listScopedTickets } from '@/lib/data/pipeline-scope';
 import { FORBID_LIST } from '@/lib/shared-services/forbid-list';
 import { ALLOW_LIST } from '@/lib/shared-services/allow-list';
 import {
-  CONFIDENCE_AUTO_MIN,
-  CONFIDENCE_DRAFT_MIN,
-  CURRENT_POLICY_VERSION,
-} from '@/lib/shared-services/diagnose';
-import {
   getSsHubCardModules,
   ssHubStatusLabel,
 } from '@/lib/shared-services/modules';
@@ -92,12 +87,9 @@ export default async function SharedServicesPage({ searchParams }: Props) {
           Shared Services
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Ticketing plus Legal, IT, and Marketing modules for Tage VC and
-          subsidiaries. Phase 54 unified inbox adds SLA boards, ownership, and
-          escalation across Finance · Legal · HR · IT · Marketing. Policy
-          version <code>{CURRENT_POLICY_VERSION}</code>. AUTO ≥
-          {CONFIDENCE_AUTO_MIN}% on allow-list; DRAFT {CONFIDENCE_DRAFT_MIN}
-          –89%; ESCALATE &lt;{CONFIDENCE_DRAFT_MIN}%, P0, or forbid-list.
+          Service work for Tage VC and portfolio companies — tickets, SLAs,
+          ownership, and escalation across Finance, Legal, HR, IT, and
+          Marketing. High-risk or money actions always need a person.
         </p>
       </header>
 
@@ -113,9 +105,8 @@ export default async function SharedServicesPage({ searchParams }: Props) {
             Service modules
           </h2>
           <p className="text-sm text-muted-foreground">
-            Firm-wide hubs with entity-scoped data where applicable. Finance
-            control plane is live; HR remains a planned stub — tickets still
-            appear in the unified inbox.
+            Open a service area below. Tickets for every company still appear in
+            the unified inbox.
           </p>
         </div>
         <div className="space-y-5">

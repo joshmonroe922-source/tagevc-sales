@@ -32,6 +32,7 @@ import {
   formatFinanceMetric,
   type FinanceControlPlanePhase55Report,
 } from '@/lib/shared-services/finance-control-plane-phase55';
+import { entityDisplayName } from '@/lib/entities/display-name';
 
 export function FinanceControlPlaneClient({
   report: initialReport,
@@ -364,7 +365,9 @@ export function FinanceControlPlaneClient({
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {a.anomaly_kind}
-                    {a.entity_id ? ` · ${a.entity_id}` : ''}
+                    {a.entity_id
+                      ? ` · ${entityDisplayName(a.entity_id)}`
+                      : ''}
                   </p>
                 </div>
               ))
@@ -378,8 +381,7 @@ export function FinanceControlPlaneClient({
               Subsidiary financial visibility
             </CardTitle>
             <CardDescription>
-              Recruit ({report.entity_filter_hint}) first; Instant NDA when
-              evidence exists.
+              Recruit 619 first; Instant NDA when data is available.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -393,9 +395,11 @@ export function FinanceControlPlaneClient({
                     href={`/entities/${sub.entity_id}`}
                     className="font-medium underline-offset-2 hover:underline"
                   >
-                    {sub.name}
+                    {entityDisplayName({
+                      name: sub.name,
+                      entity_id: sub.entity_id,
+                    })}
                   </Link>
-                  <Badge variant="outline">{sub.entity_id}</Badge>
                   <Badge variant="secondary">Feed · {sub.feed_status}</Badge>
                 </div>
                 {sub.todo ? (

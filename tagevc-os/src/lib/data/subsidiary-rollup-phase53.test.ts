@@ -128,14 +128,16 @@ describe('Phase 53 Subsidiary Rollup Hub (Recruit first)', () => {
 
     expect(entityOs).toContain('getSubsidiaryRollupPhase53Report');
     expect(entityOs).toContain('subsidiary_rollup');
-    expect(panel).toContain('Phase 53');
+    expect(panel).toContain('Company performance summary');
     expect(panel).toContain('id="rollup"');
     expect(panel).toContain('portal.recruit619.com');
     expect(sectionNav).toContain('rollup');
     expect(entitiesPage).toContain('ENT-R619');
-    expect(entitiesPage).toContain('Rollup');
-    expect(nav).toContain('/entities/ENT-R619');
-    expect(nav).toContain('Recruit 619');
+    expect(entitiesPage).toContain('performance rollup');
+    expect(nav).toContain('/entities');
+    expect(nav).toContain('Entities');
+    expect(nav).toContain('Portfolio Snapshot');
+    expect(nav).not.toContain('Recruit 619 Rollup');
     expect(actions).toContain('refreshSubsidiaryRollupPhase53Action');
   });
 });

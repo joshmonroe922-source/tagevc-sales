@@ -38,19 +38,19 @@ export default async function EntityDocumentsPage({ params }: Props) {
           href="/documents"
           className="text-sm text-muted-foreground hover:text-foreground"
         >
-          ← Documents
+          ← Document Library
         </Link>
         <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#3a414f]">
           {entity.canonical_name}
         </h1>
         <p className="text-sm text-muted-foreground">
-          Library <code>/Entities/{entity.entity_id}/…</code>
+          Company document folders
           {' · '}
           <Link
             href={`/entities/${entity.entity_id}`}
             className="underline underline-offset-2 hover:text-foreground"
           >
-            Subsidiary OS
+            Open company
           </Link>
         </p>
       </div>
@@ -60,9 +60,7 @@ export default async function EntityDocumentsPage({ params }: Props) {
           <Card key={folder}>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">{FOLDER_LABELS[folder]}</CardTitle>
-              <CardDescription>
-                /Entities/{entity.entity_id}/{folder}
-              </CardDescription>
+              <CardDescription>{FOLDER_LABELS[folder]} folder</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
               {(byFolder[folder] ?? []).length === 0 ? (

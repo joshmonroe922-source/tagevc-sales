@@ -28,6 +28,7 @@ import type {
   SsInboxRow,
   SsInboxSlaStatus,
 } from '@/lib/shared-services/shared-services-inbox-phase54';
+import { entityDisplayName } from '@/lib/entities/display-name';
 import {
   buildUnifiedInboxRows,
   slaStatusLabel,
@@ -89,18 +90,16 @@ export function SsUnifiedInbox({
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="font-heading text-lg font-semibold text-[#3a414f]">
-              Unified inbox
+              Service inbox
             </h2>
-            <Badge variant="outline">Phase 54</Badge>
             <Badge variant="secondary">
               Feed · {report.feed_status}
             </Badge>
           </div>
           <p className="max-w-2xl text-sm text-muted-foreground">
-            Cross-service ticket board (Finance · Legal · HR · IT · Marketing)
-            with SLA status, ownership, escalation visibility, and entity
-            filters including {report.entity_filter_hint}. Dual-approve and
-            money gates are never auto-approved.
+            Open service work across Finance, Legal, HR, IT, and Marketing —
+            with due dates, owners, and escalation visibility. Money and
+            high-risk actions always need a person.
           </p>
         </div>
         <Button
@@ -183,20 +182,19 @@ export function SsUnifiedInbox({
           </select>
         </label>
         <label className="space-y-1 text-xs">
-          <span className="text-muted-foreground">Entity</span>
+          <span className="text-muted-foreground">Company</span>
           <input
             className="block h-9 min-w-[10rem] rounded-md border border-border bg-background px-2 text-sm"
-            placeholder={report.entity_filter_hint}
+            placeholder="Recruit 619"
             value={entityId}
             onChange={(e) => setEntityId(e.target.value)}
             list="phase54-entity-hints"
           />
           <datalist id="phase54-entity-hints">
-            <option value="ENT-R619" />
-            <option value="ENT-INDA" />
-            <option value="ENT-002" />
-            <option value="ENT-FIRM" />
-            <option value="ENT-001" />
+            <option value="ENT-R619">Recruit 619</option>
+            <option value="ENT-INDA">Instant NDA</option>
+            <option value="ENT-FIRM">Tage Venture Capital</option>
+            <option value="ENT-001">Sample Closed Co</option>
           </datalist>
         </label>
         <label className="space-y-1 text-xs">
@@ -233,7 +231,7 @@ export function SsUnifiedInbox({
           type="button"
           onClick={() => setEntityId('ENT-R619')}
         >
-          ENT-R619
+          Recruit 619
         </Button>
       </div>
 
@@ -356,8 +354,7 @@ export function SsUnifiedInbox({
           <CardHeader>
             <CardTitle className="text-base">Recent escalations</CardTitle>
             <CardDescription>
-              Append-only Phase 54 SLA / ownership escalation evidence
-              (visibility only).
+              Recent overdue or ownership escalations (visibility only).
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
@@ -375,7 +372,9 @@ export function SsUnifiedInbox({
                   </Link>
                   <p className="text-xs text-muted-foreground">
                     {e.service}
-                    {e.entity_id ? ` · ${e.entity_id}` : ''}
+                    {e.entity_id
+                      ? ` · ${entityDisplayName(e.entity_id)}`
+                      : ''}
                     {e.owner_name ? ` · owner ${e.owner_name}` : ' · unassigned'}
                   </p>
                 </div>

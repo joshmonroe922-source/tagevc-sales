@@ -1,5 +1,7 @@
 /** Multi-subsidiary readiness — entity registry + alias helpers (P1). */
 
+import { entityDisplayName as resolveEntityDisplayName } from '@/lib/entities/display-name';
+
 export const MS_P1_CONTRACT_VERSION = 'ms-p1-v1' as const;
 
 export const CANONICAL_SUBSIDIARY_CODES = ['ENT-R619', 'ENT-INDA'] as const;
@@ -85,10 +87,7 @@ export function entityIdsEquivalent(
 export function entityDisplayName(entityId: string | null | undefined): string {
   const canon = resolveCanonicalEntityId(entityId);
   if (!canon) return 'Unscoped';
-  const row = ENTITY_REGISTRY_SEED.find((e) => e.entity_code === canon);
-  if (row) return row.canonical_name;
-  if (canon === 'ENT-002') return 'Instant NDA';
-  return canon;
+  return resolveEntityDisplayName(canon, canon);
 }
 
 export function isRegisteredSubsidiary(

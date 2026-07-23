@@ -51,18 +51,18 @@ function Metric({
 const MODULE_QUICK_NAV = [
   { href: '/deal-flow', label: 'Deal Flow' },
   { href: '/deal-flow/vc', label: 'VC pipeline' },
-  { href: '/deal-flow/vc/intake', label: 'New lead' },
-  { href: '/portfolio', label: 'Portfolio' },
+  { href: '/deal-flow/vc/intake', label: 'Lead Intake' },
+  { href: '/portfolio', label: 'Portfolio Snapshot' },
   { href: '/shared-services', label: 'Shared Services' },
   { href: '/shared-services/finance', label: 'Finance' },
   { href: '/shared-services/legal/docusign', label: 'Legal' },
   { href: '/shared-services/marketing', label: 'Marketing' },
   { href: '/firm', label: 'Firm' },
-  { href: '/documents', label: 'Documents' },
+  { href: '/documents', label: 'Document Library' },
   { href: '/entities', label: 'Entities' },
-  { href: '/entities/ENT-R619', label: 'Recruit 619' },
+  { href: '/entities/ENT-R619#rollup', label: 'Recruit 619' },
   { href: '/activity', label: 'Activity' },
-  { href: '/messages', label: 'Messages' },
+  { href: '/messages', label: 'Message Center' },
   { href: '/settings/notifications', label: 'Notifications' },
 ] as const;
 
@@ -99,9 +99,8 @@ export default async function CommandCenterPage() {
           ) : null}
         </div>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Firm Ops command · funnel · capital pulse · portfolio health. Critical
-          alerts and role queues reuse Phase 54–60 evidence. Money is never
-          auto-approved.
+          Firm health at a glance — funnel, capital, portfolio attention, and
+          action queues. Money is never auto-approved.
           {profile ? (
             <>
               {' '}
@@ -122,7 +121,7 @@ export default async function CommandCenterPage() {
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium tracking-wide text-[#7c7871] uppercase">
-          Module quick-nav
+          Quick links
         </h2>
         <div className="flex flex-wrap gap-2">
           {MODULE_QUICK_NAV.map((a) => (
@@ -160,10 +159,10 @@ export default async function CommandCenterPage() {
       <section className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Portfolio health pulse</CardTitle>
+            <CardTitle className="text-base">Portfolio health</CardTitle>
             <CardDescription>
-              COUNTs from Portfolio Active · {snap.active_portfolio_companies}{' '}
-              active · attention required:{' '}
+              {snap.active_portfolio_companies} active companies · attention
+              required:{' '}
               <span className="font-medium text-foreground">
                 {snap.attention_required}
               </span>
@@ -190,7 +189,7 @@ export default async function CommandCenterPage() {
           <CardHeader>
             <CardTitle className="text-base">Capital pulse</CardTitle>
             <CardDescription>
-              Portfolio Roll-up · firm treasury kept separate then consolidated.
+              Portfolio totals with firm cash kept separate, then combined.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-3">
@@ -234,16 +233,16 @@ export default async function CommandCenterPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-4">
           <div>
-            <CardTitle className="text-base">Active portfolio</CardTitle>
+            <CardTitle className="text-base">Active companies</CardTitle>
             <CardDescription>
-              Live from Portfolio Active seed (Excel period {snap.period}).
+              Current period{snap.period ? ` · ${snap.period}` : ''}.
             </CardDescription>
           </div>
           <Link
             href="/portfolio"
             className="text-sm font-medium text-[#3a414f] underline-offset-4 hover:underline"
           >
-            Open Portfolio Active →
+            View Portfolio Snapshot →
           </Link>
         </CardHeader>
         <CardContent className="divide-y divide-border">
@@ -271,7 +270,7 @@ export default async function CommandCenterPage() {
           <div>
             <CardTitle className="text-base">Recent activity</CardTitle>
             <CardDescription>
-              Firm-wide actions persisted in Supabase.
+              Latest firm-wide actions across pipelines and services.
             </CardDescription>
           </div>
           <Link
@@ -286,7 +285,7 @@ export default async function CommandCenterPage() {
             <p className="text-sm text-destructive">{activityResult.error}</p>
           ) : activity.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No events yet. Apply Phase 7 SQL, then create a lead or ticket.
+              No recent activity yet. Create a lead or ticket to get started.
             </p>
           ) : (
             activity.map((e) => (
@@ -307,7 +306,7 @@ export default async function CommandCenterPage() {
       <Card className="border-dashed">
         <CardHeader>
           <CardTitle className="text-base">Operating cadence</CardTitle>
-          <CardDescription>From How We Run — weekly firm rhythm.</CardDescription>
+          <CardDescription>Weekly firm rhythm.</CardDescription>
         </CardHeader>
         <CardContent>
           <ul className="space-y-2 text-sm text-muted-foreground">

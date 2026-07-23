@@ -751,9 +751,11 @@ export function MessagesShell({ initial }: Props) {
         <div className="flex items-center justify-between gap-2 px-4 py-4">
           <div>
             <h1 className="font-heading text-xl font-semibold tracking-tight text-[#3a414f]">
-              Messages
+              Message Center
             </h1>
-            <p className="text-xs text-muted-foreground">DMs, groups & channels</p>
+            <p className="text-xs text-muted-foreground">
+              Direct messages, groups & channels
+            </p>
           </div>
           <Button
             size="icon-sm"

@@ -38,19 +38,19 @@ export default async function PortfolioPage() {
       <header className="space-y-2">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#3a414f]">
-            Portfolio Active
+            Portfolio Snapshot
           </h1>
           <Badge variant="outline" className="font-normal">
             Period {rollup.period}
           </Badge>
           <Badge variant="outline" className="font-normal capitalize">
-            {source === 'sql' ? 'Live DB' : source === 'seed+migrating' ? 'Migrating' : 'Seed'}
+            {source === 'sql' ? 'Live' : source === 'seed+migrating' ? 'Updating' : 'Sample'}
           </Badge>
         </div>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          One row per company. COO owns Health + Top Risk. CORE $ fields match
-          Portfolio Roll-up for the same period (BD15 pack). Weekly operating
-          cadence tools for Visionary/COO live below.
+          Company health overview — ARR, burn, runway, and top risks. Open a
+          company for its full performance summary. Weekly operating review
+          tools are below.
         </p>
       </header>
 

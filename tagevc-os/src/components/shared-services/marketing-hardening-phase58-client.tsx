@@ -216,7 +216,7 @@ export function MarketingHardeningPhase58Client({
             href="/entities/ENT-R619"
             className="inline-flex h-7 items-center rounded-lg px-2.5 text-[0.8rem] text-muted-foreground hover:bg-muted hover:text-foreground"
           >
-            ENT-R619
+            Recruit 619
           </Link>
         </div>
         {message ? (

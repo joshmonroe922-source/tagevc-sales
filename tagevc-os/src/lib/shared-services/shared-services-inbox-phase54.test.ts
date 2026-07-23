@@ -257,9 +257,9 @@ describe('Phase 54 Shared Services Inbox Unification', () => {
     expect(serverLib).toContain('refreshSharedServicesInboxPhase54');
     expect(serverLib).toContain('createPersistClient');
 
-    expect(page).toContain('Phase 54');
     expect(page).toContain('getSharedServicesInboxPhase54Report');
     expect(page).toContain('SsUnifiedInbox');
+    expect(page).toContain('Shared Services');
     expect(page).toContain('listScopedTickets');
     expect(page).toContain('shared-services-inbox-phase54-server');
 
@@ -270,8 +270,9 @@ describe('Phase 54 Shared Services Inbox Unification', () => {
     expect(modules).toContain('getSsHubCardModules');
 
     expect(actions).toContain('refreshSharedServicesInboxPhase54Action');
-    expect(ui).toContain('Phase 54');
+    expect(ui).toContain('Service inbox');
     expect(ui).toContain('ENT-R619');
+    expect(ui).toContain('Recruit 619');
     expect(ui).toContain('sla_status');
     expect(ui).toContain('buildUnifiedInboxRows');
   });
