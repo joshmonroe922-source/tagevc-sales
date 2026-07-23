@@ -975,13 +975,56 @@ GitHub Actions: `.github/workflows/snapshot-path-guard.yml` runs
 `node scripts/ci-snapshot-phase50-path-guard.mjs --check` on every PR against
 `main` (job name `ci-snapshot-phase50-path-guard`). To make it a **required**
 status check: Settings → Branches → Branch protection rules → Require status
-checks to pass → add `ci-snapshot-phase50-path-guard`. Then record evidence
-via the `record_phase51_required_check_verification` admin action (or the
-"Record Phase 51 required-check verification" button in the Snapshot
-retirement admin panel) so `required_check_currently_configured` reflects
-reality.
+checks to pass → add `ci-snapshot-phase50-path-guard`. Phase 51 records
+read-only evidence via `record_phase51_required_check_verification`; Phase 52
+adds automated verification via
+`scripts/ci-snapshot-phase52-branch-protection-verify.mjs` (never mutates branch
+protection itself).
 
-### Phase 52+ backlog
+### Phase 52
+
+Marketing firm-wide pending-proposals digest so approvers can see cohorts
+awaiting first/second dual approval after Phase 51 auto-propose — visibility
+only, never auto-approves money. DocuSign configurable third→fourth approver
+escalation chain when third-approver reminders also go unanswered (notification
+only — never auto-activates budgets or mutates envelopes). Intune per-category
+(postmortem/breaker/waive) backlog trend charts on Phase 51 unified inbox
+snapshots (observe-only; no entity ID leaks). SLO firm-wide admin summary
+trend view aggregating Phase 50 WoW digest delivery health across owners
+(still pull-only, not push). Snapshot: scheduled read-only GitHub
+branch-protection verification evidence for `ci-snapshot-phase50-path-guard`
+plus continued Stage 4e soak trend rollups. Stage 4e non-qualifying flags
+remain false; no snapshot relation mutations; `os_store_snapshots` is never
+referenced.
+
+Apply after Phase 51:
+
+1. `phase52_marketing_revenue_ops.sql`
+2. `phase52_docusign_archive_ops.sql`
+3. `phase52_intune_resilience_ops.sql`
+4. `phase52_slo_governance_ops.sql`
+5. `phase52_snapshot_cutover_ops.sql`
+
+Docs: `docs/OS_PHASE52.md`
+
+Scheduled branch-protection verify (read-only GET only):
+
+```bash
+GITHUB_TOKEN=... GITHUB_REPOSITORY=owner/repo \
+  node scripts/ci-snapshot-phase52-branch-protection-verify.mjs
+```
+
+Check-only mode (exit 0 when required, 1 otherwise):
+
+```bash
+GITHUB_TOKEN=... node scripts/ci-snapshot-phase52-branch-protection-verify.mjs --check
+```
+
+Making `ci-snapshot-phase50-path-guard` a **required** status check remains a
+one-time repo-admin action under branch protection settings — the Phase 52
+script records evidence of that state only.
+
+### Phase 53+ backlog
 
 - Continue Stage 4e soak; do not drop snapshots
 - Push · user admin

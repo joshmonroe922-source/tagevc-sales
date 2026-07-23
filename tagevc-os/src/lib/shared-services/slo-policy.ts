@@ -107,6 +107,7 @@ export async function listSloPolicyAdministration() {
     { data: ownerDigestOptIns, error: ownerDigestOptInError },
     { data: phase50Report, error: phase50ReportError },
     { data: phase51Report, error: phase51ReportError },
+    { data: phase52Report, error: phase52ReportError },
   ] = await Promise.all([
     sb
       .from('os_slo_policies')
@@ -273,6 +274,7 @@ export async function listSloPolicyAdministration() {
       .limit(12),
     sb.rpc('get_slo_phase50_owner_digest_report'),
     sb.rpc('get_slo_phase51_owner_digest_report'),
+    sb.rpc('get_slo_phase52_firm_digest_admin_report'),
   ]);
   errorMessage(policyError);
   errorMessage(ownerError);
@@ -392,6 +394,9 @@ export async function listSloPolicyAdministration() {
   if (phase51ReportError) {
     console.error('slo phase51 owner digest report unavailable', phase51ReportError.message);
   }
+  if (phase52ReportError) {
+    console.error('slo phase52 firm digest admin report unavailable', phase52ReportError.message);
+  }
   const archivedExportIds = new Set(
     (archivalError ? [] : (archivalReceipts ?? [])).map(
       (row: { export_id: string }) => row.export_id,
@@ -478,6 +483,7 @@ export async function listSloPolicyAdministration() {
       : (ownerDigestOptIns ?? []),
     phase50Report: phase50ReportError ? null : (phase50Report ?? null),
     phase51Report: phase51ReportError ? null : (phase51Report ?? null),
+    phase52Report: phase52ReportError ? null : (phase52Report ?? null),
   };
 }
 
@@ -1317,3 +1323,10 @@ export {
   getSloPhase51OwnerDigestReport,
   processSloGovernancePhase51,
 } from '@/lib/shared-services/slo-phase51';
+
+export {
+  PHASE52_SLO_CONTRACT_VERSION,
+  listSloFirmDigestAdminSummaryTrendPhase52,
+  getSloPhase52FirmDigestAdminReport,
+  processSloGovernancePhase52,
+} from '@/lib/shared-services/slo-phase52';

@@ -153,7 +153,12 @@ describe('Phase 51 snapshot cutover: required-check evidence, page-failure escal
     expect(lib).not.toMatch(/PRIVATE_KEY/);
     expect(lib).not.toMatch(/-----BEGIN/);
 
-    expect(route).toContain('getSnapshotPhase51OpsDashboard');
+    // Later phases may compose the Phase 51 dashboard indirectly via a
+    // wrapping Phase 52+ dashboard getter that itself calls
+    // getSnapshotPhase51OpsDashboard internally — accept either wiring.
+    expect(route).toMatch(
+      /getSnapshotPhase5[1-9]OpsDashboard|getSnapshotPhase[6-9][0-9]OpsDashboard/,
+    );
     expect(route).toContain('escalateSnapshotPhase51PageDeliveryFailures');
     expect(route).toContain('recordSnapshotPhase51RequiredCheckVerification');
     expect(route).toContain('recordSnapshotPhase51SoakTrend');

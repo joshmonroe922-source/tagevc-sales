@@ -2575,3 +2575,27 @@ export async function runIntunePhase51UnifiedInboxOps() {
   );
   return processIntunePhase51UnifiedInboxOps();
 }
+
+// ---------------------------------------------------------------------------
+// Phase 52: per-category backlog trends from Phase 51 inbox snapshots
+// (postmortem / breaker / waive). Observe-only — never applies, approves,
+// closes, or resets anything. Actual first/second approvals still happen
+// through the existing Phase 49/50 review and dual-approve RPCs.
+// ---------------------------------------------------------------------------
+export async function getIntunePhase52OpsReport(): Promise<{
+  report: Record<string, unknown> | null;
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc('get_it_intune_phase52_ops_report');
+  return error
+    ? { report: null, error: error.message }
+    : { report: (data as Record<string, unknown> | null) ?? null };
+}
+
+export async function runIntunePhase52CategoryTrendOps() {
+  const { processIntunePhase52CategoryTrendOps } = await import(
+    '@/lib/shared-services/it-intune-worker'
+  );
+  return processIntunePhase52CategoryTrendOps();
+}

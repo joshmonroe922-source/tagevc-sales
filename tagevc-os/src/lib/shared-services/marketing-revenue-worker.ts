@@ -23,6 +23,7 @@ import { runPhase48RevenueOpsTick } from '@/lib/shared-services/marketing-phase4
 import { runPhase49RevenueOpsTick } from '@/lib/shared-services/marketing-phase49';
 import { runPhase50RevenueOpsTick } from '@/lib/shared-services/marketing-phase50';
 import { runPhase51RevenueOpsTick } from '@/lib/shared-services/marketing-phase51';
+import { runPhase52RevenueOpsTick } from '@/lib/shared-services/marketing-phase52';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 
 type PullRun = {
@@ -566,6 +567,17 @@ export async function processMarketingRevenuePulls(limit = 1): Promise<{
   } else {
     details.push(
       `phase51-ops: cohorts=${phase51.cohortsScanned} proposed=${phase51.proposalsCreated} skipped=${phase51.skipped} errored=${phase51.errored} alerts=${phase51.alertsRecorded}`,
+    );
+  }
+
+  // Phase 52: firm-wide pending-proposals digest for approvers after
+  // auto-propose soak. Visibility only — NEVER auto-approves money.
+  const phase52 = await runPhase52RevenueOpsTick();
+  if (!phase52.ok) {
+    details.push(`phase52-ops: ${phase52.error}`);
+  } else {
+    details.push(
+      `phase52-ops: pending=${phase52.totalPending} first=${phase52.awaitingFirst} second=${phase52.awaitingSecond} digests=${phase52.digestsRecorded} alerts=${phase52.alertsRecorded}`,
     );
   }
 

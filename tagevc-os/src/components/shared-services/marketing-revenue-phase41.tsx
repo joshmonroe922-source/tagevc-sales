@@ -14,6 +14,7 @@ import type {
   Phase50RevenueOpsReport,
 } from '@/lib/shared-services/marketing-revenue-contracts';
 import type { Phase51RevenueOpsReport } from '@/lib/shared-services/marketing-phase51';
+import type { Phase52RevenueOpsReport } from '@/lib/shared-services/marketing-phase52';
 import {
   approveMarketingDryRunPromoteAction,
   reviewMarketingRevenueCorrectionAction,
@@ -72,6 +73,8 @@ export function MarketingRevenuePhase41({
   phase50OpsError,
   phase51OpsReport,
   phase51OpsError,
+  phase52OpsReport,
+  phase52OpsError,
 }: {
   report: Phase41RevenueReport;
   error?: string;
@@ -96,6 +99,8 @@ export function MarketingRevenuePhase41({
   phase50OpsError?: string;
   phase51OpsReport?: Phase51RevenueOpsReport;
   phase51OpsError?: string;
+  phase52OpsReport?: Phase52RevenueOpsReport;
+  phase52OpsError?: string;
 }) {
   const [pending, startTransition] = useTransition();
   const [actionError, setActionError] = useState<string | null>(null);
@@ -436,6 +441,15 @@ export function MarketingRevenuePhase41({
                 auto-approved
               </span>
             ) : null}
+            {phase52OpsReport ? (
+              <span className="rounded border px-2 py-0.5 text-[11px] border-muted-foreground/40 text-muted-foreground">
+                pending proposals digest{' '}
+                {phase52OpsReport.total_pending_count} pending ·{' '}
+                {phase52OpsReport.awaiting_first_approval_count} first /{' '}
+                {phase52OpsReport.awaiting_second_approval_count} second · never
+                auto-approved
+              </span>
+            ) : null}
           </div>
           {sloError ? (
             <p className="text-xs text-destructive">{sloError}</p>
@@ -466,6 +480,23 @@ export function MarketingRevenuePhase41({
           ) : null}
           {phase51OpsError ? (
             <p className="text-xs text-destructive">{phase51OpsError}</p>
+          ) : null}
+          {phase52OpsError ? (
+            <p className="text-xs text-destructive">{phase52OpsError}</p>
+          ) : null}
+          {phase52OpsReport && phase52OpsReport.total_pending_count > 0 ? (
+            <div className="space-y-1 rounded border p-2 text-xs">
+              <p className="font-medium">
+                Firm-wide pending proposals digest (Phase 52 — visibility for
+                approvers after auto-propose soak; never auto-approves money)
+              </p>
+              <p className="text-muted-foreground">
+                {phase52OpsReport.awaiting_first_approval_count} awaiting first
+                approval · {phase52OpsReport.awaiting_second_approval_count}{' '}
+                awaiting second approval ·{' '}
+                {phase52OpsReport.digest_snapshot_count} digest snapshots
+              </p>
+            </div>
           ) : null}
           {phase51OpsReport && phase51OpsReport.cohort_status.length ? (
             <div className="space-y-1 rounded border p-2 text-xs">

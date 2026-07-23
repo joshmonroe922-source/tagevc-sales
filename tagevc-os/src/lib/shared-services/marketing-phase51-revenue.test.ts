@@ -131,6 +131,7 @@ describe('Phase 51 marketing revenue ops', () => {
     );
     expect(page).toMatch(/getPhase51RevenueOpsReport/);
     expect(page).toMatch(/Phase 51/);
+    expect(page).toMatch(/Phase 52/);
     expect(page).toMatch(/phase51OpsReport=\{phase51OpsReport\.report\}/);
     expect(ui).toMatch(/auto-propose/i);
     expect(ui).toMatch(/never auto-approv/i);

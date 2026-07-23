@@ -53,6 +53,7 @@ import {
   approveIntuneBreakerTuningPhase50Action,
   approveIntunePromoteWaivePhase50Action,
   refreshIntunePhase51UnifiedInboxOpsAction,
+  refreshIntunePhase52CategoryTrendOpsAction,
   runIntuneWorkerAction,
   type ItAssetActionResult,
 } from '@/app/(app)/shared-services/it/assets/actions';
@@ -155,6 +156,7 @@ export function ItAssetsClient({
   intunePhase49Ops = null,
   intunePhase50Ops = null,
   intunePhase51Ops = null,
+  intunePhase52Ops = null,
   intuneOutagePostmortems = [],
   intuneThresholdRecommendations = [],
   intuneSoakCycleTimeline = [],
@@ -212,6 +214,7 @@ export function ItAssetsClient({
   intunePhase49Ops?: Record<string, unknown> | null;
   intunePhase50Ops?: Record<string, unknown> | null;
   intunePhase51Ops?: Record<string, unknown> | null;
+  intunePhase52Ops?: Record<string, unknown> | null;
   intuneOutagePostmortems?: ItIntuneOutagePostmortem[];
   intuneThresholdRecommendations?: ItIntuneThresholdRecommendation[];
   intuneSoakCycleTimeline?: ItIntuneSoakCycleTimeline[];
@@ -484,6 +487,16 @@ export function ItAssetsClient({
               waive {Number(intunePhase51Ops.promote_waive_pending_count ?? 0)})
             </>
           ) : null}
+          {intunePhase52Ops ? (
+            <>
+              {' · '}phase52 category trends (
+              postmortem {String(intunePhase52Ops.postmortem_trend_direction ?? 'unknown')}
+              {' / '}
+              breaker {String(intunePhase52Ops.breaker_trend_direction ?? 'unknown')}
+              {' / '}
+              waive {String(intunePhase52Ops.waive_trend_direction ?? 'unknown')})
+            </>
+          ) : null}
         </div>
       ) : null}
 
@@ -726,6 +739,17 @@ export function ItAssetsClient({
                 >
                   Refresh unified dual-approve inbox (Phase 51)
                 </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={pending}
+                  onClick={() =>
+                    run(() => refreshIntunePhase52CategoryTrendOpsAction())
+                  }
+                >
+                  Refresh category backlog trends (Phase 52)
+                </Button>
               </div>
             ) : null}
             {intunePhase51Ops &&
@@ -754,6 +778,44 @@ export function ItAssetsClient({
                         since{' '}
                         {item.awaiting_since
                           ? new Date(String(item.awaiting_since)).toLocaleString()
+                          : 'n/a'}
+                      </li>
+                    ))}
+                </ul>
+              </div>
+            ) : null}
+            {intunePhase52Ops &&
+            Array.isArray(intunePhase52Ops.category_trend_snapshots) &&
+            (intunePhase52Ops.category_trend_snapshots as Array<
+              Record<string, unknown>
+            >).length > 0 ? (
+              <div className="mt-2 space-y-1 rounded border p-2 text-xs">
+                <p className="font-medium">
+                  Category backlog trends (Phase 52 — postmortem / breaker /
+                  waive directions from Phase 51 inbox snapshots; observe-only,
+                  dual-approve required, no entity identifiers in aggregates)
+                </p>
+                <ul className="space-y-1">
+                  {(
+                    intunePhase52Ops.category_trend_snapshots as Array<
+                      Record<string, unknown>
+                    >
+                  )
+                    .slice(0, 12)
+                    .map((snap, idx) => (
+                      <li
+                        key={`${String(snap.category)}-${idx}`}
+                        className="text-muted-foreground"
+                      >
+                        {String(snap.category)} ·{' '}
+                        {String(snap.trend_direction ?? 'unknown')} · latest{' '}
+                        {Number(snap.latest_pending ?? 0)}
+                        {snap.pending_delta != null
+                          ? ` (Δ ${Number(snap.pending_delta)})`
+                          : ''}
+                        {' · '}
+                        {snap.recorded_at
+                          ? new Date(String(snap.recorded_at)).toLocaleString()
                           : 'n/a'}
                       </li>
                     ))}

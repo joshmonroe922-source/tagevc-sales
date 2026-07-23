@@ -125,7 +125,7 @@ describe('Phase 49 marketing revenue ops', () => {
     expect(lib).toMatch(/list_marketing_revenue_phase49_critical_windows/);
     expect(lib).toMatch(/record_marketing_revenue_phase49_ops_alert/);
     expect(lib).toMatch(/never_calls_promote/);
-    expect(route).toMatch(/phase49-v1|phase50-v1/);
+    expect(route).toMatch(/phase49-v1|phase50-v1|phase51-v1|phase52-v1/);
   });
 
   it('never logs or stores secret values in phase49 surfaces', () => {

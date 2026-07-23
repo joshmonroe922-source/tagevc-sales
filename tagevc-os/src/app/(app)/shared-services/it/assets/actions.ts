@@ -2106,3 +2106,37 @@ export async function refreshIntunePhase51UnifiedInboxOpsAction(): Promise<ItAss
     message: `Phase 51 unified inbox: ${alerts} alert(s) recorded — observe-only; breakers never closed or reset`,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Phase 52: per-category backlog trends from Phase 51 inbox snapshots
+// (postmortem / breaker / waive). Observe-only — never applies, approves,
+// closes, or resets anything. Actual first/second approvals still go
+// through the existing Phase 49/50 review RPCs.
+// ---------------------------------------------------------------------------
+export async function refreshIntunePhase52CategoryTrendOpsAction(): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('action:intune_manual_review');
+  if (!gate.ok) return gate;
+  const { runIntunePhase52CategoryTrendOps } = await import(
+    '@/lib/shared-services/it-assets-repo'
+  );
+  const result = await runIntunePhase52CategoryTrendOps();
+  if (!result.ok) {
+    return {
+      ok: false,
+      error: result.error ?? 'Phase 52 category trend ops failed',
+    };
+  }
+  revalidateAssets();
+  const trends = Number(
+    (result.detail as { trends_recorded?: number } | undefined)
+      ?.trends_recorded ?? 0,
+  );
+  const alerts = Number(
+    (result.detail as { alerts_recorded?: number } | undefined)
+      ?.alerts_recorded ?? 0,
+  );
+  return {
+    ok: true,
+    message: `Phase 52 category trends: ${trends} trend snapshot(s), ${alerts} alert(s) recorded — observe-only; dual-approve required; no entity leaks`,
+  };
+}

@@ -5,6 +5,7 @@ import { runSnapshotPhase48OpsWorker } from '@/lib/data/snapshot-retirement-phas
 import { runSnapshotPhase49OpsWorker } from '@/lib/data/snapshot-retirement-phase49';
 import { runSnapshotPhase50OpsTick } from '@/lib/data/snapshot-retirement-phase50';
 import { runSnapshotPhase51OpsTick } from '@/lib/data/snapshot-retirement-phase51';
+import { runSnapshotPhase52OpsTick } from '@/lib/data/snapshot-retirement-phase52';
 
 async function run(request: Request) {
   const secret = process.env.CRON_SECRET?.trim();
@@ -19,9 +20,16 @@ async function run(request: Request) {
     ]);
     const phase50 = await runSnapshotPhase50OpsTick();
     const phase51 = await runSnapshotPhase51OpsTick();
-    const ok = phase40.ok && phase48.ok && phase49.ok && phase50.ok && phase51.ok;
+    const phase52 = await runSnapshotPhase52OpsTick();
+    const ok =
+      phase40.ok &&
+      phase48.ok &&
+      phase49.ok &&
+      phase50.ok &&
+      phase51.ok &&
+      phase52.ok;
     return NextResponse.json(
-      { ok, phase40, phase48, phase49, phase50, phase51 },
+      { ok, phase40, phase48, phase49, phase50, phase51, phase52 },
       { status: ok ? 200 : 503 },
     );
   } catch (error) {

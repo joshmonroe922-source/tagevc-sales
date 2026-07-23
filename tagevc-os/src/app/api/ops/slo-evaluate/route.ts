@@ -10,6 +10,7 @@ import { processSloGovernancePhase40, processSloGovernancePhase44, processSloGov
 import { processSloGovernancePhase49 } from '@/lib/shared-services/slo-phase49';
 import { processSloGovernancePhase50 } from '@/lib/shared-services/slo-phase50';
 import { processSloGovernancePhase51 } from '@/lib/shared-services/slo-phase51';
+import { processSloGovernancePhase52 } from '@/lib/shared-services/slo-phase52';
 
 async function run(source: 'cron' | 'admin') {
   const worker = await startOperationalWorker({
@@ -31,6 +32,7 @@ async function run(source: 'cron' | 'admin') {
     // snapshots on demand) — this tick does no work of its own, it only
     // reports the still-pull-only contract for observability.
     const phase51 = await processSloGovernancePhase51();
+    const phase52 = await processSloGovernancePhase52();
     for (const transition of result.transitions) {
       captureMessage(
         `Shared Services SLO ${transition.transition}: ${transition.service}/${transition.metric_key}`,
@@ -77,6 +79,7 @@ async function run(source: 'cron' | 'admin') {
         phase50_owner_digest_wow_trend: phase50.ownerDigestWowTrend,
         phase50_full_push: phase50.full_push,
         phase51_full_push: phase51.full_push,
+        phase52_full_push: phase52.full_push,
       },
     });
     return NextResponse.json({
@@ -94,6 +97,7 @@ async function run(source: 'cron' | 'admin') {
       phase49,
       phase50,
       phase51,
+      phase52,
     });
   } catch (error) {
     captureException(error, { route: 'slo-evaluate' });

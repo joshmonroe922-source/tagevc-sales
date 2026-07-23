@@ -256,6 +256,17 @@ async function runReadOnlyHealthCanaryWithToken(token: string): Promise<{
       error: phase51.error,
     };
   }
+  // Phase 52: per-category backlog trends from Phase 51 inbox snapshots
+  // (postmortem / breaker / waive). Observe-only — never applies, approves,
+  // closes, or resets anything; never includes entity identifiers.
+  const phase52 = await runIntunePhase52CategoryTrendOpsTick(sb);
+  if (!phase52.ok) {
+    return {
+      ok: false,
+      status: 'phase52_category_trend_ops_failed',
+      error: phase52.error,
+    };
+  }
   return {
     ok: true,
     status: String((finished as { status?: string } | null)?.status ?? 'done'),
@@ -1452,6 +1463,141 @@ export async function processIntunePhase51UnifiedInboxOps(): Promise<{
     status: 'done',
     detail: {
       total_pending: result.totalPending,
+      alerts_recorded: result.alertsRecorded,
+      delivered: result.delivered,
+      skipped: result.skipped,
+      failed: result.failed,
+      closes_or_resets_breaker: false,
+      requires_dual_approval: true,
+      entity_identifiers_included: false,
+    },
+  };
+}
+
+type Phase52CriticalWindow = {
+  alert_kind: string;
+  window_key: string;
+  severity?: string;
+  category?: string;
+  latest_pending?: number;
+  oldest_pending_hours?: number;
+};
+
+async function runIntunePhase52CategoryTrendOpsTick(
+  sb: Awaited<ReturnType<typeof createPersistClient>>,
+): Promise<
+  | {
+      ok: true;
+      trendsRecorded: number;
+      alertsRecorded: number;
+      delivered: number;
+      skipped: number;
+      failed: number;
+    }
+  | { ok: false; error: string }
+> {
+  // Observe-only tick: records per-category backlog trends from Phase 51
+  // inbox snapshots and pages on declining trends or aging backlogs. Never
+  // applies, approves, closes, or resets anything — and never includes
+  // entity identifiers in the aggregates.
+  const { data: trends, error: trendsError } = await sb.rpc(
+    'record_it_intune_inbox_category_trends_phase52',
+  );
+  if (trendsError) {
+    return { ok: false, error: trendsError.message };
+  }
+  const trendsRecorded = Number(
+    (trends as { recorded?: number } | null)?.recorded ?? 0,
+  );
+
+  const { data: windows, error: windowError } = await sb.rpc(
+    'list_it_intune_phase52_critical_windows',
+    { p_window_hours: 24 },
+  );
+  if (windowError) {
+    return { ok: false, error: windowError.message };
+  }
+
+  const pending = ((windows as { pending?: Phase52CriticalWindow[] } | null)
+    ?.pending ?? []) as Phase52CriticalWindow[];
+  let alertsRecorded = 0;
+  let delivered = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  for (const window of pending.slice(0, 50)) {
+    const delivery = await deliverIntuneOpsWebhook({
+      kind: 'it_intune_phase52_ops_alert',
+      version: 'phase52-v1',
+      alert_kind: window.alert_kind,
+      window_key: window.window_key,
+      severity: window.severity ?? 'warning',
+      destination_key: INTUNE_OPS_DESTINATION_KEY,
+      entity_identifiers_included: false,
+      closes_or_resets_breaker: false,
+      requires_dual_approval: true,
+    });
+
+    const { data: recorded, error: recordError } = await sb.rpc(
+      'record_it_intune_phase52_ops_alert',
+      {
+        p_alert: {
+          alert_kind: window.alert_kind,
+          window_key: window.window_key,
+          severity: window.severity ?? 'warning',
+          destination_key: INTUNE_OPS_DESTINATION_KEY,
+          delivery_status: delivery.delivery_status,
+          response_code: delivery.response_code,
+          aggregate_evidence: {
+            evidence_version: 'phase52-v1',
+            entity_identifiers_included: false,
+            closes_or_resets_breaker: false,
+            requires_dual_approval: true,
+          },
+        },
+      },
+    );
+    if (recordError) {
+      return { ok: false, error: recordError.message };
+    }
+    if ((recorded as { inserted?: boolean } | null)?.inserted) {
+      alertsRecorded += 1;
+      if (delivery.delivery_status === 'delivered') delivered += 1;
+      else if (delivery.delivery_status === 'skipped_no_webhook') skipped += 1;
+      else failed += 1;
+    }
+  }
+
+  return {
+    ok: true,
+    trendsRecorded,
+    alertsRecorded,
+    delivered,
+    skipped,
+    failed,
+  };
+}
+
+export async function processIntunePhase52CategoryTrendOps(): Promise<{
+  ok: boolean;
+  status: string;
+  detail?: Record<string, unknown>;
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const result = await runIntunePhase52CategoryTrendOpsTick(sb);
+  if (!result.ok) {
+    return {
+      ok: false,
+      status: 'phase52_category_trend_ops_failed',
+      error: result.error,
+    };
+  }
+  return {
+    ok: true,
+    status: 'done',
+    detail: {
+      trends_recorded: result.trendsRecorded,
       alerts_recorded: result.alertsRecorded,
       delivered: result.delivered,
       skipped: result.skipped,

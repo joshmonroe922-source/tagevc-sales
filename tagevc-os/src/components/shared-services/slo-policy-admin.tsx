@@ -27,6 +27,7 @@ import {
   setSloOwnerDigestSelfServeOptInAction,
   listSloOwnerDigestSelfServeFailuresAction,
   listSloOwnerDigestSelfServeTrendAction,
+  listSloFirmDigestAdminSummaryTrendAction,
 } from '@/app/(app)/shared-services/actions';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -273,6 +274,7 @@ export function SloPolicyAdmin({
   ownerDigestSelfServeOptIns = [],
   phase50Report = null,
   phase51Report = null,
+  phase52Report = null,
 }: {
   activePolicies: SloPolicyRow[];
   drafts: SloPolicyRow[];
@@ -309,6 +311,7 @@ export function SloPolicyAdmin({
   ownerDigestSelfServeOptIns?: Array<Record<string, unknown>>;
   phase50Report?: Record<string, unknown> | null;
   phase51Report?: Record<string, unknown> | null;
+  phase52Report?: Record<string, unknown> | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -546,6 +549,15 @@ export function SloPolicyAdmin({
         ownerId: targetOwnerId,
       });
       setMessage(result.ok ? result.message ?? 'Self-serve trend chart listed' : result.error);
+    });
+  }
+
+  function viewFirmDigestAdminSummaryTrend() {
+    startTransition(async () => {
+      const result = await listSloFirmDigestAdminSummaryTrendAction();
+      setMessage(
+        result.ok ? result.message ?? 'Firm-wide admin summary trend listed' : result.error,
+      );
     });
   }
 
@@ -889,6 +901,15 @@ export function SloPolicyAdmin({
                   >
                     View my trend chart (self-serve, pull-only)
                   </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={pending}
+                    onClick={viewFirmDigestAdminSummaryTrend}
+                  >
+                    View firm-wide admin summary trend (pull-only)
+                  </Button>
                 </>
               ) : null}
             </div>
@@ -1077,6 +1098,16 @@ export function SloPolicyAdmin({
                 {String(phase51Report.chart_ready_owner_count ?? 0)} · owners with any trend{' '}
                 {String(phase51Report.owners_with_any_trend_count ?? 0)} · full_push{' '}
                 {String(phase51Report.full_push ?? false)}
+              </p>
+            ) : null}
+            {phase52Report ? (
+              <p className="text-muted-foreground">
+                Phase 52 · firm-wide admin summary · owners aggregated{' '}
+                {String(phase52Report.owners_aggregated ?? 0)} · trend{' '}
+                {String(phase52Report.trend_direction ?? 'unknown')} · summary points{' '}
+                {String(phase52Report.summary_points ?? 0)} · chart ready{' '}
+                {String(phase52Report.chart_ready ?? false)} · full_push{' '}
+                {String(phase52Report.full_push ?? false)} · pull-only
               </p>
             ) : null}
           </CardContent>

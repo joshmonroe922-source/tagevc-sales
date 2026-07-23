@@ -14,6 +14,7 @@ import { runArchivePhase48OpsTick } from '@/lib/docusign/archive-phase48';
 import { runArchivePhase49OpsTick } from '@/lib/docusign/archive-phase49';
 import { runArchivePhase50OpsTick } from '@/lib/docusign/archive-phase50';
 import { runArchivePhase51OpsTick } from '@/lib/docusign/archive-phase51';
+import { runArchivePhase52OpsTick } from '@/lib/docusign/archive-phase52';
 import {
   finishOperationalWorker,
   startOperationalWorker,
@@ -111,6 +112,7 @@ async function run(request: Request) {
     const phase49 = await runArchivePhase49OpsTick();
     const phase50 = await runArchivePhase50OpsTick();
     const phase51 = await runArchivePhase51OpsTick();
+    const phase52 = await runArchivePhase52OpsTick();
     await finishOperationalWorker({
       workerRunId: worker.workerRunId,
       status: noop
@@ -210,6 +212,12 @@ async function run(request: Request) {
           : null,
         phase51_alerts_recorded: phase51.ok ? phase51.alertsRecorded : null,
         phase51_ops_error: phase51.ok ? null : phase51.error,
+        phase52_ops_ok: phase52.ok,
+        phase52_escalations_raised: phase52.ok
+          ? phase52.escalationsRaised
+          : null,
+        phase52_alerts_recorded: phase52.ok ? phase52.alertsRecorded : null,
+        phase52_ops_error: phase52.ok ? null : phase52.error,
       },
     });
     return NextResponse.json(
@@ -223,6 +231,7 @@ async function run(request: Request) {
         phase49,
         phase50,
         phase51,
+        phase52,
       },
       {
         status: result.ok || noop || (result.governance?.claimed ?? 0) > 0
@@ -255,6 +264,7 @@ async function run(request: Request) {
   const phase49 = await runArchivePhase49OpsTick();
   const phase50 = await runArchivePhase50OpsTick();
   const phase51 = await runArchivePhase51OpsTick();
+  const phase52 = await runArchivePhase52OpsTick();
   await finishOperationalWorker({
     workerRunId: worker.workerRunId,
     status: result.checkpointed
@@ -331,6 +341,12 @@ async function run(request: Request) {
         : null,
       phase51_alerts_recorded: phase51.ok ? phase51.alertsRecorded : null,
       phase51_ops_error: phase51.ok ? null : phase51.error,
+      phase52_ops_ok: phase52.ok,
+      phase52_escalations_raised: phase52.ok
+        ? phase52.escalationsRaised
+        : null,
+      phase52_alerts_recorded: phase52.ok ? phase52.alertsRecorded : null,
+      phase52_ops_error: phase52.ok ? null : phase52.error,
     },
   });
   return NextResponse.json(
@@ -344,6 +360,7 @@ async function run(request: Request) {
       phase49,
       phase50,
       phase51,
+      phase52,
     },
     {
       status: result.ok || result.claimed > 0 ? 200 : 500,

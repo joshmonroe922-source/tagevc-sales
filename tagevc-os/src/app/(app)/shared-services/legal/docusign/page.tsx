@@ -47,6 +47,7 @@ import { getArchivePhase48OpsReport } from '@/lib/docusign/archive-phase48';
 import { getArchivePhase49OpsReport } from '@/lib/docusign/archive-phase49';
 import { getArchivePhase50OpsReport } from '@/lib/docusign/archive-phase50';
 import { getArchivePhase51OpsReport } from '@/lib/docusign/archive-phase51';
+import { getArchivePhase52OpsReport } from '@/lib/docusign/archive-phase52';
 import { listArchiveGovernance } from '@/lib/docusign/archive-governance';
 
 function formatBytes(n: number | null | undefined): string {
@@ -148,6 +149,7 @@ export default async function DocuSignModulePage({
     phase49Ops,
     phase50Ops,
     phase51Ops,
+    phase52Ops,
   ] = await Promise.all([
     listDocuSignEvents({
       limit: 40,
@@ -219,6 +221,7 @@ export default async function DocuSignModulePage({
     getArchivePhase49OpsReport({ firmWide }),
     getArchivePhase50OpsReport({ firmWide }),
     getArchivePhase51OpsReport({ firmWide }),
+    getArchivePhase52OpsReport({ firmWide }),
   ]);
 
   const voidPolicy = process.env.DOCUSIGN_VOID_POLICY?.trim() || 'allow';
@@ -299,6 +302,7 @@ export default async function DocuSignModulePage({
           <Badge variant="secondary">Phase 49</Badge>
           <Badge variant="secondary">Phase 50</Badge>
           <Badge variant="secondary">Phase 51</Badge>
+          <Badge variant="secondary">Phase 52</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">DocuSign</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
@@ -380,6 +384,14 @@ export default async function DocuSignModulePage({
             firmWide
               ? phase51Ops.report.pending_third_approver_escalatable_count
               : undefined
+          }
+          phase52PendingFourthCount={
+            firmWide
+              ? phase52Ops.report.pending_fourth_approver_count
+              : undefined
+          }
+          phase52ChainThresholdDays={
+            firmWide ? phase52Ops.report.chain_threshold_days : undefined
           }
         />
         <DocuSignTemplateSendForm
@@ -507,6 +519,9 @@ export default async function DocuSignModulePage({
               Phase 51 rolls up firm-wide cadence trends across quarters and
               escalates (never auto-activates) budget proposals whose
               second-approver reminder has gone unanswered too long.
+              Phase 52 extends the escalation chain to a fourth approver when
+              third-approver escalations age past the chain threshold — still
+              never auto-activates budgets.
               Never creates, voids, or resends envelopes.
               {archiveGovernance.error ? ` · ${archiveGovernance.error}` : ''}
               {archiveCampaigns.error ? ` · ${archiveCampaigns.error}` : ''}
@@ -520,6 +535,7 @@ export default async function DocuSignModulePage({
               {phase49Ops.error ? ` · ${phase49Ops.error}` : ''}
               {phase50Ops.error ? ` · ${phase50Ops.error}` : ''}
               {phase51Ops.error ? ` · ${phase51Ops.error}` : ''}
+              {phase52Ops.error ? ` · ${phase52Ops.error}` : ''}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-xs">
@@ -691,6 +707,20 @@ export default async function DocuSignModulePage({
                     : ''}
                   {phase51Ops.report.third_approver_escalations_7d > 0
                     ? ` · escalations 7d ${phase51Ops.report.third_approver_escalations_7d}`
+                    : ''}
+                  {' · never activates budgets silently'}
+                </p>
+                <p className="text-muted-foreground">
+                  Phase 52 fourth-approver escalation chain:{' '}
+                  {phase52Ops.report.chain_active ? 'active' : 'idle'}
+                  {phase52Ops.report.chain_threshold_days > 0
+                    ? ` · threshold ${phase52Ops.report.chain_threshold_days}d`
+                    : ''}
+                  {phase52Ops.report.pending_fourth_approver_count > 0
+                    ? ` · pending 4th-approver ${phase52Ops.report.pending_fourth_approver_count}`
+                    : ''}
+                  {phase52Ops.report.fourth_approver_escalations_7d > 0
+                    ? ` · escalations 7d ${phase52Ops.report.fourth_approver_escalations_7d}`
                     : ''}
                   {' · never activates budgets silently'}
                 </p>

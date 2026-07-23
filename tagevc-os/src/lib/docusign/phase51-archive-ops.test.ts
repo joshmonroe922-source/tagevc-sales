@@ -183,5 +183,10 @@ describe('Phase 51 DocuSign firm-wide cadence rollups + third-approver escalatio
     expect(hub).toContain('Phase 51 cadence rollup');
     expect(hub).toContain('phase51CadenceRollupTrend');
     expect(hub).toContain('phase51PendingEscalatableCount');
+    expect(page).toContain('getArchivePhase52OpsReport');
+    expect(page).toContain('Phase 52');
+    expect(hub).toContain('Phase 52');
+    expect(hub).toContain('phase52PendingFourthCount');
+    expect(hub).toContain('phase52ChainThresholdDays');
   });
 });

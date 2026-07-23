@@ -28,6 +28,7 @@ import { getPhase48RevenueOpsReport } from '@/lib/shared-services/marketing-phas
 import { getPhase49RevenueOpsReport } from '@/lib/shared-services/marketing-phase49';
 import { getPhase50RevenueOpsReport } from '@/lib/shared-services/marketing-phase50';
 import { getPhase51RevenueOpsReport } from '@/lib/shared-services/marketing-phase51';
+import { getPhase52RevenueOpsReport } from '@/lib/shared-services/marketing-phase52';
 
 export default async function MarketingModulePage({
   searchParams,
@@ -79,6 +80,7 @@ export default async function MarketingModulePage({
     phase49OpsReport,
     phase50OpsReport,
     phase51OpsReport,
+    phase52OpsReport,
   ] = await Promise.all([
     listCampaigns(
       50,
@@ -160,6 +162,10 @@ export default async function MarketingModulePage({
       firmWide,
       days: paidDays,
     }),
+    getPhase52RevenueOpsReport({
+      firmWide,
+      days: paidDays,
+    }),
   ]);
   if (!firmWide && ctx?.profile.entity_id) {
     const entityId = ctx.profile.entity_id;
@@ -205,6 +211,7 @@ export default async function MarketingModulePage({
           <Badge variant="secondary">Phase 49</Badge>
           <Badge variant="secondary">Phase 50</Badge>
           <Badge variant="secondary">Phase 51</Badge>
+          <Badge variant="secondary">Phase 52</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Multichannel Marketing
@@ -249,6 +256,8 @@ export default async function MarketingModulePage({
         phase50OpsError={phase50OpsReport.error}
         phase51OpsReport={phase51OpsReport.report}
         phase51OpsError={phase51OpsReport.error}
+        phase52OpsReport={phase52OpsReport.report}
+        phase52OpsError={phase52OpsReport.error}
       />
 
       <MarketingClient

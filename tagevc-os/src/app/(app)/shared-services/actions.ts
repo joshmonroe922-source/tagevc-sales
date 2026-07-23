@@ -43,6 +43,7 @@ import {
   listSloOwnerDigestSelfServeFailuresPhase50,
 } from '@/lib/shared-services/slo-phase50';
 import { listSloOwnerDigestSelfServeTrendPhase51 } from '@/lib/shared-services/slo-phase51';
+import { listSloFirmDigestAdminSummaryTrendPhase52 } from '@/lib/shared-services/slo-phase52';
 
 export type TicketActionResult =
   | { ok: true; ticketId?: string; message?: string }
@@ -907,6 +908,25 @@ export async function listSloOwnerDigestSelfServeTrendAction(input: {
   return {
     ok: true,
     message: `Self-serve trend chart · ${Array.isArray(series) ? series.length : 0} point(s) · chart ${chartReady ? 'ready' : 'not ready'} · pull-only`,
+  };
+}
+
+export async function listSloFirmDigestAdminSummaryTrendAction(): Promise<TicketActionResult> {
+  const gate = await guardPermission('write:shared_services');
+  if (!gate.ok) return gate;
+  const result = await listSloFirmDigestAdminSummaryTrendPhase52();
+  if (!result.ok) return { ok: false, error: result.error };
+  const series =
+    (result.detail as { series?: unknown[] } | undefined)?.series ?? [];
+  const chartReady = Boolean(
+    (result.detail as { chart_ready?: boolean } | undefined)?.chart_ready,
+  );
+  const fullPush = Boolean(
+    (result.detail as { full_push?: boolean } | undefined)?.full_push,
+  );
+  return {
+    ok: true,
+    message: `Firm-wide admin summary trend · ${Array.isArray(series) ? series.length : 0} point(s) · chart ${chartReady ? 'ready' : 'not ready'} · full_push ${fullPush} · pull-only`,
   };
 }
 

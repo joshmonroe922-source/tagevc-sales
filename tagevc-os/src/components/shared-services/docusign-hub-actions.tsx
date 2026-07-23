@@ -44,6 +44,8 @@ export function DocuSignHubActions({
   phase50PendingReminderCount,
   phase51CadenceRollupTrend,
   phase51PendingEscalatableCount,
+  phase52PendingFourthCount,
+  phase52ChainThresholdDays,
 }: {
   canWrite: boolean;
   canReconcile: boolean;
@@ -68,6 +70,8 @@ export function DocuSignHubActions({
   phase50PendingReminderCount?: number;
   phase51CadenceRollupTrend?: string;
   phase51PendingEscalatableCount?: number;
+  phase52PendingFourthCount?: number;
+  phase52ChainThresholdDays?: number;
 }) {
   const [flash, setFlash] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -95,6 +99,8 @@ export function DocuSignHubActions({
     phase50CadenceTrendDirection != null || phase50PendingReminderCount != null;
   const showPhase51Badges =
     phase51CadenceRollupTrend != null || phase51PendingEscalatableCount != null;
+  const showPhase52Badges =
+    phase52PendingFourthCount != null || phase52ChainThresholdDays != null;
 
   const badges =
     showPhase44Badges ||
@@ -104,7 +110,8 @@ export function DocuSignHubActions({
     showPhase48Badges ||
     showPhase49Badges ||
     showPhase50Badges ||
-    showPhase51Badges ? (
+    showPhase51Badges ||
+    showPhase52Badges ? (
       <div className="flex flex-wrap gap-2 text-[11px]">
         {phase44DriftHealth ? (
           <span className="rounded border border-border/70 px-2 py-0.5 text-muted-foreground">
@@ -200,6 +207,16 @@ export function DocuSignHubActions({
         phase51PendingEscalatableCount > 0 ? (
           <span className="rounded border border-border/70 px-2 py-0.5 text-amber-800">
             Phase 51 3rd-approver escalatable {phase51PendingEscalatableCount}
+          </span>
+        ) : null}
+        {phase52ChainThresholdDays != null ? (
+          <span className="rounded border border-border/70 px-2 py-0.5 text-muted-foreground">
+            Phase 52 chain threshold {phase52ChainThresholdDays}d
+          </span>
+        ) : null}
+        {phase52PendingFourthCount != null && phase52PendingFourthCount > 0 ? (
+          <span className="rounded border border-border/70 px-2 py-0.5 text-amber-800">
+            Phase 52 4th-approver pending {phase52PendingFourthCount}
           </span>
         ) : null}
       </div>

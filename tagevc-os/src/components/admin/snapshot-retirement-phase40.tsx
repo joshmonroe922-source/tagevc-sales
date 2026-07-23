@@ -169,6 +169,10 @@ type Dashboard = {
   phase51SoakTrendSnapshots?: Array<Record<string, unknown>>;
   phase51OpsAlerts?: Array<Record<string, unknown>>;
   phase51Report?: Record<string, unknown> | null;
+  phase52BranchProtectionVerifications?: Array<Record<string, unknown>>;
+  phase52SoakTrendSnapshots?: Array<Record<string, unknown>>;
+  phase52OpsAlerts?: Array<Record<string, unknown>>;
+  phase52Report?: Record<string, unknown> | null;
 };
 
 type ApiResult = {
@@ -811,6 +815,76 @@ export function SnapshotRetirementPhase40Admin() {
     });
   }
 
+  function recordPhase52SoakTrend() {
+    setMessage(null);
+    setError(null);
+    startTransition(async () => {
+      try {
+        const result = await post({ action: 'record_phase52_soak_trend' });
+        setMessage(
+          result.trend
+            ? `Phase 52 soak trend (Stage 4e continued) · ${String(result.trend.trend_direction ?? 'unknown')}.`
+            : 'Phase 52 soak trend recorded.',
+        );
+        await refresh();
+      } catch (cause) {
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : 'Phase 52 soak trend recording failed',
+        );
+      }
+    });
+  }
+
+  function recordPhase52BranchProtectionVerification() {
+    setMessage(null);
+    setError(null);
+    startTransition(async () => {
+      try {
+        const branchName =
+          window.prompt('Protected branch name:', 'main') ?? '';
+        if (!branchName.trim()) return;
+        const checkContext =
+          window.prompt(
+            'Required status check context:',
+            'ci-snapshot-phase50-path-guard',
+          ) ?? '';
+        if (!checkContext.trim()) return;
+        const required =
+          window.prompt('Is this check required? (yes/no)', 'yes') === 'yes';
+        const contextsRaw =
+          window.prompt(
+            'Required contexts count (optional, leave blank to skip):',
+            '',
+          ) ?? '';
+        const contextsCount = contextsRaw.trim()
+          ? Number.parseInt(contextsRaw.trim(), 10)
+          : null;
+        const result = await post({
+          action: 'record_phase52_branch_protection_verification',
+          branch_name: branchName.trim(),
+          check_context: checkContext.trim(),
+          required,
+          contexts_count: Number.isFinite(contextsCount) ? contextsCount : null,
+          source: 'manual',
+        });
+        setMessage(
+          result.verification
+            ? `Phase 52 branch-protection verification · required=${String(result.verification.required ?? required)} (never mutates branch protection).`
+            : 'Phase 52 branch-protection verification recorded.',
+        );
+        await refresh();
+      } catch (cause) {
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : 'Phase 52 branch-protection verification failed',
+        );
+      }
+    });
+  }
+
   function pageProtectedBranchCutoverBlocked() {
     const alert = (dashboard?.phase49OpsAlerts ?? []).find(
       (row) => row.alert_kind === 'protected_branch_cutover_blocked',
@@ -1245,6 +1319,47 @@ export function SnapshotRetirementPhase40Admin() {
           attestation=false
         </p>
       ) : null}
+      {(dashboard?.phase52SoakTrendSnapshots ?? []).slice(0, 3).map((row) => (
+        <p
+          key={String(row.trend_id)}
+          className="font-mono text-[10px] text-muted-foreground"
+        >
+          P52 SOAK TREND (4e cont.) · {String(row.trend_direction)} · compared{' '}
+          {String(row.snapshots_compared)} · latest{' '}
+          {String(row.latest_blocked_rate ?? 'n/a')} · prior{' '}
+          {String(row.prior_blocked_rate ?? 'n/a')}
+        </p>
+      ))}
+      {(dashboard?.phase52BranchProtectionVerifications ?? [])
+        .slice(0, 3)
+        .map((row) => (
+          <p
+            key={String(row.verification_id)}
+            className="font-mono text-[10px] text-muted-foreground"
+          >
+            P52 BRANCH PROTECTION · branch {String(row.branch_name)} · context{' '}
+            {String(row.check_context)} · required {String(row.required)} ·
+            source {String(row.source ?? 'scheduled')}
+          </p>
+        ))}
+      {dashboard?.phase52Report ? (
+        <p className="text-muted-foreground">
+          Phase 52 · branch protection required{' '}
+          {String(
+            dashboard.phase52Report.branch_protection_currently_required ??
+              'unknown',
+          )}{' '}
+          · last verified{' '}
+          {String(
+            dashboard.phase52Report.branch_protection_last_verified_at ??
+              'never',
+          )}{' '}
+          · ops alerts 30d{' '}
+          {String(dashboard.phase52Report.ops_alerts_30d ?? 0)} · stage{' '}
+          {String(dashboard.phase52Report.stage ?? '4e')} · qualifying=false ·
+          attestation=false
+        </p>
+      ) : null}
       {dashboard?.checks.slice(0, 4).map((check) => (
         <p key={check.check_id} className="font-mono text-[10px] text-muted-foreground">
           {check.checked_at} · retention {check.status}
@@ -1342,6 +1457,18 @@ export function SnapshotRetirementPhase40Admin() {
           onClick={recordPhase51RequiredCheckVerification}
         >
           Record Phase 51 required-check verification
+        </Button>
+        <Button type="button" size="sm" variant="outline" disabled={pending} onClick={recordPhase52SoakTrend}>
+          Record Phase 52 soak trend
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={pending}
+          onClick={recordPhase52BranchProtectionVerification}
+        >
+          Record Phase 52 branch-protection verification
         </Button>
         <Button type="button" size="sm" variant="outline" disabled={pending} onClick={pageProtectedBranchCutoverBlocked}>
           Page protected-branch cutover blocked
