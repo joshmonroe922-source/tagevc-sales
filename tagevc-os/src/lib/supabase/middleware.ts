@@ -9,6 +9,11 @@ export async function updateSession(request: NextRequest) {
     path.startsWith('/login') ||
     path.startsWith('/auth') ||
     path.startsWith('/api/docusign/webhook') ||
+    // Machine-auth APIs (route handlers enforce secrets / signed tokens)
+    path.startsWith('/api/subsidiary/tickets') ||
+    path.startsWith('/api/identity/lifecycle') ||
+    path.startsWith('/api/shared-services/intake') ||
+    path.startsWith('/api/rollups/ingest') ||
     path.startsWith('/_next') ||
     path === '/favicon.ico';
 

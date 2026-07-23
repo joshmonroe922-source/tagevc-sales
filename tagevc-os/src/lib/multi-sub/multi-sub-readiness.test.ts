@@ -320,5 +320,11 @@ describe('Multi-subsidiary readiness P1–P6', () => {
     );
     expect(messagesActions).toContain('can_cross_entity_message_ms_p3');
     expect(messagesActions).toContain('decideCrossEntityMessage');
+    const mw = readFileSync(
+      resolve(process.cwd(), 'src/lib/supabase/middleware.ts'),
+      'utf8',
+    );
+    expect(mw).toContain("/api/subsidiary/tickets");
+    expect(mw).toContain("/api/identity/lifecycle");
   });
 });

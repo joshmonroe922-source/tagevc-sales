@@ -111,6 +111,9 @@ Response includes `autonomy_band`, `forbid_hits`, `draft_approval`
 
 Money is never auto-approved (`money_auto_approve: false`).
 
+Middleware allows these paths without a browser session; route handlers still
+enforce signed tokens / secrets (fail closed when secrets missing in prod).
+
 ## Identity lifecycle API
 
 **Base:** `https://app.tagevc.com/api/identity/lifecycle`  
