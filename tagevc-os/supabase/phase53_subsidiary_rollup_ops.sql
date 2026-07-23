@@ -226,12 +226,25 @@ begin
 
   if v_has_feed then
     begin
+      -- Phase 55 shape: jsonb payload { openJobs, openApplications, placementsStarted, ... }
       execute
-        'select open_reqs, pipeline_volume, submissions, interviews, offers, placements, '
-        || 'time_to_fill_days, time_to_place_days, coalesce(source_mix,''{}''::jsonb) '
+        'select '
+        || '(payload->>''openJobs'')::integer, '
+        || '(payload->>''openApplications'')::integer, '
+        || 'null::integer, '
+        || 'null::integer, '
+        || 'null::integer, '
+        || '(payload->>''placementsStarted'')::integer, '
+        || 'null::numeric, '
+        || 'null::numeric, '
+        || 'jsonb_build_object('
+        || '  ''mode'', payload->>''mode'','
+        || '  ''source'', coalesce(source, ''recruit_portal''),'
+        || '  ''placements_pending_start'', payload->>''placementsPendingStart'''
+        || ') '
         || 'from public.os_recruit_feed_metrics '
         || 'where entity_id = $1 '
-        || 'order by captured_at desc nulls last, created_at desc nulls last '
+        || 'order by as_of desc nulls last, created_at desc nulls last '
         || 'limit 1'
       into v_open_reqs, v_pipeline, v_submissions, v_interviews, v_offers,
            v_placements, v_fill, v_place, v_source
@@ -343,7 +356,7 @@ begin
     'contract_version', 'phase53-v1',
     'money_auto_approve', false,
     'source', 'refresh_subsidiary_rollup_phase53',
-    'todo', 'Wire live Recruit portal feed when os_recruit_feed_metrics or recruiting_kpi_facts is available',
+    'todo', 'Live Recruit feed via os_recruit_feed_metrics payload (openJobs/openApplications/placementsStarted)',
     'feed_tables', jsonb_build_object(
       'os_recruit_feed_metrics', v_has_feed,
       'recruiting_kpi_facts', v_has_kpi_facts

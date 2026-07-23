@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   emptySubsidiaryRollupPhase53Report,
+  mergeLiveRecruitFeedIntoReport,
   PHASE53_RECRUIT_ENTITY_ID,
   PHASE53_RECRUIT_PORTAL_BASE,
   PHASE53_SUBSIDIARY_ROLLUP_CONTRACT_VERSION,
@@ -89,9 +90,34 @@ describe('Phase 53 Subsidiary Rollup Hub (Recruit first)', () => {
       PHASE53_SUBSIDIARY_ROLLUP_CONTRACT_VERSION,
     );
     expect(report.drill_downs.portal).toBe(PHASE53_RECRUIT_PORTAL_BASE);
-    expect(report.todo.toLowerCase()).toContain('wire live recruit');
+    expect(report.todo.toLowerCase()).toContain('awaiting live recruit');
     expect(isRecruitRollupEntity(PHASE53_RECRUIT_ENTITY_ID)).toBe(true);
     expect(isRecruitRollupEntity('ENT-002')).toBe(false);
+  });
+
+  it('merges Phase 55 jsonb feed payload into Phase 53 metrics', () => {
+    const merged = mergeLiveRecruitFeedIntoReport(
+      emptySubsidiaryRollupPhase53Report(),
+      {
+        id: 'feed-1',
+        as_of: new Date().toISOString(),
+        source: 'recruit_portal',
+        payload: {
+          openJobs: 3,
+          openApplications: 12,
+          placementsStarted: 1,
+          placementsPendingStart: 2,
+          mode: 'live',
+        },
+      },
+    );
+    expect(merged.open_reqs).toBe(3);
+    expect(merged.pipeline_volume).toBe(12);
+    expect(merged.placements).toBe(1);
+    expect(merged.feed_status).toBe('ok');
+    expect(merged.freshness).toBe('fresh');
+    expect(merged.snapshot_id).toBe('feed-1');
+    expect(merged.todo.toLowerCase()).toContain('live recruit');
   });
 
   it('wires rollup into Entity OS (entities + ENT-R619 panel), not a new top-level module', () => {
@@ -123,8 +149,9 @@ describe('Phase 53 Subsidiary Rollup Hub (Recruit first)', () => {
 
     expect(lib).toContain('getSubsidiaryRollupPhase53Report');
     expect(lib).toContain('refreshSubsidiaryRollupPhase53');
+    expect(lib).toContain('mergeLiveRecruitFeedIntoReport');
+    expect(lib).toContain('os_recruit_feed_metrics');
     expect(lib).toContain(PHASE53_SUBSIDIARY_ROLLUP_CONTRACT_VERSION);
-    expect(lib).toContain('TODO');
 
     expect(entityOs).toContain('getSubsidiaryRollupPhase53Report');
     expect(entityOs).toContain('subsidiary_rollup');

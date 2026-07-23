@@ -73,11 +73,105 @@ export function emptySubsidiaryRollupPhase53Report(
       pipeline: `${PHASE53_RECRUIT_PORTAL_BASE}/pipeline`,
       placements: `${PHASE53_RECRUIT_PORTAL_BASE}/placements`,
     },
-    // TODO: Wire live Recruit portal feed tables/APIs (os_recruit_feed_metrics).
-    todo: 'Wire live Recruit portal feed tables/APIs; until then metrics stay empty with freshness=unknown',
+    todo: 'Awaiting live Recruit feed row in os_recruit_feed_metrics',
     money_auto_approve: false,
     contract_version: PHASE53_SUBSIDIARY_ROLLUP_CONTRACT_VERSION,
   };
+}
+
+type LiveRecruitFeedRow = {
+  id: string;
+  as_of: string;
+  payload: Record<string, unknown> | null;
+  source: string | null;
+};
+
+function feedFreshness(asOf: string | null): SubsidiaryRollupFreshness {
+  if (!asOf) return 'unknown';
+  const ageMs = Date.now() - new Date(asOf).getTime();
+  if (!Number.isFinite(ageMs) || ageMs < 0) return 'unknown';
+  if (ageMs <= 6 * 60 * 60 * 1000) return 'fresh';
+  if (ageMs <= 48 * 60 * 60 * 1000) return 'stale';
+  return 'partial';
+}
+
+/** Map Phase 55 jsonb feed payload → Phase 53 rollup metrics. */
+export function mergeLiveRecruitFeedIntoReport(
+  report: SubsidiaryRollupPhase53Report,
+  feed: LiveRecruitFeedRow | null | undefined,
+): SubsidiaryRollupPhase53Report {
+  if (!feed?.payload || typeof feed.payload !== 'object') return report;
+
+  const p = feed.payload;
+  const openReqs = asNumber(p.openJobs);
+  const pipeline = asNumber(p.openApplications);
+  const placements = asNumber(p.placementsStarted);
+  const pendingStart = asNumber(p.placementsPendingStart);
+  const accounts = asNumber(p.accountsImported);
+  const contacts = asNumber(p.contactsImported);
+
+  const hasAny =
+    openReqs != null ||
+    pipeline != null ||
+    placements != null ||
+    pendingStart != null;
+
+  if (!hasAny && report.feed_status === 'ok') return report;
+
+  const alerts = [...report.recent_alerts];
+  if (pendingStart != null && pendingStart > 0) {
+    alerts.unshift({
+      kind: 'placements_pending_start',
+      count: pendingStart,
+      source: feed.source ?? 'recruit_portal',
+    });
+  }
+
+  return {
+    ...report,
+    open_reqs: openReqs ?? report.open_reqs,
+    pipeline_volume: pipeline ?? report.pipeline_volume,
+    placements: placements ?? report.placements,
+    // Until Recruit sends submission/interview/offer splits, keep nulls.
+    freshness: feedFreshness(feed.as_of),
+    feed_status: hasAny ? 'ok' : 'partial',
+    snapshot_id: feed.id,
+    captured_at: feed.as_of,
+    recent_alerts: alerts.slice(0, 8),
+    source_mix: {
+      ...report.source_mix,
+      recruit_portal: 1,
+      ...(accounts != null ? { accounts_imported: accounts } : {}),
+      ...(contacts != null ? { contacts_imported: contacts } : {}),
+    },
+    todo: hasAny
+      ? 'Live Recruit portal feed (os_recruit_feed_metrics). Deeper KPI splits land as Recruit expands the payload.'
+      : report.todo,
+  };
+}
+
+async function fetchLatestRecruitFeed(
+  entityId: string,
+): Promise<LiveRecruitFeedRow | null> {
+  try {
+    const sb = await createPersistClient();
+    const { data, error } = await sb
+      .from('os_recruit_feed_metrics')
+      .select('id, as_of, payload, source')
+      .eq('entity_id', entityId)
+      .order('as_of', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error || !data) return null;
+    return {
+      id: String(data.id),
+      as_of: String(data.as_of),
+      payload: (data.payload as Record<string, unknown> | null) ?? null,
+      source: (data.source as string | null) ?? null,
+    };
+  } catch {
+    return null;
+  }
 }
 
 function asNumber(value: unknown): number | null {
@@ -166,6 +260,7 @@ function normalizeReport(
 export async function getSubsidiaryRollupPhase53Report(
   entityId: string = PHASE53_RECRUIT_ENTITY_ID,
 ): Promise<SubsidiaryRollupPhase53Report> {
+  let base = emptySubsidiaryRollupPhase53Report(entityId);
   try {
     const sb = await createPersistClient();
     const { data, error } = await sb.rpc(
@@ -177,19 +272,25 @@ export async function getSubsidiaryRollupPhase53Report(
         'subsidiary rollup phase53 report unavailable',
         error.message,
       );
-      return emptySubsidiaryRollupPhase53Report(entityId);
+    } else {
+      base = normalizeReport(
+        (data as Record<string, unknown> | null) ?? null,
+        entityId,
+      );
     }
-    return normalizeReport(
-      (data as Record<string, unknown> | null) ?? null,
-      entityId,
-    );
   } catch (caught) {
     console.error(
       'subsidiary rollup phase53 report failed',
       caught instanceof Error ? caught.message : caught,
     );
-    return emptySubsidiaryRollupPhase53Report(entityId);
   }
+
+  // Phase 55 stores compact jsonb payloads; prefer those over empty RPC snapshots.
+  if (entityId === PHASE53_RECRUIT_ENTITY_ID) {
+    const live = await fetchLatestRecruitFeed(entityId);
+    base = mergeLiveRecruitFeedIntoReport(base, live);
+  }
+  return base;
 }
 
 export async function refreshSubsidiaryRollupPhase53(input?: {
