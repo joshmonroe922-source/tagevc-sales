@@ -1119,13 +1119,29 @@ Apply after Phase 57:
 
 Docs: `docs/OS_PHASE58.md`
 
-### Phase 59+ backlog
+### Phase 59
 
-- Practical notifications (Phase 59)
+Practical production notifications: in-app inbox completeness, optional email
+digests for critical events only, owner/assignee routing, and preference
+center extensions on `/settings/notifications` + Activity inbox groups.
+Reuses digest route and `os_notification_prefs`. Reliability over channel
+expansion — not a full push product (`full_push=false`). Entity-aware
+(`ENT-R619` / `ENT-INDA`). Never mentions or mutates snapshot retirement
+tables.
+
+Apply after Phase 58:
+
+1. `phase59_practical_notifications.sql`
+
+Docs: `docs/OS_PHASE59.md`
+
+### Phase 60+ backlog
+
+- Portfolio operating cadence (Phase 60)
 - Wire live IES feed for Phase 55 KPIs
 - Wire live Recruit/Appcast feed for Phase 53/58 freshness
 - Continue Stage 4e soak; do not drop snapshots
-- Push · user admin
+- User admin
 
 ## Run locally
 

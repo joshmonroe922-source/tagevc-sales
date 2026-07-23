@@ -26,16 +26,34 @@ type DigestGroup = {
 
 function groupNotifications(rows: NotificationRow[]): DigestGroup[] {
   const buckets: Record<string, NotificationRow[]> = {
+    critical: [],
+    owner: [],
     mentions: [],
     chat: [],
     other: [],
   };
   for (const row of rows) {
-    if (row.kind === 'chat_mention') buckets.mentions.push(row);
+    if (row.kind === 'critical_event') buckets.critical.push(row);
+    else if (row.kind === 'owner_routed') buckets.owner.push(row);
+    else if (row.kind === 'chat_mention') buckets.mentions.push(row);
     else if (row.kind === 'chat_message') buckets.chat.push(row);
     else buckets.other.push(row);
   }
   const out: DigestGroup[] = [];
+  if (buckets.critical.length) {
+    out.push({
+      key: 'critical',
+      label: `Critical (${buckets.critical.length})`,
+      items: buckets.critical,
+    });
+  }
+  if (buckets.owner.length) {
+    out.push({
+      key: 'owner',
+      label: `Owner / assignee (${buckets.owner.length})`,
+      items: buckets.owner,
+    });
+  }
   if (buckets.mentions.length) {
     out.push({
       key: 'mentions',
@@ -81,7 +99,7 @@ export function NotificationInbox({ notifications, error }: Props) {
     return (
       <EmptyState
         title="No notifications yet"
-        description="Mentions, chat messages, and firm alerts appear here in digest groups."
+        description="Critical events, owner/assignee routes, mentions, chat, and firm alerts appear here in digest groups."
       />
     );
   }
@@ -91,7 +109,7 @@ export function NotificationInbox({ notifications, error }: Props) {
       <div className="flex items-center justify-between gap-2 pb-1">
         <p className="text-xs text-muted-foreground">
           {unread > 0
-            ? `${unread} unread · grouped digests`
+            ? `${unread} unread · grouped digests (critical + owner first)`
             : 'All caught up · grouped digests'}
         </p>
         {unread > 0 ? (
@@ -119,6 +137,8 @@ export function NotificationInbox({ notifications, error }: Props) {
           </p>
           {group.items.map((row) => {
             const unreadRow = !row.read_at && Boolean(row.user_id);
+            const isCritical = row.kind === 'critical_event';
+            const isOwner = row.kind === 'owner_routed';
             const isMention = row.kind === 'chat_mention';
             const isChat = row.kind === 'chat_message';
             const inner = (
@@ -126,16 +146,33 @@ export function NotificationInbox({ notifications, error }: Props) {
                 className={cn(
                   'flex flex-wrap items-baseline justify-between gap-2 rounded-lg border px-3 py-2',
                   unreadRow
-                    ? 'border-[#9f957c]/50 bg-[#9f957c]/10'
+                    ? isCritical
+                      ? 'border-destructive/40 bg-destructive/5'
+                      : 'border-[#9f957c]/50 bg-[#9f957c]/10'
                     : 'border-border',
                 )}
               >
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     {unreadRow ? (
-                      <span className="size-1.5 shrink-0 rounded-full bg-[#9f957c]" />
+                      <span
+                        className={cn(
+                          'size-1.5 shrink-0 rounded-full',
+                          isCritical ? 'bg-destructive' : 'bg-[#9f957c]',
+                        )}
+                      />
                     ) : null}
                     <p className="text-sm font-medium">{row.title}</p>
+                    {isCritical ? (
+                      <Badge variant="destructive" className="font-normal">
+                        Critical
+                      </Badge>
+                    ) : null}
+                    {isOwner ? (
+                      <Badge variant="secondary" className="font-normal">
+                        Owner
+                      </Badge>
+                    ) : null}
                     {isMention ? (
                       <Badge variant="secondary" className="font-normal">
                         Mention

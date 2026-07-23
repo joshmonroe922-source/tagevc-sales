@@ -59,14 +59,18 @@ git diff --check
 
 ## Phase 59 note
 
-**Phase 59 = practical notifications**. Do not start Phase 59 from this phase’s
-Marketing workstream without an explicit go-ahead.
+**Phase 59 = practical notifications** — shipped separately; see
+`docs/OS_PHASE59.md`. Do not start Phase 60 from Marketing without an explicit
+go-ahead.
 
 ## Phase 59+ recommendations
 
-1. Wire live Appcast/careers feeds so ENT-R619 moves from `missing` →
+1. **Done in Phase 59** — practical production notifications (inbox
+   completeness, critical email digests, owner/assignee routing, prefs).
+2. Wire live Appcast/careers feeds so ENT-R619 moves from `missing` →
    `ok`/`partial`.
-2. Attach SLA digest email when practical notifications land (Phase 59).
-3. Continue revenue phase soak (Phases 41–52 rails remain).
-4. Still out of scope here: autonomous paid publish, silent budget changes,
-   money auto-approve, full push notifications (Phase 59).
+3. Attach SLA digest email via Phase 59 critical routing for overdue
+   Marketing approvals.
+4. Continue revenue phase soak (Phases 41–52 rails remain).
+5. Still out of scope here: autonomous paid publish, silent budget changes,
+   money auto-approve, full push notifications, portfolio cadence (Phase 60).

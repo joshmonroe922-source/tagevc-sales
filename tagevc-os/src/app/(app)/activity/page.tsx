@@ -54,8 +54,8 @@ export default async function ActivityPage() {
           Activity
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Notification inbox (including chat) and recent firm actions across
-          Deal Flow, Shared Services, Documents, and Messages.{' '}
+          Notification inbox (critical, owner/assignee, chat) and recent firm
+          actions across Deal Flow, Shared Services, Documents, and Messages.{' '}
           <Link
             href="/settings/notifications"
             className="font-medium text-[#3a414f] underline-offset-4 hover:underline"
@@ -69,8 +69,8 @@ export default async function ActivityPage() {
         <CardHeader>
           <CardTitle className="text-base">Notifications</CardTitle>
           <CardDescription>
-            Chat messages, leads, and capital events. Unread items are
-            highlighted.
+            Critical events and owner/assignee routes surface first, then chat
+            and firm alerts. Unread items are highlighted.
           </CardDescription>
         </CardHeader>
         <CardContent>

@@ -96,6 +96,12 @@ export type NotificationPrefs = {
   digest_frequency: 'off' | 'daily' | 'weekly';
   notify_mentions: boolean;
   notify_chat_messages: boolean;
+  /** Phase 59: optional email for critical events only. */
+  email_critical_digests?: boolean;
+  /** Phase 59: in-app critical event alerts. */
+  notify_critical_events?: boolean;
+  /** Phase 59: in-app owner/assignee routing alerts. */
+  notify_owner_assignments?: boolean;
   muted_conversation_ids: string[];
   updated_at: string;
 };

@@ -54,11 +54,15 @@ export function NotificationPrefsForm() {
             digestFrequency: prefs.digest_frequency,
             notifyMentions: prefs.notify_mentions,
             notifyChatMessages: prefs.notify_chat_messages,
+            emailCriticalDigests: prefs.email_critical_digests ?? true,
+            notifyCriticalEvents: prefs.notify_critical_events ?? true,
+            notifyOwnerAssignments: prefs.notify_owner_assignments ?? true,
           });
           if (!result.ok) {
             setError(result.error);
             return;
           }
+          setPrefs(result.prefs);
           setSaved(true);
         });
       }}
@@ -101,15 +105,67 @@ export function NotificationPrefsForm() {
         <input
           type="checkbox"
           className="mt-1"
+          checked={prefs.notify_critical_events ?? true}
+          onChange={(e) =>
+            setPrefs({ ...prefs, notify_critical_events: e.target.checked })
+          }
+        />
+        <span>
+          <span className="font-medium">Critical event alerts</span>
+          <span className="mt-0.5 block text-xs text-muted-foreground">
+            In-app alerts for critical owner/assignee events (Phase 59).
+          </span>
+        </span>
+      </label>
+
+      <label className="flex items-start gap-3 text-sm">
+        <input
+          type="checkbox"
+          className="mt-1"
+          checked={prefs.notify_owner_assignments ?? true}
+          onChange={(e) =>
+            setPrefs({ ...prefs, notify_owner_assignments: e.target.checked })
+          }
+        />
+        <span>
+          <span className="font-medium">Owner / assignee routing</span>
+          <span className="mt-0.5 block text-xs text-muted-foreground">
+            In-app when you are routed as owner or assignee.
+          </span>
+        </span>
+      </label>
+
+      <label className="flex items-start gap-3 text-sm">
+        <input
+          type="checkbox"
+          className="mt-1"
           checked={prefs.email_digests}
           onChange={(e) =>
             setPrefs({ ...prefs, email_digests: e.target.checked })
           }
         />
         <span>
-          <span className="font-medium">Email digests</span>
+          <span className="font-medium">Email digests (unread summary)</span>
           <span className="mt-0.5 block text-xs text-muted-foreground">
             Periodic summary of unread notifications (requires RESEND_API_KEY).
+          </span>
+        </span>
+      </label>
+
+      <label className="flex items-start gap-3 text-sm">
+        <input
+          type="checkbox"
+          className="mt-1"
+          checked={prefs.email_critical_digests ?? true}
+          onChange={(e) =>
+            setPrefs({ ...prefs, email_critical_digests: e.target.checked })
+          }
+        />
+        <span>
+          <span className="font-medium">Critical email digests only</span>
+          <span className="mt-0.5 block text-xs text-muted-foreground">
+            Optional email when unread critical events exist — not a full push
+            channel.
           </span>
         </span>
       </label>
@@ -128,7 +184,8 @@ export function NotificationPrefsForm() {
           onChange={(e) =>
             setPrefs({
               ...prefs,
-              digest_frequency: e.target.value as NotificationPrefs['digest_frequency'],
+              digest_frequency: e.target
+                .value as NotificationPrefs['digest_frequency'],
             })
           }
         >
