@@ -369,6 +369,11 @@ export type EntityOperatingView = {
   origin_source: string | null;
   /** Recent financial / KPI edit audits (Phase 18+). */
   financial_audits: FinancialAuditSummary[] | null;
+  /**
+   * Phase 53 Subsidiary Rollup Hub (Recruit 619 / ENT-R619 first).
+   * Null for entities without a rollup feed surface.
+   */
+  subsidiary_rollup?: import('@/lib/data/subsidiary-rollup-phase53').SubsidiaryRollupPhase53Report | null;
 };
 
 export type FinancialAuditSummary = {

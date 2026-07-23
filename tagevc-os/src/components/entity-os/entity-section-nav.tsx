@@ -2,6 +2,7 @@ import { cn } from '@/lib/utils';
 
 export const ENTITY_OS_SECTIONS = [
   { id: 'overview', label: 'Overview' },
+  { id: 'rollup', label: 'Rollup' },
   { id: 'financials', label: 'Financials' },
   { id: 'core-kpis', label: 'CORE KPIs' },
   { id: 'flex-kpis', label: 'FLEX KPIs' },

@@ -63,6 +63,12 @@ export const MAIN_NAV: NavItem[] = [
     description: 'Subsidiary OS · CORE / FLEX',
   },
   {
+    module: 'portfolio',
+    href: '/entities/ENT-R619',
+    label: 'Recruit 619 Rollup',
+    description: 'Open reqs · pipeline · placements',
+  },
+  {
     module: 'deal_flow_vc',
     href: '/deal-flow/vc/intake',
     label: 'Lead Intake',

@@ -33,9 +33,35 @@ export default async function EntitiesIndexPage() {
         </div>
         <p className="max-w-2xl text-sm text-muted-foreground">
           Subsidiary Operating System hub — Entity Master rows with CORE KPIs,
-          docs, tickets, leads, and tasks. Demo: Instant NDA (ENT-002).
+          docs, tickets, leads, and tasks. Phase 53 adds Recruit 619 (ENT-R619)
+          Subsidiary Rollup for open reqs / pipeline / placements.
         </p>
       </header>
+
+      <Card className="border-dashed">
+        <CardHeader className="pb-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline">Phase 53</Badge>
+            <Badge variant="secondary">ENT-R619</Badge>
+          </div>
+          <CardTitle className="font-heading text-base">
+            Recruit 619 Subsidiary Rollup
+          </CardTitle>
+          <CardDescription>
+            Visionary / COO ops pulse for open reqs, pipeline volume,
+            submissions, interviews, offers, placements, and freshness — with
+            drill-downs to portal.recruit619.com.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Link
+            href="/entities/ENT-R619#rollup"
+            className="text-sm font-medium underline-offset-4 hover:underline"
+          >
+            Open Recruit 619 rollup →
+          </Link>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {entities.length === 0 ? (
@@ -66,7 +92,9 @@ export default async function EntitiesIndexPage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="text-xs text-muted-foreground">
-                    Overview · CORE · FLEX · Leads · Tasks · Docs · SS
+                    {e.entity_id === 'ENT-R619'
+                      ? 'Rollup · Overview · CORE · FLEX · Leads · Tasks · Docs · SS'
+                      : 'Overview · CORE · FLEX · Leads · Tasks · Docs · SS'}
                   </CardContent>
                 </Card>
               </Link>

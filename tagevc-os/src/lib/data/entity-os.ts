@@ -190,6 +190,14 @@ export async function getEntityOperatingView(
   );
   const financial_audits = await listFinancialAuditsForEntity(entityId, 20);
 
+  let subsidiary_rollup = null;
+  if (entityId === 'ENT-R619') {
+    const { getSubsidiaryRollupPhase53Report } = await import(
+      '@/lib/data/subsidiary-rollup-phase53'
+    );
+    subsidiary_rollup = await getSubsidiaryRollupPhase53Report(entityId);
+  }
+
   return {
     entity,
     portfolio,
@@ -211,6 +219,7 @@ export async function getEntityOperatingView(
       ? `${origin.source}${origin.source_detail ? ` · ${origin.source_detail}` : ''}`
       : null,
     financial_audits,
+    subsidiary_rollup,
   };
 }
 

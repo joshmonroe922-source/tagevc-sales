@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { EntitySectionNav } from '@/components/entity-os/entity-section-nav';
 import { StandardBadge } from '@/components/entity-os/standard-badge';
+import { SubsidiaryRollupRefreshButton } from '@/components/entity-os/subsidiary-rollup-refresh-button';
 import { StartChatButton } from '@/components/messaging/start-chat-button';
 import { HealthBadge } from '@/components/portfolio/health-badge';
 import {
@@ -196,6 +197,134 @@ export function EntityOperatingViewPanel({
         </div>
         <EntitySectionNav />
       </div>
+
+      {view.subsidiary_rollup ? (
+        <section id="rollup" className="scroll-mt-24 space-y-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <SectionHeading
+              title="Subsidiary Rollup"
+              description="Phase 53 Recruit 619 ops pulse — open reqs, pipeline, interviews, offers, placements. Fail-soft when the subsidiary feed is partial or missing."
+            />
+            <SubsidiaryRollupRefreshButton
+              entityId={view.subsidiary_rollup.entity_id}
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline">Phase 53</Badge>
+            <Badge variant="secondary">
+              Freshness · {view.subsidiary_rollup.freshness}
+            </Badge>
+            <Badge variant="outline">
+              Feed · {view.subsidiary_rollup.feed_status}
+            </Badge>
+            {view.subsidiary_rollup.captured_at ? (
+              <span className="text-xs text-muted-foreground">
+                Captured {formatDate(view.subsidiary_rollup.captured_at)}
+              </span>
+            ) : null}
+          </div>
+          <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <Metric
+              label="Open reqs"
+              value={formatRollupMetric(view.subsidiary_rollup.open_reqs)}
+            />
+            <Metric
+              label="Pipeline volume"
+              value={formatRollupMetric(view.subsidiary_rollup.pipeline_volume)}
+            />
+            <Metric
+              label="Submissions"
+              value={formatRollupMetric(view.subsidiary_rollup.submissions)}
+            />
+            <Metric
+              label="Interviews"
+              value={formatRollupMetric(view.subsidiary_rollup.interviews)}
+            />
+            <Metric
+              label="Offers"
+              value={formatRollupMetric(view.subsidiary_rollup.offers)}
+            />
+            <Metric
+              label="Placements"
+              value={formatRollupMetric(view.subsidiary_rollup.placements)}
+            />
+            <Metric
+              label="Time to fill (days)"
+              value={formatRollupMetric(view.subsidiary_rollup.time_to_fill_days)}
+            />
+            <Metric
+              label="Time to place (days)"
+              value={formatRollupMetric(
+                view.subsidiary_rollup.time_to_place_days,
+              )}
+            />
+          </section>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Source mix</CardTitle>
+              <CardDescription>
+                Empty until the Recruit feed lands. Drill down to
+                portal.recruit619.com for live desk work.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              {Object.keys(view.subsidiary_rollup.source_mix).length === 0 ? (
+                <p className="text-muted-foreground">
+                  No source-mix data yet · freshness{' '}
+                  {view.subsidiary_rollup.freshness}.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(view.subsidiary_rollup.source_mix).map(
+                    ([source, count]) => (
+                      <Badge key={source} variant="outline">
+                        {source}: {count}
+                      </Badge>
+                    ),
+                  )}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                {view.subsidiary_rollup.todo}
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <a
+                  href={view.subsidiary_rollup.drill_downs.portal}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline-offset-4 hover:underline"
+                >
+                  Recruit portal
+                </a>
+                <a
+                  href={view.subsidiary_rollup.drill_downs.reqs}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline-offset-4 hover:underline"
+                >
+                  Open reqs
+                </a>
+                <a
+                  href={view.subsidiary_rollup.drill_downs.pipeline}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline-offset-4 hover:underline"
+                >
+                  Pipeline
+                </a>
+                <a
+                  href={view.subsidiary_rollup.drill_downs.placements}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline-offset-4 hover:underline"
+                >
+                  Placements
+                </a>
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+      ) : null}
 
       <section id="overview" className="scroll-mt-24 space-y-4">
         <SectionHeading
@@ -670,4 +799,11 @@ function Row({ label, value }: { label: string; value: string }) {
       <dd className="min-w-0 flex-1 font-medium text-foreground">{value}</dd>
     </div>
   );
+}
+
+function formatRollupMetric(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(value)) return '—';
+  return new Intl.NumberFormat('en-US', {
+    maximumFractionDigits: 1,
+  }).format(value);
 }

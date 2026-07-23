@@ -1024,8 +1024,28 @@ Making `ci-snapshot-phase50-path-guard` a **required** status check remains a
 one-time repo-admin action under branch protection settings — the Phase 52
 script records evidence of that state only.
 
-### Phase 53+ backlog
+### Phase 53
 
+Subsidiary Rollup Hub (Recruit 619 first) on the existing Entity OS surface —
+`/entities` + `/entities/ENT-R619#rollup` — not a new top-level module. Open
+reqs, pipeline volume, submissions, interviews, offers, placements, source mix,
+time-to-fill/place, and freshness indicators with fail-soft empty stubs when
+the Recruit feed is missing. Drill-downs to `https://portal.recruit619.com`.
+Entity-scoped via existing RBAC. Never auto-approves money; never mentions or
+mutates `os_store_snapshots`.
+
+Apply after Phase 52:
+
+1. `phase53_subsidiary_rollup_ops.sql`
+
+Docs: `docs/OS_PHASE53.md`
+
+Visionary / COO nav: **Recruit 619 Rollup** → `/entities/ENT-R619`.
+
+### Phase 54+ backlog
+
+- Shared Services inbox next
+- Wire live Recruit feed for Phase 53 freshness
 - Continue Stage 4e soak; do not drop snapshots
 - Push · user admin
 
