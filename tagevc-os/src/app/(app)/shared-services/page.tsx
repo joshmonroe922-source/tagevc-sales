@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { BandBadge } from '@/components/shared-services/band-badge';
 import { CreateTicketForm } from '@/components/shared-services/create-ticket-form';
+import { SsUnifiedInbox } from '@/components/shared-services/ss-unified-inbox';
 import { Badge } from '@/components/ui/badge';
 import {
   Card,
@@ -9,15 +10,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { EmptyState } from '@/components/ui/empty-state';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { listScopedTickets } from '@/lib/data/pipeline-scope';
 import { FORBID_LIST } from '@/lib/shared-services/forbid-list';
 import { ALLOW_LIST } from '@/lib/shared-services/allow-list';
@@ -30,8 +22,10 @@ import {
   getSsHubCardModules,
   ssHubStatusLabel,
 } from '@/lib/shared-services/modules';
+import { getSharedServicesInboxPhase54Report } from '@/lib/shared-services/shared-services-inbox-phase54-server';
 import { AUTONOMY_BANDS } from '@/lib/types';
-import type { AutonomyBand } from '@/lib/types/enums';
+import type { AutonomyBand, SsService } from '@/lib/types';
+import { SS_SERVICES } from '@/lib/types';
 import { OperationalHealthSummary } from '@/components/shared-services/operational-health-summary';
 import { listOperationalHealth } from '@/lib/shared-services/operational-health';
 import { getSessionContext } from '@/lib/rbac/session';
@@ -39,19 +33,37 @@ import { isFirmWideAccess } from '@/lib/rbac/entity-scope';
 import { SloPolicyAdmin } from '@/components/shared-services/slo-policy-admin';
 import { listSloPolicyAdministration } from '@/lib/shared-services/slo-policy';
 
-export default async function SharedServicesPage() {
+type Props = {
+  searchParams?: Promise<{ service?: string; entity?: string }>;
+};
+
+export default async function SharedServicesPage({ searchParams }: Props) {
+  const params = (await searchParams) ?? {};
+  const initialServiceRaw = params.service?.trim() ?? '';
+  const initialService: SsService | 'All' = SS_SERVICES.includes(
+    initialServiceRaw as SsService,
+  )
+    ? (initialServiceRaw as SsService)
+    : 'All';
+  const initialEntityId = params.entity?.trim() ?? '';
+
   const ctx = await getSessionContext();
   const firmWide = ctx
     ? isFirmWideAccess(ctx.profile.role, ctx.profile.entity_id)
     : false;
-  const [tickets, operationalHealth, policyAdministration] = await Promise.all([
-    listScopedTickets(),
-    listOperationalHealth({
-      firmWide,
-      entityId: ctx?.profile.entity_id ?? null,
-    }),
-    firmWide ? listSloPolicyAdministration() : Promise.resolve(null),
-  ]);
+  const [tickets, operationalHealth, policyAdministration, inboxReport] =
+    await Promise.all([
+      listScopedTickets(),
+      listOperationalHealth({
+        firmWide,
+        entityId: ctx?.profile.entity_id ?? null,
+      }),
+      firmWide ? listSloPolicyAdministration() : Promise.resolve(null),
+      getSharedServicesInboxPhase54Report({
+        entityId: initialEntityId || null,
+        service: initialService === 'All' ? null : initialService,
+      }),
+    ]);
   const bands: Record<AutonomyBand, number> = {
     AUTO: 0,
     DRAFT: 0,
@@ -61,9 +73,6 @@ export default async function SharedServicesPage() {
     if (t.status === 'Closed' || t.status === 'Resolved') continue;
     bands[t.autonomy_band] += 1;
   }
-  const open = tickets.filter(
-    (t) => t.status !== 'Resolved' && t.status !== 'Closed',
-  );
 
   const modules = getSsHubCardModules();
   const byService = new Map<string, typeof modules>();
@@ -82,10 +91,11 @@ export default async function SharedServicesPage() {
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
           Ticketing plus Legal, IT, and Marketing modules for Tage VC and
-          subsidiaries. Policy version <code>{CURRENT_POLICY_VERSION}</code>.
-          AUTO ≥{CONFIDENCE_AUTO_MIN}% on allow-list; DRAFT{' '}
-          {CONFIDENCE_DRAFT_MIN}–89%; ESCALATE &lt;{CONFIDENCE_DRAFT_MIN}%, P0,
-          or forbid-list.
+          subsidiaries. Phase 54 unified inbox adds SLA boards, ownership, and
+          escalation across Finance · Legal · HR · IT · Marketing. Policy
+          version <code>{CURRENT_POLICY_VERSION}</code>. AUTO ≥
+          {CONFIDENCE_AUTO_MIN}% on allow-list; DRAFT {CONFIDENCE_DRAFT_MIN}
+          –89%; ESCALATE &lt;{CONFIDENCE_DRAFT_MIN}%, P0, or forbid-list.
         </p>
       </header>
 
@@ -101,7 +111,9 @@ export default async function SharedServicesPage() {
             Service modules
           </h2>
           <p className="text-sm text-muted-foreground">
-            Firm-wide hubs with entity-scoped data where applicable.
+            Firm-wide hubs with entity-scoped data where applicable. Finance and
+            HR pages are planned stubs — their tickets still appear in the
+            unified inbox.
           </p>
         </div>
         <div className="space-y-5">
@@ -156,66 +168,12 @@ export default async function SharedServicesPage() {
         ))}
       </section>
 
-      <div className="overflow-hidden rounded-lg border border-border bg-card">
-        {open.length === 0 ? (
-          <div className="p-4">
-            <EmptyState
-              title="No open tickets"
-              description="Create a ticket below or wait for AI document suggestions to open work."
-            />
-          </div>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/40 hover:bg-muted/40">
-                <TableHead>Ticket</TableHead>
-                <TableHead>Service</TableHead>
-                <TableHead>Priority</TableHead>
-                <TableHead>Band</TableHead>
-                <TableHead>Confidence</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {open.map((t) => (
-                <TableRow key={t.ticket_id}>
-                  <TableCell>
-                    <Link
-                      href={`/shared-services/tickets/${t.ticket_id}`}
-                      className="font-medium underline-offset-4 hover:underline"
-                    >
-                      {t.title}
-                    </Link>
-                    <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                      <span>{t.ticket_id}</span>
-                      {t.ai_generated ? (
-                        <Badge
-                          variant="outline"
-                          className="border-sky-200 bg-sky-50 text-sky-950"
-                        >
-                          AI
-                        </Badge>
-                      ) : null}
-                      {t.forbid_hits.length
-                        ? ` · forbid: ${t.forbid_hits.join(', ')}`
-                        : null}
-                    </div>
-                  </TableCell>
-                  <TableCell>{t.service}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{t.priority}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <BandBadge band={t.autonomy_band} />
-                  </TableCell>
-                  <TableCell className="tabular-nums">{t.confidence}%</TableCell>
-                  <TableCell>{t.status}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </div>
+      <SsUnifiedInbox
+        tickets={tickets}
+        report={inboxReport}
+        initialService={initialService}
+        initialEntityId={initialEntityId}
+      />
 
       <CreateTicketForm />
 

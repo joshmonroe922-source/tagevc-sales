@@ -1042,9 +1042,24 @@ Docs: `docs/OS_PHASE53.md`
 
 Visionary / COO nav: **Recruit 619 Rollup** → `/entities/ENT-R619`.
 
-### Phase 54+ backlog
+### Phase 54
 
-- Shared Services inbox next
+Shared Services Inbox Unification on `/shared-services#inbox` — cross-service
+ticket board (Finance · Legal · HR · IT · Marketing) with SLA status,
+ownership, escalation visibility, entity filters (including `ENT-R619`), and
+links to related records. Finance/HR module cards are planned stubs; their
+tickets still unify. Never auto-approves money; dual-approve gates untouched;
+never mentions or mutates `os_store_snapshots`.
+
+Apply after Phase 53:
+
+1. `phase54_shared_services_inbox_ops.sql`
+
+Docs: `docs/OS_PHASE54.md`
+
+### Phase 55+ backlog
+
+- Finance control plane (IES orchestration)
 - Wire live Recruit feed for Phase 53 freshness
 - Continue Stage 4e soak; do not drop snapshots
 - Push · user admin

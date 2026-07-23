@@ -44,10 +44,30 @@ import {
 } from '@/lib/shared-services/slo-phase50';
 import { listSloOwnerDigestSelfServeTrendPhase51 } from '@/lib/shared-services/slo-phase51';
 import { listSloFirmDigestAdminSummaryTrendPhase52 } from '@/lib/shared-services/slo-phase52';
+import {
+  PHASE54_SS_INBOX_CONTRACT_VERSION,
+  type SharedServicesInboxPhase54Report,
+} from '@/lib/shared-services/shared-services-inbox-phase54';
+import { refreshSharedServicesInboxPhase54 } from '@/lib/shared-services/shared-services-inbox-phase54-server';
 
 export type TicketActionResult =
   | { ok: true; ticketId?: string; message?: string }
   | { ok: false; error: string };
+
+export type SsInboxPhase54ActionResult =
+  | {
+      ok: true;
+      money_auto_approve: false;
+      contract_version: typeof PHASE54_SS_INBOX_CONTRACT_VERSION;
+      report: SharedServicesInboxPhase54Report;
+    }
+  | {
+      ok: false;
+      money_auto_approve: false;
+      contract_version: typeof PHASE54_SS_INBOX_CONTRACT_VERSION;
+      error: string;
+      report: SharedServicesInboxPhase54Report;
+    };
 
 const createSchema = z.object({
   title: z.string().min(3),
@@ -954,4 +974,43 @@ export async function requestSloRouteTestAction(input: {
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : 'Failed' };
   }
+}
+
+/** Phase 54 — refresh Shared Services SLA / escalation inbox board (append-only). */
+export async function refreshSharedServicesInboxPhase54Action(
+  entityId?: string | null,
+): Promise<SsInboxPhase54ActionResult> {
+  const gate = await guardPermission('write:shared_services');
+  if (!gate.ok) {
+    const { emptySharedServicesInboxPhase54Report } = await import(
+      '@/lib/shared-services/shared-services-inbox-phase54'
+    );
+    return {
+      ok: false,
+      money_auto_approve: false,
+      contract_version: PHASE54_SS_INBOX_CONTRACT_VERSION,
+      error: gate.error,
+      report: emptySharedServicesInboxPhase54Report(entityId ?? null),
+    };
+  }
+  const result = await refreshSharedServicesInboxPhase54({
+    actorId: gate.profile.id,
+    entityId: entityId ?? null,
+  });
+  revalidatePath('/shared-services');
+  if (!result.ok) {
+    return {
+      ok: false,
+      money_auto_approve: false,
+      contract_version: PHASE54_SS_INBOX_CONTRACT_VERSION,
+      error: result.error,
+      report: result.report,
+    };
+  }
+  return {
+    ok: true,
+    money_auto_approve: false,
+    contract_version: PHASE54_SS_INBOX_CONTRACT_VERSION,
+    report: result.report,
+  };
 }

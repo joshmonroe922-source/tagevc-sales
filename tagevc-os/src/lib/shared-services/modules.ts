@@ -52,6 +52,26 @@ export const SS_HUB_MODULES: SsHubModule[] = [
       'Campaigns, content, social accounts, AI + schedule frameworks for firm and subsidiaries.',
     docs: 'docs/OS_MARKETING.md',
   },
+  {
+    id: 'finance',
+    href: '/shared-services?service=Finance#inbox',
+    title: 'Finance control plane',
+    service: 'Finance',
+    status: 'planned',
+    // TODO: Phase 55 Finance control plane (IES orchestration)
+    description:
+      'TODO Phase 55 — KPI panels, close checklists, anomaly alerts. Tickets already in unified inbox.',
+  },
+  {
+    id: 'hr',
+    href: '/shared-services?service=HR#inbox',
+    title: 'HR operations',
+    service: 'HR',
+    status: 'planned',
+    // TODO: Phase 57 HR production hardening
+    description:
+      'TODO Phase 57 — onboarding/offboarding run completeness. Tickets already in unified inbox.',
+  },
 ];
 
 /** Modules shown as navigable cards on the hub (exclude self-link tickets). */

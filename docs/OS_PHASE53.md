@@ -60,4 +60,4 @@ git diff --check
    soak (same Entity OS section pattern).
 4. Continue Stage 4e soak; do not drop `os_store_snapshots`.
 5. Still out of scope: full push notifications, user admin UI, Finance/HR
-   pages (do not block on them).
+   pages (do not block on them). See Phase 54 for the Shared Services inbox.
