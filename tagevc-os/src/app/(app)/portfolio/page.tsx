@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { OperatingCadencePhase60Client } from '@/components/portfolio/operating-cadence-phase60-client';
 import { PortfolioCompaniesTable } from '@/components/portfolio/portfolio-companies-table';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -15,12 +16,20 @@ import {
   formatRunway,
   formatUsdK,
 } from '@/lib/format';
+import { getPortfolioOperatingCadencePhase60Report } from '@/lib/portfolio/operating-cadence-phase60-server';
+import { getSessionContext } from '@/lib/rbac/session';
+import { roleHasPermission } from '@/lib/types/roles';
 import { PORTFOLIO_HEALTH } from '@/lib/types';
 
 export default async function PortfolioPage() {
-  const [companies, rollup] = await Promise.all([
+  const session = await getSessionContext();
+  const canWrite = Boolean(
+    session && roleHasPermission(session.profile.role, 'write:portfolio_health'),
+  );
+  const [companies, rollup, cadenceReport] = await Promise.all([
     listActivePortfolioCompanies(),
     getPortfolioRollup(),
+    getPortfolioOperatingCadencePhase60Report(),
   ]);
   const source = getMasterDataSource();
 
@@ -40,9 +49,15 @@ export default async function PortfolioPage() {
         </div>
         <p className="max-w-2xl text-sm text-muted-foreground">
           One row per company. COO owns Health + Top Risk. CORE $ fields match
-          Portfolio Roll-up for the same period (BD15 pack).
+          Portfolio Roll-up for the same period (BD15 pack). Weekly operating
+          cadence tools for Visionary/COO live below.
         </p>
       </header>
+
+      <OperatingCadencePhase60Client
+        report={cadenceReport}
+        canWrite={canWrite}
+      />
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <SummaryCard label="Companies" value={String(companies.length)} />

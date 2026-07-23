@@ -12,6 +12,16 @@ import {
 } from '@/lib/data/master-data';
 import { EDITABLE_CORE_KPI_KEYS } from '@/lib/portfolio/core-kpis';
 import {
+  PHASE60_PORTFOLIO_CONTRACT_VERSION,
+  type PortfolioOperatingCadencePhase60Report,
+} from '@/lib/portfolio/operating-cadence-phase60';
+import {
+  getPortfolioOperatingCadencePhase60Report,
+  recordPortfolioReviewPacketPhase60,
+  recordPortfolioRiskMilestonePhase60,
+  refreshPortfolioOperatingCadencePhase60,
+} from '@/lib/portfolio/operating-cadence-phase60-server';
+import {
   buildParentIndex,
   canAccessEntityId,
   entityScopeDeniedMessage,
@@ -365,4 +375,134 @@ export async function updateFlexKpiAction(
     captureException(e, { action: 'updateFlexKpiAction' });
     return { ok: false, error: e instanceof Error ? e.message : 'Save failed' };
   }
+}
+
+export type PortfolioCadencePhase60ActionResult =
+  | {
+      ok: true;
+      report: PortfolioOperatingCadencePhase60Report;
+      summary?: Record<string, unknown>;
+      contract_version: typeof PHASE60_PORTFOLIO_CONTRACT_VERSION;
+    }
+  | {
+      ok: false;
+      error: string;
+      report: PortfolioOperatingCadencePhase60Report;
+      contract_version: typeof PHASE60_PORTFOLIO_CONTRACT_VERSION;
+    };
+
+export async function refreshPortfolioOperatingCadencePhase60Action(
+  entityId?: string | null,
+): Promise<PortfolioCadencePhase60ActionResult> {
+  const gate = await guardPermission('write:portfolio_health');
+  if (!gate.ok) {
+    return {
+      ok: false,
+      error: gate.error,
+      report: await getPortfolioOperatingCadencePhase60Report({
+        entityId: entityId ?? null,
+      }),
+      contract_version: PHASE60_PORTFOLIO_CONTRACT_VERSION,
+    };
+  }
+
+  const result = await refreshPortfolioOperatingCadencePhase60({
+    actorId: gate.profile.id,
+    entityId: entityId ?? null,
+  });
+  revalidatePath('/portfolio');
+  if (!result.ok) {
+    return {
+      ok: false,
+      error: result.error,
+      report: result.report,
+      contract_version: PHASE60_PORTFOLIO_CONTRACT_VERSION,
+    };
+  }
+  return {
+    ok: true,
+    report: result.report,
+    summary: result.summary,
+    contract_version: PHASE60_PORTFOLIO_CONTRACT_VERSION,
+  };
+}
+
+export async function recordPortfolioRiskMilestonePhase60Action(input: {
+  entityId?: string | null;
+  portfolioId?: string | null;
+  eventKind: string;
+  title: string;
+  status?: string;
+  severity?: string;
+}): Promise<PortfolioCadencePhase60ActionResult> {
+  const gate = await guardPermission('write:portfolio_health');
+  const entityId = input.entityId ?? null;
+  if (!gate.ok) {
+    return {
+      ok: false,
+      error: gate.error,
+      report: await getPortfolioOperatingCadencePhase60Report({ entityId }),
+      contract_version: PHASE60_PORTFOLIO_CONTRACT_VERSION,
+    };
+  }
+
+  const recorded = await recordPortfolioRiskMilestonePhase60({
+    ...input,
+    actorId: gate.profile.id,
+  });
+  if (!recorded.ok) {
+    return {
+      ok: false,
+      error: recorded.error,
+      report: await getPortfolioOperatingCadencePhase60Report({ entityId }),
+      contract_version: PHASE60_PORTFOLIO_CONTRACT_VERSION,
+    };
+  }
+  revalidatePath('/portfolio');
+  return {
+    ok: true,
+    report: await getPortfolioOperatingCadencePhase60Report({ entityId }),
+    summary: recorded.data,
+    contract_version: PHASE60_PORTFOLIO_CONTRACT_VERSION,
+  };
+}
+
+export async function recordPortfolioReviewPacketPhase60Action(input: {
+  entityId?: string | null;
+  portfolioId?: string | null;
+  packetKind: string;
+  title: string;
+  periodKey?: string;
+  completenessStatus?: string;
+}): Promise<PortfolioCadencePhase60ActionResult> {
+  const gate = await guardPermission('write:portfolio_health');
+  const entityId = input.entityId ?? null;
+  if (!gate.ok) {
+    return {
+      ok: false,
+      error: gate.error,
+      report: await getPortfolioOperatingCadencePhase60Report({ entityId }),
+      contract_version: PHASE60_PORTFOLIO_CONTRACT_VERSION,
+    };
+  }
+
+  const recorded = await recordPortfolioReviewPacketPhase60({
+    ...input,
+    actorId: gate.profile.id,
+  });
+  if (!recorded.ok) {
+    return {
+      ok: false,
+      error: recorded.error,
+      report: await getPortfolioOperatingCadencePhase60Report({ entityId }),
+      contract_version: PHASE60_PORTFOLIO_CONTRACT_VERSION,
+    };
+  }
+  revalidatePath('/portfolio');
+  return {
+    ok: true,
+    report: await getPortfolioOperatingCadencePhase60Report({ entityId }),
+    summary: recorded.data,
+    contract_version: PHASE60_PORTFOLIO_CONTRACT_VERSION,
+  };
 }

@@ -52,14 +52,17 @@ git diff --check
 
 ## Phase 60 note
 
-**Phase 60 = portfolio operating cadence**. Do not start Phase 60 from this
-phase’s notifications workstream without an explicit go-ahead.
+**Phase 60 = portfolio operating cadence** — shipped separately; see
+`docs/OS_PHASE60.md`. Do not start Phase 61 from notifications without an
+explicit go-ahead.
 
 ## Phase 60+ recommendations
 
-1. Wire live critical events from Shared Services SLA / Marketing overdue /
+1. **Done in Phase 60** — portfolio operating cadence (health board,
+   risks/milestones, review packets, handoff completeness, subsidiary links).
+2. Wire live critical events from Shared Services SLA / Marketing overdue /
    Intune inbox aging into `route_notification_phase59`.
-2. Attach Marketing SLA digest email for approvers (Phase 58 follow-up).
-3. Continue Stage 4e soak; do not drop snapshot retirement tables.
-4. Still out of scope here: full mobile push ecosystem, user admin UI,
-   portfolio operating cadence (Phase 60).
+3. Attach Marketing SLA digest email for approvers (Phase 58 follow-up).
+4. Continue Stage 4e soak; do not drop snapshot retirement tables.
+5. Still out of scope here: full mobile push ecosystem, user admin UI,
+   Firm Ops command completeness (Phase 61).

@@ -1135,9 +1135,22 @@ Apply after Phase 58:
 
 Docs: `docs/OS_PHASE59.md`
 
-### Phase 60+ backlog
+### Phase 60
 
-- Portfolio operating cadence (Phase 60)
+Portfolio operating cadence on `/portfolio`: company health board,
+risk/milestone tracking, operating review packets, handoff completeness
+indicators, and subsidiary linkage (`ENT-R619` / `ENT-INDA`). Weekly tools for
+Visionary/COO. Never mentions or mutates snapshot retirement tables.
+
+Apply after Phase 59:
+
+1. `phase60_portfolio_operating_cadence.sql`
+
+Docs: `docs/OS_PHASE60.md`
+
+### Phase 61+ backlog
+
+- Firm Ops command completeness (Phase 61)
 - Wire live IES feed for Phase 55 KPIs
 - Wire live Recruit/Appcast feed for Phase 53/58 freshness
 - Continue Stage 4e soak; do not drop snapshots
