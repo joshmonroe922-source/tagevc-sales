@@ -52,6 +52,7 @@ import {
   refreshIntunePhase50DualApproveGateOpsAction,
   approveIntuneBreakerTuningPhase50Action,
   approveIntunePromoteWaivePhase50Action,
+  refreshIntunePhase51UnifiedInboxOpsAction,
   runIntuneWorkerAction,
   type ItAssetActionResult,
 } from '@/app/(app)/shared-services/it/assets/actions';
@@ -153,6 +154,7 @@ export function ItAssetsClient({
   intunePhase48Health = null,
   intunePhase49Ops = null,
   intunePhase50Ops = null,
+  intunePhase51Ops = null,
   intuneOutagePostmortems = [],
   intuneThresholdRecommendations = [],
   intuneSoakCycleTimeline = [],
@@ -209,6 +211,7 @@ export function ItAssetsClient({
   intunePhase48Health?: ItIntunePhase48Health | null;
   intunePhase49Ops?: Record<string, unknown> | null;
   intunePhase50Ops?: Record<string, unknown> | null;
+  intunePhase51Ops?: Record<string, unknown> | null;
   intuneOutagePostmortems?: ItIntuneOutagePostmortem[];
   intuneThresholdRecommendations?: ItIntuneThresholdRecommendation[];
   intuneSoakCycleTimeline?: ItIntuneSoakCycleTimeline[];
@@ -470,6 +473,17 @@ export function ItAssetsClient({
                 : ''}
             </>
           ) : null}
+          {intunePhase51Ops ? (
+            <>
+              {' · '}phase51 unified inbox{' '}
+              {Number(intunePhase51Ops.total_pending_count ?? 0)} pending (
+              postmortem {Number(intunePhase51Ops.postmortem_pending_count ?? 0)}
+              {' / '}
+              tuning {Number(intunePhase51Ops.breaker_tuning_pending_count ?? 0)}
+              {' / '}
+              waive {Number(intunePhase51Ops.promote_waive_pending_count ?? 0)})
+            </>
+          ) : null}
         </div>
       ) : null}
 
@@ -701,6 +715,49 @@ export function ItAssetsClient({
                 >
                   Approve/reject waive (Phase 50 dual-approve)
                 </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={pending}
+                  onClick={() =>
+                    run(() => refreshIntunePhase51UnifiedInboxOpsAction())
+                  }
+                >
+                  Refresh unified dual-approve inbox (Phase 51)
+                </Button>
+              </div>
+            ) : null}
+            {intunePhase51Ops &&
+            Array.isArray(intunePhase51Ops.items) &&
+            (intunePhase51Ops.items as Array<Record<string, unknown>>).length >
+              0 ? (
+              <div className="mt-2 space-y-1 rounded border p-2 text-xs">
+                <p className="font-medium">
+                  Unified dual-approve inbox (Phase 51 — postmortem, breaker
+                  tuning, and waive pending items in one place; observe-only,
+                  approvals still go through the existing Phase 49/50 review
+                  actions above)
+                </p>
+                <ul className="space-y-1">
+                  {(
+                    intunePhase51Ops.items as Array<Record<string, unknown>>
+                  )
+                    .slice(0, 15)
+                    .map((item, idx) => (
+                      <li
+                        key={`${String(item.kind)}-${idx}`}
+                        className="text-muted-foreground"
+                      >
+                        {String(item.kind).replaceAll('_', ' ')} ·{' '}
+                        {String(item.reference_id).slice(0, 8)} · awaiting
+                        since{' '}
+                        {item.awaiting_since
+                          ? new Date(String(item.awaiting_since)).toLocaleString()
+                          : 'n/a'}
+                      </li>
+                    ))}
+                </ul>
               </div>
             ) : null}
           </div>

@@ -941,7 +941,47 @@ cutover-adjacent paths (snapshot-cutover SQL, the CI cutover-accept script
 family, or `snapshot-retirement-phaseN.ts` libs); non-adjacent PRs are
 unaffected.
 
-### Phase 51+ backlog
+### Phase 51
+
+Marketing auto-*propose* (never auto-approve) for soaked-healthy auto-reject
+cohorts after N consecutive healthy audit-export windows — proposals still
+require the existing Phase 50 dual human-approve path before any money moves.
+DocuSign firm-wide cadence trend rollups across quarters plus third-approver
+escalation when second-approver reminders go unanswered (visibility only —
+never creates/voids/resends envelopes or auto-activates budgets). Intune
+unified dual-approve inbox aggregating pending postmortem / breaker-tuning /
+waive-promotion approvals into one observe-only surface (no entity ID leaks
+in aggregates; never auto-closes/resets breakers). SLO per-owner trend charts
+on the opt-in self-serve digest failure view, reusing Phase 50 WoW snapshots
+(still pull-only, not a full push system). Snapshot: GitHub Actions path-guard
+workflow for cutover-adjacent PRs plus read-only evidence of whether it is
+configured as a *required* status check, escalation when a
+`protected_branch_cutover_blocked` page receipt itself fails delivery, and
+continued Stage 4e soak trend rollups. Stage 4e non-qualifying flags remain
+false; no snapshot relation mutations; `os_store_snapshots` is never
+referenced.
+
+Apply after Phase 50:
+
+1. `phase51_marketing_revenue_ops.sql`
+2. `phase51_docusign_archive_ops.sql`
+3. `phase51_intune_resilience_ops.sql`
+4. `phase51_slo_governance_ops.sql`
+5. `phase51_snapshot_cutover_ops.sql`
+
+Docs: `docs/OS_PHASE51.md`
+
+GitHub Actions: `.github/workflows/snapshot-path-guard.yml` runs
+`node scripts/ci-snapshot-phase50-path-guard.mjs --check` on every PR against
+`main` (job name `ci-snapshot-phase50-path-guard`). To make it a **required**
+status check: Settings → Branches → Branch protection rules → Require status
+checks to pass → add `ci-snapshot-phase50-path-guard`. Then record evidence
+via the `record_phase51_required_check_verification` admin action (or the
+"Record Phase 51 required-check verification" button in the Snapshot
+retirement admin panel) so `required_check_currently_configured` reflects
+reality.
+
+### Phase 52+ backlog
 
 - Continue Stage 4e soak; do not drop snapshots
 - Push · user admin

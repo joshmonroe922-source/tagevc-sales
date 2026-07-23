@@ -2536,3 +2536,42 @@ export async function approveIntunePromoteWaivePhase50(input: {
         detail: (data as Record<string, unknown> | null) ?? undefined,
       };
 }
+
+// ---------------------------------------------------------------------------
+// Phase 51: unified dual-approve INBOX aggregating pending postmortem
+// publish, breaker tuning, and promote-waive approvals into one visibility
+// surface. Observe-only — never applies, approves, closes, or resets
+// anything, and never includes entity identifiers in the aggregates. First
+// and second approvals still happen through the existing Phase 49/50 review
+// and dual-approve RPCs.
+// ---------------------------------------------------------------------------
+export async function getIntunePhase51OpsReport(): Promise<{
+  report: Record<string, unknown> | null;
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc('get_it_intune_phase51_ops_report');
+  return error
+    ? { report: null, error: error.message }
+    : { report: (data as Record<string, unknown> | null) ?? null };
+}
+
+export async function listIntunePhase51DualApproveInbox(input?: {
+  limit?: number;
+}): Promise<{ inbox: Record<string, unknown> | null; error?: string }> {
+  const sb = await createPersistClient();
+  const { data, error } = await sb.rpc(
+    'list_it_intune_dual_approve_inbox_phase51',
+    { p_limit: input?.limit ?? 50 },
+  );
+  return error
+    ? { inbox: null, error: error.message }
+    : { inbox: (data as Record<string, unknown> | null) ?? null };
+}
+
+export async function runIntunePhase51UnifiedInboxOps() {
+  const { processIntunePhase51UnifiedInboxOps } = await import(
+    '@/lib/shared-services/it-intune-worker'
+  );
+  return processIntunePhase51UnifiedInboxOps();
+}

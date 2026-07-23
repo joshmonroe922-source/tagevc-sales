@@ -42,6 +42,8 @@ export function DocuSignHubActions({
   phase49BudgetProposalStatus,
   phase50CadenceTrendDirection,
   phase50PendingReminderCount,
+  phase51CadenceRollupTrend,
+  phase51PendingEscalatableCount,
 }: {
   canWrite: boolean;
   canReconcile: boolean;
@@ -64,6 +66,8 @@ export function DocuSignHubActions({
   phase49BudgetProposalStatus?: string;
   phase50CadenceTrendDirection?: string;
   phase50PendingReminderCount?: number;
+  phase51CadenceRollupTrend?: string;
+  phase51PendingEscalatableCount?: number;
 }) {
   const [flash, setFlash] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -89,6 +93,8 @@ export function DocuSignHubActions({
     phase49CadenceSloSeverity != null || phase49BudgetProposalStatus != null;
   const showPhase50Badges =
     phase50CadenceTrendDirection != null || phase50PendingReminderCount != null;
+  const showPhase51Badges =
+    phase51CadenceRollupTrend != null || phase51PendingEscalatableCount != null;
 
   const badges =
     showPhase44Badges ||
@@ -97,7 +103,8 @@ export function DocuSignHubActions({
     showPhase47Badges ||
     showPhase48Badges ||
     showPhase49Badges ||
-    showPhase50Badges ? (
+    showPhase50Badges ||
+    showPhase51Badges ? (
       <div className="flex flex-wrap gap-2 text-[11px]">
         {phase44DriftHealth ? (
           <span className="rounded border border-border/70 px-2 py-0.5 text-muted-foreground">
@@ -182,6 +189,17 @@ export function DocuSignHubActions({
         {phase50PendingReminderCount != null && phase50PendingReminderCount > 0 ? (
           <span className="rounded border border-border/70 px-2 py-0.5 text-amber-800">
             Phase 50 awaiting 2nd approver {phase50PendingReminderCount}
+          </span>
+        ) : null}
+        {phase51CadenceRollupTrend ? (
+          <span className="rounded border border-border/70 px-2 py-0.5 text-muted-foreground">
+            Phase 51 cadence rollup {phase51CadenceRollupTrend}
+          </span>
+        ) : null}
+        {phase51PendingEscalatableCount != null &&
+        phase51PendingEscalatableCount > 0 ? (
+          <span className="rounded border border-border/70 px-2 py-0.5 text-amber-800">
+            Phase 51 3rd-approver escalatable {phase51PendingEscalatableCount}
           </span>
         ) : null}
       </div>

@@ -9,6 +9,7 @@ import {
 import { processSloGovernancePhase40, processSloGovernancePhase44, processSloGovernancePhase45, processSloGovernancePhase46, processSloGovernancePhase47, processSloGovernancePhase48 } from '@/lib/shared-services/slo-policy';
 import { processSloGovernancePhase49 } from '@/lib/shared-services/slo-phase49';
 import { processSloGovernancePhase50 } from '@/lib/shared-services/slo-phase50';
+import { processSloGovernancePhase51 } from '@/lib/shared-services/slo-phase51';
 
 async function run(source: 'cron' | 'admin') {
   const worker = await startOperationalWorker({
@@ -26,6 +27,10 @@ async function run(source: 'cron' | 'admin') {
     const phase48 = await processSloGovernancePhase48();
     const phase49 = await processSloGovernancePhase49();
     const phase50 = await processSloGovernancePhase50();
+    // Phase 51 is pull-only (self-serve trend charts reuse Phase 50 WoW
+    // snapshots on demand) — this tick does no work of its own, it only
+    // reports the still-pull-only contract for observability.
+    const phase51 = await processSloGovernancePhase51();
     for (const transition of result.transitions) {
       captureMessage(
         `Shared Services SLO ${transition.transition}: ${transition.service}/${transition.metric_key}`,
@@ -71,6 +76,7 @@ async function run(source: 'cron' | 'admin') {
         phase49_owner_digest_slo: phase49.ownerDigestSlo,
         phase50_owner_digest_wow_trend: phase50.ownerDigestWowTrend,
         phase50_full_push: phase50.full_push,
+        phase51_full_push: phase51.full_push,
       },
     });
     return NextResponse.json({
@@ -87,6 +93,7 @@ async function run(source: 'cron' | 'admin') {
       phase48,
       phase49,
       phase50,
+      phase51,
     });
   } catch (error) {
     captureException(error, { route: 'slo-evaluate' });

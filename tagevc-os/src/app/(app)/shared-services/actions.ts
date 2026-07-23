@@ -42,6 +42,7 @@ import {
   setSloOwnerDigestSelfServeOptInPhase50,
   listSloOwnerDigestSelfServeFailuresPhase50,
 } from '@/lib/shared-services/slo-phase50';
+import { listSloOwnerDigestSelfServeTrendPhase51 } from '@/lib/shared-services/slo-phase51';
 
 export type TicketActionResult =
   | { ok: true; ticketId?: string; message?: string }
@@ -886,6 +887,26 @@ export async function listSloOwnerDigestSelfServeFailuresAction(input: {
   return {
     ok: true,
     message: `Self-serve digest failures · ${Array.isArray(failures) ? failures.length : 0} row(s) in window`,
+  };
+}
+
+export async function listSloOwnerDigestSelfServeTrendAction(input: {
+  ownerId: string;
+}): Promise<TicketActionResult> {
+  const gate = await guardPermission('write:shared_services');
+  if (!gate.ok) return gate;
+  const result = await listSloOwnerDigestSelfServeTrendPhase51({
+    ownerId: input.ownerId,
+    actorId: gate.profile.id,
+  });
+  if (!result.ok) return { ok: false, error: result.error };
+  const series = (result.detail as { series?: unknown[] } | undefined)?.series ?? [];
+  const chartReady = Boolean(
+    (result.detail as { chart_ready?: boolean } | undefined)?.chart_ready,
+  );
+  return {
+    ok: true,
+    message: `Self-serve trend chart · ${Array.isArray(series) ? series.length : 0} point(s) · chart ${chartReady ? 'ready' : 'not ready'} · pull-only`,
   };
 }
 

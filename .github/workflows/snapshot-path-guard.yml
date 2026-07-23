@@ -1,0 +1,51 @@
+name: Snapshot cutover path-guard
+
+# Phase 50/51: enforces that any PR touching "cutover-adjacent" paths (Phase N
+# snapshot-cutover SQL, the CI cutover-accept script family, or the TS
+# snapshot-retirement-phaseN libs) has the CI offline_script dual-acceptance
+# `--check` gate passing. Non-cutover-adjacent PRs are unaffected and this job
+# still runs (and reports success) so it can be marked as a REQUIRED status
+# check on the protected branch — see Settings → Branches → Branch protection
+# rules → Require status checks to pass → add "ci-snapshot-phase50-path-guard".
+#
+# This workflow NEVER mutates branch protection itself — recording whether the
+# check is actually configured as required is a separate, read-only evidence
+# step (record_snapshot_phase51_required_check_verification), typically run
+# by an admin/ops script that reads the GitHub branch-protection API.
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  ci-snapshot-phase50-path-guard:
+    name: ci-snapshot-phase50-path-guard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history for base diff)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run cutover-adjacent path guard
+        working-directory: tagevc-os
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_SHA:-}" ] && [ -n "${HEAD_SHA:-}" ]; then
+            git diff --name-only "${BASE_SHA}" "${HEAD_SHA}" \
+              | node scripts/ci-snapshot-phase50-path-guard.mjs --check
+          else
+            # workflow_dispatch / no PR context: nothing to diff, always pass.
+            node scripts/ci-snapshot-phase50-path-guard.mjs --check --paths ""
+          fi

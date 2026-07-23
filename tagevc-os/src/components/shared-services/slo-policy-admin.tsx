@@ -26,6 +26,7 @@ import {
   recordSloOwnerDigestWowTrendAction,
   setSloOwnerDigestSelfServeOptInAction,
   listSloOwnerDigestSelfServeFailuresAction,
+  listSloOwnerDigestSelfServeTrendAction,
 } from '@/app/(app)/shared-services/actions';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -271,6 +272,7 @@ export function SloPolicyAdmin({
   ownerDigestWowTrendSnapshots = [],
   ownerDigestSelfServeOptIns = [],
   phase50Report = null,
+  phase51Report = null,
 }: {
   activePolicies: SloPolicyRow[];
   drafts: SloPolicyRow[];
@@ -306,6 +308,7 @@ export function SloPolicyAdmin({
   ownerDigestWowTrendSnapshots?: Array<Record<string, unknown>>;
   ownerDigestSelfServeOptIns?: Array<Record<string, unknown>>;
   phase50Report?: Record<string, unknown> | null;
+  phase51Report?: Record<string, unknown> | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -534,6 +537,15 @@ export function SloPolicyAdmin({
         ownerId: targetOwnerId,
       });
       setMessage(result.ok ? result.message ?? 'Self-serve failures listed' : result.error);
+    });
+  }
+
+  function viewOwnerSelfServeTrend(targetOwnerId: string) {
+    startTransition(async () => {
+      const result = await listSloOwnerDigestSelfServeTrendAction({
+        ownerId: targetOwnerId,
+      });
+      setMessage(result.ok ? result.message ?? 'Self-serve trend chart listed' : result.error);
     });
   }
 
@@ -868,6 +880,15 @@ export function SloPolicyAdmin({
                   >
                     View my digest failures (self-serve)
                   </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={pending}
+                    onClick={() => viewOwnerSelfServeTrend(ownerId)}
+                  >
+                    View my trend chart (self-serve, pull-only)
+                  </Button>
                 </>
               ) : null}
             </div>
@@ -1048,6 +1069,14 @@ export function SloPolicyAdmin({
                 {String(phase50Report.owners_declining_30d ?? 0)} · opted-in owners{' '}
                 {String(phase50Report.owners_opted_in ?? 0)} · full_push{' '}
                 {String(phase50Report.full_push ?? false)}
+              </p>
+            ) : null}
+            {phase51Report ? (
+              <p className="text-muted-foreground">
+                Phase 51 · chart-ready owners{' '}
+                {String(phase51Report.chart_ready_owner_count ?? 0)} · owners with any trend{' '}
+                {String(phase51Report.owners_with_any_trend_count ?? 0)} · full_push{' '}
+                {String(phase51Report.full_push ?? false)}
               </p>
             ) : null}
           </CardContent>

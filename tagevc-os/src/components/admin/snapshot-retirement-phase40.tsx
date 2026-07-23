@@ -164,6 +164,11 @@ type Dashboard = {
   phase50SoakSnapshots?: Array<Record<string, unknown>>;
   phase50OpsAlerts?: Array<Record<string, unknown>>;
   phase50Report?: Record<string, unknown> | null;
+  phase51PageFailureEscalations?: Array<Record<string, unknown>>;
+  phase51RequiredCheckVerifications?: Array<Record<string, unknown>>;
+  phase51SoakTrendSnapshots?: Array<Record<string, unknown>>;
+  phase51OpsAlerts?: Array<Record<string, unknown>>;
+  phase51Report?: Record<string, unknown> | null;
 };
 
 type ApiResult = {
@@ -181,6 +186,9 @@ type ApiResult = {
   acceptance?: Record<string, unknown>;
   scan?: Record<string, unknown>;
   soak?: Record<string, unknown>;
+  result?: Record<string, unknown>;
+  verification?: Record<string, unknown>;
+  trend?: Record<string, unknown>;
 };
 
 function downloadSignedPackage(value: Record<string, unknown>) {
@@ -721,6 +729,88 @@ export function SnapshotRetirementPhase40Admin() {
     });
   }
 
+  function escalatePhase51PageFailures() {
+    setMessage(null);
+    setError(null);
+    startTransition(async () => {
+      try {
+        const result = await post({ action: 'escalate_phase51_page_failures' });
+        setMessage(
+          result.result
+            ? `Phase 51 page-failure escalation · escalated ${String(result.result.escalated ?? 0)} (never mutates Phase 49/50 evidence).`
+            : 'Phase 51 page-failure escalation scanned.',
+        );
+        await refresh();
+      } catch (cause) {
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : 'Phase 51 page-failure escalation failed',
+        );
+      }
+    });
+  }
+
+  function recordPhase51SoakTrend() {
+    setMessage(null);
+    setError(null);
+    startTransition(async () => {
+      try {
+        const result = await post({ action: 'record_phase51_soak_trend' });
+        setMessage(
+          result.trend
+            ? `Phase 51 soak trend (Stage 4e continued) · ${String(result.trend.trend_direction ?? 'unknown')}.`
+            : 'Phase 51 soak trend recorded.',
+        );
+        await refresh();
+      } catch (cause) {
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : 'Phase 51 soak trend recording failed',
+        );
+      }
+    });
+  }
+
+  function recordPhase51RequiredCheckVerification() {
+    setMessage(null);
+    setError(null);
+    startTransition(async () => {
+      try {
+        const branchName =
+          window.prompt('Protected branch name:', 'main') ?? '';
+        if (!branchName.trim()) return;
+        const checkContext =
+          window.prompt(
+            'Required status check context:',
+            'ci-snapshot-phase50-path-guard',
+          ) ?? '';
+        if (!checkContext.trim()) return;
+        const required =
+          window.prompt('Is this check required? (yes/no)', 'yes') === 'yes';
+        const result = await post({
+          action: 'record_phase51_required_check_verification',
+          branch_name: branchName.trim(),
+          check_context: checkContext.trim(),
+          required,
+        });
+        setMessage(
+          result.verification
+            ? `Phase 51 required-check verification · required=${String(result.verification.required ?? required)} (never mutates branch protection).`
+            : 'Phase 51 required-check verification recorded.',
+        );
+        await refresh();
+      } catch (cause) {
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : 'Phase 51 required-check verification failed',
+        );
+      }
+    });
+  }
+
   function pageProtectedBranchCutoverBlocked() {
     const alert = (dashboard?.phase49OpsAlerts ?? []).find(
       (row) => row.alert_kind === 'protected_branch_cutover_blocked',
@@ -1109,6 +1199,52 @@ export function SnapshotRetirementPhase40Admin() {
           · stage {String(dashboard.phase50Report.stage ?? '4e')}
         </p>
       ) : null}
+      {(dashboard?.phase51SoakTrendSnapshots ?? []).slice(0, 3).map((row) => (
+        <p
+          key={String(row.trend_id)}
+          className="font-mono text-[10px] text-muted-foreground"
+        >
+          P51 SOAK TREND (4e cont.) · {String(row.trend_direction)} · compared{' '}
+          {String(row.snapshots_compared)} · latest{' '}
+          {String(row.latest_blocked_rate ?? 'n/a')} · prior{' '}
+          {String(row.prior_blocked_rate ?? 'n/a')}
+        </p>
+      ))}
+      {(dashboard?.phase51PageFailureEscalations ?? []).slice(0, 3).map((row) => (
+        <p
+          key={String(row.escalation_id)}
+          className="font-mono text-[10px] text-muted-foreground"
+        >
+          P51 PAGE ESCALATION · alert {String(row.alert_id).slice(0, 8)} ·
+          failed receipt {String(row.failed_receipt_id).slice(0, 8)}
+        </p>
+      ))}
+      {(dashboard?.phase51RequiredCheckVerifications ?? [])
+        .slice(0, 3)
+        .map((row) => (
+          <p
+            key={String(row.verification_id)}
+            className="font-mono text-[10px] text-muted-foreground"
+          >
+            P51 REQUIRED CHECK · branch {String(row.branch_name)} · context{' '}
+            {String(row.check_context)} · required {String(row.required)}
+          </p>
+        ))}
+      {dashboard?.phase51Report ? (
+        <p className="text-muted-foreground">
+          Phase 51 · page-delivery escalations 30d{' '}
+          {String(dashboard.phase51Report.page_delivery_escalations_30d ?? 0)} ·
+          path-guard required check configured{' '}
+          {String(
+            dashboard.phase51Report.required_check_currently_configured ??
+              'unknown',
+          )}{' '}
+          · ops alerts 30d{' '}
+          {String(dashboard.phase51Report.ops_alerts_30d ?? 0)} · stage{' '}
+          {String(dashboard.phase51Report.stage ?? '4e')} · qualifying=false ·
+          attestation=false
+        </p>
+      ) : null}
       {dashboard?.checks.slice(0, 4).map((check) => (
         <p key={check.check_id} className="font-mono text-[10px] text-muted-foreground">
           {check.checked_at} · retention {check.status}
@@ -1191,6 +1327,21 @@ export function SnapshotRetirementPhase40Admin() {
         </Button>
         <Button type="button" size="sm" variant="outline" disabled={pending} onClick={recordPhase50SoakStatus}>
           Record Phase 50 soak status (4e)
+        </Button>
+        <Button type="button" size="sm" variant="outline" disabled={pending} onClick={recordPhase51SoakTrend}>
+          Record Phase 51 soak trend (4e continued)
+        </Button>
+        <Button type="button" size="sm" variant="outline" disabled={pending} onClick={escalatePhase51PageFailures}>
+          Escalate Phase 51 page-delivery failures
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={pending}
+          onClick={recordPhase51RequiredCheckVerification}
+        >
+          Record Phase 51 required-check verification
         </Button>
         <Button type="button" size="sm" variant="outline" disabled={pending} onClick={pageProtectedBranchCutoverBlocked}>
           Page protected-branch cutover blocked

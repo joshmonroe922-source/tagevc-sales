@@ -46,6 +46,7 @@ import { getArchivePhase47OpsReport } from '@/lib/docusign/archive-phase47';
 import { getArchivePhase48OpsReport } from '@/lib/docusign/archive-phase48';
 import { getArchivePhase49OpsReport } from '@/lib/docusign/archive-phase49';
 import { getArchivePhase50OpsReport } from '@/lib/docusign/archive-phase50';
+import { getArchivePhase51OpsReport } from '@/lib/docusign/archive-phase51';
 import { listArchiveGovernance } from '@/lib/docusign/archive-governance';
 
 function formatBytes(n: number | null | undefined): string {
@@ -146,6 +147,7 @@ export default async function DocuSignModulePage({
     phase48Ops,
     phase49Ops,
     phase50Ops,
+    phase51Ops,
   ] = await Promise.all([
     listDocuSignEvents({
       limit: 40,
@@ -216,6 +218,7 @@ export default async function DocuSignModulePage({
     getArchivePhase48OpsReport({ firmWide }),
     getArchivePhase49OpsReport({ firmWide }),
     getArchivePhase50OpsReport({ firmWide }),
+    getArchivePhase51OpsReport({ firmWide }),
   ]);
 
   const voidPolicy = process.env.DOCUSIGN_VOID_POLICY?.trim() || 'allow';
@@ -295,6 +298,7 @@ export default async function DocuSignModulePage({
           <Badge variant="secondary">Phase 48</Badge>
           <Badge variant="secondary">Phase 49</Badge>
           <Badge variant="secondary">Phase 50</Badge>
+          <Badge variant="secondary">Phase 51</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">DocuSign</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
@@ -363,6 +367,18 @@ export default async function DocuSignModulePage({
           phase50PendingReminderCount={
             firmWide
               ? phase50Ops.report.pending_second_approver_reminder_count
+              : undefined
+          }
+          phase51CadenceRollupTrend={
+            firmWide
+              ? String(
+                  phase51Ops.report.cadence_rollup_overall_trend ?? 'unknown',
+                )
+              : undefined
+          }
+          phase51PendingEscalatableCount={
+            firmWide
+              ? phase51Ops.report.pending_third_approver_escalatable_count
               : undefined
           }
         />
@@ -488,6 +504,9 @@ export default async function DocuSignModulePage({
               Phase 50 adds multi-quarter cadence trend dashboards,
               second-approver reminders for pending budget revision
               proposals, and better recurring quarterly process visibility.
+              Phase 51 rolls up firm-wide cadence trends across quarters and
+              escalates (never auto-activates) budget proposals whose
+              second-approver reminder has gone unanswered too long.
               Never creates, voids, or resends envelopes.
               {archiveGovernance.error ? ` · ${archiveGovernance.error}` : ''}
               {archiveCampaigns.error ? ` · ${archiveCampaigns.error}` : ''}
@@ -500,6 +519,7 @@ export default async function DocuSignModulePage({
               {phase48Ops.error ? ` · ${phase48Ops.error}` : ''}
               {phase49Ops.error ? ` · ${phase49Ops.error}` : ''}
               {phase50Ops.error ? ` · ${phase50Ops.error}` : ''}
+              {phase51Ops.error ? ` · ${phase51Ops.error}` : ''}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-xs">
@@ -659,6 +679,20 @@ export default async function DocuSignModulePage({
                   {phase50Ops.report.reminders_sent_7d > 0
                     ? ` · reminders sent 7d ${phase50Ops.report.reminders_sent_7d}`
                     : ''}
+                </p>
+                <p className="text-muted-foreground">
+                  Phase 51 firm-wide cadence rollup:{' '}
+                  {phase51Ops.report.cadence_rollup_overall_trend}
+                  {phase51Ops.report.cadence_rollup_snapshots_compared > 0
+                    ? ` (${phase51Ops.report.cadence_rollup_snapshots_compared} compared)`
+                    : ''}
+                  {phase51Ops.report.pending_third_approver_escalatable_count > 0
+                    ? ` · 3rd-approver escalatable ${phase51Ops.report.pending_third_approver_escalatable_count}`
+                    : ''}
+                  {phase51Ops.report.third_approver_escalations_7d > 0
+                    ? ` · escalations 7d ${phase51Ops.report.third_approver_escalations_7d}`
+                    : ''}
+                  {' · never activates budgets silently'}
                 </p>
               </div>
             ) : null}

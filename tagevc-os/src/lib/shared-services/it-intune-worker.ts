@@ -245,6 +245,17 @@ async function runReadOnlyHealthCanaryWithToken(token: string): Promise<{
       error: phase50.error,
     };
   }
+  // Phase 51: unified dual-approve inbox visibility only (postmortem +
+  // breaker tuning + promote-waive). Never applies, approves, closes, or
+  // resets anything on its own; never includes entity identifiers.
+  const phase51 = await runIntunePhase51UnifiedInboxOpsTick(sb);
+  if (!phase51.ok) {
+    return {
+      ok: false,
+      status: 'phase51_unified_inbox_ops_failed',
+      error: phase51.error,
+    };
+  }
   return {
     ok: true,
     status: String((finished as { status?: string } | null)?.status ?? 'done'),
@@ -1322,6 +1333,132 @@ export async function processIntunePhase50DualApproveGateOps(): Promise<{
       failed: result.failed,
       closes_or_resets_breaker: false,
       requires_dual_approval: true,
+    },
+  };
+}
+
+type Phase51CriticalWindow = {
+  alert_kind: string;
+  window_key: string;
+  severity?: string;
+  total_pending?: number;
+  oldest_pending_hours?: number;
+};
+
+async function runIntunePhase51UnifiedInboxOpsTick(
+  sb: Awaited<ReturnType<typeof createPersistClient>>,
+): Promise<
+  | {
+      ok: true;
+      totalPending: number;
+      alertsRecorded: number;
+      delivered: number;
+      skipped: number;
+      failed: number;
+    }
+  | { ok: false; error: string }
+> {
+  // Observe-only tick: aggregates the existing dual-approve gate evidence
+  // into one unified inbox view. Never applies, approves, closes, or resets
+  // anything — and never includes entity identifiers in the aggregates.
+  const { data: snapshot, error: snapshotError } = await sb.rpc(
+    'record_it_intune_phase51_inbox_snapshot',
+  );
+  if (snapshotError) {
+    return { ok: false, error: snapshotError.message };
+  }
+  const totalPending = Number(
+    (snapshot as { total_pending?: number } | null)?.total_pending ?? 0,
+  );
+
+  const { data: windows, error: windowError } = await sb.rpc(
+    'list_it_intune_phase51_critical_windows',
+    { p_window_hours: 24 },
+  );
+  if (windowError) {
+    return { ok: false, error: windowError.message };
+  }
+
+  const pending = ((windows as { pending?: Phase51CriticalWindow[] } | null)
+    ?.pending ?? []) as Phase51CriticalWindow[];
+  let alertsRecorded = 0;
+  let delivered = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  for (const window of pending.slice(0, 50)) {
+    const delivery = await deliverIntuneOpsWebhook({
+      kind: 'it_intune_phase51_ops_alert',
+      version: 'phase51-v1',
+      alert_kind: window.alert_kind,
+      window_key: window.window_key,
+      severity: window.severity ?? 'warning',
+      destination_key: INTUNE_OPS_DESTINATION_KEY,
+      entity_identifiers_included: false,
+      closes_or_resets_breaker: false,
+      requires_dual_approval: true,
+    });
+
+    const { data: recorded, error: recordError } = await sb.rpc(
+      'record_it_intune_phase51_ops_alert',
+      {
+        p_alert: {
+          alert_kind: window.alert_kind,
+          window_key: window.window_key,
+          severity: window.severity ?? 'warning',
+          destination_key: INTUNE_OPS_DESTINATION_KEY,
+          delivery_status: delivery.delivery_status,
+          response_code: delivery.response_code,
+          aggregate_evidence: {
+            evidence_version: 'phase51-v1',
+            entity_identifiers_included: false,
+            closes_or_resets_breaker: false,
+            requires_dual_approval: true,
+          },
+        },
+      },
+    );
+    if (recordError) {
+      return { ok: false, error: recordError.message };
+    }
+    if ((recorded as { inserted?: boolean } | null)?.inserted) {
+      alertsRecorded += 1;
+      if (delivery.delivery_status === 'delivered') delivered += 1;
+      else if (delivery.delivery_status === 'skipped_no_webhook') skipped += 1;
+      else failed += 1;
+    }
+  }
+
+  return { ok: true, totalPending, alertsRecorded, delivered, skipped, failed };
+}
+
+export async function processIntunePhase51UnifiedInboxOps(): Promise<{
+  ok: boolean;
+  status: string;
+  detail?: Record<string, unknown>;
+  error?: string;
+}> {
+  const sb = await createPersistClient();
+  const result = await runIntunePhase51UnifiedInboxOpsTick(sb);
+  if (!result.ok) {
+    return {
+      ok: false,
+      status: 'phase51_unified_inbox_ops_failed',
+      error: result.error,
+    };
+  }
+  return {
+    ok: true,
+    status: 'done',
+    detail: {
+      total_pending: result.totalPending,
+      alerts_recorded: result.alertsRecorded,
+      delivered: result.delivered,
+      skipped: result.skipped,
+      failed: result.failed,
+      closes_or_resets_breaker: false,
+      requires_dual_approval: true,
+      entity_identifiers_included: false,
     },
   };
 }

@@ -106,6 +106,7 @@ export async function listSloPolicyAdministration() {
     { data: ownerDigestWowTrendSnapshots, error: ownerDigestWowTrendError },
     { data: ownerDigestOptIns, error: ownerDigestOptInError },
     { data: phase50Report, error: phase50ReportError },
+    { data: phase51Report, error: phase51ReportError },
   ] = await Promise.all([
     sb
       .from('os_slo_policies')
@@ -271,6 +272,7 @@ export async function listSloPolicyAdministration() {
       .order('created_at', { ascending: false })
       .limit(12),
     sb.rpc('get_slo_phase50_owner_digest_report'),
+    sb.rpc('get_slo_phase51_owner_digest_report'),
   ]);
   errorMessage(policyError);
   errorMessage(ownerError);
@@ -387,6 +389,9 @@ export async function listSloPolicyAdministration() {
   if (phase50ReportError) {
     console.error('slo phase50 owner digest report unavailable', phase50ReportError.message);
   }
+  if (phase51ReportError) {
+    console.error('slo phase51 owner digest report unavailable', phase51ReportError.message);
+  }
   const archivedExportIds = new Set(
     (archivalError ? [] : (archivalReceipts ?? [])).map(
       (row: { export_id: string }) => row.export_id,
@@ -472,6 +477,7 @@ export async function listSloPolicyAdministration() {
       ? []
       : (ownerDigestOptIns ?? []),
     phase50Report: phase50ReportError ? null : (phase50Report ?? null),
+    phase51Report: phase51ReportError ? null : (phase51Report ?? null),
   };
 }
 
@@ -1304,3 +1310,10 @@ export {
   getSloPhase50OwnerDigestReport,
   processSloGovernancePhase50,
 } from '@/lib/shared-services/slo-phase50';
+
+export {
+  PHASE51_SLO_CONTRACT_VERSION,
+  listSloOwnerDigestSelfServeTrendPhase51,
+  getSloPhase51OwnerDigestReport,
+  processSloGovernancePhase51,
+} from '@/lib/shared-services/slo-phase51';

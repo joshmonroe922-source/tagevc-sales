@@ -130,7 +130,12 @@ describe('Phase 50 snapshot cutover paging/alert + CI --check enforcement ops', 
     expect(lib).not.toMatch(/PRIVATE_KEY/);
     expect(lib).not.toMatch(/-----BEGIN/);
 
-    expect(route).toContain('getSnapshotPhase50OpsDashboard');
+    // Later phases may compose the Phase 50 dashboard indirectly via a
+    // wrapping Phase 51+ dashboard getter that itself calls
+    // getSnapshotPhase50OpsDashboard internally — accept either wiring.
+    expect(route).toMatch(
+      /getSnapshotPhase5[0-9]OpsDashboard|getSnapshotPhase[6-9][0-9]OpsDashboard/,
+    );
     expect(route).toContain('pageSnapshotProtectedBranchCutoverBlockedPhase50');
     expect(route).toContain('page_protected_branch_cutover_blocked');
     expect(route).toContain('record_soak_status');

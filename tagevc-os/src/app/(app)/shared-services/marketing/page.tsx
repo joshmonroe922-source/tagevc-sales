@@ -27,6 +27,7 @@ import { getPhase47RevenueOpsReport } from '@/lib/shared-services/marketing-phas
 import { getPhase48RevenueOpsReport } from '@/lib/shared-services/marketing-phase48';
 import { getPhase49RevenueOpsReport } from '@/lib/shared-services/marketing-phase49';
 import { getPhase50RevenueOpsReport } from '@/lib/shared-services/marketing-phase50';
+import { getPhase51RevenueOpsReport } from '@/lib/shared-services/marketing-phase51';
 
 export default async function MarketingModulePage({
   searchParams,
@@ -77,6 +78,7 @@ export default async function MarketingModulePage({
     phase48OpsReport,
     phase49OpsReport,
     phase50OpsReport,
+    phase51OpsReport,
   ] = await Promise.all([
     listCampaigns(
       50,
@@ -154,6 +156,10 @@ export default async function MarketingModulePage({
       firmWide,
       days: paidDays,
     }),
+    getPhase51RevenueOpsReport({
+      firmWide,
+      days: paidDays,
+    }),
   ]);
   if (!firmWide && ctx?.profile.entity_id) {
     const entityId = ctx.profile.entity_id;
@@ -198,6 +204,7 @@ export default async function MarketingModulePage({
           <Badge variant="secondary">Phase 48</Badge>
           <Badge variant="secondary">Phase 49</Badge>
           <Badge variant="secondary">Phase 50</Badge>
+          <Badge variant="secondary">Phase 51</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Multichannel Marketing
@@ -209,7 +216,9 @@ export default async function MarketingModulePage({
           monitoring over authoritative evidence, autopilot dry-run
           dashboards, cohort promotion audit exports, and gated dual-approved
           promotion from dry-run into actual promotion for soaked-healthy
-          cohorts.
+          cohorts, and auto-proposed (never auto-approved) promotions for
+          cohorts that have soaked healthy across consecutive audit-export
+          windows.
         </p>
         {oauthFlash && (
           <p className="text-sm text-emerald-700">{oauthFlash}</p>
@@ -238,6 +247,8 @@ export default async function MarketingModulePage({
         phase49OpsError={phase49OpsReport.error}
         phase50OpsReport={phase50OpsReport.report}
         phase50OpsError={phase50OpsReport.error}
+        phase51OpsReport={phase51OpsReport.report}
+        phase51OpsError={phase51OpsReport.error}
       />
 
       <MarketingClient

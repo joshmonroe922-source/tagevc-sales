@@ -42,10 +42,15 @@ import {
   getSnapshotPhase49OpsDashboard,
 } from '@/lib/data/snapshot-retirement-phase49';
 import {
-  getSnapshotPhase50OpsDashboard,
   pageSnapshotProtectedBranchCutoverBlockedPhase50,
   recordSnapshotPhase50SoakStatus,
 } from '@/lib/data/snapshot-retirement-phase50';
+import {
+  escalateSnapshotPhase51PageDeliveryFailures,
+  getSnapshotPhase51OpsDashboard,
+  recordSnapshotPhase51RequiredCheckVerification,
+  recordSnapshotPhase51SoakTrend,
+} from '@/lib/data/snapshot-retirement-phase51';
 import {
   recordSnapshotCutoverAcceptancePhase46,
 } from '@/lib/data/snapshot-retirement-phase46';
@@ -271,6 +276,31 @@ const requestSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('record_soak_status'),
   }),
+  z.object({
+    action: z.literal('escalate_phase51_page_failures'),
+  }),
+  z.object({
+    action: z.literal('record_phase51_required_check_verification'),
+    branch_name: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .min(1)
+      .max(120)
+      .regex(/^[a-z0-9][a-z0-9._/-]{0,119}$/),
+    check_context: z
+      .string()
+      .trim()
+      .min(3)
+      .max(200)
+      .regex(/^[A-Za-z0-9][A-Za-z0-9:._/-]{2,199}$/),
+    required: z.boolean(),
+    detail: z.record(z.string(), z.unknown()).default({}),
+  }),
+  z.object({
+    action: z.literal('record_phase51_soak_trend'),
+    snapshots: z.number().int().min(1).max(24).optional(),
+  }),
 ]);
 
 export async function GET() {
@@ -279,11 +309,12 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: gate.error }, { status: 403 });
   }
   try {
-    const [phase40, phase49, phase50] = await Promise.all([
+    const [phase40, phase49, phase51] = await Promise.all([
       getSnapshotPhase40Dashboard(),
       getSnapshotPhase49OpsDashboard(),
-      getSnapshotPhase50OpsDashboard(),
+      getSnapshotPhase51OpsDashboard(),
     ]);
+    const phase50 = phase51;
     if (!phase40.ok) {
       return NextResponse.json(phase40, { status: 503 });
     }
@@ -324,6 +355,12 @@ export async function GET() {
       phase50SoakSnapshots: phase50.phase50SoakSnapshots,
       phase50OpsAlerts: phase50.phase50OpsAlerts,
       phase50Report: phase50.phase50Report,
+      phase51PageFailureEscalations: phase51.phase51PageFailureEscalations,
+      phase51RequiredCheckVerifications:
+        phase51.phase51RequiredCheckVerifications,
+      phase51SoakTrendSnapshots: phase51.phase51SoakTrendSnapshots,
+      phase51OpsAlerts: phase51.phase51OpsAlerts,
+      phase51Report: phase51.phase51Report,
     });
   } catch (error) {
     captureException(error, { route: 'snapshot-retirement-phase40-dashboard' });
@@ -537,6 +574,26 @@ export async function POST(request: Request) {
       case 'record_soak_status':
         result = await recordSnapshotPhase50SoakStatus({
           actorId: gate.profile.id,
+        });
+        break;
+      case 'escalate_phase51_page_failures':
+        result = await escalateSnapshotPhase51PageDeliveryFailures({
+          actorId: gate.profile.id,
+        });
+        break;
+      case 'record_phase51_required_check_verification':
+        result = await recordSnapshotPhase51RequiredCheckVerification({
+          actorId: gate.profile.id,
+          branchName: parsed.data.branch_name,
+          checkContext: parsed.data.check_context,
+          required: parsed.data.required,
+          detail: parsed.data.detail,
+        });
+        break;
+      case 'record_phase51_soak_trend':
+        result = await recordSnapshotPhase51SoakTrend({
+          actorId: gate.profile.id,
+          snapshots: parsed.data.snapshots,
         });
         break;
     }

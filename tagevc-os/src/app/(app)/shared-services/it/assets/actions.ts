@@ -2075,3 +2075,34 @@ export async function approveIntunePromoteWaivePhase50Action(input: {
     message: `Phase 50 promote-waive: ${disposition.replaceAll('_', ' ')} — requires 2 distinct approvers; never auto-applied`,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Phase 51: unified dual-approve INBOX aggregating postmortem publish,
+// breaker tuning, and promote-waive pending approvals into one visibility
+// surface. Observe-only — never applies, approves, closes, or resets
+// anything. Actual first/second approvals still go through the existing
+// Phase 49/50 review RPCs.
+// ---------------------------------------------------------------------------
+export async function refreshIntunePhase51UnifiedInboxOpsAction(): Promise<ItAssetActionResult> {
+  const gate = await guardPermission('action:intune_manual_review');
+  if (!gate.ok) return gate;
+  const { runIntunePhase51UnifiedInboxOps } = await import(
+    '@/lib/shared-services/it-assets-repo'
+  );
+  const result = await runIntunePhase51UnifiedInboxOps();
+  if (!result.ok) {
+    return {
+      ok: false,
+      error: result.error ?? 'Phase 51 unified inbox ops failed',
+    };
+  }
+  revalidateAssets();
+  const alerts = Number(
+    (result.detail as { alerts_recorded?: number } | undefined)
+      ?.alerts_recorded ?? 0,
+  );
+  return {
+    ok: true,
+    message: `Phase 51 unified inbox: ${alerts} alert(s) recorded — observe-only; breakers never closed or reset`,
+  };
+}

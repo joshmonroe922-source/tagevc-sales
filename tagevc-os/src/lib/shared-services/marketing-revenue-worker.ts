@@ -22,6 +22,7 @@ import { runPhase47RevenueOpsTick } from '@/lib/shared-services/marketing-phase4
 import { runPhase48RevenueOpsTick } from '@/lib/shared-services/marketing-phase48';
 import { runPhase49RevenueOpsTick } from '@/lib/shared-services/marketing-phase49';
 import { runPhase50RevenueOpsTick } from '@/lib/shared-services/marketing-phase50';
+import { runPhase51RevenueOpsTick } from '@/lib/shared-services/marketing-phase51';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 
 type PullRun = {
@@ -552,6 +553,19 @@ export async function processMarketingRevenuePulls(limit = 1): Promise<{
   } else {
     details.push(
       `phase50-ops: readiness=${phase50.readinessSnapshotsRecorded} alerts=${phase50.alertsRecorded}`,
+    );
+  }
+
+  // Phase 51: auto-PROPOSE (never auto-approve) for soaked-healthy cohorts
+  // after N consecutive healthy Phase 50 readiness snapshots. Two distinct
+  // humans must still approve every promotion via the existing Phase 50
+  // dual-approve path.
+  const phase51 = await runPhase51RevenueOpsTick();
+  if (!phase51.ok) {
+    details.push(`phase51-ops: ${phase51.error}`);
+  } else {
+    details.push(
+      `phase51-ops: cohorts=${phase51.cohortsScanned} proposed=${phase51.proposalsCreated} skipped=${phase51.skipped} errored=${phase51.errored} alerts=${phase51.alertsRecorded}`,
     );
   }
 

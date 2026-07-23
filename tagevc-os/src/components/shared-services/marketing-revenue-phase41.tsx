@@ -13,6 +13,7 @@ import type {
   Phase49RevenueOpsReport,
   Phase50RevenueOpsReport,
 } from '@/lib/shared-services/marketing-revenue-contracts';
+import type { Phase51RevenueOpsReport } from '@/lib/shared-services/marketing-phase51';
 import {
   approveMarketingDryRunPromoteAction,
   reviewMarketingRevenueCorrectionAction,
@@ -69,6 +70,8 @@ export function MarketingRevenuePhase41({
   phase49OpsError,
   phase50OpsReport,
   phase50OpsError,
+  phase51OpsReport,
+  phase51OpsError,
 }: {
   report: Phase41RevenueReport;
   error?: string;
@@ -91,6 +94,8 @@ export function MarketingRevenuePhase41({
   phase49OpsError?: string;
   phase50OpsReport?: Phase50RevenueOpsReport;
   phase50OpsError?: string;
+  phase51OpsReport?: Phase51RevenueOpsReport;
+  phase51OpsError?: string;
 }) {
   const [pending, startTransition] = useTransition();
   const [actionError, setActionError] = useState<string | null>(null);
@@ -423,6 +428,14 @@ export function MarketingRevenuePhase41({
                 </span>
               </>
             ) : null}
+            {phase51OpsReport ? (
+              <span className="rounded border px-2 py-0.5 text-[11px] border-muted-foreground/40 text-muted-foreground">
+                auto-propose{' '}
+                {phase51OpsReport.auto_propose_created_count} proposed ·{' '}
+                {phase51OpsReport.auto_propose_skipped_count} skipped · never
+                auto-approved
+              </span>
+            ) : null}
           </div>
           {sloError ? (
             <p className="text-xs text-destructive">{sloError}</p>
@@ -450,6 +463,36 @@ export function MarketingRevenuePhase41({
           ) : null}
           {phase50OpsError ? (
             <p className="text-xs text-destructive">{phase50OpsError}</p>
+          ) : null}
+          {phase51OpsError ? (
+            <p className="text-xs text-destructive">{phase51OpsError}</p>
+          ) : null}
+          {phase51OpsReport && phase51OpsReport.cohort_status.length ? (
+            <div className="space-y-1 rounded border p-2 text-xs">
+              <p className="font-medium">
+                Cohort readiness &amp; auto-propose status (Phase 51 — auto-PROPOSE
+                only, never auto-approves money)
+              </p>
+              <ul className="space-y-1">
+                {phase51OpsReport.cohort_status.slice(0, 10).map((c) => (
+                  <li
+                    key={c.cohort_id}
+                    className="flex flex-wrap items-center gap-2 text-muted-foreground"
+                  >
+                    <span>cohort {c.cohort_id.slice(0, 8)}</span>
+                    <span
+                      className={`rounded border px-2 py-0.5 text-[11px] ${severityClass(c.readiness_status === 'ready' ? 'healthy' : 'warning')}`}
+                    >
+                      {c.readiness_status} · {c.consecutive_healthy_windows}/
+                      {c.windows_required} windows
+                    </span>
+                    {c.latest_proposal_status ? (
+                      <span>proposal: {c.latest_proposal_status}</span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
           ) : null}
           {phase50OpsReport && phase50OpsReport.proposals.some(
             (p) => p.status === 'pending',
