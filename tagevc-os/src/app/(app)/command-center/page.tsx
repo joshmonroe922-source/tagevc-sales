@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { FirmOpsCommandPhase61Client } from '@/components/firm-ops/firm-ops-command-phase61-client';
 import { HealthBadge } from '@/components/portfolio/health-badge';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -13,12 +14,14 @@ import {
   getCommandCenterSnapshot,
   listActivePortfolioCompanies,
 } from '@/lib/data/repositories';
+import { getFirmOpsCommandPhase61Report } from '@/lib/firm-ops/firm-ops-command-phase61-server';
 import {
   formatPct,
   formatRunway,
   formatUsdK,
 } from '@/lib/format';
-import { getProfile } from '@/lib/rbac/session';
+import { getSessionContext } from '@/lib/rbac/session';
+import { roleHasPermission } from '@/lib/types/roles';
 import { APP_ROLE_LABELS, PORTFOLIO_HEALTH } from '@/lib/types';
 
 function Metric({
@@ -45,14 +48,39 @@ function Metric({
   );
 }
 
+const MODULE_QUICK_NAV = [
+  { href: '/deal-flow', label: 'Deal Flow' },
+  { href: '/deal-flow/vc', label: 'VC pipeline' },
+  { href: '/deal-flow/vc/intake', label: 'New lead' },
+  { href: '/portfolio', label: 'Portfolio' },
+  { href: '/shared-services', label: 'Shared Services' },
+  { href: '/shared-services/finance', label: 'Finance' },
+  { href: '/shared-services/legal/docusign', label: 'Legal' },
+  { href: '/shared-services/marketing', label: 'Marketing' },
+  { href: '/firm', label: 'Firm' },
+  { href: '/documents', label: 'Documents' },
+  { href: '/entities', label: 'Entities' },
+  { href: '/entities/ENT-R619', label: 'Recruit 619' },
+  { href: '/activity', label: 'Activity' },
+  { href: '/messages', label: 'Messages' },
+  { href: '/settings/notifications', label: 'Notifications' },
+] as const;
+
 export default async function CommandCenterPage() {
-  const [profile, snap, companies, activityResult] = await Promise.all([
-    getProfile(),
-    getCommandCenterSnapshot(),
-    listActivePortfolioCompanies(),
-    listRecentActivity(8),
-  ]);
+  const [session, snap, companies, activityResult, firmOps] =
+    await Promise.all([
+      getSessionContext(),
+      getCommandCenterSnapshot(),
+      listActivePortfolioCompanies(),
+      listRecentActivity(8),
+      getFirmOpsCommandPhase61Report(),
+    ]);
+  const profile = session?.profile ?? null;
   const activity = activityResult.events;
+  const canWriteFirmOps = Boolean(
+    session &&
+      roleHasPermission(session.profile.role, 'write:shared_services'),
+  );
 
   return (
     <div className="space-y-8">
@@ -71,9 +99,9 @@ export default async function CommandCenterPage() {
           ) : null}
         </div>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Firm funnel · capital pulse · portfolio health. Funnel counts are live
-          from Deal Flow (persisted). Capital/health use Portfolio Active seeds
-          until Phase 1 cutover.
+          Firm Ops command · funnel · capital pulse · portfolio health. Critical
+          alerts and role queues reuse Phase 54–60 evidence. Money is never
+          auto-approved.
           {profile ? (
             <>
               {' '}
@@ -87,18 +115,17 @@ export default async function CommandCenterPage() {
         </p>
       </header>
 
+      <FirmOpsCommandPhase61Client
+        report={firmOps}
+        canWrite={canWriteFirmOps}
+      />
+
       <section className="space-y-3">
         <h2 className="text-sm font-medium tracking-wide text-[#7c7871] uppercase">
-          Quick actions
+          Module quick-nav
         </h2>
         <div className="flex flex-wrap gap-2">
-          {[
-            { href: '/deal-flow/vc/intake', label: 'New lead' },
-            { href: '/deal-flow/vc', label: 'VC pipeline' },
-            { href: '/shared-services', label: 'Shared Services' },
-            { href: '/documents', label: 'Documents' },
-            { href: '/activity', label: 'Activity log' },
-          ].map((a) => (
+          {MODULE_QUICK_NAV.map((a) => (
             <Link
               key={a.href}
               href={a.href}

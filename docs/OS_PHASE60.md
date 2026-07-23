@@ -53,13 +53,14 @@ git diff --check
 
 ## Phase 61 note
 
-**Phase 61 = Firm Ops command completeness**. Do not start Phase 61 from this
-phase’s portfolio cadence workstream without an explicit go-ahead.
+**Phase 61 = Firm Ops command completeness** — shipped in `docs/OS_PHASE61.md`.
+Do not start Phase 62 from this portfolio cadence workstream without an
+explicit go-ahead.
 
 ## Phase 61+ recommendations
 
-1. Wire Firm Ops command completeness (Phase 61).
+1. **Done in Phase 61** — Firm Ops command completeness on `/command-center`.
 2. Attach critical portfolio attention alerts into Phase 59 routing.
 3. Continue Stage 4e soak; do not drop snapshot retirement tables.
 4. Still out of scope here: autonomous portfolio mutations, dropping
-   `os_store_snapshots`, Firm Ops command completeness (Phase 61).
+   `os_store_snapshots`. Next: audit/evidence export pack (Phase 62).

@@ -1148,9 +1148,22 @@ Apply after Phase 59:
 
 Docs: `docs/OS_PHASE60.md`
 
-### Phase 61+ backlog
+### Phase 61
 
-- Firm Ops command completeness (Phase 61)
+Firm Ops command completeness on `/command-center`: critical alerts across
+services, Visionary/COO/Service Lead action queues, stale/breach boards, and
+module quick-nav. Reuses Phase 54–60 evidence. Never auto-approves money;
+never mentions or mutates snapshot retirement tables.
+
+Apply after Phase 60:
+
+1. `phase61_firm_ops_command.sql`
+
+Docs: `docs/OS_PHASE61.md`
+
+### Phase 62+ backlog
+
+- Audit, evidence, and admin export pack (Phase 62)
 - Wire live IES feed for Phase 55 KPIs
 - Wire live Recruit/Appcast feed for Phase 53/58 freshness
 - Continue Stage 4e soak; do not drop snapshots
