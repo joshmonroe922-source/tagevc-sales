@@ -113,9 +113,9 @@ export default async function SharedServicesPage({ searchParams }: Props) {
             Service modules
           </h2>
           <p className="text-sm text-muted-foreground">
-            Firm-wide hubs with entity-scoped data where applicable. Finance and
-            HR pages are planned stubs — their tickets still appear in the
-            unified inbox.
+            Firm-wide hubs with entity-scoped data where applicable. Finance
+            control plane is live; HR remains a planned stub — tickets still
+            appear in the unified inbox.
           </p>
         </div>
         <div className="space-y-5">

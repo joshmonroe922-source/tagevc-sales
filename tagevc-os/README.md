@@ -1057,12 +1057,28 @@ Apply after Phase 53:
 
 Docs: `docs/OS_PHASE54.md`
 
-### Phase 55+ backlog
+### Phase 55
 
-- Finance control plane (IES orchestration)
+Finance Control Plane (IES orchestration) on `/shared-services/finance` —
+KPI panels, month-end/year-end close checklist orchestration, anomaly alerts,
+dual-approve write-back gates, and subsidiary financial visibility
+(`ENT-R619` first; `ENT-INDA` when evidence exists). IES remains system of
+record; Tage orchestrates/observes only. Never auto-approves money; never
+silent IES writes; never mentions or mutates `os_store_snapshots`.
+
+Apply after Phase 54:
+
+1. `phase55_finance_control_plane.sql`
+
+Docs: `docs/OS_PHASE55.md`
+
+### Phase 56+ backlog
+
+- Legal / DocuSign hardening (Phase 56)
+- Wire live IES feed for Phase 55 KPIs
 - Wire live Recruit feed for Phase 53 freshness
 - Continue Stage 4e soak; do not drop snapshots
-- Push · user admin
+- Push · user admin · HR page (Phase 57)
 
 ## Run locally
 

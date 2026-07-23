@@ -54,13 +54,13 @@ export const SS_HUB_MODULES: SsHubModule[] = [
   },
   {
     id: 'finance',
-    href: '/shared-services?service=Finance#inbox',
+    href: '/shared-services/finance',
     title: 'Finance control plane',
     service: 'Finance',
-    status: 'planned',
-    // TODO: Phase 55 Finance control plane (IES orchestration)
+    status: 'live',
     description:
-      'TODO Phase 55 — KPI panels, close checklists, anomaly alerts. Tickets already in unified inbox.',
+      'IES orchestration · KPI panels, close checklists, anomaly alerts, dual-approve write-backs.',
+    docs: 'docs/OS_PHASE55.md',
   },
   {
     id: 'hr',

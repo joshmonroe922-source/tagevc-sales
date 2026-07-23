@@ -50,10 +50,10 @@ git diff --check
 
 ## Phase 55+ recommendations
 
-1. **Finance control plane next** — IES orchestration: KPI panels, month-end /
-   year-end close checklists, anomaly alerts, human approval for write-backs,
-   Recruit-first subsidiary financial visibility. IES remains system of record.
-2. Continue Stage 4e soak; do not drop `os_store_snapshots`.
-3. Wire live SLA digests into optional email when Phase 59 notifications land.
-4. Still out of scope here: dedicated Finance/HR pages (stubs OK), full push
-   notifications, user admin UI.
+1. **Done in Phase 55** — Finance control plane (IES orchestration) is live at
+   `/shared-services/finance`.
+2. **Phase 56 next** — Legal / DocuSign hardening.
+3. Continue Stage 4e soak; do not drop `os_store_snapshots`.
+4. Wire live SLA digests into optional email when Phase 59 notifications land.
+5. Still out of scope here: full push notifications, user admin UI, HR page
+   (Phase 57).

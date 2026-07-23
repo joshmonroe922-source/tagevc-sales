@@ -245,8 +245,8 @@ create trigger os_ss_inbox_p54_alerts_no_truncate
   for each statement execute function public.reject_ss_inbox_phase54_mutation();
 
 -- Refresh Shared Services inbox board from optional ticket tables (fail-soft).
--- TODO: Finance/HR dedicated module pages land in Phase 55/57 — tickets still
--- count in the unified inbox. Dual-approve gates are never mutated here.
+-- Finance module page is live (Phase 55). TODO: HR dedicated page in Phase 57.
+-- Dual-approve gates are never mutated here.
 create or replace function public.refresh_shared_services_inbox_phase54(
   p_actor_id uuid default null,
   p_entity_id text default null
@@ -482,7 +482,8 @@ begin
       'source', 'refresh_shared_services_inbox_phase54',
       'has_os_tickets', v_has_os,
       'has_ss_tickets', v_has_ss,
-      'todo_finance_hr_pages', true,
+      'todo_hr_page', true,
+      'finance_page_live', true,
       'money_auto_approve', false
     ),
     p_actor_id
@@ -619,13 +620,13 @@ begin
     limit 12
   ) a;
 
-  -- Fail-soft stubs for missing Finance/HR module pages (tickets still unify).
+  -- Fail-soft stubs: Finance live (Phase 55); HR still planned (Phase 57).
   v_module_stubs := jsonb_build_array(
     jsonb_build_object(
       'service', 'Finance',
-      'href', '/shared-services?service=Finance',
-      'status', 'planned',
-      'todo', 'Phase 55 Finance control plane — dedicated Finance page not yet live'
+      'href', '/shared-services/finance',
+      'status', 'live',
+      'todo', null
     ),
     jsonb_build_object(
       'service', 'HR',
@@ -672,7 +673,7 @@ begin
       'recent_alerts', v_alerts,
       'module_stubs', v_module_stubs,
       'entity_filter_hint', 'ENT-R619',
-      'todo', 'Refresh inbox board from os_tickets; Finance/HR module pages are stubs until Phase 55/57',
+      'todo', 'Refresh inbox board from os_tickets; HR module page is a stub until Phase 57',
       'money_auto_approve', false,
       'contract_version', 'phase54-v1'
     );
@@ -696,7 +697,7 @@ begin
     'recent_alerts', v_alerts,
     'module_stubs', v_module_stubs,
     'entity_filter_hint', 'ENT-R619',
-    'todo', 'Finance/HR dedicated pages pending (Phase 55/57); tickets remain in unified inbox',
+    'todo', 'Finance control plane live (Phase 55); HR dedicated page pending Phase 57',
     'money_auto_approve', false,
     'contract_version', 'phase54-v1'
   );

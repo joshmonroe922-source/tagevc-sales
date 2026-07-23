@@ -83,14 +83,14 @@ describe('Phase 54 Shared Services Inbox Unification', () => {
     expect(sql).not.toMatch(/if\s+case\s+when/i);
   });
 
-  it('fail-softs when ticket tables are missing and stubs Finance/HR pages', () => {
+  it('fail-softs when ticket tables are missing and stubs HR page', () => {
     const sql = readFileSync(sqlPath, 'utf8');
     expect(sql).toContain('information_schema.tables');
     expect(sql).toContain('os_tickets');
     expect(sql).toContain('ss_tickets');
-    expect(sql).toMatch(/TODO:.*Finance\/HR/i);
+    expect(sql).toMatch(/TODO:.*HR/i);
     expect(sql).toContain("v_feed := 'missing'");
-    expect(sql).toContain('Phase 55 Finance control plane');
+    expect(sql).toContain('/shared-services/finance');
     expect(sql).toContain('Phase 57 HR');
   });
 
@@ -126,7 +126,10 @@ describe('Phase 54 Shared Services Inbox Unification', () => {
     expect(report.entity_filter_hint).toBe(PHASE54_ENTITY_FILTER_HINT);
     expect(report.module_stubs.some((s) => s.service === 'Finance')).toBe(true);
     expect(report.module_stubs.some((s) => s.service === 'HR')).toBe(true);
-    expect(report.todo.toLowerCase()).toContain('finance/hr');
+    expect(report.todo.toLowerCase()).toContain('hr');
+    const finance = report.module_stubs.find((s) => s.service === 'Finance');
+    expect(finance?.status).toBe('live');
+    expect(finance?.href).toBe('/shared-services/finance');
   });
 
   it('classifies SLA and builds unified inbox with entity + service filters', () => {
@@ -195,7 +198,8 @@ describe('Phase 54 Shared Services Inbox Unification', () => {
       service: 'Finance',
     });
     expect(financeOnly).toHaveLength(1);
-    expect(financeOnly[0]?.module_todo?.toLowerCase()).toContain('phase 55');
+    expect(financeOnly[0]?.module_href).toBe('/shared-services/finance');
+    expect(financeOnly[0]?.module_todo).toBeNull();
 
     const related = buildRelatedLinks(
       sampleTicket({
@@ -261,7 +265,8 @@ describe('Phase 54 Shared Services Inbox Unification', () => {
 
     expect(modules).toContain("id: 'finance'");
     expect(modules).toContain("id: 'hr'");
-    expect(modules).toContain('Phase 55');
+    expect(modules).toContain('/shared-services/finance');
+    expect(modules).toContain("status: 'live'");
     expect(modules).toContain('getSsHubCardModules');
 
     expect(actions).toContain('refreshSharedServicesInboxPhase54Action');

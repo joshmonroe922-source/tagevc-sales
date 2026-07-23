@@ -78,10 +78,9 @@ export type SharedServicesInboxPhase54Report = {
 const DEFAULT_MODULE_STUBS: SsInboxModuleStub[] = [
   {
     service: 'Finance',
-    href: '/shared-services?service=Finance',
-    status: 'planned',
-    // TODO: Phase 55 Finance control plane
-    todo: 'Phase 55 Finance control plane — dedicated Finance page not yet live',
+    href: '/shared-services/finance',
+    status: 'live',
+    todo: null,
   },
   {
     service: 'HR',
@@ -132,8 +131,8 @@ export function emptySharedServicesInboxPhase54Report(
     recent_alerts: [],
     module_stubs: DEFAULT_MODULE_STUBS,
     entity_filter_hint: PHASE54_ENTITY_FILTER_HINT,
-    // TODO: Refresh board from os_tickets; Finance/HR pages pending Phase 55/57.
-    todo: 'Refresh inbox board from os_tickets; Finance/HR module pages are stubs until Phase 55/57',
+    // TODO: Refresh board from os_tickets; HR page pending Phase 57.
+    todo: 'Refresh inbox board from os_tickets; HR module page is a stub until Phase 57',
     money_auto_approve: false,
     contract_version: PHASE54_SS_INBOX_CONTRACT_VERSION,
   };
