@@ -7,6 +7,10 @@ export type DirectoryProfile = {
   avatar_url: string | null;
   role: string;
   active: boolean;
+  /** Home / profile entity (canonical when available). */
+  entity_id?: string | null;
+  /** Display badge for multi-sub directory (P3). */
+  entity_badge?: string | null;
 };
 
 export type ConversationMember = {

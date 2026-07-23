@@ -2,6 +2,7 @@ import {
   getSsHubCardModules,
   type SsHubModule,
 } from '@/lib/shared-services/modules';
+import { entityIdsEquivalent } from '@/lib/multi-sub/entity-registry';
 import type { SsService, Ticket } from '@/lib/types';
 
 export const PHASE54_SS_INBOX_CONTRACT_VERSION = 'phase54-v1';
@@ -220,7 +221,12 @@ export function buildUnifiedInboxRows(
   const rows: SsInboxRow[] = [];
   for (const ticket of open) {
     if (serviceFilter && ticket.service !== serviceFilter) continue;
-    if (entityFilter && ticket.entity_id !== entityFilter) continue;
+    if (
+      entityFilter &&
+      !entityIdsEquivalent(ticket.entity_id, entityFilter)
+    ) {
+      continue;
+    }
 
     let sla = classifyTicketSla(ticket, now);
     const escalated =

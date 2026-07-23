@@ -27,7 +27,9 @@ import { AUTONOMY_BANDS } from '@/lib/types';
 import type { AutonomyBand, SsService } from '@/lib/types';
 import { SS_SERVICES } from '@/lib/types';
 import { OperationalHealthSummary } from '@/components/shared-services/operational-health-summary';
+import { SsMultiSubOperatorPanels } from '@/components/shared-services/ss-multi-sub-operator-panels';
 import { listOperationalHealth } from '@/lib/shared-services/operational-health';
+import { buildMultiSubHealthFromTickets } from '@/lib/multi-sub/health';
 import { getSessionContext } from '@/lib/rbac/session';
 import { isFirmWideAccess } from '@/lib/rbac/entity-scope';
 import { SloPolicyAdmin } from '@/components/shared-services/slo-policy-admin';
@@ -173,6 +175,13 @@ export default async function SharedServicesPage({ searchParams }: Props) {
         report={inboxReport}
         initialService={initialService}
         initialEntityId={initialEntityId}
+      />
+
+      <SsMultiSubOperatorPanels
+        tickets={tickets}
+        health={buildMultiSubHealthFromTickets(tickets, {
+          feed_status: 'partial',
+        })}
       />
 
       <CreateTicketForm />

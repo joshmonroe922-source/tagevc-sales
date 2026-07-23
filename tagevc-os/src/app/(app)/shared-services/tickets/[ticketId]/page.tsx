@@ -16,6 +16,7 @@ import {
   getTicket,
   listAuditsForTicket,
 } from '@/lib/data/ticket-store';
+import { ticketContextHeader } from '@/lib/multi-sub/ss-operator';
 import { forbidLabel } from '@/lib/shared-services/forbid-list';
 import { formatDate } from '@/lib/format';
 
@@ -28,6 +29,7 @@ export default async function TicketDetailPage({ params }: Props) {
   const audits = listAuditsForTicket(ticket.ticket_id);
   const showDraft =
     ticket.autonomy_band === 'DRAFT' && ticket.draft_approval === 'pending';
+  const ctxHeader = ticketContextHeader(ticket);
 
   return (
     <div className="space-y-8">
@@ -40,6 +42,9 @@ export default async function TicketDetailPage({ params }: Props) {
         </Link>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              {ctxHeader.headline}
+            </p>
             <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#3a414f]">
               {ticket.title}
             </h1>
@@ -50,6 +55,11 @@ export default async function TicketDetailPage({ params }: Props) {
               <BandBadge band={ticket.autonomy_band} />
               <Badge variant="outline">{ticket.confidence}%</Badge>
               <Badge variant="secondary">{ticket.status}</Badge>
+              <Badge
+                variant={ctxHeader.scope === 'parent' ? 'secondary' : 'outline'}
+              >
+                {ctxHeader.entity_label}
+              </Badge>
               {ticket.ai_generated ? (
                 <Badge
                   variant="outline"

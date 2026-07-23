@@ -1,6 +1,10 @@
 import { createClient } from '@/lib/supabase/server';
 import { displayName } from '@/lib/messaging/repo-client';
 import { reactionSummary } from '@/lib/messaging/mentions';
+import {
+  entityDisplayName,
+  resolveCanonicalEntityId,
+} from '@/lib/multi-sub/entity-registry';
 import type {
   ConversationListItem,
   ConversationMember,
@@ -44,15 +48,38 @@ export async function listDirectoryProfiles(
     const supabase = await createClient();
     let q = supabase
       .from('profiles')
-      .select('id, email, full_name, avatar_url, role, active')
+      .select('id, email, full_name, avatar_url, role, active, entity_id')
       .eq('active', true)
       .order('full_name', { ascending: true });
     if (excludeUserId) q = q.neq('id', excludeUserId);
     const { data, error } = await q;
     if (error) {
+      // Fallback without entity_id column on older schemas
+      if (error.message.includes('entity_id')) {
+        let q2 = supabase
+          .from('profiles')
+          .select('id, email, full_name, avatar_url, role, active')
+          .eq('active', true)
+          .order('full_name', { ascending: true });
+        if (excludeUserId) q2 = q2.neq('id', excludeUserId);
+        const retry = await q2;
+        if (retry.error) return { ok: false, error: retry.error.message };
+        return {
+          ok: true,
+          profiles: (retry.data ?? []) as DirectoryProfile[],
+        };
+      }
       return { ok: false, error: error.message };
     }
-    return { ok: true, profiles: (data ?? []) as DirectoryProfile[] };
+    const profiles = ((data ?? []) as DirectoryProfile[]).map((p) => {
+      const canon = resolveCanonicalEntityId(p.entity_id ?? null);
+      return {
+        ...p,
+        entity_id: canon,
+        entity_badge: canon ? entityDisplayName(canon) : null,
+      };
+    });
+    return { ok: true, profiles };
   } catch (e) {
     return {
       ok: false,

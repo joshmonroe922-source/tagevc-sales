@@ -67,7 +67,7 @@ export const SEED_ENTITIES: Entity[] = [
     coo_owner: 'COO — Ops Lead',
     board_lead: 'Partner',
     close_date: '2025-06-01',
-    notes: 'Legal tech',
+    notes: 'Legal tech · canonical registry code ENT-INDA (legacy alias ENT-002)',
     created_at: now,
     updated_at: now,
   },

@@ -24,6 +24,7 @@ import {
   assertCanAutoExecute,
   diagnoseTicket,
 } from '@/lib/shared-services/diagnose';
+import { requireTicketEntityId } from '@/lib/multi-sub/ticketing';
 import type {
   AgentAuditLog,
   AutonomyBand,
@@ -295,7 +296,8 @@ export function createAiDocumentTicket(
     service: input.suggestion.service,
     priority: input.suggestion.priority,
     requester_name: 'Document AI',
-    entity_id: input.entity_id ?? undefined,
+    // Multi-sub P2: fail-closed — default parent when doc has no entity
+    entity_id: input.entity_id ?? 'ENT-FIRM',
     links: docLink,
     sla_due_at: input.suggestion.due_date ?? undefined,
     ai_generated: true,
@@ -305,6 +307,10 @@ export function createAiDocumentTicket(
 }
 
 export function createTicket(input: CreateTicketInput): Ticket {
+  const entityGate = requireTicketEntityId(input.entity_id);
+  if (!entityGate.ok) {
+    throw new Error(entityGate.error);
+  }
   const store = getTicketStore();
   const diagnosis = diagnoseTicket(input);
   const ts = new Date().toISOString();
@@ -319,7 +325,7 @@ export function createTicket(input: CreateTicketInput): Ticket {
     status: 'Open',
     requester_name: input.requester_name?.trim() || 'Requester',
     assignee_name: input.assignee_name?.trim() || null,
-    entity_id: input.entity_id?.trim() || null,
+    entity_id: entityGate.entity_id,
     company_name: input.company_name?.trim() || null,
     links: input.links?.trim() || null,
     sla_due_at: input.sla_due_at || null,

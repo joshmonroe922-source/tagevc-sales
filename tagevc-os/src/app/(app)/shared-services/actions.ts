@@ -77,7 +77,11 @@ const createSchema = z.object({
   priority: z.enum(TICKET_PRIORITIES),
   requester_name: z.string().optional(),
   company_name: z.string().optional(),
-  entity_id: z.string().optional(),
+  // Multi-sub P2: entity_id required (fail-closed). Accepts ENT-002 → ENT-INDA.
+  entity_id: z
+    .string()
+    .min(3)
+    .regex(/^ENT-[A-Z0-9-]{1,32}$/),
   links: z.string().optional(),
   sla_due_at: z.string().optional(),
 });

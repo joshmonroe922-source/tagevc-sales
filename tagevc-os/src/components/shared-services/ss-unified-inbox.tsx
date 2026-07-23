@@ -193,8 +193,10 @@ export function SsUnifiedInbox({
           />
           <datalist id="phase54-entity-hints">
             <option value="ENT-R619" />
-            <option value="ENT-001" />
+            <option value="ENT-INDA" />
             <option value="ENT-002" />
+            <option value="ENT-FIRM" />
+            <option value="ENT-001" />
           </datalist>
         </label>
         <label className="space-y-1 text-xs">

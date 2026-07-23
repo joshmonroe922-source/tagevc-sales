@@ -96,6 +96,22 @@ export function CreateTicketForm() {
             <Label htmlFor="company_name">Company</Label>
             <Input id="company_name" name="company_name" />
           </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="entity_id">Entity *</Label>
+            <select
+              id="entity_id"
+              name="entity_id"
+              required
+              className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+              defaultValue="ENT-FIRM"
+            >
+              <option value="ENT-FIRM">ENT-FIRM · Tage (parent)</option>
+              <option value="ENT-R619">ENT-R619 · Recruit 619</option>
+              <option value="ENT-INDA">ENT-INDA · Instant NDA</option>
+              <option value="ENT-002">ENT-002 · Instant NDA (legacy alias)</option>
+              <option value="ENT-001">ENT-001 · Sample Closed Co</option>
+            </select>
+          </div>
           <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor="links">Links</Label>
             <Input id="links" name="links" placeholder="URL / deal / entity" />
