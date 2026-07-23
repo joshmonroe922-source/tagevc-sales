@@ -47,10 +47,10 @@ export const SS_HUB_MODULES: SsHubModule[] = [
     href: '/shared-services/marketing',
     title: 'Multichannel Marketing',
     service: 'Marketing',
-    status: 'foundation',
+    status: 'live',
     description:
-      'Campaigns, content, social accounts, AI + schedule frameworks for firm and subsidiaries.',
-    docs: 'docs/OS_MARKETING.md',
+      'Campaigns + revenue rails · approval SLA · publishing controls · brand-voice · Recruit acquisition (Phase 58).',
+    docs: 'docs/OS_PHASE58.md',
   },
   {
     id: 'finance',

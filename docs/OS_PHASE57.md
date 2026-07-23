@@ -64,14 +64,18 @@ git diff --check
 
 ## Phase 58 note
 
-**Phase 58 = Marketing hardening**. Do not start Phase 58 from this phase’s
-HR/IT workstream without an explicit go-ahead.
+**Phase 58 = Marketing hardening** — shipped separately; see
+`docs/OS_PHASE58.md`. Do not start Phase 59 from HR/IT without an explicit
+go-ahead.
 
 ## Phase 58+ recommendations
 
-1. Wire live Recruit/INDA HR run feeds so subsidiaries move from `missing`
+1. **Done in Phase 58** — Marketing production hardening (approval SLA,
+   publishing controls, brand-voice, campaign dashboards, Recruit
+   acquisition for ENT-R619).
+2. Wire live Recruit/INDA HR run feeds so subsidiaries move from `missing`
    → `ok`/`partial`.
-2. Attach per-run revocation checklist evidence beyond observe stubs.
-3. Continue Intune dual-approve soak (Phases 49–52 rails remain).
-4. Still out of scope here: auto-close breakers, silent access revoke,
-   Marketing hardening (Phase 58).
+3. Attach per-run revocation checklist evidence beyond observe stubs.
+4. Continue Intune dual-approve soak (Phases 49–52 rails remain).
+5. Still out of scope here: auto-close breakers, silent access revoke,
+   practical notifications (Phase 59).

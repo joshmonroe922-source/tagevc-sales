@@ -39,6 +39,17 @@ import {
   REVENUE_LEDGER_KINDS,
   REVENUE_LEDGER_PROFILES,
 } from '@/lib/shared-services/marketing-revenue-contracts';
+import {
+  PHASE58_MARKETING_CONTRACT_VERSION,
+  type MarketingHardeningPhase58Report,
+} from '@/lib/shared-services/marketing-hardening-phase58';
+import {
+  approveMarketingPublishPhase58,
+  getMarketingHardeningPhase58Report,
+  proposeMarketingPublishPhase58,
+  recordRecruitAcquisitionIntakePhase58,
+  refreshMarketingHardeningPhase58,
+} from '@/lib/shared-services/marketing-hardening-phase58-server';
 
 export type MarketingActionResult =
   | { ok: true; message?: string }
@@ -1110,4 +1121,277 @@ export async function bindMarketingRevenueCampaignAction(
   if (!result.ok) return result;
   revalidateMarketing();
   return { ok: true, message: `Bound campaign ${campaignId}` };
+}
+
+// ─── Phase 58 — Marketing production hardening ───────────────────────────────
+
+export type MarketingPhase58ActionResult =
+  | {
+      ok: true;
+      money_auto_approved: false;
+      publish_executed: false;
+      dual_approve_required: true;
+      contract_version: typeof PHASE58_MARKETING_CONTRACT_VERSION;
+      report: MarketingHardeningPhase58Report;
+      data?: Record<string, unknown>;
+    }
+  | {
+      ok: false;
+      money_auto_approved: false;
+      publish_executed: false;
+      dual_approve_required: true;
+      contract_version: typeof PHASE58_MARKETING_CONTRACT_VERSION;
+      error: string;
+      report: MarketingHardeningPhase58Report;
+    };
+
+export async function refreshMarketingHardeningPhase58Action(
+  entityId?: string | null,
+): Promise<MarketingPhase58ActionResult> {
+  const gate = await guardPermission('write:marketing');
+  if (!gate.ok) {
+    const { emptyMarketingHardeningPhase58Report } = await import(
+      '@/lib/shared-services/marketing-hardening-phase58'
+    );
+    return {
+      ok: false,
+      money_auto_approved: false,
+      publish_executed: false,
+      dual_approve_required: true,
+      contract_version: PHASE58_MARKETING_CONTRACT_VERSION,
+      error: gate.error,
+      report: emptyMarketingHardeningPhase58Report(entityId ?? null),
+    };
+  }
+  const result = await refreshMarketingHardeningPhase58({
+    actorId: gate.profile.id,
+    entityId: entityId ?? null,
+  });
+  revalidateMarketing();
+  if (!result.ok) {
+    return {
+      ok: false,
+      money_auto_approved: false,
+      publish_executed: false,
+      dual_approve_required: true,
+      contract_version: PHASE58_MARKETING_CONTRACT_VERSION,
+      error: result.error,
+      report: result.report,
+    };
+  }
+  return {
+    ok: true,
+    money_auto_approved: false,
+    publish_executed: false,
+    dual_approve_required: true,
+    contract_version: PHASE58_MARKETING_CONTRACT_VERSION,
+    report: result.report,
+    data: result.summary,
+  };
+}
+
+const proposePublishSchema = z.object({
+  entityId: z.string().nullable().optional(),
+  actionKind: z.enum([
+    'paid_publish',
+    'budget_change',
+    'campaign_go_live',
+    'brand_voice_override',
+    'other_money_impact',
+  ]),
+  summary: z.string().min(2).max(500),
+});
+
+export async function proposeMarketingPublishPhase58Action(
+  input: z.infer<typeof proposePublishSchema>,
+): Promise<MarketingPhase58ActionResult> {
+  const gate = await guardPermission('write:marketing');
+  const entityId = input.entityId ?? null;
+  if (!gate.ok) {
+    const { emptyMarketingHardeningPhase58Report } = await import(
+      '@/lib/shared-services/marketing-hardening-phase58'
+    );
+    return {
+      ok: false,
+      money_auto_approved: false,
+      publish_executed: false,
+      dual_approve_required: true,
+      contract_version: PHASE58_MARKETING_CONTRACT_VERSION,
+      error: gate.error,
+      report: emptyMarketingHardeningPhase58Report(entityId),
+    };
+  }
+  const parsed = proposePublishSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      money_auto_approved: false,
+      publish_executed: false,
+      dual_approve_required: true,
+      contract_version: PHASE58_MARKETING_CONTRACT_VERSION,
+      error: parsed.error.issues[0]?.message ?? 'Invalid publish payload',
+      report: await getMarketingHardeningPhase58Report({ entityId }),
+    };
+  }
+  const result = await proposeMarketingPublishPhase58({
+    entityId,
+    actionKind: parsed.data.actionKind,
+    summary: parsed.data.summary,
+    proposedBy: gate.profile.id,
+  });
+  revalidateMarketing();
+  if (!result.ok) {
+    return {
+      ok: false,
+      money_auto_approved: false,
+      publish_executed: false,
+      dual_approve_required: true,
+      contract_version: PHASE58_MARKETING_CONTRACT_VERSION,
+      error: result.error,
+      report: await getMarketingHardeningPhase58Report({ entityId }),
+    };
+  }
+  return {
+    ok: true,
+    money_auto_approved: false,
+    publish_executed: false,
+    dual_approve_required: true,
+    contract_version: PHASE58_MARKETING_CONTRACT_VERSION,
+    report: await getMarketingHardeningPhase58Report({ entityId }),
+    data: result.data,
+  };
+}
+
+const approvePublishSchema = z.object({
+  proposalId: z.string().uuid(),
+  decision: z.enum(['approve', 'reject']),
+  entityId: z.string().nullable().optional(),
+});
+
+export async function approveMarketingPublishPhase58Action(
+  input: z.infer<typeof approvePublishSchema>,
+): Promise<MarketingPhase58ActionResult> {
+  const gate = await guardPermission('write:marketing');
+  const entityId = input.entityId ?? null;
+  if (!gate.ok) {
+    const { emptyMarketingHardeningPhase58Report } = await import(
+      '@/lib/shared-services/marketing-hardening-phase58'
+    );
+    return {
+      ok: false,
+      money_auto_approved: false,
+      publish_executed: false,
+      dual_approve_required: true,
+      contract_version: PHASE58_MARKETING_CONTRACT_VERSION,
+      error: gate.error,
+      report: emptyMarketingHardeningPhase58Report(entityId),
+    };
+  }
+  const parsed = approvePublishSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      money_auto_approved: false,
+      publish_executed: false,
+      dual_approve_required: true,
+      contract_version: PHASE58_MARKETING_CONTRACT_VERSION,
+      error: parsed.error.issues[0]?.message ?? 'Invalid approval payload',
+      report: await getMarketingHardeningPhase58Report({ entityId }),
+    };
+  }
+  const result = await approveMarketingPublishPhase58({
+    proposalId: parsed.data.proposalId,
+    actorId: gate.profile.id,
+    decision: parsed.data.decision,
+  });
+  revalidateMarketing();
+  if (!result.ok) {
+    return {
+      ok: false,
+      money_auto_approved: false,
+      publish_executed: false,
+      dual_approve_required: true,
+      contract_version: PHASE58_MARKETING_CONTRACT_VERSION,
+      error: result.error,
+      report: await getMarketingHardeningPhase58Report({ entityId }),
+    };
+  }
+  return {
+    ok: true,
+    money_auto_approved: false,
+    publish_executed: false,
+    dual_approve_required: true,
+    contract_version: PHASE58_MARKETING_CONTRACT_VERSION,
+    report: await getMarketingHardeningPhase58Report({ entityId }),
+    data: result.data,
+  };
+}
+
+const recruitIntakeSchema = z.object({
+  entityId: z.string().nullable().optional(),
+  sourceKind: z
+    .enum(['appcast', 'careers', 'combined', 'manual_stub'])
+    .optional(),
+  applications: z.number().int().min(0).optional(),
+  clicks: z.number().int().min(0).optional(),
+  feedStatus: z.enum(['ok', 'partial', 'missing', 'unknown']).optional(),
+});
+
+export async function recordRecruitAcquisitionIntakePhase58Action(
+  input: z.infer<typeof recruitIntakeSchema>,
+): Promise<MarketingPhase58ActionResult> {
+  const gate = await guardPermission('write:marketing');
+  const entityId = input.entityId ?? 'ENT-R619';
+  if (!gate.ok) {
+    const { emptyMarketingHardeningPhase58Report } = await import(
+      '@/lib/shared-services/marketing-hardening-phase58'
+    );
+    return {
+      ok: false,
+      money_auto_approved: false,
+      publish_executed: false,
+      dual_approve_required: true,
+      contract_version: PHASE58_MARKETING_CONTRACT_VERSION,
+      error: gate.error,
+      report: emptyMarketingHardeningPhase58Report(entityId),
+    };
+  }
+  const parsed = recruitIntakeSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      money_auto_approved: false,
+      publish_executed: false,
+      dual_approve_required: true,
+      contract_version: PHASE58_MARKETING_CONTRACT_VERSION,
+      error: parsed.error.issues[0]?.message ?? 'Invalid recruit intake',
+      report: await getMarketingHardeningPhase58Report({ entityId }),
+    };
+  }
+  const result = await recordRecruitAcquisitionIntakePhase58({
+    ...parsed.data,
+    entityId,
+    actorId: gate.profile.id,
+  });
+  revalidateMarketing();
+  if (!result.ok) {
+    return {
+      ok: false,
+      money_auto_approved: false,
+      publish_executed: false,
+      dual_approve_required: true,
+      contract_version: PHASE58_MARKETING_CONTRACT_VERSION,
+      error: result.error,
+      report: await getMarketingHardeningPhase58Report({ entityId }),
+    };
+  }
+  return {
+    ok: true,
+    money_auto_approved: false,
+    publish_executed: false,
+    dual_approve_required: true,
+    contract_version: PHASE58_MARKETING_CONTRACT_VERSION,
+    report: await getMarketingHardeningPhase58Report({ entityId }),
+    data: result.data,
+  };
 }

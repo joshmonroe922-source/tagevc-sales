@@ -1104,11 +1104,26 @@ Apply after Phase 56:
 
 Docs: `docs/OS_PHASE57.md`
 
-### Phase 58+ backlog
+### Phase 58
 
-- Marketing hardening (Phase 58)
+Marketing production hardening on `/shared-services/marketing`. Approval SLA
+reliability, publishing controls, entity brand-voice enforcement,
+campaign/performance dashboards, and Recruit acquisition intelligence
+(Appcast/careers fail-soft) for `ENT-R619`. Money-impacting publish stays
+dual-approved; never auto-approves money; never executes publish from the
+gate. Extends existing revenue phase surfaces.
+
+Apply after Phase 57:
+
+1. `phase58_marketing_hardening.sql`
+
+Docs: `docs/OS_PHASE58.md`
+
+### Phase 59+ backlog
+
+- Practical notifications (Phase 59)
 - Wire live IES feed for Phase 55 KPIs
-- Wire live Recruit feed for Phase 53 freshness
+- Wire live Recruit/Appcast feed for Phase 53/58 freshness
 - Continue Stage 4e soak; do not drop snapshots
 - Push · user admin
 

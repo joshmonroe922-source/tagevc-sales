@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { MarketingClient } from '@/components/shared-services/marketing-client';
+import { MarketingHardeningPhase58Client } from '@/components/shared-services/marketing-hardening-phase58-client';
 import { MarketingRevenuePhase41 } from '@/components/shared-services/marketing-revenue-phase41';
 import { Badge } from '@/components/ui/badge';
 import { listBrandVoices } from '@/lib/shared-services/marketing-brand';
@@ -12,6 +13,7 @@ import {
   listScheduleJobs,
   listSocialAccounts,
 } from '@/lib/shared-services/marketing-repo';
+import { getMarketingHardeningPhase58Report } from '@/lib/shared-services/marketing-hardening-phase58-server';
 import { roleHasPermission } from '@/lib/types/roles';
 import { getSessionContext, requirePermission } from '@/lib/rbac/session';
 import { isFirmWideAccess } from '@/lib/rbac/entity-scope';
@@ -81,6 +83,7 @@ export default async function MarketingModulePage({
     phase50OpsReport,
     phase51OpsReport,
     phase52OpsReport,
+    phase58Hardening,
   ] = await Promise.all([
     listCampaigns(
       50,
@@ -166,6 +169,9 @@ export default async function MarketingModulePage({
       firmWide,
       days: paidDays,
     }),
+    getMarketingHardeningPhase58Report({
+      entityId: firmWide ? null : (ctx?.profile.entity_id ?? null),
+    }),
   ]);
   if (!firmWide && ctx?.profile.entity_id) {
     const entityId = ctx.profile.entity_id;
@@ -212,6 +218,7 @@ export default async function MarketingModulePage({
           <Badge variant="secondary">Phase 50</Badge>
           <Badge variant="secondary">Phase 51</Badge>
           <Badge variant="secondary">Phase 52</Badge>
+          <Badge variant="secondary">Phase 58</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Multichannel Marketing
@@ -221,16 +228,24 @@ export default async function MarketingModulePage({
           cohort autopilot promotion, closed conflict-cohort archives, cohort
           performance and conflict-resolution visibility, correction
           monitoring over authoritative evidence, autopilot dry-run
-          dashboards, cohort promotion audit exports, and gated dual-approved
+          dashboards, cohort promotion audit exports, gated dual-approved
           promotion from dry-run into actual promotion for soaked-healthy
-          cohorts, and auto-proposed (never auto-approved) promotions for
+          cohorts, auto-proposed (never auto-approved) promotions for
           cohorts that have soaked healthy across consecutive audit-export
-          windows.
+          windows, and Phase 58 production hardening — approval SLA,
+          publishing controls, brand-voice enforcement, campaign dashboards,
+          and Recruit acquisition intelligence (never auto-approves money).
         </p>
         {oauthFlash && (
           <p className="text-sm text-emerald-700">{oauthFlash}</p>
         )}
       </div>
+
+      <MarketingHardeningPhase58Client
+        report={phase58Hardening}
+        canWrite={canWrite}
+        initialEntityId={firmWide ? '' : (ctx?.profile.entity_id ?? '')}
+      />
 
       <MarketingRevenuePhase41
         report={authoritativeRevenue.report}
