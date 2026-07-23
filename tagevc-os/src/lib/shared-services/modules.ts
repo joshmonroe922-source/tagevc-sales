@@ -39,8 +39,8 @@ export const SS_HUB_MODULES: SsHubModule[] = [
     service: 'IT',
     status: 'live',
     description:
-      'CRUD assets/licenses · assign/return · seat grant/revoke · history.',
-    docs: 'docs/OS_IT_ASSETS.md',
+      'Assets/licenses · onboarding/offboarding completeness · dual-approve inbox aging (Phase 57).',
+    docs: 'docs/OS_PHASE57.md',
   },
   {
     id: 'marketing',
@@ -64,13 +64,13 @@ export const SS_HUB_MODULES: SsHubModule[] = [
   },
   {
     id: 'hr',
-    href: '/shared-services?service=HR#inbox',
+    href: '/shared-services/hr',
     title: 'HR operations',
     service: 'HR',
-    status: 'planned',
-    // TODO: Phase 57 HR production hardening
+    status: 'live',
     description:
-      'TODO Phase 57 — onboarding/offboarding run completeness. Tickets already in unified inbox.',
+      'Onboarding/offboarding completeness · revocation evidence · exception aging (Phase 57).',
+    docs: 'docs/OS_PHASE57.md',
   },
 ];
 

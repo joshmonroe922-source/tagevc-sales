@@ -1087,9 +1087,26 @@ Apply after Phase 55:
 
 Docs: `docs/OS_PHASE56.md`
 
-### Phase 57+ backlog
+### Phase 57
 
-- HR + IT hardening (Phase 57)
+HR + IT production hardening on `/shared-services/hr` (new) and
+`/shared-services/it/assets` (extended). Onboarding/offboarding run
+completeness, asset/license assignment visibility, access revocation
+evidence, Intune dual-approve inbox aging/usability, exception aging +
+escalations, and dual-approve high-risk gates. Reuses multi-sub identity
+lifecycle (P5) and Phase 51 Intune inbox. Never auto-closes breakers;
+never silently revokes access; never mentions or mutates snapshot
+retirement tables. Entity-aware (`ENT-R619` / `ENT-INDA`).
+
+Apply after Phase 56:
+
+1. `phase57_hr_it_hardening.sql`
+
+Docs: `docs/OS_PHASE57.md`
+
+### Phase 58+ backlog
+
+- Marketing hardening (Phase 58)
 - Wire live IES feed for Phase 55 KPIs
 - Wire live Recruit feed for Phase 53 freshness
 - Continue Stage 4e soak; do not drop snapshots

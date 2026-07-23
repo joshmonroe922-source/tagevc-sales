@@ -57,15 +57,17 @@ git diff --check
 
 ## Phase 57 note
 
-**Phase 57 = HR + IT hardening** (onboarding/offboarding run completeness,
-Intune/asset soak). Do not start Phase 57 from this phase’s Legal workstream
-without an explicit go-ahead.
+**Phase 57 = HR + IT hardening** — shipped separately; see
+`docs/OS_PHASE57.md`. Do not start Phase 58 from Legal without an explicit
+go-ahead.
 
 ## Phase 57+ recommendations
 
-1. Wire live subsidiary legal request feeds so R619/INDA move from `missing`
+1. **Done in Phase 57** — HR + IT production hardening (HR page + IT assets
+   panel).
+2. Wire live subsidiary legal request feeds so R619/INDA move from `missing`
    → `ok`/`partial`.
-2. Continue archive quarterly cadence soak (Phases 44–52 rails remain).
-3. Continue Stage 4e soak; do not drop snapshot retirement tables.
-4. Still out of scope here: autonomous create/void/resend, silent capital send,
-   HR page (Phase 57).
+3. Continue archive quarterly cadence soak (Phases 44–52 rails remain).
+4. Continue Stage 4e soak; do not drop snapshot retirement tables.
+5. Still out of scope here: autonomous create/void/resend, silent capital send,
+   Marketing hardening (Phase 58).

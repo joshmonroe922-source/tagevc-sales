@@ -758,17 +758,30 @@ export function ItAssetsClient({
               0 ? (
               <div className="mt-2 space-y-1 rounded border p-2 text-xs">
                 <p className="font-medium">
-                  Unified dual-approve inbox (Phase 51 — postmortem, breaker
-                  tuning, and waive pending items in one place; observe-only,
+                  Unified dual-approve inbox (Phase 51 + Phase 57 aging —
+                  postmortem, breaker tuning, and waive pending items; stale
+                  &gt;24h / critical &gt;72h highlighted; observe-only,
                   approvals still go through the existing Phase 49/50 review
-                  actions above)
+                  actions above; never auto-closes breakers)
                 </p>
                 <ul className="space-y-1">
                   {(
                     intunePhase51Ops.items as Array<Record<string, unknown>>
                   )
                     .slice(0, 15)
-                    .map((item, idx) => (
+                    .map((item, idx) => {
+                      const awaitingMs = item.awaiting_since
+                        ? Date.now() -
+                          new Date(String(item.awaiting_since)).getTime()
+                        : 0;
+                      const ageHours = awaitingMs / (1000 * 60 * 60);
+                      const agingLabel =
+                        ageHours >= 72
+                          ? 'critical'
+                          : ageHours >= 24
+                            ? 'stale'
+                            : 'fresh';
+                      return (
                       <li
                         key={`${String(item.kind)}-${idx}`}
                         className="text-muted-foreground"
@@ -779,8 +792,11 @@ export function ItAssetsClient({
                         {item.awaiting_since
                           ? new Date(String(item.awaiting_since)).toLocaleString()
                           : 'n/a'}
+                        {' · '}
+                        <strong>{agingLabel}</strong>
                       </li>
-                    ))}
+                      );
+                    })}
                 </ul>
               </div>
             ) : null}

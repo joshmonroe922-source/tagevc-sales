@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { HrItHardeningPhase57Client } from '@/components/shared-services/hr-it-hardening-phase57-client';
 import { ItAssetsClient } from '@/components/shared-services/it-assets-client';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -41,6 +42,7 @@ import {
   listIntuneWorkerRuns,
   listSoftwareLicenses,
 } from '@/lib/shared-services/it-assets-repo';
+import { getHrItHardeningPhase57Report } from '@/lib/shared-services/hr-it-hardening-phase57-server';
 import {
   listOffboardingCandidateTickets,
   listOffboardingRuns,
@@ -55,6 +57,14 @@ import { isFirmWideAccess } from '@/lib/rbac/entity-scope';
 
 export default async function ItAssetsModulePage() {
   await requirePermission('read:it_assets');
+
+  const ctxEarly = await getSessionContext();
+  const firmWideEarly = ctxEarly
+    ? isFirmWideAccess(ctxEarly.profile.role, ctxEarly.profile.entity_id)
+    : false;
+  const phase57EntityId = firmWideEarly
+    ? null
+    : (ctxEarly?.profile.entity_id ?? null);
 
   const [
     hw,
@@ -97,6 +107,7 @@ export default async function ItAssetsModulePage() {
     postmortemTemplateSuggestions,
     waiveLifecycle,
     promoteGates,
+    phase57Report,
   ] = await Promise.all([
     listHardwareAssets(),
     listSoftwareLicenses(),
@@ -138,6 +149,7 @@ export default async function ItAssetsModulePage() {
     listIntunePostmortemTemplateSuggestions(),
     getIntuneWaiveLifecycleStatus(),
     listIntuneTuningPromoteGateStatus(),
+    getHrItHardeningPhase57Report({ entityId: phase57EntityId }),
   ]);
   const candidateTickets = listOffboardingCandidateTickets();
   const onboardingTickets = listOnboardingCandidateTickets();
@@ -188,6 +200,7 @@ export default async function ItAssetsModulePage() {
           <Badge variant="secondary">Phase 50</Badge>
           <Badge variant="secondary">Phase 51</Badge>
           <Badge variant="secondary">Phase 52</Badge>
+          <Badge variant="secondary">Phase 57</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">
           Hardware &amp; licensing
@@ -204,8 +217,21 @@ export default async function ItAssetsModulePage() {
           requiring 2 distinct approvers. Phase 52 records per-category
           backlog trends (postmortem / breaker / waive) from that inbox —
           observe-only, dual-approve required, no entity identifiers.
+          Phase 57 adds onboarding/offboarding completeness, assignment
+          visibility, revocation evidence, and inbox aging/escalations.
         </p>
       </div>
+
+      <HrItHardeningPhase57Client
+        report={phase57Report}
+        canWrite={
+          !!ctx &&
+          (roleHasPermission(ctx.profile.role, 'write:shared_services') ||
+            canWrite)
+        }
+        initialEntityId={phase57EntityId ?? ''}
+        surface="it"
+      />
 
       <ItAssetsClient
         hardware={hw.rows}
