@@ -57,15 +57,17 @@ git diff --check
 
 ## Phase 56 note
 
-**Phase 56 = Legal / DocuSign hardening** (Connect reliability, archive
-integrity, capital-gate soak). Do not start Phase 56 from this phase’s
-Finance workstream without an explicit go-ahead.
+**Phase 56 = Legal / DocuSign hardening** — shipped separately; see
+`docs/OS_PHASE56.md`. Do not start Phase 57 from Finance without an explicit
+go-ahead.
 
 ## Phase 56+ recommendations
 
-1. Wire live IES feed (`os_ies_finance_feed`) so KPI panels move from
+1. **Done in Phase 56** — Legal / DocuSign production hardening on the
+   DocuSign hub.
+2. Wire live IES feed (`os_ies_finance_feed`) so KPI panels move from
    `missing` → `ok`/`partial`.
-2. Optional year-end close pack templates beyond month-end stubs.
-3. Continue Stage 4e soak; do not drop `os_store_snapshots`.
-4. Still out of scope here: silent IES writes, money auto-approve, HR page
-   (Phase 57).
+3. Optional year-end close pack templates beyond month-end stubs.
+4. Continue Stage 4e soak; do not drop snapshot retirement tables.
+5. Still out of scope here: silent IES writes, money auto-approve, HR+IT
+   hardening (Phase 57).

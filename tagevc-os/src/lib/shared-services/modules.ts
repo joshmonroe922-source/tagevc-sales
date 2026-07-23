@@ -29,8 +29,8 @@ export const SS_HUB_MODULES: SsHubModule[] = [
     service: 'Legal',
     status: 'live',
     description:
-      'JWT send + Connect webhook · events in os_docusign_events · capital gates.',
-    docs: 'docs/OS_DOCUSIGN.md',
+      'JWT send + Connect · capital dual-control · template governance · archive integrity (Phase 56).',
+    docs: 'docs/OS_PHASE56.md',
   },
   {
     id: 'it_assets',

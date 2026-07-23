@@ -1072,13 +1072,28 @@ Apply after Phase 54:
 
 Docs: `docs/OS_PHASE55.md`
 
-### Phase 56+ backlog
+### Phase 56
 
-- Legal / DocuSign hardening (Phase 56)
+Legal / DocuSign production hardening on the existing DocuSign hub —
+`/shared-services/legal/docusign`. Template governance completeness, capital
+send dual-control (propose + dual-approve; never silent send), archive
+integrity alerts, quarterly process monitoring, and subsidiary legal
+visibility (`ENT-R619` / `ENT-INDA`). Monitoring never creates, voids, or
+resends envelopes.
+
+Apply after Phase 55:
+
+1. `phase56_legal_docusign_hardening.sql`
+
+Docs: `docs/OS_PHASE56.md`
+
+### Phase 57+ backlog
+
+- HR + IT hardening (Phase 57)
 - Wire live IES feed for Phase 55 KPIs
 - Wire live Recruit feed for Phase 53 freshness
 - Continue Stage 4e soak; do not drop snapshots
-- Push · user admin · HR page (Phase 57)
+- Push · user admin
 
 ## Run locally
 

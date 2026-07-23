@@ -4,6 +4,8 @@ import { DocuSignTemplateSendForm } from '@/components/shared-services/docusign-
 import { DocuSignReplacementForm } from '@/components/shared-services/docusign-replacement-form';
 import { DocuSignManualReview } from '@/components/shared-services/docusign-manual-review';
 import { DocuSignMappingReview } from '@/components/shared-services/docusign-mapping-review';
+import { LegalHardeningPhase56Client } from '@/components/shared-services/legal-hardening-phase56-client';
+import { getLegalHardeningPhase56Report } from '@/lib/docusign/legal-hardening-phase56-server';
 import { Badge } from '@/components/ui/badge';
 import {
   Card,
@@ -150,6 +152,7 @@ export default async function DocuSignModulePage({
     phase50Ops,
     phase51Ops,
     phase52Ops,
+    phase56Report,
   ] = await Promise.all([
     listDocuSignEvents({
       limit: 40,
@@ -222,9 +225,15 @@ export default async function DocuSignModulePage({
     getArchivePhase50OpsReport({ firmWide }),
     getArchivePhase51OpsReport({ firmWide }),
     getArchivePhase52OpsReport({ firmWide }),
+    getLegalHardeningPhase56Report({
+      entityId: firmWide ? null : (ctx?.profile.entity_id ?? null),
+    }),
   ]);
 
   const voidPolicy = process.env.DOCUSIGN_VOID_POLICY?.trim() || 'allow';
+  const canCapital = ctx
+    ? roleHasPermission(ctx.profile.role, 'action:docusign_capital')
+    : false;
 
   const missingEnv = DOCUSIGN_ENV_KEYS.filter((k) => {
     if (k === 'DOCUSIGN_OAUTH_HOST' || k === 'DOCUSIGN_BASE_PATH') return false;
@@ -303,16 +312,26 @@ export default async function DocuSignModulePage({
           <Badge variant="secondary">Phase 50</Badge>
           <Badge variant="secondary">Phase 51</Badge>
           <Badge variant="secondary">Phase 52</Badge>
+          <Badge variant="secondary">Phase 56</Badge>
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">DocuSign</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
           Replay-safe transactional sends, leased page-by-page reconciliation,
           evidence-verified timeout recovery, independent two-actor send and
           mapping reviews, content-bound archives, and entity-scoped audit
-          visibility.
+          visibility. Phase 56 hardens template governance, capital dual-control,
+          archive integrity, and quarterly process monitoring.
           Void policy: {voidPolicy}. Capital sends still require{' '}
           <code className="text-xs">action:docusign_capital</code>.
         </p>
+        <LegalHardeningPhase56Client
+          report={phase56Report}
+          canWrite={canWrite}
+          canCapital={canCapital}
+          initialEntityId={
+            firmWide ? '' : (ctx?.profile.entity_id ?? '')
+          }
+        />
         <DocuSignHubActions
           canWrite={canWrite}
           canReconcile={canReconcile}

@@ -22,6 +22,17 @@ import {
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
 import type { AppRole } from '@/lib/types/roles';
+import {
+  PHASE56_LEGAL_CONTRACT_VERSION,
+  type LegalHardeningPhase56Report,
+} from '@/lib/docusign/legal-hardening-phase56';
+import {
+  approveCapitalSendPhase56,
+  getLegalHardeningPhase56Report,
+  proposeCapitalSendPhase56,
+  recordQuarterlyProcessPhase56,
+  refreshLegalHardeningPhase56,
+} from '@/lib/docusign/legal-hardening-phase56-server';
 
 export type DocuSignActionResult =
   | { ok: true; message?: string }
@@ -1353,5 +1364,280 @@ export async function runReminderWorkerAction(): Promise<DocuSignActionResult> {
   return {
     ok: true,
     message: `Reminder worker: ${ok} ok, ${fail} failed`,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Phase 56 — Legal / DocuSign production hardening (observe + dual-approve).
+// Never silent-sends capital docs; never create/void/resend from monitoring.
+// ---------------------------------------------------------------------------
+
+export type LegalPhase56ActionResult =
+  | {
+      ok: true;
+      envelope_send_executed: false;
+      never_silent_send: true;
+      never_creates_voids_or_resends: true;
+      contract_version: typeof PHASE56_LEGAL_CONTRACT_VERSION;
+      report: LegalHardeningPhase56Report;
+      data?: Record<string, unknown>;
+    }
+  | {
+      ok: false;
+      envelope_send_executed: false;
+      never_silent_send: true;
+      never_creates_voids_or_resends: true;
+      contract_version: typeof PHASE56_LEGAL_CONTRACT_VERSION;
+      error: string;
+      report: LegalHardeningPhase56Report;
+    };
+
+export async function refreshLegalHardeningPhase56Action(
+  entityId?: string | null,
+): Promise<LegalPhase56ActionResult> {
+  const gate = await guardPermission('write:documents');
+  if (!gate.ok) {
+    const { emptyLegalHardeningPhase56Report } = await import(
+      '@/lib/docusign/legal-hardening-phase56'
+    );
+    return {
+      ok: false,
+      envelope_send_executed: false,
+      never_silent_send: true,
+      never_creates_voids_or_resends: true,
+      contract_version: PHASE56_LEGAL_CONTRACT_VERSION,
+      error: gate.error,
+      report: emptyLegalHardeningPhase56Report(entityId ?? null),
+    };
+  }
+  const result = await refreshLegalHardeningPhase56({
+    actorId: gate.profile.id,
+    entityId: entityId ?? null,
+  });
+  revalidateDocuSign();
+  if (!result.ok) {
+    return {
+      ok: false,
+      envelope_send_executed: false,
+      never_silent_send: true,
+      never_creates_voids_or_resends: true,
+      contract_version: PHASE56_LEGAL_CONTRACT_VERSION,
+      error: result.error,
+      report: result.report,
+    };
+  }
+  return {
+    ok: true,
+    envelope_send_executed: false,
+    never_silent_send: true,
+    never_creates_voids_or_resends: true,
+    contract_version: PHASE56_LEGAL_CONTRACT_VERSION,
+    report: result.report,
+    data: result.summary,
+  };
+}
+
+const quarterlySchema = z.object({
+  entityId: z.string().nullable().optional(),
+  periodKey: z.string().regex(/^[0-9]{4}-Q[1-4]$/),
+  stepKey: z.string().min(2).max(64),
+  stepLabel: z.string().min(2).max(200),
+  status: z.enum([
+    'open',
+    'in_progress',
+    'blocked',
+    'done',
+    'waived',
+    'overdue',
+  ]),
+});
+
+export async function recordQuarterlyProcessPhase56Action(
+  input: z.infer<typeof quarterlySchema>,
+): Promise<LegalPhase56ActionResult> {
+  const gate = await guardPermission('write:documents');
+  const entityId = input.entityId ?? null;
+  if (!gate.ok) {
+    const { emptyLegalHardeningPhase56Report } = await import(
+      '@/lib/docusign/legal-hardening-phase56'
+    );
+    return {
+      ok: false,
+      envelope_send_executed: false,
+      never_silent_send: true,
+      never_creates_voids_or_resends: true,
+      contract_version: PHASE56_LEGAL_CONTRACT_VERSION,
+      error: gate.error,
+      report: emptyLegalHardeningPhase56Report(entityId),
+    };
+  }
+  const parsed = quarterlySchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      envelope_send_executed: false,
+      never_silent_send: true,
+      never_creates_voids_or_resends: true,
+      contract_version: PHASE56_LEGAL_CONTRACT_VERSION,
+      error: parsed.error.issues[0]?.message ?? 'Invalid quarterly payload',
+      report: await getLegalHardeningPhase56Report({ entityId }),
+    };
+  }
+  const result = await recordQuarterlyProcessPhase56({
+    ...parsed.data,
+    entityId,
+    actorId: gate.profile.id,
+  });
+  revalidateDocuSign();
+  if (!result.ok) {
+    return {
+      ok: false,
+      envelope_send_executed: false,
+      never_silent_send: true,
+      never_creates_voids_or_resends: true,
+      contract_version: PHASE56_LEGAL_CONTRACT_VERSION,
+      error: result.error,
+      report: await getLegalHardeningPhase56Report({ entityId }),
+    };
+  }
+  return {
+    ok: true,
+    envelope_send_executed: false,
+    never_silent_send: true,
+    never_creates_voids_or_resends: true,
+    contract_version: PHASE56_LEGAL_CONTRACT_VERSION,
+    report: await getLegalHardeningPhase56Report({ entityId }),
+    data: result.data,
+  };
+}
+
+const proposeCapitalSchema = z.object({
+  entityId: z.string().nullable().optional(),
+  templateId: z.string().nullable().optional(),
+  docId: z.string().nullable().optional(),
+  summary: z.string().min(2).max(500),
+});
+
+export async function proposeCapitalSendPhase56Action(
+  input: z.infer<typeof proposeCapitalSchema>,
+): Promise<LegalPhase56ActionResult> {
+  const gate = await guardPermission('action:docusign_capital');
+  const entityId = input.entityId ?? null;
+  if (!gate.ok) {
+    const { emptyLegalHardeningPhase56Report } = await import(
+      '@/lib/docusign/legal-hardening-phase56'
+    );
+    return {
+      ok: false,
+      envelope_send_executed: false,
+      never_silent_send: true,
+      never_creates_voids_or_resends: true,
+      contract_version: PHASE56_LEGAL_CONTRACT_VERSION,
+      error: gate.error,
+      report: emptyLegalHardeningPhase56Report(entityId),
+    };
+  }
+  const parsed = proposeCapitalSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      envelope_send_executed: false,
+      never_silent_send: true,
+      never_creates_voids_or_resends: true,
+      contract_version: PHASE56_LEGAL_CONTRACT_VERSION,
+      error: parsed.error.issues[0]?.message ?? 'Invalid capital proposal',
+      report: await getLegalHardeningPhase56Report({ entityId }),
+    };
+  }
+  const result = await proposeCapitalSendPhase56({
+    entityId,
+    templateId: parsed.data.templateId ?? null,
+    docId: parsed.data.docId ?? null,
+    summary: parsed.data.summary,
+    proposedBy: gate.profile.id,
+  });
+  revalidateDocuSign();
+  if (!result.ok) {
+    return {
+      ok: false,
+      envelope_send_executed: false,
+      never_silent_send: true,
+      never_creates_voids_or_resends: true,
+      contract_version: PHASE56_LEGAL_CONTRACT_VERSION,
+      error: result.error,
+      report: await getLegalHardeningPhase56Report({ entityId }),
+    };
+  }
+  return {
+    ok: true,
+    envelope_send_executed: false,
+    never_silent_send: true,
+    never_creates_voids_or_resends: true,
+    contract_version: PHASE56_LEGAL_CONTRACT_VERSION,
+    report: await getLegalHardeningPhase56Report({ entityId }),
+    data: result.data,
+  };
+}
+
+const approveCapitalSchema = z.object({
+  proposalId: z.string().uuid(),
+  decision: z.enum(['approve', 'reject']),
+});
+
+export async function approveCapitalSendPhase56Action(
+  input: z.infer<typeof approveCapitalSchema>,
+): Promise<LegalPhase56ActionResult> {
+  const gate = await guardPermission('action:docusign_capital');
+  if (!gate.ok) {
+    const { emptyLegalHardeningPhase56Report } = await import(
+      '@/lib/docusign/legal-hardening-phase56'
+    );
+    return {
+      ok: false,
+      envelope_send_executed: false,
+      never_silent_send: true,
+      never_creates_voids_or_resends: true,
+      contract_version: PHASE56_LEGAL_CONTRACT_VERSION,
+      error: gate.error,
+      report: emptyLegalHardeningPhase56Report(),
+    };
+  }
+  const parsed = approveCapitalSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      envelope_send_executed: false,
+      never_silent_send: true,
+      never_creates_voids_or_resends: true,
+      contract_version: PHASE56_LEGAL_CONTRACT_VERSION,
+      error: parsed.error.issues[0]?.message ?? 'Invalid approval payload',
+      report: await getLegalHardeningPhase56Report(),
+    };
+  }
+  const result = await approveCapitalSendPhase56({
+    proposalId: parsed.data.proposalId,
+    actorId: gate.profile.id,
+    decision: parsed.data.decision,
+  });
+  revalidateDocuSign();
+  if (!result.ok) {
+    return {
+      ok: false,
+      envelope_send_executed: false,
+      never_silent_send: true,
+      never_creates_voids_or_resends: true,
+      contract_version: PHASE56_LEGAL_CONTRACT_VERSION,
+      error: result.error,
+      report: await getLegalHardeningPhase56Report(),
+    };
+  }
+  return {
+    ok: true,
+    envelope_send_executed: false,
+    never_silent_send: true,
+    never_creates_voids_or_resends: true,
+    contract_version: PHASE56_LEGAL_CONTRACT_VERSION,
+    report: await getLegalHardeningPhase56Report(),
+    data: result.data,
   };
 }
