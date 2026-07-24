@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { BandBadge } from '@/components/shared-services/band-badge';
 import { CreateTicketForm } from '@/components/shared-services/create-ticket-form';
+import { SsHubCommandStrip } from '@/components/shared-services/ss-hub-command-strip';
 import { SsUnifiedInbox } from '@/components/shared-services/ss-unified-inbox';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -14,7 +15,7 @@ import { listScopedTickets } from '@/lib/data/pipeline-scope';
 import { FORBID_LIST } from '@/lib/shared-services/forbid-list';
 import { ALLOW_LIST } from '@/lib/shared-services/allow-list';
 import {
-  getSsHubCardModules,
+  getSsFunctionModules,
   ssHubStatusLabel,
 } from '@/lib/shared-services/modules';
 import { getSharedServicesInboxPhase54Report } from '@/lib/shared-services/shared-services-inbox-phase54-server';
@@ -29,6 +30,9 @@ import { getSessionContext } from '@/lib/rbac/session';
 import { isFirmWideAccess } from '@/lib/rbac/entity-scope';
 import { SloPolicyAdmin } from '@/components/shared-services/slo-policy-admin';
 import { listSloPolicyAdministration } from '@/lib/shared-services/slo-policy';
+import { getSscHubGlance } from '@/lib/shared-services/ssc-checklist/hub-glance';
+import { ensurePeriodInstances, seedAllCompanyAudits } from '@/lib/shared-services/ssc-checklist/engine';
+import { escalateOverdueSscTasks } from '@/lib/shared-services/ssc-checklist/escalate';
 
 type Props = {
   searchParams?: Promise<{
@@ -53,19 +57,41 @@ export default async function SharedServicesPage({ searchParams }: Props) {
   const firmWide = ctx
     ? isFirmWideAccess(ctx.profile.role, ctx.profile.entity_id)
     : false;
-  const [tickets, operationalHealth, policyAdministration, inboxReport] =
-    await Promise.all([
-      listScopedTickets(),
-      listOperationalHealth({
-        firmWide,
-        entityId: ctx?.profile.entity_id ?? null,
-      }),
-      firmWide ? listSloPolicyAdministration() : Promise.resolve(null),
-      getSharedServicesInboxPhase54Report({
-        entityId: initialEntityId || null,
-        service: initialService === 'All' ? null : initialService,
-      }),
-    ]);
+
+  // Best-effort: ensure current+next monthly instances, audits, escalations
+  try {
+    await ensurePeriodInstances({
+      function: 'all',
+      period_type: 'monthly',
+      scope_mode: 'parent_subs',
+      include_next: true,
+    });
+    await seedAllCompanyAudits();
+    await escalateOverdueSscTasks({ actorId: ctx?.profile.id ?? null });
+  } catch {
+    // fail-soft — hub still loads
+  }
+
+  const [
+    tickets,
+    operationalHealth,
+    policyAdministration,
+    inboxReport,
+    glance,
+  ] = await Promise.all([
+    listScopedTickets(),
+    listOperationalHealth({
+      firmWide,
+      entityId: ctx?.profile.entity_id ?? null,
+    }),
+    firmWide ? listSloPolicyAdministration() : Promise.resolve(null),
+    getSharedServicesInboxPhase54Report({
+      entityId: initialEntityId || null,
+      service: initialService === 'All' ? null : initialService,
+    }),
+    getSscHubGlance(),
+  ]);
+
   const bands: Record<AutonomyBand, number> = {
     AUTO: 0,
     DRAFT: 0,
@@ -76,168 +102,198 @@ export default async function SharedServicesPage({ searchParams }: Props) {
     bands[t.autonomy_band] += 1;
   }
 
-  const modules = getSsHubCardModules();
-  const byService = new Map<string, typeof modules>();
-  for (const m of modules) {
-    const list = byService.get(m.service) ?? [];
-    list.push(m);
-    byService.set(m.service, list);
-  }
-  const serviceOrder = ['Legal', 'IT', 'Marketing', 'Finance', 'HR', 'All'];
+  const functionModules = getSsFunctionModules();
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       <header className="space-y-2">
         <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#3a414f]">
-          Shared Services
+          Shared Services Center
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Service work for Tage VC and portfolio companies — tickets, SLAs,
-          ownership, and escalation across Finance, Legal, HR, IT, and
-          Marketing. High-risk or money actions always need a person.
-        </p>
-        <p className="text-sm">
-          <Link
-            href="/shared-services/checklists"
-            className="font-medium text-[#3a414f] underline-offset-2 hover:underline"
-          >
-            SSC period checklists
-          </Link>
-          <span className="mx-2 text-muted-foreground">·</span>
-          <Link
-            href="/shared-services/audits"
-            className="font-medium text-[#3a414f] underline-offset-2 hover:underline"
-          >
-            Startup & annual audits
-          </Link>
+          Run Finance, HR, IT, Marketing, and Legal for Tage and every
+          subsidiary from one place. Tickets, checklists, and audits live here —
+          high-risk and money actions always need a person.
         </p>
       </header>
 
-      <OperationalHealthSummary health={operationalHealth} />
+      <SsHubCommandStrip glance={glance} />
 
-      {policyAdministration ? (
-        <SloPolicyAdmin {...policyAdministration} />
-      ) : null}
-
-      <section className="space-y-4">
+      <section className="space-y-3">
         <div className="space-y-1">
           <h2 className="font-heading text-lg font-semibold text-[#3a414f]">
-            Service modules
+            Function homes
           </h2>
           <p className="text-sm text-muted-foreground">
-            Open a service area below. Tickets for every company still appear in
-            the unified inbox.
+            Deep tools for each SSC function. Period checklists and audits sit
+            above — use those for cadence across companies.
           </p>
         </div>
-        <div className="space-y-5">
-          {serviceOrder
-            .filter((s) => byService.has(s))
-            .map((service) => (
-              <div key={service} className="space-y-2">
-                <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  {service}
-                </h3>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {(byService.get(service) ?? []).map((m) => (
-                    <Link key={m.id} href={m.href} className="group block">
-                      <Card className="h-full transition-colors group-hover:border-[#3a414f]/35">
-                        <CardHeader>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Badge variant="outline">{m.service}</Badge>
-                            <Badge
-                              variant={
-                                m.status === 'live' ? 'default' : 'secondary'
-                              }
-                            >
-                              {ssHubStatusLabel(m.status)}
-                            </Badge>
-                          </div>
-                          <CardTitle className="font-heading text-base">
-                            {m.title}
-                          </CardTitle>
-                          <CardDescription>{m.description}</CardDescription>
-                        </CardHeader>
-                      </Card>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {functionModules.map((m) => {
+            const fnKey =
+              m.id === 'it_assets'
+                ? 'it'
+                : m.id === 'docusign'
+                  ? 'legal'
+                  : m.id;
+            return (
+              <Card
+                key={m.id}
+                className="h-full transition-colors hover:border-[#3a414f]/35"
+              >
+                <CardHeader>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline">{m.short ?? m.service}</Badge>
+                    <Badge
+                      variant={m.status === 'live' ? 'default' : 'secondary'}
+                    >
+                      {ssHubStatusLabel(m.status)}
+                    </Badge>
+                  </div>
+                  <CardTitle className="font-heading text-base">
+                    <Link
+                      href={m.href}
+                      className="hover:underline underline-offset-2"
+                    >
+                      {m.title}
                     </Link>
-                  ))}
+                  </CardTitle>
+                  <CardDescription>{m.description}</CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-wrap gap-3 text-xs">
+                  <Link
+                    href={m.href}
+                    className="font-medium text-[#3a414f] underline-offset-2 hover:underline"
+                  >
+                    Open home →
+                  </Link>
+                  <Link
+                    href={`/shared-services/checklists?function=${fnKey}&period=monthly&scope=parent_subs&time=current`}
+                    className="text-muted-foreground underline-offset-2 hover:underline"
+                  >
+                    Period checklist
+                  </Link>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h2 className="font-heading text-lg font-semibold text-[#3a414f]">
+              Work queue
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Ticket intake, SLA, and autonomy bands across companies.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            {AUTONOMY_BANDS.map((band) => (
+              <div
+                key={band}
+                className="rounded-md border border-border px-3 py-1.5 text-center"
+              >
+                <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground">
+                  <BandBadge band={band} />
+                </div>
+                <div className="font-heading text-lg tabular-nums">
+                  {bands[band]}
                 </div>
               </div>
             ))}
+          </div>
         </div>
+
+        <SsUnifiedInbox
+          tickets={tickets}
+          report={inboxReport}
+          initialService={initialService}
+          initialEntityId={initialEntityId}
+        />
+
+        <CreateTicketForm
+          prefill={{
+            service: initialService === 'All' ? undefined : initialService,
+            template: initialTemplate || undefined,
+            entityId: initialEntityId || undefined,
+          }}
+        />
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-3">
-        {AUTONOMY_BANDS.map((band) => (
-          <Card key={band}>
-            <CardHeader className="pb-2">
-              <CardDescription className="flex items-center gap-2">
-                <BandBadge band={band} /> open
-              </CardDescription>
-              <CardTitle className="font-heading text-2xl tabular-nums">
-                {bands[band]}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-        ))}
-      </section>
+      <details className="rounded-lg border border-border bg-[#f7f8fa] p-4">
+        <summary className="cursor-pointer font-heading text-base font-semibold text-[#3a414f]">
+          Ops health & multi-company panels
+        </summary>
+        <div className="mt-4 space-y-6">
+          <OperationalHealthSummary health={operationalHealth} />
+          <SsMultiSubOperatorPanels
+            tickets={tickets}
+            health={buildMultiSubHealthFromTickets(tickets, {
+              feed_status: 'partial',
+            })}
+          />
+        </div>
+      </details>
 
-      <SsUnifiedInbox
-        tickets={tickets}
-        report={inboxReport}
-        initialService={initialService}
-        initialEntityId={initialEntityId}
-      />
-
-      <SsMultiSubOperatorPanels
-        tickets={tickets}
-        health={buildMultiSubHealthFromTickets(tickets, {
-          feed_status: 'partial',
-        })}
-      />
-
-      <CreateTicketForm
-        prefill={{
-          service: initialService === 'All' ? undefined : initialService,
-          template: initialTemplate || undefined,
-          entityId: initialEntityId || undefined,
-        }}
-      />
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Forbid-list (never AUTO)</CardTitle>
-            <CardDescription>§7D — even at 99% confidence.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            {FORBID_LIST.map((r) => (
-              <div key={r.code} className="rounded-md border border-border px-3 py-2">
-                <p className="font-medium">{r.label}</p>
-                <p className="text-xs text-muted-foreground">
-                  {r.code} · Human: {r.human_required}
-                </p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">AUTO allow-list (v1)</CardTitle>
-            <CardDescription>
-              COO-signed low-risk actions only. Expansion requires written
-              sign-off (§7E).
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            {ALLOW_LIST.map((r) => (
-              <div key={r.code} className="rounded-md border border-border px-3 py-2">
-                <p className="font-medium">{r.label}</p>
-                <p className="text-xs text-muted-foreground">{r.code}</p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
+      <details className="rounded-lg border border-border p-4">
+        <summary className="cursor-pointer font-heading text-base font-semibold text-[#3a414f]">
+          Governance · autonomy rules & SLO policy
+        </summary>
+        <div className="mt-4 space-y-6">
+          {policyAdministration ? (
+            <SloPolicyAdmin {...policyAdministration} />
+          ) : null}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">
+                  Forbid-list (never AUTO)
+                </CardTitle>
+                <CardDescription>
+                  §7D — even at 99% confidence.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                {FORBID_LIST.map((r) => (
+                  <div
+                    key={r.code}
+                    className="rounded-md border border-border px-3 py-2"
+                  >
+                    <p className="font-medium">{r.label}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {r.code} · Human: {r.human_required}
+                    </p>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">AUTO allow-list (v1)</CardTitle>
+                <CardDescription>
+                  COO-signed low-risk actions only. Expansion requires written
+                  sign-off (§7E).
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                {ALLOW_LIST.map((r) => (
+                  <div
+                    key={r.code}
+                    className="rounded-md border border-border px-3 py-2"
+                  >
+                    <p className="font-medium">{r.label}</p>
+                    <p className="text-xs text-muted-foreground">{r.code}</p>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </details>
     </div>
   );
 }

@@ -124,6 +124,7 @@ describe('SSC AI drafts', () => {
     expect(briefing.summary).toContain('overdue');
     expect(briefing.guardrails).toContain('No autonomous money movement');
     expect(briefing.recommended_order[0]).toContain('OVERDUE');
+    expect(briefing.provider).toBe('rules');
   });
 
   it('drafts audit findings as human-confirm drafts', () => {

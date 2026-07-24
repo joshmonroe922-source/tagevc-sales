@@ -165,6 +165,8 @@ export type SscAiBriefing = {
   next_actions: string[];
   impact: string;
   guardrails: string[];
+  /** rules = deterministic; openai = optional LLM polish */
+  provider?: 'rules' | 'openai';
 };
 
 export type SscSyncSnapshot = {
@@ -235,5 +237,20 @@ export function statusLabel(s: SscTaskStatus): string {
       return 'Blocked';
     case 'waived':
       return 'Waived';
+  }
+}
+
+export function functionHomeHref(fn: SscFunction): string {
+  switch (fn) {
+    case 'finance':
+      return '/shared-services/finance';
+    case 'hr':
+      return '/shared-services/hr';
+    case 'it':
+      return '/shared-services/it/assets';
+    case 'marketing':
+      return '/shared-services/marketing';
+    case 'legal':
+      return '/shared-services/legal/docusign';
   }
 }

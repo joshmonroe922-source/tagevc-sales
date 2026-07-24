@@ -5,7 +5,9 @@
 
 import { createPersistClient } from '@/lib/supabase/persist-client';
 import { auditItemLibrary } from './audit-library';
-import { buildSscAiBriefing, draftAuditFinding, suggestTaskNextAction } from './ai';
+import { buildSscAiBriefingAsync, draftAuditFinding, suggestTaskNextAction } from './ai';
+import { collectEvidenceHints, formatEvidenceNote } from './evidence';
+import { escalateOverdueSscTasks } from './escalate';
 import {
   classifyTimeNav,
   periodBounds,
@@ -32,6 +34,13 @@ import {
   type SscSyncSnapshot,
   type SscTaskStatus,
 } from './types';
+
+export type EscalateSummary = {
+  scanned: number;
+  created: number;
+  skipped: number;
+  ticket_ids: string[];
+};
 
 export type SscOperatorQuery = {
   function: SscFunction | 'all';
@@ -61,6 +70,7 @@ export type SscOperatorBundle = {
   sync: SscSyncSnapshot[];
   audits: SscAuditRow[];
   generated: boolean;
+  escalation: EscalateSummary;
   money_auto_approve: false;
 };
 
@@ -618,8 +628,12 @@ export async function getSscOperatorBundle(
     include_next: query.time_nav !== 'past',
   });
 
-  // Mark overdue via automation
+  // Mark overdue + escalate high/critical into tickets
   await markOverdueTasks();
+  const escalation = await escalateOverdueSscTasks({ limit: 25 });
+
+  // Auto-attach evidence drafts for open tasks missing notes (sample)
+  await attachAutoEvidenceDrafts(query);
 
   let instances: SscChecklistInstanceRow[] = [];
   let tasks: SscChecklistTaskRow[] = [];
@@ -717,7 +731,7 @@ export async function getSscOperatorBundle(
     ),
   });
 
-  const ai = buildSscAiBriefing({
+  const ai = await buildSscAiBriefingAsync({
     tasks,
     monitoring,
     periodLabel: `${periodLabel(query.period_type)} ${bounds.period_key}`,
@@ -739,6 +753,7 @@ export async function getSscOperatorBundle(
     sync,
     audits,
     generated: generated > 0,
+    escalation,
     money_auto_approve: false,
   };
 }
@@ -881,6 +896,49 @@ export async function updateAuditItem(input: {
   }
 }
 
+async function attachAutoEvidenceDrafts(query: SscOperatorQuery): Promise<void> {
+  try {
+    const supabase = await createPersistClient();
+    const functions: SscFunction[] =
+      query.function === 'all' ? [...SSC_FUNCTIONS] : [query.function];
+    const entityIds = resolveScopeEntityIds(
+      query.scope_mode,
+      query.single_entity_id,
+    );
+    // Limit work — one sample per function × entity
+    for (const fn of functions) {
+      for (const entityId of entityIds.slice(0, 3)) {
+        const hints = await collectEvidenceHints({
+          function_key: fn,
+          entity_id: entityId,
+        });
+        const note = formatEvidenceNote(hints);
+        if (!note) continue;
+        const { data: tasks } = await supabase
+          .from('os_ssc_checklist_tasks')
+          .select('id, evidence_note')
+          .eq('function_key', fn)
+          .eq('entity_id', entityId)
+          .in('status', ['not_started', 'in_progress'])
+          .is('evidence_note', null)
+          .limit(3);
+        for (const t of tasks ?? []) {
+          await supabase
+            .from('os_ssc_checklist_tasks')
+            .update({
+              evidence_note: note,
+              automation_source: 'ai_assisted',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', t.id);
+        }
+      }
+    }
+  } catch {
+    // fail-soft
+  }
+}
+
 async function markOverdueTasks(): Promise<void> {
   try {
     const supabase = await createPersistClient();
@@ -916,19 +974,32 @@ export async function seedAllCompanyAudits(): Promise<void> {
   }
 }
 
-export function functionHomeHref(fn: SscFunction): string {
-  switch (fn) {
-    case 'finance':
-      return '/shared-services/finance';
-    case 'hr':
-      return '/shared-services/hr';
-    case 'it':
-      return '/shared-services/it/assets';
-    case 'marketing':
-      return '/shared-services/marketing';
-    case 'legal':
-      return '/shared-services/legal/docusign';
-  }
+/** Call when a company is created/onboarded into SSC (entity OS page, registry, etc.). */
+export async function onCompanyOnboardedToSsc(input: {
+  entity_id: string;
+  actor_id?: string | null;
+}): Promise<{ startup_audit_id: string | null; annual_audit_id: string | null }> {
+  const startup = await ensureStartupAudit({
+    entity_id: input.entity_id,
+    actor_id: input.actor_id,
+    generated_by: 'onboarding',
+  });
+  const annual = await ensureAnnualAudit({
+    entity_id: input.entity_id,
+    actor_id: input.actor_id,
+  });
+  // Seed current monthly checklist for the company
+  await ensurePeriodInstances({
+    function: 'all',
+    period_type: 'monthly',
+    scope_mode: 'single',
+    single_entity_id: input.entity_id,
+    include_next: true,
+  });
+  return {
+    startup_audit_id: startup?.id ?? null,
+    annual_audit_id: annual?.id ?? null,
+  };
 }
 
-export { functionLabel, periodLabel };
+export { functionLabel, periodLabel, functionHomeHref } from './types';

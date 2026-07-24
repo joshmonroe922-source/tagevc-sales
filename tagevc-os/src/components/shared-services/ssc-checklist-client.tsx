@@ -22,6 +22,7 @@ import {
   periodLabel,
   scopeLabel,
   statusLabel,
+  functionHomeHref,
   type SscFunction,
   type SscPeriodType,
   type SscScopeMode,
@@ -34,6 +35,8 @@ type Props = {
   canWrite: boolean;
   mode?: 'checklists' | 'audits';
 };
+
+type Tab = 'overview' | 'tasks' | 'audits' | 'sync';
 
 const FUNCTIONS: Array<SscFunction | 'all'> = [
   'all',
@@ -56,14 +59,6 @@ const SCOPES: SscScopeMode[] = [
   'subs',
   'single',
 ];
-const STATUSES: Array<SscTaskStatus | 'all'> = [
-  'all',
-  'not_started',
-  'in_progress',
-  'done',
-  'blocked',
-  'waived',
-];
 
 function badgeForRisk(b: 'green' | 'amber' | 'red') {
   if (b === 'green') return 'bg-emerald-100 text-emerald-800';
@@ -80,8 +75,15 @@ export function SscChecklistClient({
   const [pending, startTransition] = useTransition();
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>(
+    mode === 'audits' ? 'audits' : 'tasks',
+  );
+  const [groupBy, setGroupBy] = useState<'function' | 'company' | 'status'>(
+    'function',
+  );
   const q = bundle.query;
   const companies = useMemo(() => listSscCompanies(), []);
+  const firm = bundle.monitoring.find((m) => m.function_key === 'all');
 
   function navigate(patch: Record<string, string>) {
     const params = new URLSearchParams();
@@ -97,14 +99,15 @@ export function SscChecklistClient({
       risk: q.risk ?? 'all',
       ...patch,
     };
-    for (const [k, v] of Object.entries(next)) {
-      if (v && v !== 'all' && !(k === 'entity' && next.scope !== 'single')) {
-        params.set(k, v);
-      }
-      if (k === 'function' || k === 'period' || k === 'scope' || k === 'time') {
-        params.set(k, v);
-      }
-    }
+    params.set('function', next.function);
+    params.set('period', next.period);
+    params.set('scope', next.scope);
+    params.set('time', next.time);
+    if (next.scope === 'single' && next.entity) params.set('entity', next.entity);
+    if (next.status && next.status !== 'all') params.set('status', next.status);
+    if (next.owner && next.owner !== 'all') params.set('owner', next.owner);
+    if (next.company && next.company !== 'all') params.set('company', next.company);
+    if (next.risk && next.risk !== 'all') params.set('risk', next.risk);
     const base =
       mode === 'audits'
         ? '/shared-services/audits'
@@ -119,7 +122,7 @@ export function SscChecklistClient({
         status,
         evidence_note: notes[taskId] ?? null,
       });
-      setMessage(res.ok ? 'Task updated' : res.error ?? 'Update failed');
+      setMessage(res.ok ? 'Saved' : res.error ?? 'Update failed');
       router.refresh();
     });
   }
@@ -131,63 +134,85 @@ export function SscChecklistClient({
         status,
         evidence_note: notes[itemId] ?? null,
       });
-      setMessage(res.ok ? 'Audit item updated' : res.error ?? 'Update failed');
+      setMessage(res.ok ? 'Saved' : res.error ?? 'Update failed');
       router.refresh();
     });
   }
 
-  const firm = bundle.monitoring.find((m) => m.function_key === 'all');
+  const groupedTasks = useMemo(() => {
+    const map = new Map<string, typeof bundle.tasks>();
+    for (const task of bundle.tasks) {
+      const key =
+        groupBy === 'company'
+          ? task.company_name
+          : groupBy === 'status'
+            ? statusLabel(task.status)
+            : functionLabel(task.function_key);
+      const list = map.get(key) ?? [];
+      list.push(task);
+      map.set(key, list);
+    }
+    return [...map.entries()];
+  }, [bundle.tasks, groupBy]);
+
+  const tabs: Array<{ id: Tab; label: string; count?: number }> = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'tasks', label: 'Tasks', count: bundle.tasks.length },
+    {
+      id: 'audits',
+      label: 'Audits',
+      count: bundle.audits.reduce((s, a) => s + a.open_item_count, 0),
+    },
+    { id: 'sync', label: 'Data sync', count: bundle.sync.length },
+  ];
 
   return (
-    <div className="space-y-6">
-      <header className="space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#3a414f]">
-            {mode === 'audits'
-              ? 'SSC Audits'
-              : 'Shared Services Checklists'}
-          </h1>
-          <Badge variant="outline">{bundle.contract_version}</Badge>
-        </div>
-        <p className="max-w-3xl text-sm text-muted-foreground">
-          Operate Finance, HR, IT, Marketing, and Legal for Tage and
-          subsidiaries from Tage alone. Period checklists, startup/annual
-          audits, AI drafts, and sync hooks — human approval on high-risk
-          actions.
-        </p>
-        <div className="flex flex-wrap gap-2 text-sm">
-          <Link
-            href="/shared-services/checklists"
-            className="text-[#3a414f] underline-offset-2 hover:underline"
-          >
-            Checklists
-          </Link>
-          <span className="text-muted-foreground">·</span>
-          <Link
-            href="/shared-services/audits"
-            className="text-[#3a414f] underline-offset-2 hover:underline"
-          >
-            Audits
-          </Link>
-          <span className="text-muted-foreground">·</span>
+    <div className="space-y-5">
+      <header className="space-y-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#3a414f]">
+                {mode === 'audits' ? 'SSC Audits' : 'SSC Checklists'}
+              </h1>
+              <Badge variant="outline">
+                {bundle.ai.provider === 'openai' ? 'AI · OpenAI' : 'AI · rules'}
+              </Badge>
+            </div>
+            <p className="max-w-2xl text-sm text-muted-foreground">
+              {scopeLabel(q.scope_mode)} · {periodLabel(q.period_type)}{' '}
+              {bundle.period_key} · {bundle.time_nav} · due {bundle.due_at}
+            </p>
+          </div>
           <Link
             href="/shared-services"
-            className="text-[#3a414f] underline-offset-2 hover:underline"
+            className="text-sm text-muted-foreground underline-offset-2 hover:underline"
           >
-            Shared Services hub
+            ← Shared Services Center
           </Link>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id)}
+              className={`h-9 rounded-md border px-3 text-sm ${
+                tab === t.id
+                  ? 'border-[#3a414f] bg-[#3a414f] text-white'
+                  : 'border-border bg-background'
+              }`}
+            >
+              {t.label}
+              {typeof t.count === 'number' ? ` (${t.count})` : ''}
+            </button>
+          ))}
         </div>
       </header>
 
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Filters</CardTitle>
-          <CardDescription>
-            {scopeLabel(q.scope_mode)} · {periodLabel(q.period_type)}{' '}
-            {bundle.period_key} · {bundle.time_nav} · due {bundle.due_at}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+        <CardContent className="grid gap-3 pt-4 md:grid-cols-3 lg:grid-cols-6">
           <label className="space-y-1 text-sm">
             <span className="text-muted-foreground">Function</span>
             <select
@@ -241,55 +266,180 @@ export function SscChecklistClient({
           </label>
           <label className="space-y-1 text-sm">
             <span className="text-muted-foreground">Time</span>
-            <select
-              className="h-9 w-full rounded-md border border-border bg-background px-2"
-              value={q.time_nav}
-              onChange={(e) => navigate({ time: e.target.value })}
-            >
-              <option value="past">Past</option>
-              <option value="current">Current</option>
-              <option value="future">Future</option>
-            </select>
+            <div className="flex h-9 overflow-hidden rounded-md border border-border">
+              {(['past', 'current', 'future'] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  className={`flex-1 text-xs capitalize ${
+                    q.time_nav === t ? 'bg-[#3a414f] text-white' : 'bg-background'
+                  }`}
+                  onClick={() => navigate({ time: t })}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
           </label>
           {mode === 'checklists' ? (
-            <>
-              <label className="space-y-1 text-sm">
+            <label className="space-y-1 text-sm">
+              <span className="text-muted-foreground">Risk</span>
+              <select
+                className="h-9 w-full rounded-md border border-border bg-background px-2"
+                value={q.risk ?? 'all'}
+                onChange={(e) => navigate({ risk: e.target.value })}
+              >
+                <option value="all">All risk</option>
+                <option value="high_plus">High + critical</option>
+              </select>
+            </label>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      {message ? (
+        <p className="text-sm text-muted-foreground">{message}</p>
+      ) : null}
+
+      {tab === 'overview' ? (
+        <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {(q.function === 'all'
+              ? bundle.monitoring
+              : bundle.monitoring.filter(
+                  (m) =>
+                    m.function_key === 'all' || m.function_key === q.function,
+                )
+            ).map((m) => (
+              <Card key={m.function_key}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">
+                    {functionLabel(m.function_key)}
+                  </CardTitle>
+                  <CardDescription>{m.trend_label}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span>Done</span>
+                    <strong>{m.completion_pct}%</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Overdue / blocked</span>
+                    <span>
+                      {m.overdue_tasks} / {m.blocked_tasks}
+                    </span>
+                  </div>
+                  <Badge className={badgeForRisk(m.risk_badge)}>
+                    {m.risk_badge}
+                  </Badge>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">AI period briefing</CardTitle>
+              <CardDescription>
+                Draft only · provider {bundle.ai.provider ?? 'rules'} · human
+                confirmation on high-risk actions
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <p>{bundle.ai.summary}</p>
+              <p className="text-muted-foreground">{bundle.ai.impact}</p>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <div className="mb-1 font-medium">Recommended order</div>
+                  <ol className="list-decimal space-y-1 pl-5">
+                    {bundle.ai.recommended_order.length ? (
+                      bundle.ai.recommended_order.map((x) => (
+                        <li key={x}>{x}</li>
+                      ))
+                    ) : (
+                      <li>No open items.</li>
+                    )}
+                  </ol>
+                </div>
+                <div>
+                  <div className="mb-1 font-medium">Next actions</div>
+                  <ul className="list-disc space-y-1 pl-5">
+                    {bundle.ai.next_actions.map((x) => (
+                      <li key={x}>{x}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {bundle.ai.guardrails.map((g) => (
+                  <Badge key={g} variant="outline">
+                    {g}
+                  </Badge>
+                ))}
+              </div>
+              {bundle.escalation.created > 0 || bundle.escalation.scanned > 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Escalation this load: scanned {bundle.escalation.scanned},
+                  created {bundle.escalation.created} ticket(s), skipped{' '}
+                  {bundle.escalation.skipped}
+                  {bundle.escalation.ticket_ids.length
+                    ? ` · ${bundle.escalation.ticket_ids.join(', ')}`
+                    : ''}
+                </p>
+              ) : null}
+              {firm ? (
+                <p className="text-xs text-muted-foreground">
+                  Firm {firm.completion_pct}% · {firm.overdue_tasks} overdue ·{' '}
+                  {firm.audit_open_items} audit open
+                </p>
+              ) : null}
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
+
+      {tab === 'tasks' ? (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap gap-2 text-sm">
+              <label className="flex items-center gap-2">
                 <span className="text-muted-foreground">Status</span>
                 <select
-                  className="h-9 w-full rounded-md border border-border bg-background px-2"
+                  className="h-8 rounded-md border border-border bg-background px-2"
                   value={q.status ?? 'all'}
                   onChange={(e) => navigate({ status: e.target.value })}
                 >
-                  {STATUSES.map((s) => (
-                    <option key={s} value={s}>
-                      {s === 'all' ? 'All statuses' : statusLabel(s)}
-                    </option>
-                  ))}
+                  <option value="all">All</option>
+                  <option value="not_started">Not started</option>
+                  <option value="in_progress">In progress</option>
+                  <option value="done">Done</option>
+                  <option value="blocked">Blocked</option>
+                  <option value="waived">Waived</option>
                 </select>
               </label>
-              <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground">Owner role</span>
+              <label className="flex items-center gap-2">
+                <span className="text-muted-foreground">Owner</span>
                 <select
-                  className="h-9 w-full rounded-md border border-border bg-background px-2"
+                  className="h-8 rounded-md border border-border bg-background px-2"
                   value={q.owner_role ?? 'all'}
                   onChange={(e) => navigate({ owner: e.target.value })}
                 >
-                  <option value="all">All owners</option>
+                  <option value="all">All</option>
                   <option value="service_lead">Service lead</option>
                   <option value="coo">COO</option>
-                  <option value="counsel_ops">Counsel / Ops</option>
+                  <option value="counsel_ops">Counsel</option>
                   <option value="partner">Partner</option>
                   <option value="admin">Admin</option>
                 </select>
               </label>
-              <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground">Company filter</span>
+              <label className="flex items-center gap-2">
+                <span className="text-muted-foreground">Company</span>
                 <select
-                  className="h-9 w-full rounded-md border border-border bg-background px-2"
+                  className="h-8 rounded-md border border-border bg-background px-2"
                   value={q.company_entity_id ?? 'all'}
                   onChange={(e) => navigate({ company: e.target.value })}
                 >
-                  <option value="all">All companies</option>
+                  <option value="all">All</option>
                   {companies.map((c) => (
                     <option key={c.entity_id} value={c.entity_id}>
                       {c.company_name}
@@ -297,317 +447,274 @@ export function SscChecklistClient({
                   ))}
                 </select>
               </label>
-              <label className="space-y-1 text-sm">
-                <span className="text-muted-foreground">Risk</span>
-                <select
-                  className="h-9 w-full rounded-md border border-border bg-background px-2"
-                  value={q.risk ?? 'all'}
-                  onChange={(e) => navigate({ risk: e.target.value })}
-                >
-                  <option value="all">All risk</option>
-                  <option value="high_plus">High + critical</option>
-                </select>
-              </label>
-            </>
-          ) : null}
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {(mode === 'checklists'
-          ? bundle.monitoring.filter(
-              (m) =>
-                q.function === 'all' ||
-                m.function_key === 'all' ||
-                m.function_key === q.function,
-            )
-          : bundle.monitoring.filter((m) => m.function_key === 'all')
-        ).map((m) => (
-          <Card key={m.function_key}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">
-                {functionLabel(m.function_key)}
-              </CardTitle>
-              <CardDescription>{m.trend_label}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <div className="flex items-center justify-between">
-                <span>Completion</span>
-                <strong>{m.completion_pct}%</strong>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Overdue</span>
-                <span>{m.overdue_tasks}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Blocked</span>
-                <span>{m.blocked_tasks}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Audit open</span>
-                <span>{m.audit_open_items}</span>
-              </div>
-              <Badge className={badgeForRisk(m.risk_badge)}>
-                {m.risk_badge} risk
-              </Badge>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">AI period briefing</CardTitle>
-          <CardDescription>
-            Draft recommendations only — confirm before approvals or high-risk
-            actions.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          <p>{bundle.ai.summary}</p>
-          <p className="text-muted-foreground">{bundle.ai.impact}</p>
-          <div>
-            <div className="mb-1 font-medium">Recommended order</div>
-            <ol className="list-decimal space-y-1 pl-5">
-              {bundle.ai.recommended_order.length ? (
-                bundle.ai.recommended_order.map((x) => (
-                  <li key={x}>{x}</li>
-                ))
-              ) : (
-                <li>No open items in this view.</li>
-              )}
-            </ol>
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <span className="text-muted-foreground">Group</span>
+              <select
+                className="h-8 rounded-md border border-border bg-background px-2"
+                value={groupBy}
+                onChange={(e) =>
+                  setGroupBy(e.target.value as typeof groupBy)
+                }
+              >
+                <option value="function">Function</option>
+                <option value="company">Company</option>
+                <option value="status">Status</option>
+              </select>
+            </label>
           </div>
-          <div>
-            <div className="mb-1 font-medium">Next actions</div>
-            <ul className="list-disc space-y-1 pl-5">
-              {bundle.ai.next_actions.map((x) => (
-                <li key={x}>{x}</li>
-              ))}
-            </ul>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {bundle.ai.guardrails.map((g) => (
-              <Badge key={g} variant="outline">
-                {g}
-              </Badge>
-            ))}
-          </div>
-          {firm ? (
-            <p className="text-xs text-muted-foreground">
-              Firm readiness {firm.completion_pct}% · {firm.overdue_tasks}{' '}
-              overdue · {firm.blocked_tasks} blocked
-            </p>
-          ) : null}
-        </CardContent>
-      </Card>
 
-      {mode === 'checklists' ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              Checklist tasks ({bundle.tasks.length})
-            </CardTitle>
-            <CardDescription>
-              {bundle.generated
-                ? 'Instances generated/refreshed for this period.'
-                : 'Using existing period instances.'}{' '}
-              Check off work and attach evidence.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {message ? (
-              <p className="text-sm text-muted-foreground">{message}</p>
-            ) : null}
-            {bundle.tasks.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No tasks for this selection yet. Future periods pre-generate on
-                open; try Current or regenerate by refreshing.
-              </p>
-            ) : (
-              bundle.tasks.map((task) => (
-                <div
-                  key={task.id}
-                  className="rounded-md border border-border p-3 space-y-2"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <div className="font-medium">{task.title}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {functionLabel(task.function_key)} · {task.company_name}{' '}
-                        · owner {task.owner_role} · due {task.due_date ?? '—'}
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      {task.is_overdue ? (
-                        <Badge className="bg-red-100 text-red-800">
-                          Overdue
-                        </Badge>
-                      ) : null}
-                      <Badge variant="outline">{task.risk_level}</Badge>
-                      <Badge variant="outline">
-                        {statusLabel(task.status)}
-                      </Badge>
-                      <Badge variant="outline">{task.automation_source}</Badge>
-                    </div>
-                  </div>
-                  {task.description ? (
-                    <p className="text-sm text-muted-foreground">
-                      {task.description}
-                    </p>
-                  ) : null}
-                  {task.ai_suggestion ? (
-                    <p className="text-xs text-[#3a414f]">
-                      AI: {task.ai_suggestion}
-                    </p>
-                  ) : null}
-                  <textarea
-                    className="min-h-[60px] w-full rounded-md border border-border bg-background p-2 text-sm"
-                    placeholder="Notes / evidence"
-                    value={notes[task.id] ?? task.evidence_note ?? ''}
-                    onChange={(e) =>
-                      setNotes((prev) => ({
-                        ...prev,
-                        [task.id]: e.target.value,
-                      }))
-                    }
-                    disabled={!canWrite || pending}
-                  />
-                  <div className="flex flex-wrap gap-2">
-                    {(
-                      [
-                        'in_progress',
-                        'done',
-                        'blocked',
-                        'waived',
-                        'not_started',
-                      ] as SscTaskStatus[]
-                    ).map((st) => (
-                      <button
-                        key={st}
-                        type="button"
-                        disabled={!canWrite || pending}
-                        className="h-8 rounded-md border border-border px-2 text-xs disabled:opacity-50"
-                        onClick={() => onTaskStatus(task.id, st)}
-                      >
-                        {statusLabel(st)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-4">
-          {bundle.audits.map((audit) => (
-            <Card key={audit.id}>
-              <CardHeader>
-                <CardTitle className="text-base">{audit.title}</CardTitle>
-                <CardDescription>
-                  {audit.company_name} · {audit.audit_type} ·{' '}
-                  {audit.completion_pct}% · {audit.open_item_count} open ·{' '}
-                  {audit.period_key}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {audit.items.map((item) => (
-                  <div
-                    key={item.id}
-                    className="rounded-md border border-border p-3 space-y-2"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div>
-                        <div className="font-medium">{item.title}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {functionLabel(item.function_key)} · owner{' '}
-                          {item.owner_role}
+          {groupedTasks.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-sm text-muted-foreground">
+                No tasks for this selection. Try Current time or All functions.
+              </CardContent>
+            </Card>
+          ) : (
+            groupedTasks.map(([group, tasks]) => (
+              <Card key={group}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">
+                    {group}{' '}
+                    <span className="text-muted-foreground font-normal">
+                      ({tasks.length})
+                    </span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {tasks.map((task) => (
+                    <div
+                      key={task.id}
+                      className="rounded-md border border-border p-3 space-y-2"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <div className="font-medium">{task.title}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {task.company_name} · {task.owner_role} · due{' '}
+                            {task.due_date ?? '—'}
+                            {task.function_key ? (
+                              <>
+                                {' '}
+                                ·{' '}
+                                <Link
+                                  href={functionHomeHref(task.function_key)}
+                                  className="underline-offset-2 hover:underline"
+                                >
+                                  function home
+                                </Link>
+                              </>
+                            ) : null}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {task.is_overdue ? (
+                            <Badge className="bg-red-100 text-red-800">
+                              Overdue
+                            </Badge>
+                          ) : null}
+                          {task.evidence_ticket_id ? (
+                            <Badge className="bg-amber-100 text-amber-900">
+                              Escalated {task.evidence_ticket_id}
+                            </Badge>
+                          ) : null}
+                          <Badge variant="outline">{task.risk_level}</Badge>
+                          <Badge variant="outline">
+                            {statusLabel(task.status)}
+                          </Badge>
                         </div>
                       </div>
-                      <div className="flex gap-1">
-                        <Badge variant="outline">{item.risk_level}</Badge>
+                      {task.ai_suggestion ? (
+                        <p className="text-xs text-[#3a414f]">
+                          {task.ai_suggestion}
+                        </p>
+                      ) : null}
+                      <textarea
+                        className="min-h-[52px] w-full rounded-md border border-border bg-background p-2 text-sm"
+                        placeholder="Notes / evidence"
+                        value={notes[task.id] ?? task.evidence_note ?? ''}
+                        onChange={(e) =>
+                          setNotes((prev) => ({
+                            ...prev,
+                            [task.id]: e.target.value,
+                          }))
+                        }
+                        disabled={!canWrite || pending}
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          disabled={!canWrite || pending}
+                          className="h-8 rounded-md bg-[#3a414f] px-3 text-xs text-white disabled:opacity-50"
+                          onClick={() => onTaskStatus(task.id, 'done')}
+                        >
+                          Mark done
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!canWrite || pending}
+                          className="h-8 rounded-md border border-border px-2 text-xs disabled:opacity-50"
+                          onClick={() => onTaskStatus(task.id, 'in_progress')}
+                        >
+                          In progress
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!canWrite || pending}
+                          className="h-8 rounded-md border border-border px-2 text-xs disabled:opacity-50"
+                          onClick={() => onTaskStatus(task.id, 'blocked')}
+                        >
+                          Blocked
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!canWrite || pending}
+                          className="h-8 rounded-md border border-border px-2 text-xs disabled:opacity-50"
+                          onClick={() => onTaskStatus(task.id, 'waived')}
+                        >
+                          Waive
+                        </button>
+                        {task.evidence_ticket_id ? (
+                          <Link
+                            href={`/shared-services/tickets/${task.evidence_ticket_id}`}
+                            className="inline-flex h-8 items-center text-xs underline-offset-2 hover:underline"
+                          >
+                            Open ticket
+                          </Link>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
+      ) : null}
+
+      {tab === 'audits' ? (
+        <div className="space-y-4">
+          {bundle.audits.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-sm text-muted-foreground">
+                No audits in scope yet.
+              </CardContent>
+            </Card>
+          ) : (
+            bundle.audits.map((audit) => (
+              <Card key={audit.id}>
+                <CardHeader>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <CardTitle className="text-base">{audit.title}</CardTitle>
+                    <Badge variant="outline">{audit.audit_type}</Badge>
+                    <Badge variant="outline">{audit.completion_pct}%</Badge>
+                  </div>
+                  <CardDescription>
+                    {audit.company_name} · {audit.open_item_count} open ·{' '}
+                    {audit.period_key}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {audit.items.map((item) => (
+                    <div
+                      key={item.id}
+                      className="rounded-md border border-border p-3 space-y-2"
+                    >
+                      <div className="flex flex-wrap justify-between gap-2">
+                        <div>
+                          <div className="font-medium">{item.title}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {functionLabel(item.function_key)} · {item.owner_role}
+                          </div>
+                        </div>
                         <Badge variant="outline">
                           {statusLabel(item.status)}
                         </Badge>
                       </div>
-                    </div>
-                    {item.ai_finding_draft ? (
-                      <p className="text-xs text-[#3a414f]">
-                        AI draft: {item.ai_finding_draft}
-                      </p>
-                    ) : null}
-                    <textarea
-                      className="min-h-[60px] w-full rounded-md border border-border bg-background p-2 text-sm"
-                      placeholder="Evidence / finding notes"
-                      value={notes[item.id] ?? item.evidence_note ?? ''}
-                      onChange={(e) =>
-                        setNotes((prev) => ({
-                          ...prev,
-                          [item.id]: e.target.value,
-                        }))
-                      }
-                      disabled={!canWrite || pending}
-                    />
-                    <div className="flex flex-wrap gap-2">
-                      {(
-                        [
-                          'in_progress',
-                          'done',
-                          'blocked',
-                          'waived',
-                        ] as SscTaskStatus[]
-                      ).map((st) => (
+                      {item.ai_finding_draft ? (
+                        <p className="text-xs text-[#3a414f]">
+                          {item.ai_finding_draft}
+                        </p>
+                      ) : null}
+                      <textarea
+                        className="min-h-[52px] w-full rounded-md border border-border bg-background p-2 text-sm"
+                        placeholder="Evidence / finding notes"
+                        value={notes[item.id] ?? item.evidence_note ?? ''}
+                        onChange={(e) =>
+                          setNotes((prev) => ({
+                            ...prev,
+                            [item.id]: e.target.value,
+                          }))
+                        }
+                        disabled={!canWrite || pending}
+                      />
+                      <div className="flex flex-wrap gap-2">
                         <button
-                          key={st}
+                          type="button"
+                          disabled={!canWrite || pending}
+                          className="h-8 rounded-md bg-[#3a414f] px-3 text-xs text-white disabled:opacity-50"
+                          onClick={() => onAuditStatus(item.id, 'done')}
+                        >
+                          Mark done
+                        </button>
+                        <button
                           type="button"
                           disabled={!canWrite || pending}
                           className="h-8 rounded-md border border-border px-2 text-xs disabled:opacity-50"
-                          onClick={() => onAuditStatus(item.id, st)}
+                          onClick={() => onAuditStatus(item.id, 'in_progress')}
                         >
-                          {statusLabel(st)}
+                          In progress
                         </button>
-                      ))}
+                        <button
+                          type="button"
+                          disabled={!canWrite || pending}
+                          className="h-8 rounded-md border border-border px-2 text-xs disabled:opacity-50"
+                          onClick={() => onAuditStatus(item.id, 'blocked')}
+                        >
+                          Blocked
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          ))}
+                  ))}
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
-      )}
+      ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">
-            Subsidiary sync hooks (Tage only)
-          </CardTitle>
-          <CardDescription>
-            Data pulls into Tage for SSC completion — no SSC UI in subsidiary
-            portals.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-2 sm:grid-cols-2">
-          {bundle.sync.map((s) => (
-            <div
-              key={`${s.entity_id}:${s.source_key}`}
-              className="rounded-md border border-border p-3 text-sm"
-            >
-              <div className="font-medium">
-                {s.company_name} · {s.source_key}
+      {tab === 'sync' ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">
+              Subsidiary data into Tage
+            </CardTitle>
+            <CardDescription>
+              Sync hooks only — no SSC UI in subsidiary portals.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-2 sm:grid-cols-2">
+            {bundle.sync.map((s) => (
+              <div
+                key={`${s.entity_id}:${s.source_key}`}
+                className="rounded-md border border-border p-3 text-sm"
+              >
+                <div className="font-medium">
+                  {s.company_name} · {s.source_key}
+                </div>
+                <Badge variant="outline" className="mt-1">
+                  {s.status}
+                </Badge>
+                <ul className="mt-2 list-disc pl-4 text-muted-foreground">
+                  {s.highlights.map((h) => (
+                    <li key={h}>{h}</li>
+                  ))}
+                </ul>
               </div>
-              <Badge variant="outline" className="mt-1">
-                {s.status}
-              </Badge>
-              <ul className="mt-2 list-disc pl-4 text-muted-foreground">
-                {s.highlights.map((h) => (
-                  <li key={h}>{h}</li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }

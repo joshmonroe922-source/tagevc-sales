@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Badge } from '@/components/ui/badge';
 import {
   Card,
   CardContent,
@@ -14,7 +15,7 @@ type Props = {
   entityId?: string | null;
 };
 
-/** Additive operating-home strip — does not replace existing module UIs. */
+/** Compact operating-home strip on each function page. */
 export function SscFunctionHomeStrip({ functionKey, entityId }: Props) {
   const qs = new URLSearchParams({
     function: functionKey,
@@ -27,32 +28,35 @@ export function SscFunctionHomeStrip({ functionKey, entityId }: Props) {
   return (
     <Card className="border-[#d8dde6] bg-[#f7f8fa]">
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">
-          {functionLabel(functionKey)} · SSC operating home
-        </CardTitle>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline">SSC</Badge>
+          <CardTitle className="text-base">
+            {functionLabel(functionKey)} operating home
+          </CardTitle>
+        </div>
         <CardDescription>
-          Period checklists, overdue/at-risk work, audits, AI recommendations,
-          and company scope — Tage Shared Services Center.
+          Cadence checklists and audits for this function — Tage Shared Services
+          Center.
         </CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-wrap gap-3 text-sm">
+      <CardContent className="flex flex-wrap gap-4 text-sm">
         <Link
           href={`/shared-services/checklists?${qs.toString()}`}
           className="font-medium text-[#3a414f] underline-offset-2 hover:underline"
         >
-          Open checklists
+          Period checklist
         </Link>
         <Link
           href={`/shared-services/audits?function=${functionKey}&scope=${entityId ? 'single' : 'parent_subs'}${entityId ? `&entity=${entityId}` : ''}`}
           className="font-medium text-[#3a414f] underline-offset-2 hover:underline"
         >
-          Startup / annual audits
+          Audits
         </Link>
         <Link
           href="/shared-services"
           className="text-muted-foreground underline-offset-2 hover:underline"
         >
-          Shared Services hub
+          SSC hub
         </Link>
       </CardContent>
     </Card>
