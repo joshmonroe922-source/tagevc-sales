@@ -54,7 +54,7 @@ export const MAIN_NAV: NavItem[] = [
   {
     module: 'portfolio',
     href: '/portfolio',
-    label: 'Portfolio Snapshot',
+    label: 'Dashboard',
     description: 'Company health overview',
   },
   {

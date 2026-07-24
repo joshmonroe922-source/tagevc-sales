@@ -64,6 +64,7 @@ import { displayName } from '@/lib/messaging/repo-client';
 import { Avatar, AvatarFallback, AvatarImage, AvatarBadge } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { CompanySelect } from '@/components/shared/company-select';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -1400,12 +1401,12 @@ export function MessagesShell({ initial }: Props) {
               />
             </label>
             <label className="block space-y-1.5 text-sm">
-              <span className="text-muted-foreground">Entity ID (optional)</span>
-              <Input
+              <span className="text-muted-foreground">Company (optional)</span>
+              <CompanySelect
                 value={linkEntityId}
-                onChange={(e) => setLinkEntityId(e.target.value)}
-                placeholder="Related entity id"
-                autoComplete="off"
+                onChange={setLinkEntityId}
+                allowAll
+                allLabel="No company link"
               />
             </label>
             <Button

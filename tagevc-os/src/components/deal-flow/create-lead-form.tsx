@@ -7,6 +7,7 @@ import {
   createLeadAction,
   type ActionResult,
 } from '@/app/(app)/deal-flow/vc/actions';
+import { CompanySelect } from '@/components/shared/company-select';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -126,21 +127,19 @@ export function CreateLeadForm({
           {showRelatedEntity ? (
             <div className="space-y-1.5 sm:col-span-2">
               <Label htmlFor="related_entity_id">
-                Related entity (optional)
+                Related company (optional)
               </Label>
-              <select
+              <CompanySelect
                 id="related_entity_id"
                 name="related_entity_id"
-                className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
+                allowAll
+                allLabel="— none —"
                 defaultValue={defaultRelatedEntityId ?? ''}
-              >
-                <option value="">— none —</option>
-                {entities.map((e) => (
-                  <option key={e.entity_id} value={e.entity_id}>
-                    {e.canonical_name} ({e.entity_id})
-                  </option>
-                ))}
-              </select>
+                options={entities.map((e) => ({
+                  value: e.entity_id,
+                  label: e.canonical_name,
+                }))}
+              />
             </div>
           ) : null}
           <div className="space-y-1.5 sm:col-span-2">

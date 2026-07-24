@@ -38,7 +38,7 @@ export default async function PortfolioPage() {
       <header className="space-y-2">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#3a414f]">
-            Portfolio Snapshot
+            Dashboard
           </h1>
           <Badge variant="outline" className="font-normal">
             Period {rollup.period}

@@ -55,11 +55,11 @@ export const SS_HUB_MODULES: SsHubModule[] = [
   {
     id: 'finance',
     href: '/shared-services/finance',
-    title: 'Finance control plane',
+    title: 'Finance & Accounting',
     service: 'Finance',
     status: 'live',
     description:
-      'IES orchestration · KPI panels, close checklists, anomaly alerts, dual-approve write-backs.',
+      'KPI pack · close checklists · company visibility · exceptions · dual-approve write-backs (IES stays system of record).',
     docs: 'docs/OS_PHASE55.md',
   },
   {
@@ -69,7 +69,7 @@ export const SS_HUB_MODULES: SsHubModule[] = [
     service: 'HR',
     status: 'live',
     description:
-      'Onboarding/offboarding completeness · revocation evidence · exception aging (Phase 57).',
+      'People roster · joiner/mover/leaver · onboarding/offboarding · access readiness · service requests.',
     docs: 'docs/OS_PHASE57.md',
   },
 ];

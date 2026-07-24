@@ -57,6 +57,7 @@ import {
   runIntuneWorkerAction,
   type ItAssetActionResult,
 } from '@/app/(app)/shared-services/it/assets/actions';
+import { CompanySelect } from '@/components/shared/company-select';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -1612,8 +1613,14 @@ export function ItAssetsClient({
               <Input id="warranty_ends_at" name="warranty_ends_at" type="date" />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="entity_id">Entity id (optional)</Label>
-              <Input id="entity_id" name="entity_id" placeholder="ENT-001" />
+              <Label htmlFor="entity_id">Company (optional)</Label>
+              <CompanySelect
+                id="entity_id"
+                name="entity_id"
+                allowAll
+                allLabel="Firm-wide / none"
+                className="h-8"
+              />
             </div>
             <Button type="submit" size="sm" disabled={hwPending}>
               Create asset
@@ -1647,8 +1654,14 @@ export function ItAssetsClient({
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="lic_entity">Entity id (optional)</Label>
-              <Input id="lic_entity" name="entity_id" placeholder="ENT-001" />
+              <Label htmlFor="lic_entity">Company (optional)</Label>
+              <CompanySelect
+                id="lic_entity"
+                name="entity_id"
+                allowAll
+                allLabel="Firm-wide / none"
+                className="h-8"
+              />
             </div>
             <Button type="submit" size="sm" disabled={licPending}>
               Create license

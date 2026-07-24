@@ -120,7 +120,7 @@ export default async function DealFlowHubPage() {
           href="/portfolio"
           className="font-medium underline-offset-4 hover:underline"
         >
-          Portfolio Snapshot →
+          Dashboard →
         </Link>
       </div>
     </div>

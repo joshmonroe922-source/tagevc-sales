@@ -11,6 +11,7 @@ import {
 } from '@/app/(app)/shared-services/legal/docusign/actions';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { CompanySelect } from '@/components/shared/company-select';
 import {
   Card,
   CardContent,
@@ -200,12 +201,13 @@ export function LegalHardeningPhase56Client({
       <CardContent className="space-y-6 text-sm">
         <div className="flex flex-wrap items-end gap-2">
           <label className="space-y-1 text-xs text-muted-foreground">
-            Entity filter
-            <input
-              className="block h-9 w-44 rounded-md border border-border bg-background px-2 text-sm"
+            Company filter
+            <CompanySelect
+              allowAll
+              allLabel="All companies"
               value={entityId}
-              onChange={(e) => setEntityId(e.target.value)}
-              placeholder="ENT-R619"
+              onChange={setEntityId}
+              className="block w-44"
             />
           </label>
           <Button

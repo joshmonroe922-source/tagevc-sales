@@ -62,17 +62,24 @@ function mapRun(row: Record<string, unknown>): OnboardingRun {
   };
 }
 
-export async function listOnboardingRuns(limit = 30): Promise<{
+export async function listOnboardingRuns(
+  limit = 30,
+  entityId?: string | null,
+): Promise<{
   rows: OnboardingRun[];
   error?: string;
 }> {
   try {
     const sb = await createPersistClient();
-    const { data, error } = await sb
+    let q = sb
       .from('os_it_onboarding_runs')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(limit);
+    if (entityId) {
+      q = q.eq('entity_id', entityId);
+    }
+    const { data, error } = await q;
     if (error) return { rows: [], error: error.message };
     return {
       rows: (data ?? []).map((r) => mapRun(r as Record<string, unknown>)),
@@ -443,7 +450,7 @@ export async function startOnboardingFromHrTicket(input: {
   });
 }
 
-export function listOnboardingCandidateTickets(): Array<{
+export function listOnboardingCandidateTickets(entityId?: string | null): Array<{
   ticket_id: string;
   title: string;
   service: string;
@@ -453,6 +460,7 @@ export function listOnboardingCandidateTickets(): Array<{
     .filter((t) => {
       if (t.status === 'Closed' || t.status === 'Resolved') return false;
       if (t.service !== 'HR' && t.service !== 'IT') return false;
+      if (entityId && t.entity_id && t.entity_id !== entityId) return false;
       const blob = `${t.title} ${t.description ?? ''}`.toLowerCase();
       return (
         blob.includes('onboard') ||

@@ -27,6 +27,7 @@ import {
   type RiskMilestoneKind,
 } from '@/lib/portfolio/operating-cadence-phase60';
 import { entityDisplayName } from '@/lib/entities/display-name';
+import { CompanySelect } from '@/components/shared/company-select';
 
 export function OperatingCadencePhase60Client({
   report: initialReport,
@@ -143,12 +144,13 @@ export function OperatingCadencePhase60Client({
             >
               Company filter
             </label>
-            <input
+            <CompanySelect
               id="p60-entity"
-              className="h-9 w-44 rounded-md border border-border bg-background px-2 text-sm"
-              placeholder="Recruit 619"
+              allowAll
+              allLabel="All companies"
               value={entityId}
-              onChange={(e) => setEntityId(e.target.value)}
+              onChange={setEntityId}
+              className="w-44"
             />
           </div>
           <Button type="button" size="sm" disabled={pending} onClick={runRefresh}>

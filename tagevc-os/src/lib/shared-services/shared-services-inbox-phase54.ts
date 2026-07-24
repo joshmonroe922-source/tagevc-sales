@@ -85,10 +85,9 @@ const DEFAULT_MODULE_STUBS: SsInboxModuleStub[] = [
   },
   {
     service: 'HR',
-    href: '/shared-services?service=HR',
-    status: 'planned',
-    // TODO: Phase 57 HR production hardening
-    todo: 'Phase 57 HR production hardening — dedicated HR page not yet live',
+    href: '/shared-services/hr',
+    status: 'live',
+    todo: null,
   },
   {
     service: 'Legal',
@@ -132,8 +131,7 @@ export function emptySharedServicesInboxPhase54Report(
     recent_alerts: [],
     module_stubs: DEFAULT_MODULE_STUBS,
     entity_filter_hint: PHASE54_ENTITY_FILTER_HINT,
-    // TODO: Refresh board from os_tickets; HR page pending Phase 57.
-    todo: 'Refresh inbox board from os_tickets; HR module page is a stub until Phase 57',
+    todo: 'Refresh inbox board from open service tickets',
     money_auto_approve: false,
     contract_version: PHASE54_SS_INBOX_CONTRACT_VERSION,
   };

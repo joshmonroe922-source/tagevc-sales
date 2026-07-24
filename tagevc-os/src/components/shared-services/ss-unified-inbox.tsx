@@ -5,6 +5,7 @@ import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { refreshSharedServicesInboxPhase54Action } from '@/app/(app)/shared-services/actions';
 import { BandBadge } from '@/components/shared-services/band-badge';
+import { CompanySelect } from '@/components/shared/company-select';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -183,19 +184,13 @@ export function SsUnifiedInbox({
         </label>
         <label className="space-y-1 text-xs">
           <span className="text-muted-foreground">Company</span>
-          <input
-            className="block h-9 min-w-[10rem] rounded-md border border-border bg-background px-2 text-sm"
-            placeholder="Recruit 619"
+          <CompanySelect
+            allowAll
+            allLabel="All companies"
             value={entityId}
-            onChange={(e) => setEntityId(e.target.value)}
-            list="phase54-entity-hints"
+            onChange={setEntityId}
+            className="block min-w-[12rem]"
           />
-          <datalist id="phase54-entity-hints">
-            <option value="ENT-R619">Recruit 619</option>
-            <option value="ENT-INDA">Instant NDA</option>
-            <option value="ENT-FIRM">Tage Venture Capital</option>
-            <option value="ENT-001">Sample Closed Co</option>
-          </datalist>
         </label>
         <label className="space-y-1 text-xs">
           <span className="text-muted-foreground">SLA</span>

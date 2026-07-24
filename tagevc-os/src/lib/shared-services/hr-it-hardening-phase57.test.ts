@@ -223,7 +223,7 @@ describe('Phase 57 HR + IT production hardening', () => {
     expect(ui).toContain('Phase 57');
     expect(ui).toContain('dual');
     expect(ui).toContain('Never auto-close breakers');
-    expect(ui).toContain('ENT-R619');
+    expect(ui).toContain('Recruit 619');
     expect(ui).toContain('Intune dual-approve inbox');
 
     expect(inboxUi).toContain('Phase 57 aging');

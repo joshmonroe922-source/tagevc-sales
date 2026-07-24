@@ -126,10 +126,13 @@ describe('Phase 54 Shared Services Inbox Unification', () => {
     expect(report.entity_filter_hint).toBe(PHASE54_ENTITY_FILTER_HINT);
     expect(report.module_stubs.some((s) => s.service === 'Finance')).toBe(true);
     expect(report.module_stubs.some((s) => s.service === 'HR')).toBe(true);
-    expect(report.todo.toLowerCase()).toContain('hr');
+    expect(report.todo.toLowerCase()).toContain('refresh');
     const finance = report.module_stubs.find((s) => s.service === 'Finance');
     expect(finance?.status).toBe('live');
     expect(finance?.href).toBe('/shared-services/finance');
+    const hr = report.module_stubs.find((s) => s.service === 'HR');
+    expect(hr?.status).toBe('live');
+    expect(hr?.href).toBe('/shared-services/hr');
   });
 
   it('classifies SLA and builds unified inbox with entity + service filters', () => {
@@ -243,7 +246,7 @@ describe('Phase 54 Shared Services Inbox Unification', () => {
 
     expect(lib).toContain('buildUnifiedInboxRows');
     expect(lib).toContain(PHASE54_SS_INBOX_CONTRACT_VERSION);
-    expect(lib).toContain('TODO');
+    expect(lib).toContain("status: 'live'");
     expect(lib).not.toContain('createPersistClient');
 
     const serverLib = readFileSync(

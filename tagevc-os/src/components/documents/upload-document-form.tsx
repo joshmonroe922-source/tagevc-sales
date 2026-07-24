@@ -6,6 +6,7 @@ import {
   uploadDocumentAction,
   type DocActionResult,
 } from '@/app/(app)/documents/actions';
+import { CompanySelect } from '@/components/shared/company-select';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -50,20 +51,17 @@ export function UploadDocumentForm({
       <CardContent>
         <form action={action} className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="entity_id">Entity</Label>
-            <select
+            <Label htmlFor="entity_id">Company</Label>
+            <CompanySelect
               id="entity_id"
               name="entity_id"
               required
-              className="h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm"
               defaultValue={defaultEntityId ?? entities[0]?.entity_id}
-            >
-              {entities.map((e) => (
-                <option key={e.entity_id} value={e.entity_id}>
-                  {e.canonical_name}
-                </option>
-              ))}
-            </select>
+              options={entities.map((e) => ({
+                value: e.entity_id,
+                label: e.canonical_name,
+              }))}
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="folder">Folder</Label>

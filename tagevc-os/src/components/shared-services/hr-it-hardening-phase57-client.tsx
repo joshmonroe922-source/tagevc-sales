@@ -25,17 +25,21 @@ import {
   type HighRiskActionKind,
   type HrItHardeningPhase57Report,
 } from '@/lib/shared-services/hr-it-hardening-phase57';
+import { CompanySelect } from '@/components/shared/company-select';
 
 export function HrItHardeningPhase57Client({
   report: initialReport,
   canWrite,
   initialEntityId = '',
   surface = 'hr',
+  showPageHeader = true,
 }: {
   report: HrItHardeningPhase57Report;
   canWrite: boolean;
   initialEntityId?: string;
   surface?: 'hr' | 'it';
+  /** When false, omit the top-level HR page header (parent already provides one). */
+  showPageHeader?: boolean;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -174,10 +178,9 @@ export function HrItHardeningPhase57Client({
 
   return (
     <div className={surface === 'hr' ? 'space-y-8' : undefined}>
-      {surface === 'hr' ? (
+      {surface === 'hr' && showPageHeader ? (
         <header className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline">Phase 57</Badge>
             <Badge variant="secondary">
               Board · {boardStatusLabel(report.board_status)}
             </Badge>
@@ -188,10 +191,9 @@ export function HrItHardeningPhase57Client({
             {title}
           </h1>
           <p className="max-w-2xl text-sm text-muted-foreground">
-            Onboarding/offboarding run completeness, asset/license assignment
-            visibility, access revocation evidence, Intune dual-approve inbox
-            aging, and escalations. High-risk actions stay dual-approved;
-            breakers are never auto-closed.
+            Onboarding and offboarding completeness, assignment visibility,
+            access revoke evidence, and escalations. High-risk actions stay
+            dual-approved.
           </p>
         </header>
       ) : null}
@@ -215,22 +217,25 @@ export function HrItHardeningPhase57Client({
           </CardHeader>
         ) : (
           <CardHeader>
-            <CardTitle className="text-base">Hardening board</CardTitle>
+            <CardTitle className="text-base">
+              Access & lifecycle hardening
+            </CardTitle>
             <CardDescription>
-              Fail-soft when run tables are empty. Reuses multi-sub identity
-              lifecycle (P5) and Intune dual-approve inbox where present.
+              Completeness, assignment visibility, revoke evidence, and
+              escalations. Fail-soft when run tables are empty.
             </CardDescription>
           </CardHeader>
         )}
         <CardContent className="space-y-6 text-sm">
           <div className="flex flex-wrap items-end gap-2">
             <label className="space-y-1 text-xs text-muted-foreground">
-              Entity filter
-              <input
-                className="block h-9 w-44 rounded-md border border-border bg-background px-2 text-sm"
+              Company filter
+              <CompanySelect
+                allowAll
+                allLabel="All companies"
                 value={entityId}
-                onChange={(e) => setEntityId(e.target.value)}
-                placeholder="ENT-R619"
+                onChange={setEntityId}
+                className="block w-44"
               />
             </label>
             <Button

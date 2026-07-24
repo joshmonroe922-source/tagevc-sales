@@ -60,6 +60,18 @@ export async function refreshFinanceControlPlanePhase55Action(
     actorId: gate.profile.id,
     entityId: entityId ?? null,
   });
+  // Best-effort year-end pack seed (Phase 62); never blocks refresh.
+  try {
+    const { seedFinanceYearEndChecklistPhase62 } = await import(
+      '@/lib/shared-services/hr-ops-phase62-server'
+    );
+    await seedFinanceYearEndChecklistPhase62({
+      actorId: gate.profile.id,
+      entityId: entityId ?? null,
+    });
+  } catch {
+    // fail-soft
+  }
   revalidateFinance(entityId);
   if (!result.ok) {
     return {
@@ -84,7 +96,7 @@ export async function refreshFinanceControlPlanePhase55Action(
 const checklistSchema = z.object({
   entityId: z.string().nullable().optional(),
   closeKind: z.enum(['month_end', 'year_end']),
-  periodKey: z.string().min(4).max(7),
+  periodKey: z.string().min(4).max(16),
   itemKey: z.string().min(2).max(64),
   itemLabel: z.string().min(2).max(200),
   status: z.enum(['open', 'in_progress', 'blocked', 'done', 'waived']),

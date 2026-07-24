@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { CompanySelect } from '@/components/shared/company-select';
 import {
   archiveExpiredSloExportsAction,
   exportSloSimulationAction,
@@ -195,11 +196,17 @@ function PolicyEditor({
             <div className="space-y-1"><Label>Recovery buckets</Label><Input name="recoveryBuckets" type="number" defaultValue={value.recovery_buckets} /></div>
             {active.scope === 'entity' ? (
               <div className="space-y-1">
-                <Label>Owner entity</Label>
-                <select value={ownerEntityId} onChange={(event) => setOwnerEntityId(event.target.value)} className="h-9 w-full rounded-md border bg-background px-2 text-sm">
-                  <option value="">Firm fallback</option>
-                  {entities.map((entity) => <option key={entity.entity_id} value={entity.entity_id}>{entity.canonical_name}</option>)}
-                </select>
+                <Label>Owner company</Label>
+                <CompanySelect
+                  value={ownerEntityId}
+                  onChange={setOwnerEntityId}
+                  allowAll
+                  allLabel="Firm fallback"
+                  options={entities.map((entity) => ({
+                    value: entity.entity_id,
+                    label: entity.canonical_name,
+                  }))}
+                />
               </div>
             ) : null}
             <div className="space-y-1">
@@ -589,10 +596,16 @@ export function SloPolicyAdmin({
               <option value="">Select draft</option>
               {drafts.map((draft) => <option key={draft.policy_id} value={draft.policy_id}>{draft.service} / {draft.metric_key}</option>)}
             </select>
-            <select value={simulationEntityId} onChange={(event) => setSimulationEntityId(event.target.value)} className="h-9 rounded-md border bg-background px-2 text-sm">
-              <option value="">Firm / no entity</option>
-              {entities.map((entity) => <option key={entity.entity_id} value={entity.entity_id}>{entity.canonical_name}</option>)}
-            </select>
+            <CompanySelect
+              value={simulationEntityId}
+              onChange={setSimulationEntityId}
+              allowAll
+              allLabel="Firm / no company"
+              options={entities.map((entity) => ({
+                value: entity.entity_id,
+                label: entity.canonical_name,
+              }))}
+            />
             <Input type="number" min={1} max={90} value={simulationDays} onChange={(event) => setSimulationDays(Number(event.target.value))} />
             <Button disabled={pending || !simulationDraftId} onClick={requestSimulation}>Queue counterfactual</Button>
           </div>
@@ -1138,9 +1151,16 @@ export function SloPolicyAdmin({
             <select value={adapter} onChange={(event) => { const next = event.target.value as typeof adapter; setAdapter(next); setDestinationKey(next === 'in_app_owner' ? 'owner' : ''); }} className="h-9 rounded-md border bg-background px-2 text-sm">
               <option value="in_app_owner">In-app owner</option><option value="webhook">Webhook</option>
             </select>
-            <select value={entityId} onChange={(event) => setEntityId(event.target.value)} className="h-9 rounded-md border bg-background px-2 text-sm">
-              <option value="">Firm-wide</option>{entities.map((entity) => <option key={entity.entity_id} value={entity.entity_id}>{entity.canonical_name}</option>)}
-            </select>
+            <CompanySelect
+              value={entityId}
+              onChange={setEntityId}
+              allowAll
+              allLabel="Firm-wide"
+              options={entities.map((entity) => ({
+                value: entity.entity_id,
+                label: entity.canonical_name,
+              }))}
+            />
             {adapter === 'in_app_owner' ? (
               <select value={ownerId} onChange={(event) => setOwnerId(event.target.value)} className="h-9 rounded-md border bg-background px-2 text-sm">
                 {owners.filter((owner) =>

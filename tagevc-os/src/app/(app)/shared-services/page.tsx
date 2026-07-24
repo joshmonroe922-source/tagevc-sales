@@ -31,7 +31,11 @@ import { SloPolicyAdmin } from '@/components/shared-services/slo-policy-admin';
 import { listSloPolicyAdministration } from '@/lib/shared-services/slo-policy';
 
 type Props = {
-  searchParams?: Promise<{ service?: string; entity?: string }>;
+  searchParams?: Promise<{
+    service?: string;
+    entity?: string;
+    template?: string;
+  }>;
 };
 
 export default async function SharedServicesPage({ searchParams }: Props) {
@@ -43,6 +47,7 @@ export default async function SharedServicesPage({ searchParams }: Props) {
     ? (initialServiceRaw as SsService)
     : 'All';
   const initialEntityId = params.entity?.trim() ?? '';
+  const initialTemplate = params.template?.trim() ?? '';
 
   const ctx = await getSessionContext();
   const firmWide = ctx
@@ -175,7 +180,13 @@ export default async function SharedServicesPage({ searchParams }: Props) {
         })}
       />
 
-      <CreateTicketForm />
+      <CreateTicketForm
+        prefill={{
+          service: initialService === 'All' ? undefined : initialService,
+          template: initialTemplate || undefined,
+          entityId: initialEntityId || undefined,
+        }}
+      />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>

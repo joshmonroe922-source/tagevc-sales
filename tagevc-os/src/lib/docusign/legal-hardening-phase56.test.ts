@@ -207,7 +207,8 @@ describe('Phase 56 Legal / DocuSign production hardening', () => {
     expect(ui).toContain('dual');
     expect(ui).toContain('Capital send');
     expect(ui).toContain('Archive integrity');
-    expect(ui).toContain('ENT-R619');
+    expect(ui).toContain('Recruit 619');
+    expect(ui).toContain('CompanySelect');
     expect(ui).toContain('Never silent send');
 
     expect(modules).toContain("href: '/shared-services/legal/docusign'");

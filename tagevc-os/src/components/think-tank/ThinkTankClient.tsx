@@ -143,10 +143,28 @@ export function ThinkTankClient({
           aria-live="polite"
         >
           {messages.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Ask what to win today: deal actions, Shared Services backlog,
-              portfolio risks, or approvals due.
-            </p>
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Ask what to win today: deal actions, Shared Services backlog,
+                portfolio risks, or approvals due.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  'What should I win today?',
+                  'Where am I behind on goals this week?',
+                  'Prioritize my open service and deal queues.',
+                ].map((prompt) => (
+                  <button
+                    key={prompt}
+                    type="button"
+                    className="rounded-md border border-border bg-background px-2.5 py-1.5 text-left text-xs hover:bg-muted"
+                    onClick={() => setDraft(prompt)}
+                  >
+                    {prompt}
+                  </button>
+                ))}
+              </div>
+            </div>
           ) : (
             messages.map((m) => (
               <div

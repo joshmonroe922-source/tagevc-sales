@@ -63,17 +63,24 @@ function mapRun(row: Record<string, unknown>): OffboardingRun {
   };
 }
 
-export async function listOffboardingRuns(limit = 30): Promise<{
+export async function listOffboardingRuns(
+  limit = 30,
+  entityId?: string | null,
+): Promise<{
   rows: OffboardingRun[];
   error?: string;
 }> {
   try {
     const sb = await createPersistClient();
-    const { data, error } = await sb
+    let q = sb
       .from('os_it_offboarding_runs')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(limit);
+    if (entityId) {
+      q = q.eq('entity_id', entityId);
+    }
+    const { data, error } = await q;
     if (error) return { rows: [], error: error.message };
     return {
       rows: (data ?? []).map((r) => mapRun(r as Record<string, unknown>)),
@@ -574,7 +581,7 @@ export async function startOffboardingFromHrTicket(input: {
 }
 
 /** Open HR/IT tickets that look like offboarding requests. */
-export function listOffboardingCandidateTickets(): Array<{
+export function listOffboardingCandidateTickets(entityId?: string | null): Array<{
   ticket_id: string;
   title: string;
   service: string;
@@ -584,6 +591,7 @@ export function listOffboardingCandidateTickets(): Array<{
     .filter((t) => {
       if (t.status === 'Closed' || t.status === 'Resolved') return false;
       if (t.service !== 'HR' && t.service !== 'IT') return false;
+      if (entityId && t.entity_id && t.entity_id !== entityId) return false;
       const blob = `${t.title} ${t.description ?? ''}`.toLowerCase();
       return (
         blob.includes('offboard') ||

@@ -1,5 +1,6 @@
 import { FinanceControlPlaneClient } from '@/components/shared-services/finance-control-plane-client';
 import { getFinanceControlPlanePhase55Report } from '@/lib/shared-services/finance-control-plane-phase55-server';
+import { listPortfolioFinanceBridgePhase62 } from '@/lib/shared-services/finance-ops-phase62-server';
 import { isFirmWideAccess } from '@/lib/rbac/entity-scope';
 import { getSessionContext, requirePermission } from '@/lib/rbac/session';
 import { roleHasPermission } from '@/lib/types/roles';
@@ -21,7 +22,10 @@ export default async function FinanceControlPlanePage({ searchParams }: Props) {
     ? entityParam || null
     : (ctx?.profile.entity_id ?? (entityParam || null));
 
-  const report = await getFinanceControlPlanePhase55Report({ entityId });
+  const [report, portfolioBridge] = await Promise.all([
+    getFinanceControlPlanePhase55Report({ entityId }),
+    listPortfolioFinanceBridgePhase62({ entityId }),
+  ]);
   const canWrite = ctx
     ? roleHasPermission(ctx.profile.role, 'write:shared_services')
     : false;
@@ -31,6 +35,7 @@ export default async function FinanceControlPlanePage({ searchParams }: Props) {
       report={report}
       canWrite={canWrite}
       initialEntityId={entityId ?? ''}
+      portfolioBridge={portfolioBridge}
     />
   );
 }

@@ -27,6 +27,7 @@ import {
   upsertBrandVoiceAction,
   type MarketingActionResult,
 } from '@/app/(app)/shared-services/marketing/actions';
+import { CompanySelect } from '@/components/shared/company-select';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -1039,8 +1040,13 @@ export function MarketingClient({
               <Input id="camp_name" name="name" required placeholder="Q3 brand push" />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="camp_entity">Entity id (blank = firm-wide)</Label>
-              <Input id="camp_entity" name="entity_id" placeholder="ENT-001" />
+              <Label htmlFor="camp_entity">Company (blank = firm-wide)</Label>
+              <CompanySelect
+                id="camp_entity"
+                name="entity_id"
+                allowAll
+                allLabel="Firm-wide"
+              />
             </div>
             <div className="space-y-1">
               <Label htmlFor="camp_obj">Objective</Label>
@@ -1223,8 +1229,13 @@ export function MarketingClient({
               </select>
             </div>
             <div className="space-y-1">
-              <Label htmlFor="ac_entity">Entity id (optional)</Label>
-              <Input id="ac_entity" name="entity_id" placeholder="ENT-001" />
+              <Label htmlFor="ac_entity">Company (optional)</Label>
+              <CompanySelect
+                id="ac_entity"
+                name="entity_id"
+                allowAll
+                allLabel="Firm-wide"
+              />
             </div>
             <div className="space-y-1">
               <Label htmlFor="ac_external">
@@ -1277,8 +1288,13 @@ export function MarketingClient({
                 <Input id="bv_name" name="name" required placeholder="Tage VC default" />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="bv_entity">Entity id (blank = firm)</Label>
-                <Input id="bv_entity" name="entity_id" placeholder="ENT-001" />
+                <Label htmlFor="bv_entity">Company (blank = firm)</Label>
+                <CompanySelect
+                  id="bv_entity"
+                  name="entity_id"
+                  allowAll
+                  allLabel="Firm-wide"
+                />
               </div>
             </div>
             <div className="space-y-1">

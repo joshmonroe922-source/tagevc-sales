@@ -53,7 +53,7 @@ const MODULE_QUICK_NAV = [
   { href: '/deal-flow', label: 'Deal Flow' },
   { href: '/deal-flow/vc', label: 'VC pipeline' },
   { href: '/deal-flow/vc/intake', label: 'Lead Intake' },
-  { href: '/portfolio', label: 'Portfolio Snapshot' },
+  { href: '/portfolio', label: 'Dashboard' },
   { href: '/shared-services', label: 'Shared Services' },
   { href: '/shared-services/finance', label: 'Finance' },
   { href: '/shared-services/legal/docusign', label: 'Legal' },
@@ -249,7 +249,7 @@ export default async function CommandCenterPage() {
             href="/portfolio"
             className="text-sm font-medium text-[#3a414f] underline-offset-4 hover:underline"
           >
-            View Portfolio Snapshot →
+            View Dashboard →
           </Link>
         </CardHeader>
         <CardContent className="divide-y divide-border">

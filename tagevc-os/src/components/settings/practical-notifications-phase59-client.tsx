@@ -9,6 +9,7 @@ import {
 } from '@/app/(app)/settings/notifications/actions';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { CompanySelect } from '@/components/shared/company-select';
 import {
   Card,
   CardContent,
@@ -103,14 +104,15 @@ export function PracticalNotificationsPhase59Client({
               htmlFor="p59-entity"
               className="text-xs font-medium text-muted-foreground"
             >
-              Entity filter
+              Company filter
             </label>
-            <input
+            <CompanySelect
               id="p59-entity"
-              className="h-9 w-44 rounded-md border border-border bg-background px-2 text-sm"
-              placeholder={report.entity_filter_hint}
+              allowAll
+              allLabel="All companies"
               value={entityId}
-              onChange={(e) => setEntityId(e.target.value)}
+              onChange={setEntityId}
+              className="w-44"
             />
           </div>
           <Button type="button" size="sm" disabled={pending} onClick={runRefresh}>

@@ -179,11 +179,14 @@ describe('Phase 55 Finance Control Plane (IES orchestration)', () => {
     expect(actions).toContain('money_auto_approve: false');
     expect(actions).toContain('ies_write_executed: false');
 
-    expect(ui).toContain('Phase 55');
+    expect(ui).toContain('Finance & Accounting');
     expect(ui).toContain('dual');
     expect(ui).toContain('IES');
-    expect(ui).toContain('Month-end close checklist');
-    expect(ui).toContain('ENT-R619');
+    expect(ui).toContain('Month-end close');
+    expect(ui).toContain('Year-end close');
+    expect(ui).toContain('Recruit 619');
+    expect(ui).toContain('IES_BOUNDARY');
+    expect(ui).toContain('portfolioBridge');
 
     expect(modules).toContain("href: '/shared-services/finance'");
     expect(modules).toContain("id: 'finance'");

@@ -2,6 +2,8 @@
  * Role bands for Tage Think Tank — leadership vs operator vs deal teams.
  */
 
+import { entityDisplayName } from '@/lib/entities/display-name';
+
 export type ThinkTankRoleBand =
   | 'leadership'
   | 'operator'
@@ -79,9 +81,10 @@ export function buildTageThinkTankSystemPrompt(opts: {
 
   return [
     `You are Grok, embedded as the Think Tank AI operating advisor for ${who} on Tage Venture Capital OS (app.tagevc.com).`,
-    `Home entity: ${opts.entityId}.`,
+    `Home company: ${entityDisplayName(opts.entityId)} (${opts.entityId}).`,
     'Advise like a sharp venture operating partner. Be concrete, use numbered next actions when useful,',
     'and ask clarifying questions when data is missing.',
+    'Prefer company names over entity codes in advice.',
     'You advise only — never claim to have executed wires, DocuSign, IC votes, role changes, or money moves.',
     'Money is never auto-approved. The user remains the decision-maker.',
     `Role band: ${opts.roleBand}. Focus on:`,

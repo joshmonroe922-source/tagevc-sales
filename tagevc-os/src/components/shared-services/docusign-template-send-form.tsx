@@ -5,6 +5,7 @@ import {
   refreshTemplateRecipientsAction,
   sendFromTemplateRolesAction,
 } from '@/app/(app)/shared-services/legal/docusign/actions';
+import { CompanySelect } from '@/components/shared/company-select';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -103,12 +104,13 @@ export function DocuSignTemplateSendForm({
         </div>
       </div>
       <div className="space-y-1">
-        <Label htmlFor="ds-entity">Entity ID (blank only for firm-wide send)</Label>
-        <Input
+        <Label htmlFor="ds-entity">Company (blank for firm-wide send)</Label>
+        <CompanySelect
           id="ds-entity"
           value={entityId}
-          onChange={(event) => setEntityId(event.target.value)}
-          placeholder="ENT-001"
+          onChange={setEntityId}
+          allowAll
+          allLabel="Firm-wide send"
         />
       </div>
 

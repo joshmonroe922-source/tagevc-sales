@@ -163,7 +163,7 @@ describe('Phase 53 Subsidiary Rollup Hub (Recruit first)', () => {
     expect(entitiesPage).toContain('performance rollup');
     expect(nav).toContain('/entities');
     expect(nav).toContain('Entities');
-    expect(nav).toContain('Portfolio Snapshot');
+    expect(nav).toContain('Dashboard');
     expect(nav).not.toContain('Recruit 619 Rollup');
     expect(actions).toContain('refreshSubsidiaryRollupPhase53Action');
   });

@@ -36,9 +36,10 @@ describe('main nav IA', () => {
     const labels = MAIN_NAV.map((i) => i.label);
     expect(labels).toEqual([
       'Command Center',
+      'Think Tank',
       'Firm',
       'Business Development',
-      'Portfolio Snapshot',
+      'Dashboard',
       'Entities',
       'Shared Services',
       'Document Library',

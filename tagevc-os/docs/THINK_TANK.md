@@ -33,3 +33,9 @@ portal_key: `tage` | `r619` | `inda`
 
 ## Env
 `XAI_API_KEY` (or `GROK_API_KEY`), optional `XAI_MODEL` (default `grok-3-mini`), `XAI_BASE_URL`
+
+## Deploy checklist
+1. Apply canonical SQL once on the shared UDL DB: `tagevc-os/supabase/phase63_think_tank.sql` (idempotent; also mirrored in R619/INDA SQL folders).
+2. Set `XAI_API_KEY` in each portal Vercel env (Preview + Production). Optional: `XAI_MODEL`, `XAI_BASE_URL`.
+3. Smoke: open `/think-tank` as an authenticated user, send a chip prompt, confirm assistant reply, then New thread.
+4. Visionary view-as: thread stays on the real Visionary profile (advise-only; no privileged actions).

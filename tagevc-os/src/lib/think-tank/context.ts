@@ -1,10 +1,14 @@
 import { listRecentActivity } from '@/lib/data/activity';
+import {
+  listScopedActiveDeals,
+  listScopedActiveLeads,
+  listScopedIcQueue,
+  listScopedTickets,
+} from '@/lib/data/pipeline-scope';
 import { getCommandCenterSnapshot } from '@/lib/data/repositories';
+import { entityDisplayName } from '@/lib/entities/display-name';
 import type { SessionContext } from '@/lib/rbac/session';
-import { createClient } from '@/lib/supabase/server';
 import { APP_ROLE_LABELS } from '@/lib/types/roles';
-
-const OPEN_TICKET_STATUSES = ['Open', 'In Progress', 'Blocked'] as const;
 
 /** Compact, privacy-aware Tage OS context for Think Tank. Fails soft. */
 export async function collectTageThinkTankContext(
@@ -13,21 +17,26 @@ export async function collectTageThinkTankContext(
   const entityId = session.profile.entity_id ?? 'ENT-FIRM';
   const base: Record<string, unknown> = {
     portal: 'tage',
+    companyName: entityDisplayName(entityId),
     entityId,
     realRole: session.realRole,
     effectiveRole: session.profile.role,
+    effectiveRoleLabel: APP_ROLE_LABELS[session.profile.role],
     impersonatingAs: session.impersonatingAs,
     impersonatingAsLabel: session.impersonatingAs
       ? APP_ROLE_LABELS[session.impersonatingAs]
       : null,
     goalsHint:
-      'If personal KPIs are not stored, help define today/this-week goals from funnel, tickets, and portfolio attention.',
+      'If personal KPIs are not stored, help define today/this-week goals from funnel, tickets, IC queue, and portfolio attention.',
   };
 
-  const [snap, activity, openTickets] = await Promise.all([
+  const [snap, activity, tickets, leads, deals, icQueue] = await Promise.all([
     safeCommandCenter(),
     safeRecentActivity(),
-    safeOpenTicketCount(),
+    safeTickets(),
+    safeLeads(),
+    safeDeals(),
+    safeIc(),
   ]);
 
   if (snap) {
@@ -55,9 +64,48 @@ export async function collectTageThinkTankContext(
     base.commandCenter = { unavailable: true };
   }
 
+  const openTickets = tickets.filter(
+    (t) => !['Closed', 'Resolved'].includes(t.status),
+  );
+  const overdueTickets = openTickets
+    .filter((t) => t.sla_due_at && new Date(t.sla_due_at).getTime() < Date.now())
+    .slice(0, 5)
+    .map((t) => ({
+      title: t.title,
+      service: t.service,
+      priority: t.priority,
+      company: entityDisplayName({
+        company_name: t.company_name,
+        entity_id: t.entity_id,
+      }),
+    }));
+
+  const icPending = icQueue.filter(
+    (r) => r.status === 'Pending' || r.status === 'In Review',
+  ).length;
+
   base.counts = {
-    openSsTickets: openTickets,
+    openSsTickets: openTickets.length,
+    overdueSsTickets: overdueTickets.length,
+    activeLeads: leads.length,
+    activeDeals: deals.length,
+    icPending,
     recentActivity: activity.count,
+  };
+
+  base.queues = {
+    overdueServiceItems: overdueTickets,
+    topOpenTickets: openTickets.slice(0, 5).map((t) => ({
+      title: t.title,
+      service: t.service,
+      priority: t.priority,
+      company: entityDisplayName({
+        company_name: t.company_name,
+        entity_id: t.entity_id,
+      }),
+    })),
+    leadStages: summarizeBy(leads.map((l) => l.stage ?? 'Unknown')),
+    dealStages: summarizeBy(deals.map((d) => d.exec_stage ?? 'Unknown')),
   };
 
   if (activity.titles.length > 0) {
@@ -65,6 +113,12 @@ export async function collectTageThinkTankContext(
   }
 
   return base;
+}
+
+function summarizeBy(values: string[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const v of values) out[v] = (out[v] ?? 0) + 1;
+  return out;
 }
 
 async function safeCommandCenter() {
@@ -95,19 +149,34 @@ async function safeRecentActivity(): Promise<{
   }
 }
 
-async function safeOpenTicketCount(): Promise<number | null> {
+async function safeTickets() {
   try {
-    const supabase = await createClient();
-    const { count, error } = await supabase
-      .from('os_tickets')
-      .select('id', { count: 'exact', head: true })
-      .in('status', [...OPEN_TICKET_STATUSES]);
-    if (error) {
-      console.warn('[think-tank:tage] open tickets count', error.message);
-      return null;
-    }
-    return count ?? 0;
+    return await listScopedTickets();
   } catch {
-    return null;
+    return [];
+  }
+}
+
+async function safeLeads() {
+  try {
+    return await listScopedActiveLeads();
+  } catch {
+    return [];
+  }
+}
+
+async function safeDeals() {
+  try {
+    return await listScopedActiveDeals();
+  } catch {
+    return [];
+  }
+}
+
+async function safeIc() {
+  try {
+    return await listScopedIcQueue();
+  } catch {
+    return [];
   }
 }
