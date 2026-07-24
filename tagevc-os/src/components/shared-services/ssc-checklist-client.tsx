@@ -29,6 +29,7 @@ import {
   type SscTaskStatus,
 } from '@/lib/shared-services/ssc-checklist/types';
 import { listSscCompanies } from '@/lib/shared-services/ssc-checklist/scope';
+import { sparklineBars } from '@/lib/shared-services/ssc-checklist/trends';
 
 type Props = {
   bundle: SscOperatorBundle;
@@ -310,32 +311,88 @@ export function SscChecklistClient({
                   (m) =>
                     m.function_key === 'all' || m.function_key === q.function,
                 )
-            ).map((m) => (
-              <Card key={m.function_key}>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">
-                    {functionLabel(m.function_key)}
-                  </CardTitle>
-                  <CardDescription>{m.trend_label}</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-1 text-sm">
-                  <div className="flex justify-between">
-                    <span>Done</span>
-                    <strong>{m.completion_pct}%</strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Overdue / blocked</span>
-                    <span>
-                      {m.overdue_tasks} / {m.blocked_tasks}
-                    </span>
-                  </div>
-                  <Badge className={badgeForRisk(m.risk_badge)}>
-                    {m.risk_badge}
-                  </Badge>
-                </CardContent>
-              </Card>
-            ))}
+            ).map((m) => {
+              const trend = bundle.trends.find(
+                (t) => t.function_key === m.function_key,
+              );
+              return (
+                <Card key={m.function_key}>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">
+                      {functionLabel(m.function_key)}
+                    </CardTitle>
+                    <CardDescription>{m.trend_label}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span>Done</span>
+                      <strong>{m.completion_pct}%</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Overdue / blocked</span>
+                      <span>
+                        {m.overdue_tasks} / {m.blocked_tasks}
+                      </span>
+                    </div>
+                    {trend ? (
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span className="font-mono tracking-tight">
+                          {sparklineBars(trend.sparkline)}
+                        </span>
+                        <span>
+                          {trend.delta_completion != null
+                            ? `${trend.delta_completion >= 0 ? '+' : ''}${trend.delta_completion}pts`
+                            : '—'}
+                        </span>
+                      </div>
+                    ) : null}
+                    <Badge className={badgeForRisk(m.risk_badge)}>
+                      {m.risk_badge}
+                    </Badge>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
+
+          {bundle.packages.length > 0 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">
+                  Subsidiary completion packages
+                </CardTitle>
+                <CardDescription>
+                  Intake freshness for SSC evidence — no subsidiary SSC UI.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-2 sm:grid-cols-2">
+                {bundle.packages.slice(0, 8).map((p) => (
+                  <div
+                    key={`${p.entity_id}:${p.package_key}:${p.period_key}`}
+                    className="rounded-md border border-border p-3 text-sm"
+                  >
+                    <div className="font-medium">
+                      {p.company_name} · {p.package_key}
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      <Badge variant="outline">{p.status}</Badge>
+                      {p.stale ? (
+                        <Badge className="bg-amber-100 text-amber-900">
+                          Stale
+                        </Badge>
+                      ) : null}
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Freshness{' '}
+                      {p.freshness_at
+                        ? p.freshness_at.slice(0, 16).replace('T', ' ')
+                        : 'unknown'}
+                    </p>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          ) : null}
 
           <Card>
             <CardHeader>
@@ -380,7 +437,8 @@ export function SscChecklistClient({
               {bundle.escalation.created > 0 || bundle.escalation.scanned > 0 ? (
                 <p className="text-xs text-muted-foreground">
                   Escalation this load: scanned {bundle.escalation.scanned},
-                  created {bundle.escalation.created} ticket(s), skipped{' '}
+                  created {bundle.escalation.created} ticket(s), notifications{' '}
+                  {bundle.escalation.notifications ?? 0}, skipped{' '}
                   {bundle.escalation.skipped}
                   {bundle.escalation.ticket_ids.length
                     ? ` · ${bundle.escalation.ticket_ids.join(', ')}`

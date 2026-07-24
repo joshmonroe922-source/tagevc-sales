@@ -83,6 +83,18 @@
     {
       "path": "/api/ops/slo-deliver",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/ssc/cadence-worker?kind=full",
+      "schedule": "15 6 * * *"
+    },
+    {
+      "path": "/api/ssc/cadence-worker?kind=escalate",
+      "schedule": "20 */4 * * *"
+    },
+    {
+      "path": "/api/ssc/cadence-worker?kind=sync",
+      "schedule": "45 7 * * *"
     }
   ]
 }

@@ -6,7 +6,7 @@
 import { createPersistClient } from '@/lib/supabase/persist-client';
 import { auditItemLibrary } from './audit-library';
 import { buildSscAiBriefingAsync, draftAuditFinding, suggestTaskNextAction } from './ai';
-import { collectEvidenceHints, formatEvidenceNote } from './evidence';
+import { collectEvidenceHints, formatEvidenceNote, evidenceFreshnessIso } from './evidence';
 import { escalateOverdueSscTasks } from './escalate';
 import {
   classifyTimeNav,
@@ -17,6 +17,8 @@ import {
 import { companyName, resolveScopeEntityIds } from './scope';
 import { collectSubsidiarySyncHooks } from './sync-hooks';
 import { templatesFor } from './task-library';
+import { getSscPeriodTrends, type SscFunctionTrend } from './trends';
+import { listCompletionPackages, type CompletionPackage } from './completion-packages';
 import {
   SSC_FUNCTIONS,
   SSC_PHASE66_CONTRACT,
@@ -39,6 +41,7 @@ export type EscalateSummary = {
   scanned: number;
   created: number;
   skipped: number;
+  notifications?: number;
   ticket_ids: string[];
 };
 
@@ -69,6 +72,8 @@ export type SscOperatorBundle = {
   ai: SscAiBriefing;
   sync: SscSyncSnapshot[];
   audits: SscAuditRow[];
+  trends: SscFunctionTrend[];
+  packages: CompletionPackage[];
   generated: boolean;
   escalation: EscalateSummary;
   money_auto_approve: false;
@@ -731,12 +736,28 @@ export async function getSscOperatorBundle(
     ),
   });
 
-  const ai = await buildSscAiBriefingAsync({
-    tasks,
-    monitoring,
-    periodLabel: `${periodLabel(query.period_type)} ${bounds.period_key}`,
-    functionFilter: query.function,
-  });
+  const [trends, packages, ai] = await Promise.all([
+    getSscPeriodTrends({
+      period_type:
+        query.period_type === 'as_needed' ? 'weekly' : query.period_type,
+      scope_mode: query.scope_mode,
+      entity_id:
+        query.scope_mode === 'single' ? query.single_entity_id : null,
+      history: 6,
+    }),
+    listCompletionPackages({
+      entityIds: resolveScopeEntityIds(
+        query.scope_mode,
+        query.single_entity_id,
+      ),
+    }),
+    buildSscAiBriefingAsync({
+      tasks,
+      monitoring,
+      periodLabel: `${periodLabel(query.period_type)} ${bounds.period_key}`,
+      functionFilter: query.function,
+    }),
+  ]);
 
   return {
     contract_version: SSC_PHASE66_CONTRACT,
@@ -752,6 +773,8 @@ export async function getSscOperatorBundle(
     ai,
     sync,
     audits,
+    trends,
+    packages,
     generated: generated > 0,
     escalation,
     money_auto_approve: false,
@@ -923,11 +946,16 @@ async function attachAutoEvidenceDrafts(query: SscOperatorQuery): Promise<void> 
           .is('evidence_note', null)
           .limit(3);
         for (const t of tasks ?? []) {
+          const freshness = evidenceFreshnessIso(hints);
           await supabase
             .from('os_ssc_checklist_tasks')
             .update({
               evidence_note: note,
               automation_source: 'ai_assisted',
+              meta: {
+                evidence_freshness_at: freshness,
+                evidence_sources: hints.map((h) => h.source),
+              },
               updated_at: new Date().toISOString(),
             })
             .eq('id', t.id);

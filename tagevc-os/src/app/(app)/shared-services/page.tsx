@@ -111,9 +111,9 @@ export default async function SharedServicesPage({ searchParams }: Props) {
           Shared Services Center
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Run Finance, HR, IT, Marketing, and Legal for Tage and every
-          subsidiary from one place. Tickets, checklists, and audits live here —
-          high-risk and money actions always need a person.
+          Checklists and audits are the daily control surface. Cadence runs on
+          schedule — overdue work escalates to tickets and in-app alerts without
+          waiting for someone to open this page.
         </p>
       </header>
 

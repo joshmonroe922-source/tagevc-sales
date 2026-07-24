@@ -1,6 +1,7 @@
 /**
  * Auto-escalate overdue high/critical SSC checklist tasks into Shared Services tickets.
- * Dedupes via evidence_ticket_id. Never moves money or sends legal docs.
+ * Dedupes via evidence_ticket_id. Ticket creation is the hard guarantee.
+ * Notifications via os_ssc_ops_alerts + app_notifications (Phase 67).
  */
 
 import {
@@ -9,6 +10,7 @@ import {
   listTickets,
 } from '@/lib/data/ticket-store';
 import { createPersistClient } from '@/lib/supabase/persist-client';
+import { writeSscNotifications } from './notify';
 import { companyName } from './scope';
 import type { SscFunction } from './types';
 import { functionLabel } from './types';
@@ -32,6 +34,7 @@ export type EscalateResult = {
   scanned: number;
   created: number;
   skipped: number;
+  notifications: number;
   ticket_ids: string[];
 };
 
@@ -43,6 +46,7 @@ export async function escalateOverdueSscTasks(opts?: {
     scanned: 0,
     created: 0,
     skipped: 0,
+    notifications: 0,
     ticket_ids: [],
   };
 
@@ -79,92 +83,99 @@ export async function escalateOverdueSscTasks(opts?: {
           t.entity_id === entityId &&
           t.title.includes(String(row.title)),
       );
+
+      let ticketId: string | null = already?.ticket_id ?? null;
+
       if (already) {
         await supabase
           .from('os_ssc_checklist_tasks')
           .update({
             evidence_ticket_id: already.ticket_id,
+            evidence_url: `/shared-services/tickets/${already.ticket_id}`,
             ai_suggestion: `Escalated earlier as ${already.ticket_id}. Complete checklist task or update ticket.`,
             updated_at: new Date().toISOString(),
           })
           .eq('id', row.id);
         result.skipped += 1;
-        continue;
+      } else {
+        try {
+          const fn = row.function_key as SscFunction;
+          const ticket = createTicket({
+            title: titleMarker,
+            description: [
+              'Auto-escalated from Shared Services Center checklist (Phase 66/67).',
+              `Company: ${companyName(entityId)}`,
+              `Function: ${functionLabel(fn)}`,
+              `Owner role: ${row.owner_role}`,
+              `Due: ${row.due_date}`,
+              `Risk: ${row.risk_level}`,
+              '',
+              String(row.description ?? ''),
+              '',
+              'Human confirmation required for high-risk actions. No autonomous money movement or legal send/sign.',
+              `Checklist task: ${row.id}`,
+              'Open: /shared-services/checklists',
+            ].join('\n'),
+            desired_outcome:
+              'Clear the overdue SSC checklist item and attach evidence',
+            service: serviceFor(fn),
+            priority: row.risk_level === 'critical' ? 'P0' : 'P1',
+            requester_name: 'SSC automation',
+            entity_id: entityId,
+            company_name: companyName(entityId),
+            links: '/shared-services/checklists',
+            assignee_name: String(row.owner_role ?? 'service_lead'),
+            ai_generated: true,
+          });
+          ticketId = ticket.ticket_id;
+
+          await supabase
+            .from('os_ssc_checklist_tasks')
+            .update({
+              evidence_ticket_id: ticket.ticket_id,
+              evidence_url: `/shared-services/tickets/${ticket.ticket_id}`,
+              automation_source: 'auto',
+              ai_suggestion: `Escalated to ${ticket.ticket_id}. Resolve ticket evidence, then mark checklist done.`,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', row.id);
+
+          await supabase.from('os_ssc_checklist_task_events').insert({
+            task_id: row.id,
+            instance_id: row.instance_id,
+            event_kind: 'overdue_mark',
+            note: `Escalated to ticket ${ticket.ticket_id}`,
+            actor_id: opts?.actorId ?? null,
+            detail: { ticket_id: ticket.ticket_id, auto: true },
+          });
+
+          result.created += 1;
+          result.ticket_ids.push(ticket.ticket_id);
+        } catch {
+          result.skipped += 1;
+          continue;
+        }
       }
 
-      try {
-        const fn = row.function_key as SscFunction;
-        const ticket = createTicket({
-          title: titleMarker,
-          description: [
-            'Auto-escalated from Shared Services Center checklist (Phase 66).',
-            `Company: ${companyName(entityId)}`,
-            `Function: ${functionLabel(fn)}`,
-            `Owner role: ${row.owner_role}`,
-            `Due: ${row.due_date}`,
-            `Risk: ${row.risk_level}`,
-            '',
-            String(row.description ?? ''),
-            '',
-            'Human confirmation required for high-risk actions. No autonomous money movement or legal send/sign.',
-            `Checklist task: ${row.id}`,
-            'Open: /shared-services/checklists',
-          ].join('\n'),
-          desired_outcome:
-            'Clear the overdue SSC checklist item and attach evidence',
-          service: serviceFor(fn),
-          priority: row.risk_level === 'critical' ? 'P0' : 'P1',
-          requester_name: 'SSC automation',
+      if (ticketId) {
+        const notify = await writeSscNotifications({
           entity_id: entityId,
-          company_name: companyName(entityId),
-          links: '/shared-services/checklists',
-          assignee_name: String(row.owner_role ?? 'service_lead'),
-          ai_generated: true,
+          alert_kind: 'ssc_overdue_escalation',
+          severity: row.risk_level === 'critical' ? 'critical' : 'warning',
+          title: titleMarker,
+          body: `${companyName(entityId)} · ${functionLabel(row.function_key as SscFunction)} · ticket ${ticketId}`,
+          href: `/shared-services/tickets/${ticketId}`,
+          ticket_id: ticketId,
+          task_id: String(row.id),
+          window_key: `ssc-esc:${row.id}:${ticketId}`,
+          detail: {
+            due_date: row.due_date,
+            risk_level: row.risk_level,
+          },
         });
-
-        await supabase
-          .from('os_ssc_checklist_tasks')
-          .update({
-            evidence_ticket_id: ticket.ticket_id,
-            evidence_url: `/shared-services/tickets/${ticket.ticket_id}`,
-            automation_source: 'auto',
-            ai_suggestion: `Escalated to ${ticket.ticket_id}. Resolve ticket evidence, then mark checklist done.`,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', row.id);
-
-        await supabase.from('os_ssc_checklist_task_events').insert({
-          task_id: row.id,
-          instance_id: row.instance_id,
-          event_kind: 'overdue_mark',
-          note: `Escalated to ticket ${ticket.ticket_id}`,
-          actor_id: opts?.actorId ?? null,
-          detail: { ticket_id: ticket.ticket_id, auto: true },
-        });
-
-        // Best-effort ops alert row if phase59 table exists
-        try {
-          await supabase.from('os_notification_phase59_ops_alerts').insert({
-            entity_id: entityId,
-            severity: row.risk_level === 'critical' ? 'critical' : 'high',
-            title: titleMarker,
-            body: `SSC overdue escalation → ${ticket.ticket_id}`,
-            route_kind: 'owner_routed',
-            destination_key: 'ops_alerts',
-            meta: {
-              ticket_id: ticket.ticket_id,
-              ssc_task_id: row.id,
-              source: 'ssc_phase66',
-            },
-          });
-        } catch {
-          // table shape may differ — fail-soft
+        if (notify.ops_alert || notify.app_notifications > 0) {
+          result.notifications += 1 + notify.app_notifications;
         }
-
-        result.created += 1;
-        result.ticket_ids.push(ticket.ticket_id);
-      } catch {
-        result.skipped += 1;
       }
     }
   } catch {
