@@ -72,6 +72,24 @@ export const SS_HUB_MODULES: SsHubModule[] = [
       'People roster · joiner/mover/leaver · onboarding/offboarding · access readiness · service requests.',
     docs: 'docs/OS_PHASE57.md',
   },
+  {
+    id: 'checklists',
+    href: '/shared-services/checklists',
+    title: 'SSC period checklists',
+    service: 'All',
+    status: 'live',
+    description:
+      'Weekly → annual cadence · scope toggles · task checkoff · evidence · AI briefing (Phase 66).',
+  },
+  {
+    id: 'audits',
+    href: '/shared-services/audits',
+    title: 'Startup & annual audits',
+    service: 'All',
+    status: 'live',
+    description:
+      'Per-company startup readiness + annual compliance audits across all SSC functions.',
+  },
 ];
 
 /** Modules shown as navigable cards on the hub (exclude self-link tickets). */

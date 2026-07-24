@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { HrItHardeningPhase57Client } from '@/components/shared-services/hr-it-hardening-phase57-client';
 import { ItAssetsClient } from '@/components/shared-services/it-assets-client';
+import { SscFunctionHomeStrip } from '@/components/shared-services/ssc-function-home-strip';
 import { Badge } from '@/components/ui/badge';
 import {
   listAssignmentEvents,
@@ -190,6 +191,8 @@ export default async function ItAssetsModulePage() {
       >
         ← Shared Services
       </Link>
+
+      <SscFunctionHomeStrip functionKey="it" />
 
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">

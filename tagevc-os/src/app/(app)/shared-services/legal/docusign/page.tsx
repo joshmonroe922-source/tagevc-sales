@@ -5,6 +5,7 @@ import { DocuSignReplacementForm } from '@/components/shared-services/docusign-r
 import { DocuSignManualReview } from '@/components/shared-services/docusign-manual-review';
 import { DocuSignMappingReview } from '@/components/shared-services/docusign-mapping-review';
 import { LegalHardeningPhase56Client } from '@/components/shared-services/legal-hardening-phase56-client';
+import { SscFunctionHomeStrip } from '@/components/shared-services/ssc-function-home-strip';
 import { getLegalHardeningPhase56Report } from '@/lib/docusign/legal-hardening-phase56-server';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -294,6 +295,8 @@ export default async function DocuSignModulePage({
       >
         ← Shared Services
       </Link>
+
+      <SscFunctionHomeStrip functionKey="legal" />
 
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">

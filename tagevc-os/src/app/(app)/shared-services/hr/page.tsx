@@ -1,5 +1,6 @@
 import { HrItHardeningPhase57Client } from '@/components/shared-services/hr-it-hardening-phase57-client';
 import { HrOpsDepthClient } from '@/components/shared-services/hr-ops-depth-client';
+import { SscFunctionHomeStrip } from '@/components/shared-services/ssc-function-home-strip';
 import { getHrItHardeningPhase57Report } from '@/lib/shared-services/hr-it-hardening-phase57-server';
 import { getHrOpsBundlePhase62 } from '@/lib/shared-services/hr-ops-phase62-server';
 import { isFirmWideAccess } from '@/lib/rbac/entity-scope';
@@ -43,6 +44,8 @@ export default async function HrOperationsPage({ searchParams }: Props) {
           silently revoked.
         </p>
       </header>
+
+      <SscFunctionHomeStrip functionKey="hr" entityId={entityId} />
 
       <HrOpsDepthClient
         roster={ops.roster}

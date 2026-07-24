@@ -96,6 +96,21 @@ export default async function SharedServicesPage({ searchParams }: Props) {
           ownership, and escalation across Finance, Legal, HR, IT, and
           Marketing. High-risk or money actions always need a person.
         </p>
+        <p className="text-sm">
+          <Link
+            href="/shared-services/checklists"
+            className="font-medium text-[#3a414f] underline-offset-2 hover:underline"
+          >
+            SSC period checklists
+          </Link>
+          <span className="mx-2 text-muted-foreground">·</span>
+          <Link
+            href="/shared-services/audits"
+            className="font-medium text-[#3a414f] underline-offset-2 hover:underline"
+          >
+            Startup & annual audits
+          </Link>
+        </p>
       </header>
 
       <OperationalHealthSummary health={operationalHealth} />

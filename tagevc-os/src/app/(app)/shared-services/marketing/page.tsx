@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { MarketingClient } from '@/components/shared-services/marketing-client';
 import { MarketingHardeningPhase58Client } from '@/components/shared-services/marketing-hardening-phase58-client';
 import { MarketingRevenuePhase41 } from '@/components/shared-services/marketing-revenue-phase41';
+import { SscFunctionHomeStrip } from '@/components/shared-services/ssc-function-home-strip';
 import { Badge } from '@/components/ui/badge';
 import { listBrandVoices } from '@/lib/shared-services/marketing-brand';
 import { getMarketingAnalyticsSummary } from '@/lib/shared-services/marketing-analytics';
@@ -209,6 +210,8 @@ export default async function MarketingModulePage({
       >
         ← Shared Services
       </Link>
+
+      <SscFunctionHomeStrip functionKey="marketing" />
 
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">

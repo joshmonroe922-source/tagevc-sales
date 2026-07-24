@@ -1,4 +1,5 @@
 import { FinanceControlPlaneClient } from '@/components/shared-services/finance-control-plane-client';
+import { SscFunctionHomeStrip } from '@/components/shared-services/ssc-function-home-strip';
 import { getFinanceControlPlanePhase55Report } from '@/lib/shared-services/finance-control-plane-phase55-server';
 import { listPortfolioFinanceBridgePhase62 } from '@/lib/shared-services/finance-ops-phase62-server';
 import { isFirmWideAccess } from '@/lib/rbac/entity-scope';
@@ -31,11 +32,14 @@ export default async function FinanceControlPlanePage({ searchParams }: Props) {
     : false;
 
   return (
-    <FinanceControlPlaneClient
-      report={report}
-      canWrite={canWrite}
-      initialEntityId={entityId ?? ''}
-      portfolioBridge={portfolioBridge}
-    />
+    <div className="space-y-6">
+      <SscFunctionHomeStrip functionKey="finance" entityId={entityId} />
+      <FinanceControlPlaneClient
+        report={report}
+        canWrite={canWrite}
+        initialEntityId={entityId ?? ''}
+        portfolioBridge={portfolioBridge}
+      />
+    </div>
   );
 }
