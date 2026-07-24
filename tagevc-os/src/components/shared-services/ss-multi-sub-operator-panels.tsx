@@ -33,7 +33,7 @@ export function SsMultiSubOperatorPanels({
         </div>
         <p className="max-w-2xl text-sm text-muted-foreground">
           Views by service line, entity, and priority. Parent vs subsidiary
-          open counts. Health panels for ticket SLA, messaging provision
+          open counts. Health panels for ticket due status, messaging provision
           failures, and identity lifecycle — money never auto-approved.
         </p>
       </div>
@@ -114,11 +114,11 @@ export function SsMultiSubOperatorPanels({
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">SLA by entity</CardTitle>
+            <CardTitle className="text-base">Due status by company</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             {slaEntries.length === 0 ? (
-              <p className="text-muted-foreground">No SLA rows</p>
+              <p className="text-muted-foreground">No due-status rows</p>
             ) : (
               slaEntries.map(([k, v]) => (
                 <div key={k} className="rounded-md border border-border px-2 py-1.5">

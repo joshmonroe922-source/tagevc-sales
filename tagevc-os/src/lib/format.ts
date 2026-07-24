@@ -18,13 +18,46 @@ export function formatRunway(value: number | null | undefined): string {
   return `${value} mo`;
 }
 
-export function formatDate(value: string | null | undefined): string {
+export function formatDate(
+  value: string | null | undefined,
+  timeZone?: string | null,
+): string {
   if (!value) return '—';
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
+  try {
+    return d.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      ...(timeZone ? { timeZone } : {}),
+    });
+  } catch {
+    return d.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  }
+}
+
+export function formatDateTime(
+  value: string | null | undefined,
+  timeZone?: string | null,
+): string {
+  if (!value) return '—';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  try {
+    return d.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      ...(timeZone ? { timeZone } : {}),
+    });
+  } catch {
+    return d.toLocaleString('en-US');
+  }
 }

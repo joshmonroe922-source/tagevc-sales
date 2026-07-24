@@ -197,6 +197,8 @@ export function MessagesShell({ initial }: Props) {
   const [settingsMuted, setSettingsMuted] = useState(false);
   const [settingsPending, startSettings] = useTransition();
   const [mutedIds, setMutedIds] = useState<Set<string>>(new Set());
+  const [sendUrgent, setSendUrgent] = useState(false);
+  const [dndNotice, setDndNotice] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const me = initial.me;
@@ -561,6 +563,7 @@ export function MessagesShell({ initial }: Props) {
         parentId,
         pendingAttachments.length ? pendingAttachments : undefined,
         pendingFiles.length ? pendingFiles : undefined,
+        sendUrgent ? 'urgent' : 'normal',
       );
       if (!result.ok) {
         setError(result.error);
@@ -574,6 +577,18 @@ export function MessagesShell({ initial }: Props) {
         }
         return;
       }
+      if ('queuedForDnd' in result && result.queuedForDnd) {
+        const names =
+          result.dndRecipients?.map((r) => r.name).join(', ') || 'recipient(s)';
+        setDndNotice(
+          sendUrgent
+            ? `Sent. ${names} is on Do Not Disturb — they got a soft urgent notice.`
+            : `Sent. ${names} is on Do Not Disturb — message queued until they are Available.`,
+        );
+      } else {
+        setDndNotice(null);
+      }
+      setSendUrgent(false);
       setMessages((prev) =>
         prev.map((m) =>
           m.id === optimistic.id
@@ -1126,6 +1141,19 @@ export function MessagesShell({ initial }: Props) {
                   )}
                 </div>
               ) : null}
+              {dndNotice ? (
+                <p className="px-4 pt-2 text-xs text-amber-800">{dndNotice}</p>
+              ) : null}
+              <div className="flex flex-wrap items-center gap-3 px-4 pt-2 text-xs text-muted-foreground">
+                <label className="inline-flex items-center gap-1.5">
+                  <input
+                    type="checkbox"
+                    checked={sendUrgent}
+                    onChange={(e) => setSendUrgent(e.target.checked)}
+                  />
+                  High priority / urgent
+                </label>
+              </div>
               <form
                 className="relative flex items-end gap-2 px-4 py-3"
                 onSubmit={(e) => {

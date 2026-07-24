@@ -3,11 +3,29 @@ import {
   type SsHubModule,
 } from '@/lib/shared-services/modules';
 import { entityDisplayName } from '@/lib/entities/display-name';
-import { entityIdsEquivalent } from '@/lib/multi-sub/entity-registry';
+import {
+  entityIdsEquivalent,
+  resolveCanonicalEntityId,
+} from '@/lib/multi-sub/entity-registry';
 import type { SsService, Ticket } from '@/lib/types';
 
 export const PHASE54_SS_INBOX_CONTRACT_VERSION = 'phase54-v1';
 export const PHASE54_ENTITY_FILTER_HINT = 'ENT-R619';
+
+/** Accept entity codes or common display names in the company filter. */
+export function resolveInboxEntityFilter(
+  raw: string | null | undefined,
+): string | null {
+  const t = raw?.trim();
+  if (!t) return null;
+  const canon = resolveCanonicalEntityId(t);
+  if (canon) return canon;
+  const lower = t.toLowerCase();
+  if (lower === 'instant nda' || lower === 'inda') return 'ENT-INDA';
+  if (lower === 'recruit 619' || lower === 'r619') return 'ENT-R619';
+  if (lower === 'tage venture capital' || lower === 'tage vc') return 'ENT-FIRM';
+  return t;
+}
 
 export type SsInboxSlaStatus =
   | 'ok'
@@ -212,7 +230,7 @@ export function buildUnifiedInboxRows(
   const serviceFilter = filters?.service && filters.service !== 'All'
     ? filters.service
     : null;
-  const entityFilter = filters?.entityId?.trim() || null;
+  const entityFilter = resolveInboxEntityFilter(filters?.entityId);
   const slaFilter = filters?.sla && filters.sla !== 'All' ? filters.sla : null;
 
   const open = tickets.filter(
@@ -289,9 +307,10 @@ export function buildUnifiedInboxRows(
 }
 
 export function slaStatusLabel(status: SsInboxSlaStatus): string {
+  // Operator-facing plain language (Due status). Keep export name for call sites.
   if (status === 'due_soon') return 'Due soon';
-  if (status === 'breached') return 'Breached';
+  if (status === 'breached') return 'Overdue';
   if (status === 'escalated') return 'Escalated';
-  if (status === 'none') return 'No SLA';
-  return 'On track';
+  if (status === 'none') return 'No due date';
+  return 'On time';
 }

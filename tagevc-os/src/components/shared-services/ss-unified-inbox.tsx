@@ -121,7 +121,7 @@ export function SsUnifiedInbox({
             })
           }
         >
-          Refresh SLA board
+          Refresh due-status board
         </Button>
       </div>
 
@@ -140,7 +140,7 @@ export function SsUnifiedInbox({
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Breached SLA</CardDescription>
+            <CardDescription>Overdue</CardDescription>
             <CardTitle className="font-heading text-2xl tabular-nums">
               {board.breached ?? report.breached_count}
             </CardTitle>
@@ -193,7 +193,7 @@ export function SsUnifiedInbox({
           />
         </label>
         <label className="space-y-1 text-xs">
-          <span className="text-muted-foreground">SLA</span>
+          <span className="text-muted-foreground">Due status</span>
           <select
             className="block h-9 min-w-[8rem] rounded-md border border-border bg-background px-2 text-sm"
             value={sla}
@@ -203,7 +203,7 @@ export function SsUnifiedInbox({
           >
             {SLA_FILTERS.map((s) => (
               <option key={s} value={s}>
-                {s === 'All' ? 'All SLA' : slaStatusLabel(s)}
+                {s === 'All' ? 'All due status' : slaStatusLabel(s)}
               </option>
             ))}
           </select>
@@ -228,6 +228,14 @@ export function SsUnifiedInbox({
         >
           Recruit 619
         </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          type="button"
+          onClick={() => setEntityId('ENT-INDA')}
+        >
+          Instant NDA
+        </Button>
       </div>
 
       {report.module_stubs.some((m) => m.todo) ? (
@@ -251,7 +259,7 @@ export function SsUnifiedInbox({
           <div className="p-4">
             <EmptyState
               title="No matching tickets"
-              description="Adjust service, entity, or SLA filters — or create a ticket below."
+              description="Adjust service, company, or due-status filters — or create a ticket below."
             />
           </div>
         ) : (
@@ -260,7 +268,7 @@ export function SsUnifiedInbox({
               <TableRow className="bg-muted/40 hover:bg-muted/40">
                 <TableHead>Ticket</TableHead>
                 <TableHead>Service</TableHead>
-                <TableHead>SLA</TableHead>
+                <TableHead>Due status</TableHead>
                 <TableHead>Owner</TableHead>
                 <TableHead>Entity / context</TableHead>
                 <TableHead>Priority</TableHead>

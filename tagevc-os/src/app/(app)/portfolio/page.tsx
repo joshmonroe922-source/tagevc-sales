@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { Suspense } from 'react';
+import { RoleDashboardClient } from '@/components/dashboard/role-dashboard-client';
 import { OperatingCadencePhase60Client } from '@/components/portfolio/operating-cadence-phase60-client';
 import { PortfolioCompaniesTable } from '@/components/portfolio/portfolio-companies-table';
 import { Badge } from '@/components/ui/badge';
@@ -9,6 +11,9 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { buildRoleDashboardCards } from '@/lib/dashboard/role-dashboard-server';
+import type { DashboardScopeMode } from '@/lib/dashboard/role-dashboard-catalog';
+import { DASHBOARD_VIEW_ROLES } from '@/lib/dashboard/role-dashboard-catalog';
 import { getMasterDataSource } from '@/lib/data/master-data';
 import { listActivePortfolioCompanies, getPortfolioRollup } from '@/lib/data/repositories';
 import {
@@ -18,18 +23,35 @@ import {
 } from '@/lib/format';
 import { getPortfolioOperatingCadencePhase60Report } from '@/lib/portfolio/operating-cadence-phase60-server';
 import { getSessionContext } from '@/lib/rbac/session';
-import { roleHasPermission } from '@/lib/types/roles';
+import { roleHasPermission, type AppRole } from '@/lib/types/roles';
 import { PORTFOLIO_HEALTH } from '@/lib/types';
 
-export default async function PortfolioPage() {
+export default async function PortfolioPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const session = await getSessionContext();
   const canWrite = Boolean(
     session && roleHasPermission(session.profile.role, 'write:portfolio_health'),
   );
-  const [companies, rollup, cadenceReport] = await Promise.all([
+  const sp = (await searchParams) ?? {};
+  const scopeRaw = typeof sp.scope === 'string' ? sp.scope : 'consolidated';
+  const scope: DashboardScopeMode =
+    scopeRaw === 'by_company' ? 'by_company' : 'consolidated';
+  const asRaw = typeof sp.as === 'string' ? sp.as : '';
+  const role = session?.profile.role ?? 'admin';
+  const canSwitch = session?.realRole === 'visionary';
+  const viewAsRole: AppRole =
+    canSwitch && (DASHBOARD_VIEW_ROLES as readonly string[]).includes(asRaw)
+      ? (asRaw as AppRole)
+      : role;
+
+  const [companies, rollup, cadenceReport, roleDash] = await Promise.all([
     listActivePortfolioCompanies(),
     getPortfolioRollup(),
     getPortfolioOperatingCadencePhase60Report(),
+    buildRoleDashboardCards({ role: viewAsRole, scope }),
   ]);
   const source = getMasterDataSource();
 
@@ -48,11 +70,20 @@ export default async function PortfolioPage() {
           </Badge>
         </div>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Company health overview — ARR, burn, runway, and top risks. Open a
-          company for its full performance summary. Weekly operating review
-          tools are below.
+          Role-based operating dashboard with goals vs actuals. Portfolio health
+          and weekly review tools remain below.
         </p>
       </header>
+
+      <Suspense fallback={null}>
+        <RoleDashboardClient
+          role={role}
+          viewAsRole={viewAsRole}
+          canSwitchRoles={canSwitch}
+          scope={roleDash.scope}
+          cards={roleDash.cards}
+        />
+      </Suspense>
 
       <OperatingCadencePhase60Client
         report={cadenceReport}

@@ -152,7 +152,9 @@ describe('Phase 54 Shared Services Inbox Unification', () => {
     expect(classifyTicketSla(sampleTicket({ sla_due_at: null }), now)).toBe(
       'none',
     );
-    expect(slaStatusLabel('breached')).toBe('Breached');
+    expect(slaStatusLabel('breached')).toBe('Overdue');
+    expect(slaStatusLabel('ok')).toBe('On time');
+    expect(slaStatusLabel('none')).toBe('No due date');
 
     const report = emptySharedServicesInboxPhase54Report();
     report.recent_escalations = [

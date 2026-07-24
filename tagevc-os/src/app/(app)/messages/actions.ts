@@ -250,6 +250,7 @@ export async function sendMessageAction(
     mime_type: string;
     size_bytes: number;
   }>,
+  priority: 'normal' | 'urgent' = 'normal',
 ) {
   const auth = await requireUser();
   if (!auth.ok) return auth;
@@ -286,6 +287,7 @@ export async function sendMessageAction(
       size_bytes: f.size_bytes,
     }));
   }
+  if (priority === 'urgent') metadata.priority = 'urgent';
 
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -328,9 +330,79 @@ export async function sendMessageAction(
     });
   }
 
+  // Soft alerts + DND awareness for other members
+  const dndRecipients: Array<{ userId: string; name: string }> = [];
+  try {
+    const {
+      createSoftAlert,
+      isEffectivelyDnd,
+      listAvailabilityForProfiles,
+    } = await import('@/lib/messaging/availability');
+    const { data: members } = await supabase
+      .from('os_conversation_members')
+      .select('user_id')
+      .eq('conversation_id', conversationId)
+      .is('left_at', null);
+    const recipientIds = (members ?? [])
+      .map((m) => String(m.user_id))
+      .filter((id) => id && id !== auth.profile.id);
+    const availMap = await listAvailabilityForProfiles(recipientIds);
+    const preview = (normalizedBody || text || 'New message').slice(0, 140);
+    for (const uid of recipientIds) {
+      const avail = availMap[uid] ?? null;
+      const dnd = isEffectivelyDnd(avail);
+      const profile = profiles.find((p) => p.id === uid);
+      const name = profile?.full_name || profile?.email || 'Recipient';
+      if (dnd) {
+        dndRecipients.push({ userId: uid, name });
+        if (priority === 'urgent') {
+          await createSoftAlert({
+            profileId: uid,
+            conversationId,
+            messageId: data?.id,
+            kind: 'urgent_dnd',
+            title: 'Urgent message waiting',
+            body: preview,
+            priority: 'urgent',
+            deferred: false,
+          });
+        } else {
+          await createSoftAlert({
+            profileId: uid,
+            conversationId,
+            messageId: data?.id,
+            kind: 'new_message',
+            title: 'Message queued while you are on Do Not Disturb',
+            body: preview,
+            priority: 'normal',
+            deferred: true,
+          });
+        }
+      } else {
+        await createSoftAlert({
+          profileId: uid,
+          conversationId,
+          messageId: data?.id,
+          kind: 'new_message',
+          title: 'New message',
+          body: preview,
+          priority,
+          deferred: false,
+        });
+      }
+    }
+  } catch {
+    /* fail soft — message already stored */
+  }
+
   revalidatePath('/messages');
   revalidatePath('/activity');
-  return { ok: true as const, message: data };
+  return {
+    ok: true as const,
+    message: data,
+    dndRecipients,
+    queuedForDnd: dndRecipients.length > 0,
+  };
 }
 
 export async function toggleReactionAction(messageId: string, emoji: string) {

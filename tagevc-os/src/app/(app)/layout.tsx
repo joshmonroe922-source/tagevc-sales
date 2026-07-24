@@ -1,6 +1,9 @@
 import { redirect } from 'next/navigation';
+import { Suspense } from 'react';
 import { AppSidebar } from '@/components/layout/app-sidebar';
 import { ImpersonationBanner } from '@/components/layout/impersonation-banner';
+import { TimezoneBootstrap } from '@/components/layout/timezone-bootstrap';
+import { MessagePresenceHost } from '@/components/messaging/message-presence-host';
 import { bootstrapDomainStores } from '@/lib/data/bootstrap';
 import { listImpersonatableRoles } from '@/lib/rbac/impersonation';
 import { getSessionContext } from '@/lib/rbac/session';
@@ -24,6 +27,7 @@ export default async function AppShellLayout({
 
   return (
     <div className="flex h-svh overflow-hidden bg-background">
+      <TimezoneBootstrap />
       <AppSidebar
         role={session.profile.role}
         realRole={session.realRole}
@@ -40,6 +44,9 @@ export default async function AppShellLayout({
           <div className="mx-auto max-w-6xl px-6 py-8 md:px-10">{children}</div>
         </main>
       </div>
+      <Suspense fallback={null}>
+        <MessagePresenceHost />
+      </Suspense>
     </div>
   );
 }

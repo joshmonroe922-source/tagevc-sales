@@ -146,11 +146,11 @@ export function MarketingHardeningPhase58Client({
       value: String(report.in_review_count),
     },
     {
-      label: 'Overdue SLA',
+      label: 'Overdue approvals',
       value: String(report.overdue_count),
     },
     {
-      label: 'SLA reliability',
+      label: 'Approval reliability',
       value: formatReliabilityPct(report.sla_reliability_pct),
     },
     {
