@@ -20,6 +20,7 @@ import {
   saveStoreSnapshot,
   shouldLoadSnapshotPayload,
 } from '@/lib/data/persist';
+import { entityDisplayName } from '@/lib/entities/display-name';
 import {
   assertCanAutoExecute,
   diagnoseTicket,
@@ -344,7 +345,9 @@ export function createTicket(input: CreateTicketInput): Ticket {
     requester_name: input.requester_name?.trim() || 'Requester',
     assignee_name: input.assignee_name?.trim() || null,
     entity_id: entityGate.entity_id,
-    company_name: input.company_name?.trim() || null,
+    company_name:
+      input.company_name?.trim() ||
+      entityDisplayName(entityGate.entity_id),
     links: input.links?.trim() || null,
     sla_due_at: input.sla_due_at || null,
     autonomy_band: diagnosis.band,

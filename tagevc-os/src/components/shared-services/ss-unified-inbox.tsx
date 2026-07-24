@@ -270,14 +270,19 @@ export function SsUnifiedInbox({
                 <TableHead>Service</TableHead>
                 <TableHead>Due status</TableHead>
                 <TableHead>Owner</TableHead>
-                <TableHead>Entity / context</TableHead>
+                <TableHead>Company</TableHead>
                 <TableHead>Priority</TableHead>
                 <TableHead>Band</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row) => (
+              {rows.map((row) => {
+                const company = entityDisplayName({
+                  company_name: row.ticket.company_name,
+                  entity_id: row.ticket.entity_id,
+                });
+                return (
                 <TableRow key={row.ticket.ticket_id}>
                   <TableCell>
                     <Link
@@ -287,7 +292,6 @@ export function SsUnifiedInbox({
                       {row.ticket.title}
                     </Link>
                     <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                      <span>{row.ticket.ticket_id}</span>
                       {row.escalated ? (
                         <Badge variant="destructive">Escalated</Badge>
                       ) : null}
@@ -320,22 +324,34 @@ export function SsUnifiedInbox({
                   </TableCell>
                   <TableCell>{row.owner}</TableCell>
                   <TableCell>
-                    <div className="flex flex-wrap gap-1.5">
-                      {row.related
-                        .filter((l) => l.kind !== 'ticket')
-                        .slice(0, 3)
-                        .map((l) => (
-                          <Link
-                            key={`${l.kind}-${l.href}`}
-                            href={l.href}
-                            className="text-xs underline-offset-4 hover:underline"
-                          >
-                            {l.label}
-                          </Link>
-                        ))}
-                      {!row.ticket.entity_id && !row.ticket.company_name ? (
-                        <span className="text-xs text-muted-foreground">—</span>
-                      ) : null}
+                    <div className="space-y-1">
+                      {row.ticket.entity_id ? (
+                        <Link
+                          href={`/entities/${row.ticket.entity_id}`}
+                          className="text-sm font-medium underline-offset-4 hover:underline"
+                        >
+                          {company}
+                        </Link>
+                      ) : (
+                        <span className="text-sm font-medium">{company}</span>
+                      )}
+                      <div className="flex flex-wrap gap-1.5">
+                        {row.related
+                          .filter(
+                            (l) =>
+                              l.kind !== 'ticket' && l.kind !== 'entity',
+                          )
+                          .slice(0, 2)
+                          .map((l) => (
+                            <Link
+                              key={`${l.kind}-${l.href}`}
+                              href={l.href}
+                              className="text-xs text-muted-foreground underline-offset-4 hover:underline"
+                            >
+                              {l.label}
+                            </Link>
+                          ))}
+                      </div>
                     </div>
                   </TableCell>
                   <TableCell>
@@ -346,7 +362,8 @@ export function SsUnifiedInbox({
                   </TableCell>
                   <TableCell>{row.ticket.status}</TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
         )}
@@ -361,7 +378,13 @@ export function SsUnifiedInbox({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            {report.recent_escalations.slice(0, 8).map((e) => (
+            {report.recent_escalations.slice(0, 8).map((e) => {
+              const matched = tickets.find((t) => t.ticket_id === e.ticket_id);
+              const company = entityDisplayName({
+                company_name: matched?.company_name,
+                entity_id: e.entity_id ?? matched?.entity_id,
+              });
+              return (
               <div
                 key={`${e.ticket_id}-${e.created_at}`}
                 className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border px-3 py-2"
@@ -371,13 +394,10 @@ export function SsUnifiedInbox({
                     href={`/shared-services/tickets/${e.ticket_id}`}
                     className="font-medium underline-offset-4 hover:underline"
                   >
-                    {e.ticket_id}
+                    {matched?.title ?? `${e.service} escalation`}
                   </Link>
                   <p className="text-xs text-muted-foreground">
-                    {e.service}
-                    {e.entity_id
-                      ? ` · ${entityDisplayName(e.entity_id)}`
-                      : ''}
+                    {company} · {e.service}
                     {e.owner_name ? ` · owner ${e.owner_name}` : ' · unassigned'}
                   </p>
                 </div>
@@ -389,7 +409,8 @@ export function SsUnifiedInbox({
                   {e.sla_status}
                 </Badge>
               </div>
-            ))}
+              );
+            })}
           </CardContent>
         </Card>
       ) : null}

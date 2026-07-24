@@ -63,7 +63,7 @@ export function HelpDeskClient({ tickets }: { tickets: HelpDeskTicketRow[] }) {
                     {t.title}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {t.ticket_id} · {t.service} · {t.company} ·{' '}
+                    {t.company} · {t.service} ·{' '}
                     <LocalDateTime value={t.created_at} variant="date" />
                   </p>
                 </div>

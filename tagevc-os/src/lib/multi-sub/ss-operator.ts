@@ -1,7 +1,7 @@
 /** Shared Services operator board helpers (P4). */
 
+import { entityDisplayName } from '@/lib/entities/display-name';
 import {
-  entityDisplayName,
   parentVsSubsidiaryLabel,
   resolveCanonicalEntityId,
 } from '@/lib/multi-sub/entity-registry';
@@ -70,7 +70,10 @@ export function ticketContextHeader(ticket: {
 } {
   const scope = parentVsSubsidiaryLabel(ticket.entity_id);
   const entity_code = resolveCanonicalEntityId(ticket.entity_id);
-  const entity_label = entityDisplayName(ticket.entity_id);
+  const entity_label = entityDisplayName({
+    entity_id: ticket.entity_id,
+    company_name: ticket.company_name,
+  });
   const scopeLabel =
     scope === 'parent'
       ? 'Parent · Tage'
@@ -81,7 +84,7 @@ export function ticketContextHeader(ticket: {
     entity_code,
     entity_label,
     scope,
-    headline: `${ticket.ticket_id} · ${scopeLabel}`,
+    headline: scopeLabel,
   };
 }
 

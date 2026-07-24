@@ -321,7 +321,7 @@ function RunList({
                 <span className="font-medium">{r.run_id.slice(0, 8)}</span>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
-                {r.ticket_id ? `Ticket ${r.ticket_id}` : 'No ticket'}
+                {r.ticket_id ? 'Linked ticket' : 'No ticket'}
                 {r.created_at
                   ? ` · ${new Date(r.created_at).toLocaleDateString()}`
                   : ''}

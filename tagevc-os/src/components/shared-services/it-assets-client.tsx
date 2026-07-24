@@ -2528,10 +2528,8 @@ export function ItAssetsClient({
                       href={`/shared-services/tickets/${t.ticket_id}`}
                       className="font-medium underline-offset-4 hover:underline"
                     >
-                      {t.ticket_id}
+                      {t.title}
                     </a>
-                    {' · '}
-                    {t.title}
                   </span>
                   {canWrite && (
                     <Button
@@ -2662,10 +2660,8 @@ export function ItAssetsClient({
                       href={`/shared-services/tickets/${t.ticket_id}`}
                       className="font-medium underline-offset-4 hover:underline"
                     >
-                      {t.ticket_id}
+                      {t.title}
                     </a>
-                    {' · '}
-                    {t.title}
                     <span className="text-xs text-muted-foreground">
                       {' '}
                       · {t.service}

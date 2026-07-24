@@ -6,7 +6,7 @@ import {
   reviewDocuSignManualReviewAction,
 } from '@/app/(app)/shared-services/legal/docusign/actions';
 import { Button } from '@/components/ui/button';
-
+import { entityDisplayName } from '@/lib/entities/display-name';
 type Intent = {
   intent_id: string;
   operation_kind: string;
@@ -71,7 +71,10 @@ export function DocuSignManualReview({
           <div className="space-y-2 rounded-md border bg-background p-3 text-xs" key={intent.intent_id}>
             <div className="flex flex-wrap justify-between gap-2">
               <span className="font-medium">
-                {intent.operation_kind} · {intent.entity_id ?? 'firm-wide'}
+                {intent.operation_kind} ·{' '}
+                {intent.entity_id
+                  ? entityDisplayName(intent.entity_id)
+                  : 'Firm-wide'}
               </span>
               <span>intent v{intent.row_version}</span>
             </div>

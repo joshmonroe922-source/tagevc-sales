@@ -573,7 +573,7 @@ export function SscChecklistClient({
                           ) : null}
                           {task.evidence_ticket_id ? (
                             <Badge className="bg-amber-100 text-amber-900">
-                              Escalated {task.evidence_ticket_id}
+                              Escalated to ticket
                             </Badge>
                           ) : null}
                           <Badge variant="outline">{task.risk_level}</Badge>

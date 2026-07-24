@@ -130,7 +130,7 @@ export async function createHelpDeskTicketAction(
     return {
       ok: true,
       ticketId: ticket.ticket_id,
-      message: `Created ${ticket.ticket_id}`,
+      message: `Created for ${companyName}`,
     };
   } catch (e) {
     return {

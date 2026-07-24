@@ -17,7 +17,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { entityDisplayName } from '@/lib/entities/display-name';
 import {
   FINANCE_REQUEST_TEMPLATES,
 } from '@/lib/shared-services/finance-ops-phase62';
@@ -53,7 +52,6 @@ export function CreateTicketForm({ prefill }: { prefill?: Prefill }) {
   const defaultTitle = template?.title ?? '';
   const defaultDescription = template?.description ?? '';
   const defaultEntity = prefill?.entityId?.trim() || 'ENT-FIRM';
-  const defaultCompanyName = entityDisplayName(defaultEntity);
   const defaultDesiredOutcome = template
     ? `Complete: ${template.title}`
     : '';
@@ -143,15 +141,6 @@ export function CreateTicketForm({ prefill }: { prefill?: Prefill }) {
               id="requester_name"
               name="requester_name"
               defaultValue="Associate"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="company_name">Company name</Label>
-            <Input
-              id="company_name"
-              name="company_name"
-              defaultValue={defaultCompanyName}
-              key={`co-${defaultEntity}`}
             />
           </div>
           <div className="space-y-1.5">

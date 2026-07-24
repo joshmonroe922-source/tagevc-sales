@@ -52,7 +52,6 @@ export default async function TicketDetailPage({ params }: Props) {
               {ticket.title}
             </h1>
             <div className="mt-2 flex flex-wrap gap-2">
-              <Badge variant="outline">{ticket.ticket_id}</Badge>
               <Badge variant="secondary">{ticket.service}</Badge>
               <Badge variant="outline">{ticket.priority}</Badge>
               <BandBadge band={ticket.autonomy_band} />
@@ -77,7 +76,7 @@ export default async function TicketDetailPage({ params }: Props) {
             <StartChatButton
               refType="ticket"
               refId={ticket.ticket_id}
-              title={`${ticket.ticket_id} · ${ticket.title}`}
+              title={`${ctxHeader.entity_label} · ${ticket.title}`}
               entityId={ticket.entity_id}
             />
             <TicketHumanActions
@@ -107,13 +106,7 @@ export default async function TicketDetailPage({ params }: Props) {
             <Row label="Due" value={formatDate(ticket.sla_due_at)} />
             <Row label="Links" value={ticket.links ?? '—'} />
             {ticket.ai_generated ? (
-              <>
-                <Row label="Source doc" value={ticket.source_doc_id ?? '—'} />
-                <Row
-                  label="AI suggestion"
-                  value={ticket.ai_suggestion_id ?? '—'}
-                />
-              </>
+              <Row label="Origin" value="AI follow-up from a document" />
             ) : null}
             <Separator />
             <Row label="Description" value={ticket.description ?? '—'} />
@@ -191,12 +184,10 @@ export default async function TicketDetailPage({ params }: Props) {
               className="rounded-md border border-border px-3 py-2 text-sm"
             >
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="outline">{a.audit_id}</Badge>
                 <BandBadge band={a.band} />
                 <span className="font-medium">{a.action}</span>
                 <span className="text-xs text-muted-foreground">
                   {a.actor} · {a.confidence}%
-                  {a.payload_hash ? ` · hash ${a.payload_hash}` : ''}
                 </span>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">{a.reasoning}</p>

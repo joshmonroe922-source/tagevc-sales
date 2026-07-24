@@ -7,6 +7,7 @@ import {
   resolveTicket,
   setDraftApproval,
 } from '@/lib/data/ticket-store';
+import { entityDisplayName } from '@/lib/entities/display-name';
 import { guardPermission } from '@/lib/rbac/session';
 import { SS_SERVICES, TICKET_PRIORITIES } from '@/lib/types';
 import {
@@ -115,12 +116,18 @@ export async function createTicketAction(
     return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid' };
   }
   try {
-    const ticket = createTicket(parsed.data);
+    const companyName =
+      parsed.data.company_name?.trim() ||
+      entityDisplayName(parsed.data.entity_id);
+    const ticket = createTicket({
+      ...parsed.data,
+      company_name: companyName,
+    });
     revalidateTickets(ticket.ticket_id);
     return {
       ok: true,
       ticketId: ticket.ticket_id,
-      message: `${ticket.ticket_id} → ${ticket.autonomy_band} (${ticket.confidence}%)`,
+      message: `Opened for ${companyName} · ${ticket.autonomy_band}`,
     };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Failed' };

@@ -1,5 +1,6 @@
 import { buildSsOperatorBoard } from '@/lib/multi-sub/ss-operator';
 import type { MultiSubHealthReport } from '@/lib/multi-sub/health';
+import { entityDisplayName } from '@/lib/entities/display-name';
 import type { Ticket } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -32,7 +33,7 @@ export function SsMultiSubOperatorPanels({
           <Badge variant="secondary">Feed · {health.feed_status}</Badge>
         </div>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Views by service line, entity, and priority. Parent vs subsidiary
+          Views by service line, company, and priority. Parent vs subsidiary
           open counts. Health panels for ticket due status, messaging provision
           failures, and identity lifecycle — money never auto-approved.
         </p>
@@ -93,7 +94,7 @@ export function SsMultiSubOperatorPanels({
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">By entity</CardTitle>
+            <CardTitle className="text-base">By company</CardTitle>
             <CardDescription>
               {board.context_labels.subsidiary_r619} ·{' '}
               {board.context_labels.subsidiary_inda}
@@ -105,7 +106,7 @@ export function SsMultiSubOperatorPanels({
             ) : (
               volumeEntries.map(([k, v]) => (
                 <div key={k} className="flex justify-between gap-2">
-                  <span>{k}</span>
+                  <span>{entityDisplayName(k)}</span>
                   <span className="tabular-nums">{v}</span>
                 </div>
               ))
@@ -122,7 +123,7 @@ export function SsMultiSubOperatorPanels({
             ) : (
               slaEntries.map(([k, v]) => (
                 <div key={k} className="rounded-md border border-border px-2 py-1.5">
-                  <div className="font-medium">{k}</div>
+                  <div className="font-medium">{entityDisplayName(k)}</div>
                   <div className="text-xs text-muted-foreground">
                     open {v.open} · breached {v.breached} · P0 {v.p0}
                   </div>
