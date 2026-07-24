@@ -35,12 +35,12 @@ describe('main nav IA', () => {
   it('matches the executive information architecture', () => {
     const labels = MAIN_NAV.map((i) => i.label);
     expect(labels).toEqual([
-      'Command Center',
+      'Dashboard',
       'Think Tank',
       'Firm',
       'Business Development',
-      'Dashboard',
       'Entities',
+      'Command Center',
       'Shared Services',
       'Document Library',
       'Message Center',

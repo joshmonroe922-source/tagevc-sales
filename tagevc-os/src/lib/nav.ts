@@ -15,10 +15,10 @@ export type NavItem = {
  */
 export const MAIN_NAV: NavItem[] = [
   {
-    module: 'command_center',
-    href: '/command-center',
-    label: 'Command Center',
-    description: 'Firm health at a glance',
+    module: 'portfolio',
+    href: '/portfolio',
+    label: 'Dashboard',
+    description: 'Company health overview',
   },
   {
     module: 'command_center',
@@ -53,15 +53,15 @@ export const MAIN_NAV: NavItem[] = [
   },
   {
     module: 'portfolio',
-    href: '/portfolio',
-    label: 'Dashboard',
-    description: 'Company health overview',
-  },
-  {
-    module: 'portfolio',
     href: '/entities',
     label: 'Entities',
     description: 'Companies and performance',
+  },
+  {
+    module: 'command_center',
+    href: '/command-center',
+    label: 'Command Center',
+    description: 'Firm health at a glance',
   },
   {
     module: 'shared_services',
