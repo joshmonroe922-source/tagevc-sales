@@ -29,7 +29,7 @@ import {
   type SscTaskStatus,
 } from '@/lib/shared-services/ssc-checklist/types';
 import { listSscCompanies } from '@/lib/shared-services/ssc-checklist/scope';
-import { sparklineBars } from '@/lib/shared-services/ssc-checklist/trends';
+import { sparklineBars } from '@/lib/shared-services/ssc-checklist/types';
 
 type Props = {
   bundle: SscOperatorBundle;

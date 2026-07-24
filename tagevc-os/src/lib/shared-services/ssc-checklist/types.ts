@@ -254,3 +254,19 @@ export function functionHomeHref(fn: SscFunction): string {
       return '/shared-services/legal/docusign';
   }
 }
+
+/** Tiny sparkline for UI (client-safe). */
+export function sparklineBars(values: number[], width = 6): string {
+  if (!values.length) return '—';
+  const slice = values.slice(-width);
+  const blocks = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+  return slice
+    .map((v) => {
+      const idx = Math.max(
+        0,
+        Math.min(blocks.length - 1, Math.round((v / 100) * (blocks.length - 1))),
+      );
+      return blocks[idx];
+    })
+    .join('');
+}

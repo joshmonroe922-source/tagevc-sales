@@ -1,11 +1,7 @@
-/**
- * Multi-period SSC trend snapshots + reads for sparklines.
- */
-
-import { createPersistClient } from '@/lib/supabase/persist-client';
-import { periodBounds, shiftPeriod } from './period';
 import type { SscFunction, SscPeriodType, SscScopeMode } from './types';
 import { SSC_FUNCTIONS } from './types';
+import { createPersistClient } from '@/lib/supabase/persist-client';
+import { periodBounds, shiftPeriod } from './period';
 
 export type SscTrendPoint = {
   period_key: string;
@@ -24,6 +20,8 @@ export type SscFunctionTrend = {
   delta_completion: number | null;
   delta_overdue: number | null;
 };
+
+export { sparklineBars } from './types';
 
 export async function capturePeriodTrends(input: {
   period_type: SscPeriodType;
@@ -228,20 +226,4 @@ export async function getSscPeriodTrends(input: {
   } catch {
     return [];
   }
-}
-
-/** Tiny CSS-friendly bar sparkline string for UI. */
-export function sparklineBars(values: number[], width = 6): string {
-  if (!values.length) return '—';
-  const slice = values.slice(-width);
-  const blocks = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
-  return slice
-    .map((v) => {
-      const idx = Math.max(
-        0,
-        Math.min(blocks.length - 1, Math.round((v / 100) * (blocks.length - 1))),
-      );
-      return blocks[idx];
-    })
-    .join('');
 }

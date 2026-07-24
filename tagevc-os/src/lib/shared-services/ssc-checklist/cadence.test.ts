@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { sparklineBars } from './trends';
+import { sparklineBars } from './types';
 import { formatEvidenceNote, evidenceFreshnessIso } from './evidence';
 import { SSC_PHASE67_CONTRACT } from './cadence-runner';
 
