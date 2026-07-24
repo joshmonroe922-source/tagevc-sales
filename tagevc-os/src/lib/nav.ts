@@ -57,6 +57,12 @@ export const MAIN_NAV: NavItem[] = [
     description: 'Companies and performance',
   },
   {
+    module: 'portfolio',
+    href: '/inda-saas',
+    label: 'Instant NDA SaaS',
+    description: 'SaaS KPIs · ARR · activation',
+  },
+  {
     module: 'command_center',
     href: '/command-center',
     label: 'Command Center',

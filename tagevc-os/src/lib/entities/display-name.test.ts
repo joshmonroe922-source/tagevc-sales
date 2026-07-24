@@ -40,6 +40,7 @@ describe('main nav IA', () => {
       'Firm',
       'Business Development',
       'Entities',
+      'Instant NDA SaaS',
       'Command Center',
       'Shared Services',
       'Document Library',
