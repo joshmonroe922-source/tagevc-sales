@@ -95,6 +95,14 @@
     {
       "path": "/api/ssc/cadence-worker?kind=sync",
       "schedule": "45 7 * * *"
+    },
+    {
+      "path": "/api/hris/cadence-worker?kind=full",
+      "schedule": "30 6 * * *"
+    },
+    {
+      "path": "/api/hris/cadence-worker?kind=escalate",
+      "schedule": "35 */4 * * *"
     }
   ]
 }
