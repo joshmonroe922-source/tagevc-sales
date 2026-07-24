@@ -120,7 +120,7 @@ describe('Phase 60 portfolio operating cadence', () => {
     expect(packetKindLabel('weekly_ops')).toBe('Weekly ops');
   });
 
-  it('wires portfolio page, actions, server helpers, and Phase 60 panel', () => {
+  it('wires dashboard page, actions, server helpers, and Phase 60 panel', () => {
     const lib = readFileSync(
       resolve(process.cwd(), 'src/lib/portfolio/operating-cadence-phase60.ts'),
       'utf8',
@@ -133,6 +133,10 @@ describe('Phase 60 portfolio operating cadence', () => {
       'utf8',
     );
     const page = readFileSync(
+      resolve(process.cwd(), 'src/app/(app)/dashboard/page.tsx'),
+      'utf8',
+    );
+    const portfolioRedirect = readFileSync(
       resolve(process.cwd(), 'src/app/(app)/portfolio/page.tsx'),
       'utf8',
     );
@@ -161,6 +165,7 @@ describe('Phase 60 portfolio operating cadence', () => {
 
     expect(page).toContain('OperatingCadencePhase60Client');
     expect(page).toContain('getPortfolioOperatingCadencePhase60Report');
+    expect(portfolioRedirect).toContain("redirect('/dashboard')");
 
     expect(actions).toContain('refreshPortfolioOperatingCadencePhase60Action');
     expect(actions).toContain('recordPortfolioRiskMilestonePhase60Action');

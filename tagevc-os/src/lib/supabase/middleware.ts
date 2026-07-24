@@ -23,7 +23,7 @@ export async function updateSession(request: NextRequest) {
     } else {
       if (path === '/login') {
         const redirectUrl = request.nextUrl.clone();
-        redirectUrl.pathname = '/command-center';
+        redirectUrl.pathname = '/home';
         return NextResponse.redirect(redirectUrl);
       }
       return supabaseResponse;
@@ -82,7 +82,7 @@ export async function updateSession(request: NextRequest) {
 
   if (user && path === '/login') {
     const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = '/command-center';
+    redirectUrl.pathname = '/home';
     return NextResponse.redirect(redirectUrl);
   }
 

@@ -17,6 +17,7 @@ import {
 import { stopImpersonationAction } from '@/app/(app)/impersonation/actions';
 import { RoleSwitcher } from '@/components/layout/role-switcher';
 import { MessagesUnreadBadge } from '@/components/messaging/messages-unread-badge';
+import { SidebarAvailabilityControl } from '@/components/messaging/sidebar-availability-control';
 import { ActivityUnreadBadge } from '@/components/layout/activity-unread-badge';
 import { createClient } from '@/lib/supabase/client';
 import { MAIN_NAV, type NavItem } from '@/lib/nav';
@@ -53,6 +54,15 @@ type Props = {
 };
 
 function isNavActive(pathname: string, href: string): boolean {
+  if (href === '/home') {
+    return pathname === '/home';
+  }
+  if (href === '/dashboard') {
+    return pathname === '/dashboard' || pathname.startsWith('/dashboard/');
+  }
+  if (href === '/help-desk') {
+    return pathname === '/help-desk' || pathname.startsWith('/help-desk/');
+  }
   if (href === '/deal-flow/vc/intake') {
     return (
       pathname === '/deal-flow/vc/intake' ||
@@ -73,6 +83,9 @@ function isNavActive(pathname: string, href: string): boolean {
       pathname.startsWith('/deal-flow/ma') ||
       pathname.startsWith('/deal-flow/re')
     );
+  }
+  if (href === '/portfolio') {
+    return pathname === '/portfolio' || pathname.startsWith('/portfolio/');
   }
   if (href === '/entities') {
     return pathname === '/entities' || pathname.startsWith('/entities/');
@@ -111,7 +124,13 @@ function NavLink({
       ? History
       : item.href === '/messages'
         ? MessageSquare
-        : (ICONS[item.module] ?? Home);
+        : item.href === '/home'
+          ? Home
+          : item.href === '/dashboard'
+            ? LayoutDashboard
+            : item.href === '/help-desk'
+              ? Ticket
+              : (ICONS[item.module] ?? Home);
   const active = isNavActive(pathname, item.href);
 
   return (
@@ -168,6 +187,7 @@ export function AppSidebar({
   return (
     <aside className="flex h-full w-64 shrink-0 flex-col overflow-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
       <div className="shrink-0 px-5 py-6">
+        <SidebarAvailabilityControl />
         <p className="text-xs font-medium tracking-[0.18em] text-sidebar-foreground/60 uppercase">
           Tage VC
         </p>

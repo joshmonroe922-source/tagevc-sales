@@ -27,10 +27,10 @@ export default async function NotificationSettingsPage() {
             ← Activity
           </Link>
           <Link
-            href="/think-tank"
+            href="/home"
             className="text-muted-foreground underline-offset-4 hover:underline"
           >
-            Open Think Tank →
+            Open Home / Think Tank →
           </Link>
         </div>
         <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#3a414f]">

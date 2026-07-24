@@ -28,16 +28,17 @@ export type RoleDashboardCard = RoleDashboardKpiDef & {
   company_name?: string | null;
 };
 
+/** Matches Visionary Role Switcher order (View as on Dashboard). */
 export const DASHBOARD_VIEW_ROLES: AppRole[] = [
   'visionary',
   'partner',
-  'associate',
-  're_sourcer',
-  'ma_associate',
   'coo',
   'sub_lead',
-  'service_lead',
   'counsel_ops',
+  'service_lead',
+  'ma_associate',
+  're_sourcer',
+  'associate',
   'admin',
 ];
 

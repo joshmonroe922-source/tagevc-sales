@@ -77,7 +77,7 @@ const DEFAULT_MODULES: FirmOpsModuleLink[] = [
   },
   {
     module_key: 'portfolio',
-    href: '/portfolio',
+    href: '/dashboard',
     label: 'Portfolio',
     priority: 3,
     link_status: 'missing',

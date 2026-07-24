@@ -19,16 +19,26 @@ export function RoleSwitcher({ roles, current }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<string>(current ?? roles[0] ?? '');
+  const [selected, setSelected] = useState<string>(current ?? 'visionary');
 
   useEffect(() => {
-    setSelected(current ?? roles[0] ?? '');
+    setSelected(current ?? 'visionary');
   }, [current, roles]);
 
   function apply() {
     setError(null);
     startTransition(async () => {
       if (!selected) return;
+      // Visionary is the default — selecting it clears impersonation.
+      if (selected === 'visionary') {
+        const result = await stopImpersonationAction();
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
+        router.refresh();
+        return;
+      }
       const result = await startImpersonationAction(selected);
       if (!result.ok) {
         setError(result.error);

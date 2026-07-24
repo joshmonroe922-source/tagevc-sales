@@ -183,19 +183,8 @@ function touchTickets() {
   });
 }
 
-export async function hydrateTicketStore() {
-  if (isStoreHydrated('tickets')) return;
-  const readGate = shouldLoadSnapshotPayload('tickets');
-  if (readGate.allow) {
-    const snap = await loadStoreSnapshot<TicketStore>('tickets');
-    if (snap?.payload?.tickets) {
-      globalThis.__tageTicketStore = snap.payload;
-    } else {
-      const store = getTicketStore();
-      await saveStoreSnapshot('tickets', store);
-    }
-  }
-
+/** Pull latest os_tickets into memory (inbound SS tickets, other isolates). */
+export async function refreshTicketsFromSql(): Promise<void> {
   const store = getTicketStore();
   const [sqlTickets, sqlAudits] = await Promise.all([
     fetchAllTickets(),
@@ -214,6 +203,26 @@ export async function hydrateTicketStore() {
   }
 
   markStoreHydrated('tickets');
+}
+
+export async function hydrateTicketStore(opts?: { forceSql?: boolean }) {
+  if (opts?.forceSql) {
+    await refreshTicketsFromSql();
+    return;
+  }
+  if (isStoreHydrated('tickets')) return;
+  const readGate = shouldLoadSnapshotPayload('tickets');
+  if (readGate.allow) {
+    const snap = await loadStoreSnapshot<TicketStore>('tickets');
+    if (snap?.payload?.tickets) {
+      globalThis.__tageTicketStore = snap.payload;
+    } else {
+      const store = getTicketStore();
+      await saveStoreSnapshot('tickets', store);
+    }
+  }
+
+  await refreshTicketsFromSql();
 }
 
 function nextTicketId(tickets: Ticket[]): string {

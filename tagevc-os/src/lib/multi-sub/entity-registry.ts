@@ -34,10 +34,8 @@ export const ENTITY_REGISTRY_SEED = [
     entity_code: 'ENT-INDA',
     canonical_name: 'Instant NDA',
     status: 'Active' as const,
-    portal_url: null as string | null,
-    // TODO: replace when Instant NDA portal URL is published
-    portal_url_todo:
-      'TODO: set Instant NDA portal_url (legacy seed code ENT-002)',
+    portal_url: 'https://portal.instantnda.us',
+    portal_url_todo: null as string | null,
     is_subsidiary: true,
   },
 ] as const;

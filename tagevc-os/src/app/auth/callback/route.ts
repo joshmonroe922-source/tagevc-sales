@@ -6,8 +6,8 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get('code');
   const oauthError =
     searchParams.get('error_description') ?? searchParams.get('error');
-  let next = searchParams.get('next') ?? '/command-center';
-  if (!next.startsWith('/')) next = '/command-center';
+  let next = searchParams.get('next') ?? '/home';
+  if (!next.startsWith('/')) next = '/home';
 
   const forwardedHost = request.headers.get('x-forwarded-host');
   const redirectBase =

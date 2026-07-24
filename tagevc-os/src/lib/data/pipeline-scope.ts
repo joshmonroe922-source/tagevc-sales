@@ -9,7 +9,7 @@ import {
 import { listDocuments } from '@/lib/data/document-store';
 import { listActiveMaTargets } from '@/lib/data/ma-store';
 import { listActiveReDeals } from '@/lib/data/re-store';
-import { listTickets } from '@/lib/data/ticket-store';
+import { hydrateTicketStore, listTickets } from '@/lib/data/ticket-store';
 import {
   buildParentIndex,
   canAccessPipelineEntity,
@@ -118,6 +118,8 @@ export async function listScopedIcQueue(): Promise<IcReview[]> {
 }
 
 export async function listScopedTickets(): Promise<Ticket[]> {
+  // Always re-read SQL so portal intake tickets appear without a cold start.
+  await hydrateTicketStore({ forceSql: true });
   const scope = await getPipelineScope();
   return listTickets().filter((t) => allow(scope, t.entity_id));
 }

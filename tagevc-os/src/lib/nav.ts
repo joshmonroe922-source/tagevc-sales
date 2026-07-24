@@ -2,7 +2,6 @@ import type { NavModule } from '@/lib/types/roles';
 
 export type NavItem = {
   module: NavModule;
-  /** Omit href for group headers that only contain children. */
   href?: string;
   label: string;
   description?: string;
@@ -10,21 +9,21 @@ export type NavItem = {
 };
 
 /**
- * Left-nav information architecture (executive-facing labels).
- * Internal routes are unchanged; VC / M&A / RE live under Deal Flow only.
+ * Home → Dashboard → modules → Help Desk.
+ * Think Tank lives on Home (no standalone nav item).
  */
 export const MAIN_NAV: NavItem[] = [
   {
-    module: 'portfolio',
-    href: '/portfolio',
-    label: 'Dashboard',
-    description: 'Company health overview',
+    module: 'command_center',
+    href: '/home',
+    label: 'Home',
+    description: 'AI briefing + Think Tank',
   },
   {
-    module: 'command_center',
-    href: '/think-tank',
-    label: 'Think Tank',
-    description: 'Personal Grok operating advisor',
+    module: 'portfolio',
+    href: '/dashboard',
+    label: 'Dashboard',
+    description: 'Your KPIs at a glance',
   },
   {
     module: 'firm',
@@ -67,7 +66,7 @@ export const MAIN_NAV: NavItem[] = [
     module: 'shared_services',
     href: '/shared-services',
     label: 'Shared Services',
-    description: 'Tickets · SLAs · service work',
+    description: 'Service inbox · finance · HR',
   },
   {
     module: 'documents',
@@ -88,6 +87,12 @@ export const MAIN_NAV: NavItem[] = [
     description: 'Recent firm actions',
   },
   {
+    module: 'shared_services',
+    href: '/help-desk',
+    label: 'Help Desk',
+    description: 'Your tickets · create request',
+  },
+  {
     module: 'admin',
     href: '/admin',
     label: 'Admin',
@@ -95,7 +100,6 @@ export const MAIN_NAV: NavItem[] = [
   },
 ];
 
-/** Flat list of navigable hrefs (for tests / active-path helpers). */
 export function flattenNavItems(items: NavItem[] = MAIN_NAV): NavItem[] {
   const out: NavItem[] = [];
   for (const item of items) {

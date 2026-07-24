@@ -27,13 +27,36 @@ export const BREAK_GLASS_PERMISSIONS: readonly Permission[] = [
 export const BREAK_GLASS_MESSAGE =
   'Blocked while impersonating. Exit impersonation to perform high-stakes capital, signing, snapshot, or Intune actions.';
 
-const IMPERSONATABLE_ROLES = APP_ROLES.filter((r) => r !== 'visionary');
+/**
+ * Visionary Role Switcher order (top → bottom).
+ * Visionary is the default (no cookie). Associate kept at end (not in primary list).
+ */
+export const ROLE_SWITCHER_ORDER: readonly AppRole[] = [
+  'visionary',
+  'partner',
+  'coo',
+  'sub_lead',
+  'counsel_ops',
+  'service_lead',
+  'ma_associate',
+  're_sourcer',
+  'associate',
+  'admin',
+] as const;
+
+const IMPERSONATABLE_ROLES = ROLE_SWITCHER_ORDER.filter((r) => r !== 'visionary');
 
 /** Exec stages that count as capital deploy / wire. */
 export const BREAK_GLASS_EXEC_STAGES = ['Wired / Closed'] as const;
 
+/** Roles Visionary may impersonate (excludes Visionary default). */
 export function listImpersonatableRoles(): AppRole[] {
   return [...IMPERSONATABLE_ROLES];
+}
+
+/** Full Role Switcher list including Visionary (default) at top. */
+export function listRoleSwitcherRoles(): AppRole[] {
+  return [...ROLE_SWITCHER_ORDER];
 }
 
 export function isBreakGlassPermission(permission: Permission): boolean {

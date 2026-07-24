@@ -25,10 +25,12 @@ describe('think-tank prompts (tage)', () => {
   });
 });
 
-describe('think-tank nav (tage)', () => {
-  it('exposes Think Tank in main nav', () => {
-    expect(flattenNavItems(MAIN_NAV).some((n) => n.href === '/think-tank')).toBe(
-      true,
-    );
+describe('home nav (tage)', () => {
+  it('puts Home first and Help Desk last among modules; Think Tank is not a nav item', () => {
+    const flat = flattenNavItems(MAIN_NAV);
+    expect(flat[0]?.href).toBe('/home');
+    expect(flat.some((n) => n.href === '/dashboard')).toBe(true);
+    expect(flat.some((n) => n.href === '/help-desk')).toBe(true);
+    expect(flat.some((n) => n.href === '/think-tank')).toBe(false);
   });
 });

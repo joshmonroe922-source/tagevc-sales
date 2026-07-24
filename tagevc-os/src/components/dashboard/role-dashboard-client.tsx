@@ -43,7 +43,7 @@ export function RoleDashboardClient({
     const next = new URLSearchParams(params.toString());
     next.set(key, value);
     startTransition(() => {
-      router.replace(`/portfolio?${next.toString()}`);
+      router.replace(`/dashboard?${next.toString()}`);
     });
   }
 

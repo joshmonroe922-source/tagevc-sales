@@ -53,7 +53,7 @@ const MODULE_QUICK_NAV = [
   { href: '/deal-flow', label: 'Deal Flow' },
   { href: '/deal-flow/vc', label: 'VC pipeline' },
   { href: '/deal-flow/vc/intake', label: 'Lead Intake' },
-  { href: '/portfolio', label: 'Dashboard' },
+  { href: '/dashboard', label: 'Dashboard' },
   { href: '/shared-services', label: 'Shared Services' },
   { href: '/shared-services/finance', label: 'Finance' },
   { href: '/shared-services/legal/docusign', label: 'Legal' },
@@ -111,10 +111,10 @@ export default async function CommandCenterPage() {
               </span>
               .{' '}
               <Link
-                href="/think-tank"
+                href="/home"
                 className="font-medium text-foreground underline-offset-4 hover:underline"
               >
-                Open Think Tank →
+                Open Home / Think Tank →
               </Link>
             </>
           ) : null}

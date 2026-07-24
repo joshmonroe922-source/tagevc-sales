@@ -14,6 +14,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import {
   getTicket,
+  hydrateTicketStore,
   listAuditsForTicket,
 } from '@/lib/data/ticket-store';
 import { entityDisplayName } from '@/lib/entities/display-name';
@@ -25,6 +26,7 @@ type Props = { params: Promise<{ ticketId: string }> };
 
 export default async function TicketDetailPage({ params }: Props) {
   const { ticketId } = await params;
+  await hydrateTicketStore({ forceSql: true });
   const ticket = getTicket(ticketId);
   if (!ticket) notFound();
   const audits = listAuditsForTicket(ticket.ticket_id);

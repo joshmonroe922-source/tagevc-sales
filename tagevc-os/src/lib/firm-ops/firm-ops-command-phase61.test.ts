@@ -101,7 +101,7 @@ describe('Phase 61 firm ops command completeness', () => {
     expect(report.modules.some((m) => m.module_key === 'recruit619')).toBe(
       true,
     );
-    expect(report.modules.some((m) => m.href === '/portfolio')).toBe(true);
+    expect(report.modules.some((m) => m.href === '/dashboard')).toBe(true);
     expect(boardStatusLabel('partial')).toBe('Partial');
     expect(audienceLabel('coo')).toBe('COO');
     expect(severityLabel('critical')).toBe('Critical');

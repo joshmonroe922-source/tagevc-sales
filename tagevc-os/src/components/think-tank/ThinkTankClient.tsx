@@ -21,10 +21,12 @@ export function ThinkTankClient({
   initialMessages,
   roleBand,
   viewAsLabel,
+  compact = false,
 }: {
   initialMessages: ThinkTankMessageDto[];
   roleBand: string;
   viewAsLabel: string | null;
+  compact?: boolean;
 }) {
   const [messages, setMessages] = useState(initialMessages);
   const [draft, setDraft] = useState('');
@@ -78,11 +80,14 @@ export function ThinkTankClient({
     <section className="rounded-lg border border-border bg-card shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
         <div>
-          <h2 className="font-heading text-lg text-foreground">Think Tank</h2>
+          <h2 className="font-heading text-lg text-foreground">
+            {compact ? 'Think Tank' : 'Think Tank'}
+          </h2>
           <p className="text-sm text-muted-foreground">
-            {ROLE_LABEL[roleBand] ?? 'Personal advisor'} · Grok · persistent
-            thread
-            {viewAsLabel ? ` · desk view-as: ${viewAsLabel}` : ''}
+            {compact
+              ? 'Ask how to hit today’s goals and clear hot items'
+              : `${ROLE_LABEL[roleBand] ?? 'Personal advisor'} · Grok · persistent thread`}
+            {viewAsLabel ? ` · view-as: ${viewAsLabel}` : ''}
           </p>
         </div>
         <div className="flex gap-2">
