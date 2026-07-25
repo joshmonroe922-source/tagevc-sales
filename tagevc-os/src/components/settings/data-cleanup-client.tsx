@@ -50,7 +50,6 @@ export function DataCleanupClient({ canWrite }: { canWrite: boolean }) {
 
   useEffect(() => {
     refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const toggle = (id: DemoDomain) => {

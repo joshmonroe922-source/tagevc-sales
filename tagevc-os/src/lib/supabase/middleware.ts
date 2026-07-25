@@ -14,6 +14,7 @@ export async function updateSession(request: NextRequest) {
     path.startsWith('/api/identity/lifecycle') ||
     path.startsWith('/api/shared-services/intake') ||
     path.startsWith('/api/rollups/ingest') ||
+    path.startsWith('/api/deal-flow/website-intake') ||
     path.startsWith('/_next') ||
     path === '/favicon.ico';
 

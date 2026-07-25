@@ -16,12 +16,10 @@ import { createPersistClient } from '@/lib/supabase/persist-client';
 import { logActivity } from '@/lib/data/activity';
 import {
   CLEANUP_CONFIRM_PHRASE,
-  PROTECTED_ENTITY_IDS,
   SAMPLE_ENTITY_IDS,
   type CleanupExecuteResult,
   type CleanupInventory,
   type DemoDomain,
-  type DomainCount,
 } from '@/lib/admin/demo-data-cleanup-shared';
 
 export {
