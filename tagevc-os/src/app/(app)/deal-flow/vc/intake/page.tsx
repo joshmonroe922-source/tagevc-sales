@@ -32,6 +32,9 @@ export default async function LeadIntakePage() {
   ]);
   const recent = leads.slice(0, 12);
   const inbound = leads.filter((l) => l.source === 'Inbound').slice(0, 8);
+  const website = leads
+    .filter((l) => (l.source_detail ?? '').includes('website_form'))
+    .slice(0, 8);
 
   return (
     <div className="space-y-8">
@@ -53,7 +56,7 @@ export default async function LeadIntakePage() {
         </p>
       </header>
 
-      <section className="grid gap-3 sm:grid-cols-3">
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Recent leads</CardDescription>
@@ -67,6 +70,14 @@ export default async function LeadIntakePage() {
             <CardDescription>Incoming</CardDescription>
             <CardTitle className="font-heading text-2xl tabular-nums">
               {inbound.length}
+            </CardTitle>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Website form</CardDescription>
+            <CardTitle className="font-heading text-2xl tabular-nums">
+              {website.length}
             </CardTitle>
           </CardHeader>
         </Card>

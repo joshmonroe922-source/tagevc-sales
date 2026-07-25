@@ -32,6 +32,12 @@ export default async function NotificationSettingsPage() {
           >
             Open Home / Think Tank →
           </Link>
+          <Link
+            href="/settings/data-cleanup"
+            className="text-muted-foreground underline-offset-4 hover:underline"
+          >
+            Demo data cleanup →
+          </Link>
         </div>
         <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#3a414f]">
           Notification preferences

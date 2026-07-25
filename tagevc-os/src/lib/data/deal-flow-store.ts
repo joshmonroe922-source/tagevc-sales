@@ -53,6 +53,7 @@ import {
 import { spawnDealTasksForStage } from '@/lib/deal-flow/vc/spawn-deal-tasks';
 import type {
   Deal,
+  DealPath,
   DealTask,
   ExecStage,
   HandoffPack,
@@ -241,6 +242,7 @@ export type CreateLeadInput = {
   check_size_k?: number;
   location?: string;
   notes?: string;
+  path?: DealPath | null;
   /** Optional link to portfolio / Entity Master (follow-on inbound). */
   related_entity_id?: string;
 };
@@ -266,7 +268,7 @@ export function createLead(input: CreateLeadInput): Lead {
     raise_stage: input.raise_stage?.trim() || null,
     check_size_k: input.check_size_k ?? null,
     location: input.location?.trim() || null,
-    path: null,
+    path: input.path ?? null,
     notes: input.notes?.trim() || null,
     outcome: null,
     deal_id: null,
