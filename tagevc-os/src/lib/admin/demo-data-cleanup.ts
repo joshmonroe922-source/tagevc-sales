@@ -14,38 +14,25 @@ import {
 } from '@/lib/data/ticket-store';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 import { logActivity } from '@/lib/data/activity';
+import {
+  CLEANUP_CONFIRM_PHRASE,
+  PROTECTED_ENTITY_IDS,
+  SAMPLE_ENTITY_IDS,
+  type CleanupExecuteResult,
+  type CleanupInventory,
+  type DemoDomain,
+  type DomainCount,
+} from '@/lib/admin/demo-data-cleanup-shared';
 
-export const CLEANUP_CONFIRM_PHRASE = 'DELETE DEMO DATA';
-
-export const PROTECTED_ENTITY_IDS = new Set([
-  'ENT-FIRM',
-  'ENT-R619',
-  'ENT-INDA',
-  'ENT-002', // legacy Instant NDA alias
-]);
-
-export const SAMPLE_ENTITY_IDS = new Set(['ENT-001', 'ENT-003']);
-
-export type DemoDomain =
-  | 'entities_sample'
-  | 'leads_sample'
-  | 'tickets_seed'
-  | 'portfolio_sample'
-  | 'hris_sample';
-
-export type DomainCount = {
-  domain: DemoDomain;
-  label: string;
-  count: number;
-  sample_ids: string[];
-};
-
-export type CleanupInventory = {
-  generated_at: string;
-  domains: DomainCount[];
-  protected_notes: string[];
-  recruit_inda_notes: string[];
-};
+export {
+  CLEANUP_CONFIRM_PHRASE,
+  PROTECTED_ENTITY_IDS,
+  SAMPLE_ENTITY_IDS,
+  type CleanupExecuteResult,
+  type CleanupInventory,
+  type DemoDomain,
+  type DomainCount,
+} from '@/lib/admin/demo-data-cleanup-shared';
 
 function isSampleCompanyName(name: string): boolean {
   const n = name.toLowerCase();
@@ -153,15 +140,6 @@ export async function inventoryDemoData(): Promise<CleanupInventory> {
     ],
   };
 }
-
-export type CleanupExecuteResult = {
-  ok: boolean;
-  dry_run: boolean;
-  before: DomainCount[];
-  after: DomainCount[];
-  actions: string[];
-  error?: string;
-};
 
 export async function executeDemoCleanup(input: {
   domains: DemoDomain[];

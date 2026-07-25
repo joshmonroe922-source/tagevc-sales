@@ -3,7 +3,7 @@ import {
   CLEANUP_CONFIRM_PHRASE,
   PROTECTED_ENTITY_IDS,
   SAMPLE_ENTITY_IDS,
-} from './demo-data-cleanup';
+} from './demo-data-cleanup-shared';
 
 describe('demo data cleanup protect list', () => {
   it('protects core operating entities', () => {

@@ -20,7 +20,7 @@ import {
   CLEANUP_CONFIRM_PHRASE,
   type CleanupInventory,
   type DemoDomain,
-} from '@/lib/admin/demo-data-cleanup';
+} from '@/lib/admin/demo-data-cleanup-shared';
 
 const DOMAIN_OPTIONS: Array<{ id: DemoDomain; label: string }> = [
   { id: 'leads_sample', label: 'Sample leads' },
