@@ -11,6 +11,15 @@ import {
   BREAK_GLASS_MESSAGE,
   isBreakGlassPermission,
 } from '@/lib/rbac/impersonation';
+import {
+  readLiveLookCookie,
+  LIVE_LOOK_BLOCK_MESSAGE,
+  type LiveLookTarget,
+} from '@/lib/live-look/cookie';
+import {
+  applyLiveLookToProfile,
+  loadLiveLookTarget,
+} from '@/lib/live-look/server';
 
 const DEV_PROFILE: Profile = {
   id: '00000000-0000-0000-0000-000000000001',
@@ -25,12 +34,16 @@ const DEV_PROFILE: Profile = {
 };
 
 export type SessionContext = {
-  /** Profile with effective (possibly impersonated) role for UI + permissions. */
+  /** Profile with effective (possibly impersonated / Live Look) role for UI. */
   profile: Profile;
   /** Role stored on the profile row — never overridden by impersonation. */
   realRole: AppRole;
   /** Active impersonation target, or null. */
   impersonatingAs: AppRole | null;
+  /** Active Live Look target (Visionary observation). Null when not observing. */
+  liveLookTarget: LiveLookTarget | null;
+  /** True when Live Look is active — all writes must be denied. */
+  liveLookActive: boolean;
 };
 
 function isDevBypass() {
@@ -114,8 +127,9 @@ export async function getRealProfile(): Promise<Profile | null> {
 }
 
 /**
- * Session with optional Visionary role impersonation applied.
- * Cookie is ignored unless the real role is Visionary (security boundary).
+ * Session with optional Visionary role impersonation or Live Look applied.
+ * Cookies are ignored unless the real role is Visionary (security boundary).
+ * Live Look and role impersonation are mutually exclusive: Live Look wins if both set.
  */
 export async function getSessionContext(): Promise<SessionContext | null> {
   const real = await getRealProfile();
@@ -123,17 +137,42 @@ export async function getSessionContext(): Promise<SessionContext | null> {
 
   const realRole = real.role;
   let impersonatingAs: AppRole | null = null;
+  let liveLookTarget: LiveLookTarget | null = null;
 
-  // Cookie is only honored for Visionary — never elevates other roles.
   if (realRole === 'visionary') {
-    impersonatingAs = await readImpersonationCookie();
+    const liveId = await readLiveLookCookie();
+    if (liveId) {
+      liveLookTarget = await loadLiveLookTarget(liveId);
+      if (!liveLookTarget) {
+        // Stale cookie
+        try {
+          const { clearLiveLookCookie } = await import('@/lib/live-look/cookie');
+          await clearLiveLookCookie();
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+    if (!liveLookTarget) {
+      impersonatingAs = await readImpersonationCookie();
+    }
   }
 
-  const profile: Profile = impersonatingAs
-    ? { ...real, role: impersonatingAs }
-    : real;
+  const liveLookActive = Boolean(liveLookTarget);
 
-  return { profile, realRole, impersonatingAs };
+  const profile: Profile = liveLookTarget
+    ? applyLiveLookToProfile(real, liveLookTarget)
+    : impersonatingAs
+      ? { ...real, role: impersonatingAs }
+      : real;
+
+  return {
+    profile,
+    realRole,
+    impersonatingAs,
+    liveLookTarget,
+    liveLookActive,
+  };
 }
 
 /** Effective profile (impersonated role when active). Use for UI + permissions. */
@@ -159,6 +198,9 @@ export function normalizeRole(value: unknown): AppRole | null {
 export async function requirePermission(permission: Permission) {
   const ctx = await getSessionContext();
   if (!ctx) throw new Error('Forbidden');
+  if (ctx.liveLookActive) {
+    throw new Error(LIVE_LOOK_BLOCK_MESSAGE);
+  }
   if (ctx.impersonatingAs && isBreakGlassPermission(permission)) {
     throw new Error(BREAK_GLASS_MESSAGE);
   }
@@ -174,6 +216,9 @@ export async function guardPermission(
 ): Promise<{ ok: true; profile: Profile } | { ok: false; error: string }> {
   const ctx = await getSessionContext();
   if (!ctx) return { ok: false, error: 'Not signed in' };
+  if (ctx.liveLookActive) {
+    return { ok: false, error: LIVE_LOOK_BLOCK_MESSAGE };
+  }
   if (ctx.impersonatingAs && isBreakGlassPermission(permission)) {
     return { ok: false, error: BREAK_GLASS_MESSAGE };
   }

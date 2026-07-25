@@ -56,15 +56,21 @@ export default async function IndaSaasPage({
     <div className="space-y-8">
       <header className="space-y-2">
         <p className="text-xs font-medium tracking-[0.2em] text-muted-foreground uppercase">
-          Instant NDA · SaaS KPIs
+          Portfolio · Instant NDA
         </p>
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#3a414f]">
-            {snapshot.company_name}
+            {snapshot.company_name} · SaaS
           </h1>
           <Badge variant="outline" className="capitalize">
             {snapshot.freshness}
           </Badge>
+          <Link
+            href="/entities/ENT-INDA"
+            className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+          >
+            Open Instant NDA company →
+          </Link>
         </div>
         <p className="max-w-2xl text-sm text-muted-foreground">
           {SAAS_REPORT_ROLE_LABELS[role]} view · {snapshot.source_note} As of{' '}

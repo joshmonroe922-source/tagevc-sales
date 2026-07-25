@@ -47,6 +47,24 @@ async function run(request: Request) {
     entity_id: entityId,
   });
 
+  try {
+    const { writeAuditEvent } = await import('@/lib/audit/write');
+    await writeAuditEvent({
+      action: 'finance_sync',
+      title: `IES sync · ${result.status}`,
+      object_type: 'ies_sync',
+      object_id: result.run_id,
+      metadata: {
+        attempted: result.attempted,
+        succeeded: result.succeeded,
+        failed: result.failed,
+        message: result.message,
+      },
+    });
+  } catch {
+    /* ignore */
+  }
+
   return NextResponse.json(result, {
     status: result.status === 'failed' ? 502 : 200,
   });

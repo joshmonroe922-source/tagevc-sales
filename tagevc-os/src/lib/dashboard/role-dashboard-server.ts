@@ -158,6 +158,34 @@ export async function buildRoleDashboardCards(opts: {
     });
   }
 
+  if (opts.scope === 'company' && opts.entityId) {
+    const entityId = opts.entityId;
+    const name = entityDisplayName(entityId);
+    const entityTickets = openTickets.filter((t) => t.entity_id === entityId);
+    const companyCards = base.map((c) => ({
+      ...c,
+      company_id: entityId,
+      company_name: name,
+      description: `${c.description} · ${name}`,
+    }));
+    // Prefer entity-scoped ticket KPIs when present
+    const withTickets = companyCards.map((c) => {
+      if (c.kpi_id === 'volume_backlog' || c.kpi_id === 'due_status_rate') {
+        return {
+          ...c,
+          actual: `${entityTickets.length} open tickets for ${name}`,
+          data_state: 'partial' as const,
+        };
+      }
+      return c;
+    });
+    return {
+      cards: withTickets,
+      scope: opts.scope,
+      role: opts.role,
+    };
+  }
+
   if (opts.scope === 'by_company') {
     const byCompanyCards: RoleDashboardCard[] = [];
     const entityIds = [

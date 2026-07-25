@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { stopImpersonationAction } from '@/app/(app)/impersonation/actions';
 import { RoleSwitcher } from '@/components/layout/role-switcher';
+import { LiveLookNavControl } from '@/components/layout/live-look-nav';
 import { MessagesUnreadBadge } from '@/components/messaging/messages-unread-badge';
 import { SidebarAvailabilityControl } from '@/components/messaging/sidebar-availability-control';
 import { ActivityUnreadBadge } from '@/components/layout/activity-unread-badge';
@@ -30,6 +31,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
+import { stopLiveLookAction } from '@/app/(app)/live-look/actions';
 
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   command_center: Home,
@@ -51,6 +53,7 @@ type Props = {
   email: string;
   impersonatingAs: AppRole | null;
   impersonatableRoles: AppRole[];
+  liveLookActive?: boolean;
 };
 
 function isNavActive(pathname: string, href: string): boolean {
@@ -96,12 +99,17 @@ function isNavActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function filterNavForRole(items: NavItem[], role: AppRole): NavItem[] {
+function filterNavForRole(
+  items: NavItem[],
+  role: AppRole,
+  realRole: AppRole,
+): NavItem[] {
   const out: NavItem[] = [];
   for (const item of items) {
+    if (item.visionaryOnly && realRole !== 'visionary') continue;
     if (!roleCanAccessModule(role, item.module)) continue;
     const children = item.children
-      ? filterNavForRole(item.children, role)
+      ? filterNavForRole(item.children, role, realRole)
       : undefined;
     if (!item.href && (!children || children.length === 0)) continue;
     out.push({ ...item, children });
@@ -168,13 +176,21 @@ export function AppSidebar({
   email,
   impersonatingAs,
   impersonatableRoles,
+  liveLookActive = false,
 }: Props) {
   const pathname = usePathname();
   const router = useRouter();
-  const items = filterNavForRole(MAIN_NAV, role);
-  const showSwitcher = realRole === 'visionary' && impersonatableRoles.length > 0;
+  const items = filterNavForRole(MAIN_NAV, role, realRole);
+  const showSwitcher =
+    realRole === 'visionary' &&
+    impersonatableRoles.length > 0 &&
+    !liveLookActive;
+  const showLiveLook = realRole === 'visionary' && !liveLookActive;
 
   async function signOut() {
+    if (liveLookActive) {
+      await stopLiveLookAction();
+    }
     if (impersonatingAs) {
       await stopImpersonationAction();
     }
@@ -197,6 +213,11 @@ export function AppSidebar({
       </div>
 
       <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 pb-4">
+        {showLiveLook ? (
+          <div className="mb-1 px-0.5">
+            <LiveLookNavControl />
+          </div>
+        ) : null}
         {items.map((item) => {
           if (item.children?.length) {
             const GroupIcon = ICONS[item.module] ?? Briefcase;
@@ -254,6 +275,11 @@ export function AppSidebar({
             {impersonatingAs ? (
               <Badge variant="outline" className="font-normal">
                 Real: Visionary
+              </Badge>
+            ) : null}
+            {liveLookActive ? (
+              <Badge variant="outline" className="font-normal">
+                Live Look
               </Badge>
             ) : null}
           </div>

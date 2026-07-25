@@ -204,6 +204,29 @@ export async function listRecentActivity(
   }
 }
 
+export async function createUserNotification(input: {
+  userId: string;
+  kind: string;
+  title: string;
+  body?: string;
+  href?: string;
+}) {
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.from('app_notifications').insert({
+      notification_id: `NTF-${randomUUID().slice(0, 8)}`,
+      user_id: input.userId,
+      kind: input.kind,
+      title: input.title,
+      body: input.body ?? null,
+      href: input.href ?? null,
+    });
+    if (error) console.error('createUserNotification', error.message);
+  } catch (e) {
+    console.error('createUserNotification', e);
+  }
+}
+
 export async function createBroadcastNotification(input: {
   kind: string;
   title: string;

@@ -8,7 +8,7 @@ import type { AppRole } from '@/lib/types/roles';
 import { APP_ROLE_LABELS } from '@/lib/types/roles';
 
 export type DashboardDataState = 'live' | 'partial' | 'not_connected';
-export type DashboardScopeMode = 'consolidated' | 'by_company';
+export type DashboardScopeMode = 'consolidated' | 'by_company' | 'company';
 
 export type RoleDashboardKpiDef = {
   kpi_id: string;

@@ -37,8 +37,13 @@ export default async function DashboardPage({
   );
   const sp = (await searchParams) ?? {};
   const scopeRaw = typeof sp.scope === 'string' ? sp.scope : 'consolidated';
+  const entityRaw = typeof sp.entity === 'string' ? sp.entity.trim() : '';
   const scope: DashboardScopeMode =
-    scopeRaw === 'by_company' ? 'by_company' : 'consolidated';
+    scopeRaw === 'company' && entityRaw
+      ? 'company'
+      : scopeRaw === 'by_company'
+        ? 'by_company'
+        : 'consolidated';
   const asRaw = typeof sp.as === 'string' ? sp.as : '';
   const role = session?.profile.role ?? 'admin';
   const canSwitch = session?.realRole === 'visionary';
@@ -51,12 +56,28 @@ export default async function DashboardPage({
     listActivePortfolioCompanies(),
     getPortfolioRollup(),
     getPortfolioOperatingCadencePhase60Report(),
-    buildRoleDashboardCards({ role: viewAsRole, scope }),
+    buildRoleDashboardCards({
+      role: viewAsRole,
+      scope,
+      entityId: scope === 'company' ? entityRaw : null,
+    }),
   ]);
   const source = getMasterDataSource();
   // Company table + roll-up proof: Visionary, Partner, COO (Subsidiaries) only
   const showCompanyRollup = (['visionary', 'partner', 'coo'] as const).includes(
     viewAsRole as 'visionary' | 'partner' | 'coo',
+  );
+
+  const companyOptions = [
+    ...companies.map((c) => ({
+      entity_id: c.entity_id,
+      name: c.company_name || c.entity_id,
+    })),
+    { entity_id: 'ENT-FIRM', name: 'Tage Venture Capital' },
+    { entity_id: 'ENT-R619', name: 'Recruit 619' },
+    { entity_id: 'ENT-INDA', name: 'Instant NDA' },
+  ].filter(
+    (c, i, arr) => arr.findIndex((x) => x.entity_id === c.entity_id) === i,
   );
 
   return (
@@ -85,6 +106,8 @@ export default async function DashboardPage({
           viewAsRole={viewAsRole}
           canSwitchRoles={canSwitch}
           scope={roleDash.scope}
+          selectedEntityId={entityRaw || null}
+          companies={companyOptions}
           cards={roleDash.cards}
         />
       </Suspense>
@@ -161,7 +184,7 @@ export default async function DashboardPage({
           <p className="text-xs text-muted-foreground">
             Looking for a company? Open a row for the Subsidiary OS, browse{' '}
             <Link href="/entities" className="underline underline-offset-2">
-              Entities
+              Portfolio
             </Link>
             , or jump to{' '}
             <Link href="/command-center" className="underline underline-offset-2">

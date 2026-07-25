@@ -6,6 +6,8 @@ export type NavItem = {
   label: string;
   description?: string;
   children?: NavItem[];
+  /** When true, only shown when realRole is Visionary (not effective/impersonated). */
+  visionaryOnly?: boolean;
 };
 
 /**
@@ -53,14 +55,8 @@ export const MAIN_NAV: NavItem[] = [
   {
     module: 'portfolio',
     href: '/entities',
-    label: 'Entities',
+    label: 'Portfolio',
     description: 'Companies and performance',
-  },
-  {
-    module: 'portfolio',
-    href: '/inda-saas',
-    label: 'Instant NDA SaaS',
-    description: 'SaaS KPIs · ARR · activation',
   },
   {
     module: 'command_center',
@@ -103,6 +99,13 @@ export const MAIN_NAV: NavItem[] = [
     href: '/admin',
     label: 'Admin',
     description: 'Users · roles · settings',
+  },
+  {
+    module: 'admin',
+    href: '/admin/audit',
+    label: 'Audit log',
+    description: 'Visionary-only activity trail',
+    visionaryOnly: true,
   },
 ];
 

@@ -10,7 +10,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import {
   DASHBOARD_VIEW_ROLES,
   dashboardRoleLabel,
@@ -20,11 +19,15 @@ import {
 import type { AppRole } from '@/lib/types/roles';
 import { cn } from '@/lib/utils';
 
+type CompanyOption = { entity_id: string; name: string };
+
 type Props = {
   role: AppRole;
   viewAsRole: AppRole;
   canSwitchRoles: boolean;
   scope: DashboardScopeMode;
+  selectedEntityId: string | null;
+  companies: CompanyOption[];
   cards: RoleDashboardCard[];
 };
 
@@ -33,19 +36,33 @@ export function RoleDashboardClient({
   viewAsRole,
   canSwitchRoles,
   scope,
+  selectedEntityId,
+  companies,
   cards,
 }: Props) {
   const router = useRouter();
   const params = useSearchParams();
   const [pending, startTransition] = useTransition();
 
-  function setParam(key: string, value: string) {
+  function setParams(patch: Record<string, string | null>) {
     const next = new URLSearchParams(params.toString());
-    next.set(key, value);
+    for (const [k, v] of Object.entries(patch)) {
+      if (v == null || v === '') next.delete(k);
+      else next.set(k, v);
+    }
     startTransition(() => {
       router.replace(`/dashboard?${next.toString()}`);
     });
   }
+
+  const companyOptions = [...companies].sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
+
+  const selectValue =
+    scope === 'company' && selectedEntityId
+      ? selectedEntityId
+      : 'consolidated';
 
   return (
     <div className="space-y-4">
@@ -70,7 +87,7 @@ export function RoleDashboardClient({
                 className="ml-2 h-9 rounded-md border border-border bg-background px-2 text-sm text-foreground"
                 value={viewAsRole}
                 disabled={pending}
-                onChange={(e) => setParam('as', e.target.value)}
+                onChange={(e) => setParams({ as: e.target.value })}
               >
                 {DASHBOARD_VIEW_ROLES.map((r) => (
                   <option key={r} value={r}>
@@ -80,21 +97,29 @@ export function RoleDashboardClient({
               </select>
             </label>
           ) : null}
-          <div className="inline-flex rounded-md border border-border p-0.5">
-            {(['consolidated', 'by_company'] as const).map((mode) => (
-              <Button
-                key={mode}
-                type="button"
-                size="sm"
-                variant={scope === mode ? 'default' : 'ghost'}
-                className="h-8 text-xs"
-                disabled={pending}
-                onClick={() => setParam('scope', mode)}
-              >
-                {mode === 'consolidated' ? 'Consolidated' : 'By company'}
-              </Button>
-            ))}
-          </div>
+          <label className="text-xs text-muted-foreground">
+            Company
+            <select
+              className="ml-2 h-9 min-w-[12rem] rounded-md border border-border bg-background px-2 text-sm text-foreground"
+              value={selectValue}
+              disabled={pending}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === 'consolidated') {
+                  setParams({ scope: 'consolidated', entity: null });
+                } else {
+                  setParams({ scope: 'company', entity: v });
+                }
+              }}
+            >
+              <option value="consolidated">Consolidated</option>
+              {companyOptions.map((c) => (
+                <option key={c.entity_id} value={c.entity_id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
       </div>
 
@@ -108,8 +133,10 @@ export function RoleDashboardClient({
                   variant="outline"
                   className={cn(
                     'shrink-0 font-normal capitalize',
-                    card.data_state === 'live' && 'border-emerald-300 text-emerald-800',
-                    card.data_state === 'partial' && 'border-amber-300 text-amber-900',
+                    card.data_state === 'live' &&
+                      'border-emerald-300 text-emerald-800',
+                    card.data_state === 'partial' &&
+                      'border-amber-300 text-amber-900',
                   )}
                 >
                   {card.data_state === 'not_connected'

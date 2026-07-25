@@ -1020,3 +1020,94 @@ export async function applyGraphMailboxOffboarding(input: {
     detail: `Entra user soft-deleted for ${input.email || input.user_id} · restorable within tenant retention window`,
   };
 }
+
+/**
+ * Grant Visionary "Read and manage" (FullAccess) on a user mailbox so Outlook
+ * "Open another mailbox" works. Fail-soft when Graph is not configured.
+ *
+ * Required Entra app permissions (admin consent):
+ * - Exchange.ManageAsApp (application) + Exchange Online role assignment, OR
+ * - MailboxSettings.ReadWrite is NOT sufficient for FullAccess
+ * Env:
+ * - MS_GRAPH_* (tenant/client/secret)
+ * - MS_GRAPH_VISIONARY_MAILBOX_UPN (default joshmonroe@tagevc.com)
+ * - MS_GRAPH_GRANT_VISIONARY_MAILBOX=1 to enable live attempts
+ *
+ * See docs/MS_GRAPH_VISIONARY_MAILBOX.md
+ */
+export async function grantVisionaryMailboxFullAccess(input: {
+  user_id?: string;
+  email?: string | null;
+}): Promise<MdmResult> {
+  const enabled =
+    process.env.MS_GRAPH_GRANT_VISIONARY_MAILBOX === '1' ||
+    process.env.MS_GRAPH_GRANT_VISIONARY_MAILBOX === 'true';
+  const visionaryUpn =
+    process.env.MS_GRAPH_VISIONARY_MAILBOX_UPN?.trim() ||
+    'joshmonroe@tagevc.com';
+
+  if (!enabled) {
+    return {
+      ok: false,
+      skipped: true,
+      pending: true,
+      detail:
+        'Checklist step visible. Set MS_GRAPH_GRANT_VISIONARY_MAILBOX=1 and Graph Exchange.ManageAsApp to auto-grant FullAccess.',
+    };
+  }
+  if (!graphConfigured()) {
+    return {
+      ok: false,
+      skipped: true,
+      pending: true,
+      detail: 'MS_GRAPH_* not set — keep checklist step open for IT',
+    };
+  }
+
+  const tok = await getMsGraphToken();
+  if (!tok.ok) return { ok: false, detail: tok.detail };
+
+  const targetId = await resolveGraphUserId(tok.token, {
+    user_id: input.user_id || input.email || '',
+    email: input.email,
+  });
+  if (!targetId) {
+    return {
+      ok: false,
+      pending: true,
+      detail: `Graph user not found for ${input.email || input.user_id}`,
+    };
+  }
+
+  // Graph beta mailbox permission grant (FullAccess ≈ Read and manage)
+  const res = await fetch(
+    `https://graph.microsoft.com/beta/users/${encodeURIComponent(targetId)}/mailboxPermissions`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${tok.token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        emailAddress: { address: visionaryUpn },
+        accessRights: ['fullAccess'],
+        isInherited: false,
+      }),
+    },
+  );
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    return {
+      ok: false,
+      pending: true,
+      detail: `Graph mailbox FullAccess HTTP ${res.status}: ${text.slice(0, 180)}. Confirm Exchange.ManageAsApp + admin consent.`,
+    };
+  }
+
+  return {
+    ok: true,
+    detail: `Granted FullAccess (Read and manage) on mailbox to ${visionaryUpn}`,
+  };
+}
+

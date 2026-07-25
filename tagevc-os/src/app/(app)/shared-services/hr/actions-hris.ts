@@ -160,6 +160,33 @@ export async function updateHrisStepAction(input: {
     actor_id: session?.profile.id ?? null,
   });
   if (!res.ok) return { ok: false, error: res.error };
+
+  // Visionary mailbox FullAccess assist (fail-soft)
+  if (
+    input.status === 'done' &&
+    res.step.step_key === 'bs.visionary_mailbox_access'
+  ) {
+    try {
+      const { getEmployee } = await import('@/lib/hris/employees');
+      const {
+        runVisionaryMailboxAssist,
+      } = await import('@/lib/hris/visionary-mailbox');
+      const emp = await getEmployee(input.employeeId);
+      const assist = await runVisionaryMailboxAssist({
+        employeeEmail: emp?.work_email ?? emp?.personal_email ?? null,
+        employeeUserId: emp?.id ?? null,
+        entityId: emp?.entity_id ?? null,
+      });
+      revalidateHris(input.employeeId);
+      return {
+        ok: true,
+        message: `Step → ${input.status}. Mailbox assist: ${assist.detail}`,
+      };
+    } catch {
+      /* keep step success even if assist fails */
+    }
+  }
+
   revalidateHris(input.employeeId);
   return { ok: true, message: `Step → ${input.status}` };
 }
