@@ -87,6 +87,15 @@ export default async function FirmPage() {
           value={firm.draft_approvals + firm.p0_risks}
           hint={`${firm.draft_approvals} drafts · ${firm.p0_risks} P0 · ${firm.escalated_tickets} escalated`}
         />
+        <Metric
+          label="Firm AUM"
+          value={
+            firm.firm_aum.asset_count > 0
+              ? formatUsdK(firm.firm_aum.total / 1000) + 'k'
+              : '—'
+          }
+          hint={`${firm.firm_aum.label} · excludes private I-quadrant`}
+        />
       </section>
 
       <section className="grid gap-4 lg:grid-cols-2">

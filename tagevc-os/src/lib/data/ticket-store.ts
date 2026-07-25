@@ -25,6 +25,11 @@ import {
   assertCanAutoExecute,
   diagnoseTicket,
 } from '@/lib/shared-services/diagnose';
+import {
+  executeAllowListedAction,
+  recordAutomationMetric,
+} from '@/lib/shared-services/auto-executors';
+import { diagnoseTicketEnriched } from '@/lib/shared-services/diagnose-grok';
 import { requireTicketEntityId } from '@/lib/multi-sub/ticketing';
 import type {
   AgentAuditLog,
@@ -275,6 +280,9 @@ export type CreateTicketInput = {
   ai_generated?: boolean;
   source_doc_id?: string | null;
   ai_suggestion_id?: string | null;
+  /** Phase 76 — provenance from Recruit / Instant NDA / system */
+  source_system?: 'tage' | 'recruit619' | 'instantnda' | 'system';
+  source_ref?: string | null;
 };
 
 export type CreateAiDocumentTicketInput = {
@@ -353,7 +361,18 @@ export function createTicket(input: CreateTicketInput): Ticket {
     autonomy_band: diagnosis.band,
     confidence: diagnosis.confidence,
     diagnose_reasoning: diagnosis.reasoning,
+    diagnose_summary: diagnosis.recommendation,
     proposed_action: diagnosis.proposed_action,
+    proposed_actions: diagnosis.proposed_action
+      ? [
+          {
+            code: diagnosis.proposed_action,
+            label: diagnosis.proposed_action,
+            requires_human: diagnosis.band !== 'AUTO',
+            note: diagnosis.recommendation,
+          },
+        ]
+      : [],
     forbid_hits: diagnosis.forbid_hits,
     on_allow_list: diagnosis.on_allow_list,
     draft_approval: diagnosis.band === 'DRAFT' ? 'pending' : 'n/a',
@@ -362,6 +381,18 @@ export function createTicket(input: CreateTicketInput): Ticket {
     ai_generated: input.ai_generated ?? false,
     source_doc_id: input.source_doc_id ?? null,
     ai_suggestion_id: input.ai_suggestion_id ?? null,
+    source_system: input.source_system ?? 'tage',
+    source_ref: input.source_ref ?? null,
+    auto_attempted_at: null,
+    auto_result: null,
+    escalation_reason:
+      diagnosis.band === 'ESCALATE'
+        ? diagnosis.forbid_hits.length
+          ? `Forbid-list: ${diagnosis.forbid_hits.join(', ')}`
+          : input.priority === 'P0'
+            ? 'P0 always escalates'
+            : 'Low confidence or ambiguous'
+        : '',
     created_at: ts,
     updated_at: ts,
     resolved_at: null,
@@ -379,8 +410,8 @@ export function createTicket(input: CreateTicketInput): Ticket {
     actor: 'agent',
   });
 
-  // v1: AUTO allow-list actions execute + log immediately (no side effects beyond log for now)
-  if (ticket.autonomy_band === 'AUTO') {
+  // AUTO allow-list → narrow executor (never money/legal/HR/credit)
+  if (ticket.autonomy_band === 'AUTO' && ticket.proposed_action) {
     try {
       assertCanAutoExecute({
         band: ticket.autonomy_band,
@@ -388,6 +419,32 @@ export function createTicket(input: CreateTicketInput): Ticket {
         forbid_hits: ticket.forbid_hits,
         on_allow_list: ticket.on_allow_list,
         priority: ticket.priority,
+      });
+      const started = new Date().toISOString();
+      ticket.auto_attempted_at = started;
+      void executeAllowListedAction({
+        action: ticket.proposed_action,
+        ticketId: ticket.ticket_id,
+        title: ticket.title,
+        entityId: ticket.entity_id,
+      }).then((exec) => {
+        ticket.auto_result = exec.result;
+        ticket.proposed_actions = exec.steps.map((s) => ({
+          code: s.code,
+          label: s.code,
+          requires_human: false,
+          note: s.note,
+        }));
+        ticket.updated_at = new Date().toISOString();
+        if (exec.result === 'success' || exec.result === 'partial') {
+          ticket.status = 'In Progress';
+          void recordAutomationMetric({
+            metricKey: 'tickets_auto_attempted',
+            ticketId: ticket.ticket_id,
+            detail: { result: exec.result, action: ticket.proposed_action },
+          });
+        }
+        touchTickets();
       });
       const payload = JSON.stringify({
         action: ticket.proposed_action,
@@ -398,7 +455,7 @@ export function createTicket(input: CreateTicketInput): Ticket {
         band: 'AUTO',
         confidence: ticket.confidence,
         action: `auto_execute:${ticket.proposed_action}`,
-        reasoning: `Executed allow-listed action under policy ${ticket.policy_version}`,
+        reasoning: `Allow-listed action under policy ${ticket.policy_version}`,
         forbid_hits: [],
         approval: 'n/a',
         payload_hash: createHash('sha256').update(payload).digest('hex').slice(0, 16),
@@ -407,10 +464,11 @@ export function createTicket(input: CreateTicketInput): Ticket {
       ticket.status = 'In Progress';
       ticket.updated_at = new Date().toISOString();
     } catch (e) {
-      // Safety: demote to ESCALATE if guard fails
       ticket.autonomy_band = 'ESCALATE';
-      ticket.recommendation =
+      ticket.auto_result = 'failed';
+      ticket.escalation_reason =
         e instanceof Error ? e.message : 'AUTO blocked by policy guard';
+      ticket.recommendation = ticket.escalation_reason;
       appendAudit(store, {
         ticket_id: ticket.ticket_id,
         band: 'ESCALATE',
@@ -433,6 +491,59 @@ export function createTicket(input: CreateTicketInput): Ticket {
     ref_type: 'ticket',
     ref_id: ticket.ticket_id,
     entity_id: ticket.entity_id ?? undefined,
+  });
+  return ticket;
+}
+
+/** Re-run diagnose (+ optional Grok) and refresh band fields. */
+export async function rediagnoseTicket(ticketId: string): Promise<Ticket> {
+  const store = getTicketStore();
+  const ticket = store.tickets.find((t) => t.ticket_id === ticketId);
+  if (!ticket) throw new Error('Ticket not found');
+  const started = Date.now();
+  const diagnosis = await diagnoseTicketEnriched({
+    title: ticket.title,
+    description: ticket.description,
+    desired_outcome: ticket.desired_outcome,
+    service: ticket.service,
+    priority: ticket.priority,
+    hinted_action: ticket.proposed_action,
+  });
+  ticket.autonomy_band = diagnosis.band;
+  ticket.confidence = diagnosis.confidence;
+  ticket.diagnose_reasoning = diagnosis.reasoning;
+  ticket.diagnose_summary = diagnosis.diagnose_summary;
+  ticket.proposed_action = diagnosis.proposed_action;
+  ticket.proposed_actions = diagnosis.proposed_actions;
+  ticket.forbid_hits = diagnosis.forbid_hits;
+  ticket.on_allow_list = diagnosis.on_allow_list;
+  ticket.recommendation = diagnosis.recommendation;
+  ticket.policy_version = diagnosis.policy_version;
+  ticket.escalation_reason = diagnosis.escalation_reason;
+  ticket.draft_approval =
+    diagnosis.band === 'DRAFT'
+      ? 'pending'
+      : ticket.draft_approval === 'pending'
+        ? 'n/a'
+        : ticket.draft_approval;
+  ticket.updated_at = new Date().toISOString();
+  appendAudit(store, {
+    ticket_id: ticket.ticket_id,
+    band: ticket.autonomy_band,
+    confidence: ticket.confidence,
+    action: 'rediagnose',
+    reasoning: ticket.diagnose_reasoning,
+    forbid_hits: ticket.forbid_hits,
+    approval: null,
+    payload_hash: null,
+    actor: 'agent',
+  });
+  touchTickets();
+  void recordAutomationMetric({
+    metricKey: 'time_to_first_ai_diagnosis_ms',
+    ticketId: ticket.ticket_id,
+    value: Date.now() - started,
+    detail: { ai_enriched: diagnosis.ai_enriched, band: diagnosis.band },
   });
   return ticket;
 }

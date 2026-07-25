@@ -80,6 +80,12 @@ export default async function HrOperationsPage({ searchParams }: Props) {
           >
             Offboarding queue
           </Link>
+          <Link
+            href="/shared-services/hr/manager"
+            className="underline-offset-4 hover:underline"
+          >
+            Manager self-service
+          </Link>
         </div>
       </header>
 

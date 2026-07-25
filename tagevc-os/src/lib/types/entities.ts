@@ -413,8 +413,17 @@ export type Ticket = {
   confidence: number;
   /** Agent reasoning for band (audit). */
   diagnose_reasoning: string;
+  /** AI-written human-readable summary (Phase 76). */
+  diagnose_summary?: string;
   /** Proposed / matched action code (allow or forbid). */
   proposed_action: string | null;
+  /** Structured proposed steps (Phase 76). */
+  proposed_actions?: Array<{
+    code: string;
+    label: string;
+    requires_human: boolean;
+    note?: string;
+  }>;
   /** Forbid-list hits (empty if none). */
   forbid_hits: ForbidAction[];
   /** True if proposed action is on AUTO allow-list. */
@@ -429,6 +438,12 @@ export type Ticket = {
   ai_generated: boolean;
   source_doc_id: string | null;
   ai_suggestion_id: string | null;
+  /** Phase 76 provenance */
+  source_system?: 'tage' | 'recruit619' | 'instantnda' | 'system';
+  source_ref?: string | null;
+  auto_attempted_at?: string | null;
+  auto_result?: 'success' | 'partial' | 'failed' | 'skipped' | null;
+  escalation_reason?: string;
   created_at: string;
   updated_at: string;
   resolved_at: string | null;

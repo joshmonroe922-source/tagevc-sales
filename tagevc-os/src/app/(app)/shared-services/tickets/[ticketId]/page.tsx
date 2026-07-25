@@ -146,12 +146,45 @@ export default async function TicketDetailPage({ params }: Props) {
               value={ticket.proposed_action ?? '—'}
             />
             <Row label="Draft approval" value={ticket.draft_approval} />
+            <Row
+              label="Source"
+              value={`${ticket.source_system ?? 'tage'}${ticket.source_ref ? ` · ${ticket.source_ref}` : ''}`}
+            />
+            <Row
+              label="AUTO result"
+              value={
+                ticket.auto_result
+                  ? `${ticket.auto_result}${ticket.auto_attempted_at ? ` · ${ticket.auto_attempted_at.slice(0, 19)}` : ''}`
+                  : '—'
+              }
+            />
+            {ticket.escalation_reason ? (
+              <Row label="Escalation reason" value={ticket.escalation_reason} />
+            ) : null}
             <Separator />
+            <Row
+              label="AI summary"
+              value={ticket.diagnose_summary || ticket.diagnose_reasoning}
+            />
             <Row label="Reasoning" value={ticket.diagnose_reasoning} />
             <Row
               label="Recommendation"
               value={ticket.recommendation ?? '—'}
             />
+            {(ticket.proposed_actions?.length ?? 0) > 0 ? (
+              <div className="rounded-md border border-border px-3 py-2">
+                <p className="font-medium">Proposed actions</p>
+                <ul className="mt-1 list-disc space-y-1 pl-4 text-xs">
+                  {ticket.proposed_actions!.map((a, i) => (
+                    <li key={`${a.code}-${i}`}>
+                      <span className="font-medium">{a.label || a.code}</span>
+                      {a.requires_human ? ' · needs human' : ' · AUTO-eligible'}
+                      {a.note ? ` — ${a.note}` : ''}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
             {ticket.forbid_hits.length > 0 ? (
               <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-red-900">
                 <p className="font-medium">Forbid-list hits</p>

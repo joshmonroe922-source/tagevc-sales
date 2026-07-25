@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   approveDraftAction,
   rejectDraftAction,
+  rediagnoseTicketAction,
   resolveTicketAction,
 } from '@/app/(app)/shared-services/actions';
 import { Button } from '@/components/ui/button';
@@ -33,7 +34,7 @@ export function TicketHumanActions({
               })
             }
           >
-            Approve draft
+            Approve proposed action
           </Button>
           <Button
             size="sm"
@@ -46,10 +47,24 @@ export function TicketHumanActions({
               })
             }
           >
-            Reject draft
+            Reject / edit
           </Button>
         </>
       ) : null}
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={pending}
+        onClick={() =>
+          start(async () => {
+            const res = await rediagnoseTicketAction(ticketId);
+            if (!res.ok) alert(res.error);
+            router.refresh();
+          })
+        }
+      >
+        Re-diagnose
+      </Button>
       <Button
         size="sm"
         variant="secondary"

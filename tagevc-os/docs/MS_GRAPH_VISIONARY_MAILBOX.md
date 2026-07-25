@@ -1,5 +1,7 @@
 # Microsoft Graph — Visionary mailbox FullAccess
 
+See also **`docs/MS_GRAPH_HRIS.md`** for joiner provision (`MS_GRAPH_CREATE_USERS`) and combined env table.
+
 Goal: Visionary (Josh) can **Open another mailbox** in Outlook for each user.
 
 ## Onboarding checklist
@@ -38,4 +40,5 @@ Call from HRIS IT assist when completing `bs.visionary_mailbox_access`, or manua
 
 ## Existing users
 
-Run a one-time IT pass (PowerShell or Graph) for current mailboxes, or invoke the grant helper per user email when Graph is enabled.
+Run a one-time IT pass (PowerShell or Graph) for current mailboxes, or invoke
+`grantVisionaryMailboxForExistingEmployees()` / `grantExistingMailboxAction` when Graph is enabled.

@@ -72,6 +72,20 @@ export type RecruitAssignment = {
   recruit_user_id?: string | null;
 };
 
+export type HrisCompBasis =
+  | 'salary'
+  | 'hourly'
+  | 'commission'
+  | 'draw'
+  | 'other';
+
+export type HrisPayFrequency =
+  | 'annual'
+  | 'monthly'
+  | 'biweekly'
+  | 'weekly'
+  | 'hourly';
+
 export type HrisEmployee = {
   id: string;
   employee_key: string;
@@ -85,6 +99,7 @@ export type HrisEmployee = {
   location: string;
   manager_employee_id: string | null;
   manager_name: string;
+  manager_profile_id: string | null;
   status: HrisEmployeeStatus;
   start_date: string | null;
   end_date: string | null;
@@ -93,6 +108,11 @@ export type HrisEmployee = {
   offboarding_status: HrisProcessStatus;
   onboarding_pct: number;
   offboarding_pct: number;
+  /** Protected — HR/Visionary only at app layer. */
+  comp_amount: number | null;
+  comp_currency: string;
+  comp_basis: HrisCompBasis;
+  pay_frequency: HrisPayFrequency;
   profile_id: string | null;
   recruit_assignment: RecruitAssignment;
   notes: string;

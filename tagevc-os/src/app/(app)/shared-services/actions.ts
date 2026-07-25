@@ -141,6 +141,14 @@ export async function approveDraftAction(
   if (!gate.ok) return gate;
   try {
     setDraftApproval(ticketId, 'approved');
+    const { recordAutomationMetric } = await import(
+      '@/lib/shared-services/auto-executors'
+    );
+    void recordAutomationMetric({
+      metricKey: 'draft_approvals',
+      ticketId,
+      detail: { approval: 'approved' },
+    });
     revalidateTickets(ticketId);
     return { ok: true, ticketId, message: 'Draft approved' };
   } catch (e) {
@@ -157,6 +165,25 @@ export async function rejectDraftAction(
     setDraftApproval(ticketId, 'rejected');
     revalidateTickets(ticketId);
     return { ok: true, ticketId, message: 'Draft rejected' };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Failed' };
+  }
+}
+
+export async function rediagnoseTicketAction(
+  ticketId: string,
+): Promise<TicketActionResult> {
+  const gate = await guardPermission('write:shared_services');
+  if (!gate.ok) return gate;
+  try {
+    const { rediagnoseTicket } = await import('@/lib/data/ticket-store');
+    const ticket = await rediagnoseTicket(ticketId);
+    revalidateTickets(ticketId);
+    return {
+      ok: true,
+      ticketId,
+      message: `Re-diagnosed · ${ticket.autonomy_band} (${ticket.confidence}%)`,
+    };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Failed' };
   }

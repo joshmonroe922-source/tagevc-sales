@@ -8,6 +8,8 @@ export type NavItem = {
   children?: NavItem[];
   /** When true, only shown when realRole is Visionary (not effective/impersonated). */
   visionaryOnly?: boolean;
+  /** Hide while Visionary Live Look is active (private capital / personal credit). */
+  hideDuringLiveLook?: boolean;
 };
 
 /**
@@ -54,9 +56,24 @@ export const MAIN_NAV: NavItem[] = [
   },
   {
     module: 'portfolio',
-    href: '/entities',
     label: 'Portfolio',
-    description: 'Companies and performance',
+    description: 'Companies · Net Worth',
+    children: [
+      {
+        module: 'portfolio',
+        href: '/entities',
+        label: 'Companies',
+        description: 'Operating companies and performance',
+      },
+      {
+        module: 'portfolio',
+        href: '/portfolio/net-worth',
+        label: 'Net Worth',
+        description: 'I-quadrant · business · real estate',
+        visionaryOnly: true,
+        hideDuringLiveLook: true,
+      },
+    ],
   },
   {
     module: 'command_center',

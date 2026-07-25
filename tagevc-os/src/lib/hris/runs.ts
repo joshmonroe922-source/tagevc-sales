@@ -340,6 +340,19 @@ export async function startProcessRun(input: {
       });
     }
 
+    // Fail-soft: link IT child run on employee_links
+    try {
+      const { linkItChildRun } = await import('@/lib/hris/step-assists');
+      await linkItChildRun({
+        employee: emp,
+        kind:
+          input.kind === 'offboarding' ? 'it_offboarding' : 'it_onboarding',
+        actorId: input.actor_id,
+      });
+    } catch {
+      /* keep HRIS run even if IT child link fails */
+    }
+
     const full = await getRunWithSteps(run.id);
     return { ok: true, run: full.run ?? run };
   } catch (e) {

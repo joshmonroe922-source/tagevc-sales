@@ -107,6 +107,24 @@ export async function buildRoleDashboardCards(opts: {
     });
   }
 
+  // Firm AUM excludes private I-quadrant (stock/retirement/crypto)
+  try {
+    const { getFirmAumSnapshot } = await import('@/lib/net-worth/assets');
+    const aum = await getFirmAumSnapshot();
+    const aumLabel =
+      aum.asset_count > 0
+        ? `${formatUsdK(aum.total / 1000)}k · ${aum.asset_count} firm assets`
+        : 'No firm-visible assets registered';
+    set('aum_dry_powder', {
+      actual: aumLabel,
+      data_state: aum.asset_count > 0 ? 'partial' : 'not_connected',
+      variance_label: aum.label,
+      goal: 'Excludes private stock / retirement / crypto',
+    });
+  } catch {
+    /* fail-soft */
+  }
+
   set('pipeline_quality', {
     actual: `${activeLeads} active leads · ${companies.length} portfolio cos`,
     data_state: 'partial',

@@ -24,7 +24,7 @@ export default async function EntitiesIndexPage() {
     <div className="space-y-8">
       <header className="space-y-2">
         <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#3a414f]">
-          Entities
+          Portfolio companies
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
           Open a company to see its performance summary, service work, documents,

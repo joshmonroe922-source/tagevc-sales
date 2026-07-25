@@ -1,11 +1,15 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { HrisEmployeeDetailClient } from '@/components/shared-services/hris-employee-detail-client';
+import { canViewHrisCompensation } from '@/lib/hris/access';
+import { listEmployeeDocuments } from '@/lib/hris/documents';
 import {
   getEmployee,
   listEmployeeEvents,
   listEmployeeLinks,
+  redactEmployeeComp,
 } from '@/lib/hris/employees';
+import { getActiveManagerProfile } from '@/lib/hris/people';
 import { listRunsForEmployee } from '@/lib/hris/runs';
 import { getSessionContext, requirePermission } from '@/lib/rbac/session';
 import { roleHasPermission } from '@/lib/types/roles';
@@ -19,14 +23,22 @@ export default async function HrisEmployeePage({ params }: Props) {
   const canWrite = ctx
     ? roleHasPermission(ctx.profile.role, 'write:shared_services')
     : false;
+  const canViewComp = ctx
+    ? canViewHrisCompensation(ctx.profile.role)
+    : false;
 
-  const { employee, error } = await getEmployee(employeeId);
-  if (!employee) notFound();
+  const { employee: raw, error } = await getEmployee(employeeId);
+  if (!raw) notFound();
+  const employee = canViewComp ? raw : redactEmployeeComp(raw);
 
-  const [runs, events, links] = await Promise.all([
+  const [runs, events, links, docs, managerProfile] = await Promise.all([
     listRunsForEmployee(employee.id),
     listEmployeeEvents(employee.id),
     listEmployeeLinks(employee.id),
+    listEmployeeDocuments(employee.id),
+    employee.manager_profile_id
+      ? getActiveManagerProfile(employee.manager_profile_id)
+      : Promise.resolve(null),
   ]);
 
   return (
@@ -50,7 +62,10 @@ export default async function HrisEmployeePage({ params }: Props) {
         runs={runs}
         events={events}
         links={links}
+        documents={docs.rows}
         canWrite={canWrite}
+        canViewComp={canViewComp}
+        managerProfile={managerProfile}
       />
     </div>
   );

@@ -230,16 +230,25 @@ export const FORBID_ACTIONS = [
   'external_founder_investor_email',
   'ic_approve',
   'silent_close_p0',
+  'role_permission_change',
+  'hr_termination',
+  'credit_file_write',
+  'secret_env_change',
+  'data_deletion',
 ] as const;
 export type ForbidAction = (typeof FORBID_ACTIONS)[number];
 
-/** Allow-listed AUTO action codes (§7C examples). */
+/** Allow-listed AUTO action codes (§7C examples). Narrow + reversible only. */
 export const ALLOW_ACTIONS = [
   'spawn_missing_stage_tasks',
   'tag_ticket_service',
   'sla_nudge',
   'route_inbound_form',
   'draft_status_summary',
+  'retry_failed_parse',
+  'retry_noncritical_webhook',
+  'clear_stale_cache_flag',
+  'document_known_fix',
 ] as const;
 export type AllowAction = (typeof ALLOW_ACTIONS)[number];
 

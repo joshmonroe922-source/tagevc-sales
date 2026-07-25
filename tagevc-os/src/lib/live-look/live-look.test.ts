@@ -19,6 +19,12 @@ describe('phase71 live look + nav + mailbox', () => {
     expect(MAIN_NAV.some((n) => n.href === '/admin/audit' && n.visionaryOnly)).toBe(
       true,
     );
+    const portfolio = MAIN_NAV.find((n) => n.label === 'Portfolio');
+    expect(
+      portfolio?.children?.some(
+        (c) => c.href === '/portfolio/net-worth' && c.visionaryOnly,
+      ),
+    ).toBe(true);
   });
 
   it('applies Live Look target role/entity without swapping viewer id', () => {

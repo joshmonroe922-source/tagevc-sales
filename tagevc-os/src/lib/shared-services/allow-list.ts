@@ -43,6 +43,51 @@ export const ALLOW_LIST: AllowRule[] = [
     service_hint: ['Finance', 'Legal', 'HR', 'IT', 'Marketing'],
     signals: ['status summary', 'draft summary', 'weekly digest draft'],
   },
+  {
+    code: 'retry_failed_parse',
+    label: 'Retry failed credit/document parse (no data invent)',
+    service_hint: ['IT', 'Finance'],
+    signals: [
+      'parse failure',
+      'retry parse',
+      'reparse',
+      'credit parse failed',
+      'pdf parse failed',
+    ],
+  },
+  {
+    code: 'retry_noncritical_webhook',
+    label: 'Retry non-critical webhook delivery',
+    service_hint: ['IT'],
+    signals: [
+      'webhook retry',
+      'retry webhook',
+      'failed webhook',
+      'inbound webhook failed',
+    ],
+  },
+  {
+    code: 'clear_stale_cache_flag',
+    label: 'Clear stale cache / freshness flag (reversible)',
+    service_hint: ['IT'],
+    signals: [
+      'stale cache',
+      'clear cache',
+      'cache miss',
+      'refresh cache flag',
+    ],
+  },
+  {
+    code: 'document_known_fix',
+    label: 'Document known fix in ticket (no side effects)',
+    service_hint: ['IT', 'HR', 'Finance', 'Legal', 'Marketing'],
+    signals: [
+      'known fix',
+      'document fix',
+      'console noise',
+      'known env flag',
+    ],
+  },
 ];
 
 export function matchAllowAction(text: string): AllowAction | null {

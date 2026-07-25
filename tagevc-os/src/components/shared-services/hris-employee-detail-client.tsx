@@ -8,8 +8,10 @@ import {
   startHrisOnboardingAction,
   updateHrisEmployeeAction,
   updateHrisStepAction,
+  uploadHrisDocumentAction,
 } from '@/app/(app)/shared-services/hr/actions-hris';
 import { CompanySelect } from '@/components/shared/company-select';
+import { PeoplePicker } from '@/components/shared-services/people-picker';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -24,6 +26,7 @@ import { Label } from '@/components/ui/label';
 import { entityDisplayName } from '@/lib/entities/display-name';
 import { recruitPeopleHref } from '@/lib/hris/recruit-hook';
 import { isStepOverdue } from '@/lib/hris/timing';
+import type { HrisDocumentRow } from '@/lib/hris/documents';
 import {
   completionLabel,
   statusLabel,
@@ -31,21 +34,43 @@ import {
   type HrisEmployeeEvent,
   type HrisEmployeeLink,
   type HrisProcessRun,
+  type HrisProcessStep,
   type HrisStepStatus,
 } from '@/lib/hris/types';
+
+function isDocuSignStep(step: HrisProcessStep): boolean {
+  return (
+    step.system_hook === 'docusign_send' ||
+    step.step_key === 'pre.offer_letter' ||
+    /nda/i.test(step.step_key) ||
+    /nda/i.test(step.title)
+  );
+}
 
 export function HrisEmployeeDetailClient({
   employee,
   runs,
   events,
   links,
+  documents,
   canWrite,
+  canViewComp,
+  managerProfile,
 }: {
   employee: HrisEmployee;
   runs: HrisProcessRun[];
   events: HrisEmployeeEvent[];
   links: HrisEmployeeLink[];
+  documents: HrisDocumentRow[];
   canWrite: boolean;
+  canViewComp: boolean;
+  managerProfile?: {
+    id: string;
+    email: string;
+    full_name: string | null;
+    role_label?: string;
+    company_name?: string;
+  } | null;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -53,18 +78,22 @@ export function HrisEmployeeDetailClient({
   const onboarding = runs.find((r) => r.kind === 'onboarding');
   const offboarding = runs.find((r) => r.kind === 'offboarding');
   const recruitHref = recruitPeopleHref(employee.recruit_assignment);
+  const itLinks = links.filter(
+    (l) => l.kind === 'it_onboarding' || l.kind === 'it_offboarding',
+  );
 
   const setStep = (
-    stepId: string,
+    step: HrisProcessStep,
     status: HrisStepStatus,
-    destructive?: boolean,
+    opts?: { destructive?: boolean; docusign?: boolean },
   ) => {
     start(async () => {
       const res = await updateHrisStepAction({
-        stepId,
+        stepId: step.id,
         employeeId: employee.id,
         status,
-        confirmDestructive: destructive,
+        confirmDestructive: opts?.destructive,
+        confirmDocuSign: opts?.docusign,
       });
       setMessage(res.ok ? res.message : res.error);
       router.refresh();
@@ -161,12 +190,21 @@ export function HrisEmployeeDetailClient({
                     defaultValue={employee.phone}
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="manager_name">Manager</Label>
-                  <Input
-                    id="manager_name"
-                    name="manager_name"
-                    defaultValue={employee.manager_name}
+                <div className="space-y-1.5 sm:col-span-2">
+                  <PeoplePicker
+                    name="manager_profile_id"
+                    label="Manager"
+                    disabled={!canWrite}
+                    initial={
+                      managerProfile ??
+                      (employee.manager_profile_id
+                        ? {
+                            id: employee.manager_profile_id,
+                            email: '',
+                            full_name: employee.manager_name || null,
+                          }
+                        : null)
+                    }
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -225,6 +263,66 @@ export function HrisEmployeeDetailClient({
                     ))}
                   </select>
                 </div>
+                {canViewComp ? (
+                  <>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="comp_amount">Comp amount (HR only)</Label>
+                      <Input
+                        id="comp_amount"
+                        name="comp_amount"
+                        type="number"
+                        step="0.01"
+                        defaultValue={employee.comp_amount ?? ''}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="comp_currency">Currency</Label>
+                      <Input
+                        id="comp_currency"
+                        name="comp_currency"
+                        defaultValue={employee.comp_currency}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="comp_basis">Comp basis</Label>
+                      <select
+                        id="comp_basis"
+                        name="comp_basis"
+                        className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                        defaultValue={employee.comp_basis}
+                      >
+                        {['salary', 'hourly', 'commission', 'draw', 'other'].map(
+                          (b) => (
+                            <option key={b} value={b}>
+                              {b}
+                            </option>
+                          ),
+                        )}
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="pay_frequency">Pay frequency</Label>
+                      <select
+                        id="pay_frequency"
+                        name="pay_frequency"
+                        className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                        defaultValue={employee.pay_frequency}
+                      >
+                        {[
+                          'annual',
+                          'monthly',
+                          'biweekly',
+                          'weekly',
+                          'hourly',
+                        ].map((f) => (
+                          <option key={f} value={f}>
+                            {f}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                ) : null}
                 <div className="space-y-1.5 sm:col-span-2">
                   <Label htmlFor="notes">Notes</Label>
                   <Input id="notes" name="notes" defaultValue={employee.notes} />
@@ -258,7 +356,7 @@ export function HrisEmployeeDetailClient({
           <CardHeader>
             <CardTitle className="text-base">Links & Recruit</CardTitle>
             <CardDescription>
-              Documents, equipment, access, and Recruit 619 assignment stub.
+              Documents, equipment, access, IT child runs, Recruit assignment.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
@@ -279,10 +377,33 @@ export function HrisEmployeeDetailClient({
                 No Recruit assignment (company is not Recruit 619).
               </p>
             )}
+            {itLinks.length > 0 ? (
+              <div>
+                <p className="mb-1 text-xs font-medium text-muted-foreground">
+                  IT child runs
+                </p>
+                <ul className="space-y-1">
+                  {itLinks.map((l) => (
+                    <li key={l.id}>
+                      {l.href ? (
+                        <Link
+                          href={l.href}
+                          className="underline-offset-4 hover:underline"
+                        >
+                          {l.label}
+                        </Link>
+                      ) : (
+                        l.label
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
             {links.length === 0 ? (
               <p className="text-muted-foreground">
-                No document / equipment / access links yet. Link IT runs from IT
-                Assets when available.
+                No document / equipment / access links yet. IT child runs link
+                when onboarding/offboarding starts.
               </p>
             ) : (
               <ul className="space-y-1">
@@ -354,6 +475,102 @@ export function HrisEmployeeDetailClient({
         </Card>
       </div>
 
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Document vault</CardTitle>
+          <CardDescription>
+            Offer / NDA / I-9 style attachments (private bucket). Linked on
+            timeline.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          {documents.length === 0 ? (
+            <p className="text-muted-foreground">No vault documents yet.</p>
+          ) : (
+            <ul className="space-y-1">
+              {documents.map((d) => (
+                <li key={d.id}>
+                  {d.title}{' '}
+                  <span className="text-xs text-muted-foreground">
+                    · {d.kind} · {d.file_name}
+                    {d.docusign_envelope_id
+                      ? ` · DS ${d.docusign_status ?? 'sent'}`
+                      : ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {canWrite ? (
+            <form
+              className="grid gap-2 sm:grid-cols-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const form = e.currentTarget;
+                const fd = new FormData(form);
+                const file = (form.elements.namedItem('file') as HTMLInputElement)
+                  ?.files?.[0];
+                if (!file) {
+                  setMessage('Choose a file');
+                  return;
+                }
+                start(async () => {
+                  const base64 = await new Promise<string>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                      const result = String(reader.result ?? '');
+                      const comma = result.indexOf(',');
+                      resolve(comma >= 0 ? result.slice(comma + 1) : result);
+                    };
+                    reader.onerror = () => reject(reader.error);
+                    reader.readAsDataURL(file);
+                  });
+                  const res = await uploadHrisDocumentAction({
+                    employeeId: employee.id,
+                    kind: String(fd.get('kind') ?? 'other') as HrisDocumentRow['kind'],
+                    title: String(fd.get('title') ?? file.name),
+                    fileName: file.name,
+                    mimeType: file.type || 'application/octet-stream',
+                    base64,
+                  });
+                  setMessage(res.ok ? res.message : res.error);
+                  router.refresh();
+                });
+              }}
+            >
+              <div className="space-y-1.5">
+                <Label htmlFor="doc_title">Title</Label>
+                <Input id="doc_title" name="title" placeholder="Offer letter" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="doc_kind">Kind</Label>
+                <select
+                  id="doc_kind"
+                  name="kind"
+                  className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                  defaultValue="offer"
+                >
+                  {['offer', 'nda', 'i9', 'handbook', 'contract', 'id', 'other'].map(
+                    (k) => (
+                      <option key={k} value={k}>
+                        {k}
+                      </option>
+                    ),
+                  )}
+                </select>
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label htmlFor="file">File</Label>
+                <Input id="file" name="file" type="file" />
+              </div>
+              <Button type="submit" size="sm" disabled={pending}>
+                Upload to vault
+              </Button>
+            </form>
+          ) : null}
+        </CardContent>
+      </Card>
+
       {(onboarding || offboarding) &&
         [onboarding, offboarding].filter(Boolean).map((run) => (
           <Card key={run!.id}>
@@ -371,6 +588,7 @@ export function HrisEmployeeDetailClient({
             <CardContent className="space-y-2">
               {(run!.steps ?? []).map((step) => {
                 const overdue = isStepOverdue(step);
+                const ds = isDocuSignStep(step);
                 return (
                   <div
                     key={step.id}
@@ -382,9 +600,16 @@ export function HrisEmployeeDetailClient({
                         <p className="text-xs text-muted-foreground">
                           {step.category} · {step.owner_role}
                           {step.due_at ? ` · due ${step.due_at}` : ''}
+                          {step.system_hook ? ` · ${step.system_hook}` : ''}
                           {step.optional_for_audience ? ' · optional' : ''}
                           {step.destructive ? ' · destructive' : ''}
+                          {ds ? ' · DocuSign' : ''}
                         </p>
+                        {step.evidence_note ? (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Evidence: {step.evidence_note}
+                          </p>
+                        ) : null}
                       </div>
                       <div className="flex flex-wrap gap-1">
                         {overdue ? (
@@ -403,6 +628,17 @@ export function HrisEmployeeDetailClient({
                           variant="secondary"
                           disabled={pending}
                           onClick={() => {
+                            if (ds) {
+                              if (
+                                !window.confirm(
+                                  `Send DocuSign for "${step.title}"? This is not silent — confirm to send.`,
+                                )
+                              ) {
+                                return;
+                              }
+                              setStep(step, 'done', { docusign: true });
+                              return;
+                            }
                             if (step.destructive) {
                               if (
                                 !window.confirm(
@@ -411,19 +647,19 @@ export function HrisEmployeeDetailClient({
                               ) {
                                 return;
                               }
-                              setStep(step.id, 'done', true);
+                              setStep(step, 'done', { destructive: true });
                             } else {
-                              setStep(step.id, 'done');
+                              setStep(step, 'done');
                             }
                           }}
                         >
-                          Complete
+                          {ds ? 'Send DocuSign & complete' : 'Complete'}
                         </Button>
                         <Button
                           size="sm"
                           variant="outline"
                           disabled={pending}
-                          onClick={() => setStep(step.id, 'waived')}
+                          onClick={() => setStep(step, 'waived')}
                         >
                           Waive / N/A
                         </Button>
@@ -431,7 +667,7 @@ export function HrisEmployeeDetailClient({
                           size="sm"
                           variant="ghost"
                           disabled={pending}
-                          onClick={() => setStep(step.id, 'blocked')}
+                          onClick={() => setStep(step, 'blocked')}
                         >
                           Block
                         </Button>

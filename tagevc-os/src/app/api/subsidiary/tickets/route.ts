@@ -100,6 +100,13 @@ export async function POST(request: Request) {
       );
     }
 
+    const sourceSystem =
+      entityGate.entity_id === 'ENT-R619'
+        ? 'recruit619'
+        : entityGate.entity_id === 'ENT-INDA'
+          ? 'instantnda'
+          : 'system';
+
     const ticket = createTicket({
       title,
       description: body.description ? String(body.description) : undefined,
@@ -115,6 +122,8 @@ export async function POST(request: Request) {
       company_name: body.company_name ? String(body.company_name) : undefined,
       links: body.links ? String(body.links) : undefined,
       sla_due_at: body.sla_due_at ? String(body.sla_due_at) : undefined,
+      source_system: sourceSystem,
+      source_ref: body.source_ref ? String(body.source_ref) : null,
     });
 
     return NextResponse.json({

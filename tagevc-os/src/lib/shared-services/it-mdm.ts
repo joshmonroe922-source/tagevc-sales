@@ -1111,3 +1111,146 @@ export async function grantVisionaryMailboxFullAccess(input: {
   };
 }
 
+export type GraphJoinerResult = MdmResult & {
+  graph_user_id?: string;
+  created?: boolean;
+  updated?: boolean;
+};
+
+/**
+ * Create or update an Entra/Microsoft user for HRIS joiner provision.
+ * Opt-in: MS_GRAPH_CREATE_USERS=1
+ * Requires User.ReadWrite.All (application) + admin consent.
+ */
+export async function createOrUpdateGraphUserJoiner(input: {
+  display_name: string;
+  work_email: string;
+  job_title?: string | null;
+  department?: string | null;
+  entity_id?: string | null;
+  mail_nickname?: string | null;
+}): Promise<GraphJoinerResult> {
+  const enabled =
+    process.env.MS_GRAPH_CREATE_USERS === '1' ||
+    process.env.MS_GRAPH_CREATE_USERS === 'true';
+  if (!enabled) {
+    return {
+      ok: false,
+      skipped: true,
+      pending: true,
+      detail:
+        'MS_GRAPH_CREATE_USERS not enabled — keep bs.ms_email open for IT. Needs User.ReadWrite.All admin consent.',
+    };
+  }
+  if (!graphConfigured()) {
+    return {
+      ok: false,
+      skipped: true,
+      pending: true,
+      detail: 'MS_GRAPH_* not set — Graph joiner unavailable',
+    };
+  }
+
+  const email = input.work_email.trim().toLowerCase();
+  if (!email || !email.includes('@')) {
+    return { ok: false, detail: 'Valid work_email required for Graph joiner' };
+  }
+
+  const tok = await getMsGraphToken();
+  if (!tok.ok) return { ok: false, detail: tok.detail };
+
+  const existingId = await resolveGraphUserId(tok.token, {
+    user_id: email,
+    email,
+  });
+  const headers = {
+    Authorization: `Bearer ${tok.token}`,
+    'Content-Type': 'application/json',
+  };
+
+  if (existingId) {
+    const patch: Record<string, unknown> = {
+      displayName: input.display_name,
+      jobTitle: input.job_title || undefined,
+      department: input.department || undefined,
+    };
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(existingId)}`,
+      {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify(patch),
+      },
+    );
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      return {
+        ok: false,
+        pending: true,
+        detail: `Graph user update HTTP ${res.status}: ${text.slice(0, 160)}`,
+        graph_user_id: existingId,
+      };
+    }
+    // Best-effort group/SKU assign
+    await assignGraphGroupMembership({ user_id: existingId, email });
+    await assignGraphLicenseSku({ user_id: existingId, email });
+    return {
+      ok: true,
+      updated: true,
+      graph_user_id: existingId,
+      detail: `Updated existing Graph user ${email}`,
+    };
+  }
+
+  const nick =
+    input.mail_nickname?.trim() ||
+    email.split('@')[0].replace(/[^a-zA-Z0-9._-]/g, '').slice(0, 64);
+  const tempPassword =
+    process.env.MS_GRAPH_JOINER_TEMP_PASSWORD?.trim() ||
+    `Tmp!${Math.random().toString(36).slice(2, 10)}A1`;
+
+  const domain =
+    process.env.MS_GRAPH_JOINER_DOMAIN?.trim() || email.split('@')[1];
+  const upn = email.includes(domain) ? email : `${nick}@${domain}`;
+
+  const body = {
+    accountEnabled: true,
+    displayName: input.display_name,
+    mailNickname: nick,
+    userPrincipalName: upn,
+    jobTitle: input.job_title || undefined,
+    department: input.department || undefined,
+    passwordProfile: {
+      forceChangePasswordNextSignIn: true,
+      password: tempPassword,
+    },
+  };
+
+  const res = await fetch('https://graph.microsoft.com/v1.0/users', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    return {
+      ok: false,
+      pending: true,
+      detail: `Graph user create HTTP ${res.status}: ${text.slice(0, 180)}. Confirm User.ReadWrite.All.`,
+    };
+  }
+  const json = (await res.json()) as { id?: string };
+  const graphUserId = json.id;
+  if (graphUserId) {
+    await assignGraphGroupMembership({ user_id: graphUserId, email: upn });
+    await assignGraphLicenseSku({ user_id: graphUserId, email: upn });
+  }
+  return {
+    ok: true,
+    created: true,
+    graph_user_id: graphUserId,
+    detail: `Created Graph user ${upn}${graphUserId ? ` (${graphUserId})` : ''}`,
+  };
+}
+
+

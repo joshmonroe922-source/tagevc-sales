@@ -1,7 +1,9 @@
 /** HRIS employee CRUD + mapping. */
 
 import { createPersistClient } from '@/lib/supabase/persist-client';
+import { writeAuditEvent } from '@/lib/audit/write';
 import { entityDisplayName } from '@/lib/entities/display-name';
+import { getActiveManagerProfile } from '@/lib/hris/people';
 import { buildRecruitAssignment } from './recruit-hook';
 import type {
   HrisEmployee,
@@ -26,6 +28,7 @@ function mapEmployee(row: Record<string, unknown>): HrisEmployee {
     location: String(row.location ?? ''),
     manager_employee_id: (row.manager_employee_id as string) ?? null,
     manager_name: String(row.manager_name ?? ''),
+    manager_profile_id: (row.manager_profile_id as string) ?? null,
     status: row.status as HrisEmployeeStatus,
     start_date: row.start_date ? String(row.start_date).slice(0, 10) : null,
     end_date: row.end_date ? String(row.end_date).slice(0, 10) : null,
@@ -37,6 +40,14 @@ function mapEmployee(row: Record<string, unknown>): HrisEmployee {
       row.offboarding_status as HrisEmployee['offboarding_status'],
     onboarding_pct: Number(row.onboarding_pct ?? 0),
     offboarding_pct: Number(row.offboarding_pct ?? 0),
+    comp_amount:
+      row.comp_amount === null || row.comp_amount === undefined
+        ? null
+        : Number(row.comp_amount),
+    comp_currency: String(row.comp_currency ?? 'USD'),
+    comp_basis: (row.comp_basis as HrisEmployee['comp_basis']) || 'salary',
+    pay_frequency:
+      (row.pay_frequency as HrisEmployee['pay_frequency']) || 'annual',
     profile_id: (row.profile_id as string) ?? null,
     recruit_assignment: recruit,
     notes: String(row.notes ?? ''),
@@ -52,6 +63,7 @@ export function employeeCompanyName(emp: Pick<HrisEmployee, 'entity_id'>): strin
 export async function listEmployees(opts?: {
   entityId?: string | null;
   status?: HrisEmployeeStatus | null;
+  managerProfileId?: string | null;
   limit?: number;
 }): Promise<{ rows: HrisEmployee[]; error?: string }> {
   try {
@@ -63,6 +75,9 @@ export async function listEmployees(opts?: {
       .limit(opts?.limit ?? 200);
     if (opts?.entityId) q = q.eq('entity_id', opts.entityId);
     if (opts?.status) q = q.eq('status', opts.status);
+    if (opts?.managerProfileId) {
+      q = q.eq('manager_profile_id', opts.managerProfileId);
+    }
     const { data, error } = await q;
     if (error) return { rows: [], error: error.message };
     return { rows: (data ?? []).map((r) => mapEmployee(r as Record<string, unknown>)) };
@@ -72,6 +87,18 @@ export async function listEmployees(opts?: {
       error: e instanceof Error ? e.message : 'List employees failed',
     };
   }
+}
+
+/** Strip compensation fields for non-HR viewers (managers). */
+export function redactEmployeeComp(emp: HrisEmployee): HrisEmployee {
+  return {
+    ...emp,
+    comp_amount: null,
+    comp_currency: 'USD',
+    comp_basis: 'salary',
+    pay_frequency: 'annual',
+    notes: '',
+  };
 }
 
 export async function getEmployee(
@@ -128,6 +155,7 @@ export type CreateEmployeeInput = {
   location?: string;
   manager_name?: string;
   manager_employee_id?: string | null;
+  manager_profile_id?: string | null;
   status?: HrisEmployeeStatus;
   start_date?: string | null;
   end_date?: string | null;
@@ -136,6 +164,10 @@ export type CreateEmployeeInput = {
   profile_id?: string | null;
   created_by?: string | null;
   auto_start_onboarding?: boolean;
+  comp_amount?: number | null;
+  comp_currency?: string;
+  comp_basis?: HrisEmployee['comp_basis'];
+  pay_frequency?: HrisEmployee['pay_frequency'];
 };
 
 function slugKey(name: string, entityId: string): string {
@@ -176,6 +208,20 @@ export async function createEmployee(
 > {
   try {
     const sb = await createPersistClient();
+    let managerProfileId = input.manager_profile_id?.trim() || null;
+    let managerName = input.manager_name?.trim() ?? '';
+    if (managerProfileId) {
+      const mgr = await getActiveManagerProfile(managerProfileId);
+      if (!mgr) {
+        return {
+          ok: false,
+          error: 'Manager must be an active eligible profile',
+        };
+      }
+      managerProfileId = mgr.id;
+      if (!managerName) managerName = mgr.full_name || mgr.email;
+    }
+
     const status = input.status ?? 'pre_start';
     const recruit = buildRecruitAssignment(input.entity_id);
     const row = {
@@ -188,8 +234,9 @@ export async function createEmployee(
       role_title: input.role_title?.trim() ?? '',
       department: input.department?.trim() ?? '',
       location: input.location?.trim() ?? '',
-      manager_name: input.manager_name?.trim() ?? '',
+      manager_name: managerName,
       manager_employee_id: input.manager_employee_id ?? null,
+      manager_profile_id: managerProfileId,
       status,
       start_date: input.start_date ?? null,
       end_date: input.end_date ?? null,
@@ -202,6 +249,10 @@ export async function createEmployee(
       notes: input.notes?.trim() ?? '',
       profile_id: input.profile_id ?? null,
       created_by: input.created_by ?? null,
+      comp_amount: input.comp_amount ?? null,
+      comp_currency: input.comp_currency ?? 'USD',
+      comp_basis: input.comp_basis ?? 'salary',
+      pay_frequency: input.pay_frequency ?? 'annual',
     };
 
     const { data, error } = await sb
@@ -266,6 +317,26 @@ export async function updateEmployee(
         ? buildRecruitAssignment(patch.entity_id, existing.employee.recruit_assignment)
         : undefined;
 
+    // Validate manager assignment before write
+    if (patch.manager_profile_id !== undefined) {
+      const nextId = patch.manager_profile_id?.trim() || null;
+      if (nextId) {
+        const mgr = await getActiveManagerProfile(nextId);
+        if (!mgr) {
+          return {
+            ok: false,
+            error: 'Manager must be an active eligible profile',
+          };
+        }
+        patch.manager_profile_id = mgr.id;
+        if (!patch.manager_name?.trim()) {
+          patch.manager_name = mgr.full_name || mgr.email;
+        }
+      } else {
+        patch.manager_profile_id = null;
+      }
+    }
+
     const update: Record<string, unknown> = {};
     for (const key of [
       'full_name',
@@ -278,6 +349,7 @@ export async function updateEmployee(
       'location',
       'manager_name',
       'manager_employee_id',
+      'manager_profile_id',
       'status',
       'start_date',
       'end_date',
@@ -288,6 +360,10 @@ export async function updateEmployee(
       'offboarding_status',
       'onboarding_pct',
       'offboarding_pct',
+      'comp_amount',
+      'comp_currency',
+      'comp_basis',
+      'pay_frequency',
     ] as const) {
       if (patch[key] !== undefined) update[key] = patch[key];
     }
@@ -310,6 +386,37 @@ export async function updateEmployee(
         event_kind: 'status_change',
         summary: `Status ${existing.employee.status} → ${patch.status}`,
         detail: { from: existing.employee.status, to: patch.status },
+      });
+    }
+
+    if (
+      patch.manager_profile_id !== undefined &&
+      patch.manager_profile_id !== existing.employee.manager_profile_id
+    ) {
+      await appendEmployeeEvent({
+        employee_id: employeeId,
+        event_kind: 'note',
+        summary: patch.manager_profile_id
+          ? `Manager assigned · ${employee.manager_name || patch.manager_profile_id}`
+          : 'Manager cleared',
+        detail: {
+          from: existing.employee.manager_profile_id,
+          to: patch.manager_profile_id,
+          manager_name: employee.manager_name,
+        },
+      });
+      await writeAuditEvent({
+        action: 'hris_action',
+        title: patch.manager_profile_id
+          ? `HRIS manager assigned · ${employee.full_name} → ${employee.manager_name || 'profile'}`
+          : `HRIS manager cleared · ${employee.full_name}`,
+        object_type: 'hris_employee',
+        object_id: employeeId,
+        entity_id: employee.entity_id,
+        metadata: {
+          from_manager_profile_id: existing.employee.manager_profile_id,
+          to_manager_profile_id: patch.manager_profile_id,
+        },
       });
     }
 

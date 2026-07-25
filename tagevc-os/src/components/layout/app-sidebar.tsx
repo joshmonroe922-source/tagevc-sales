@@ -2,8 +2,10 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Briefcase,
+  ChevronRight,
   FileText,
   History,
   Home,
@@ -32,6 +34,8 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { stopLiveLookAction } from '@/app/(app)/live-look/actions';
+
+const NAV_ACCORDION_STORAGE_KEY = 'tagevc.nav.accordion.v1';
 
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   command_center: Home,
@@ -93,28 +97,140 @@ function isNavActive(pathname: string, href: string): boolean {
   if (href === '/entities') {
     return pathname === '/entities' || pathname.startsWith('/entities/');
   }
+  if (href === '/portfolio/net-worth') {
+    return (
+      pathname === '/portfolio/net-worth' ||
+      pathname.startsWith('/portfolio/net-worth/')
+    );
+  }
   if (href === '/portfolio') {
     return pathname === '/portfolio' || pathname.startsWith('/portfolio/');
   }
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+function childRouteActive(pathname: string, children: NavItem[]): boolean {
+  return children.some(
+    (c) => !!c.href && isNavActive(pathname, c.href),
+  );
+}
+
+function readAccordionState(): Record<string, boolean> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(NAV_ACCORDION_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, boolean>;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeAccordionState(state: Record<string, boolean>) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(
+      NAV_ACCORDION_STORAGE_KEY,
+      JSON.stringify(state),
+    );
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
 function filterNavForRole(
   items: NavItem[],
   role: AppRole,
   realRole: AppRole,
+  liveLookActive = false,
 ): NavItem[] {
   const out: NavItem[] = [];
   for (const item of items) {
     if (item.visionaryOnly && realRole !== 'visionary') continue;
+    if (item.hideDuringLiveLook && liveLookActive) continue;
     if (!roleCanAccessModule(role, item.module)) continue;
     const children = item.children
-      ? filterNavForRole(item.children, role, realRole)
+      ? filterNavForRole(item.children, role, realRole, liveLookActive)
       : undefined;
     if (!item.href && (!children || children.length === 0)) continue;
     out.push({ ...item, children });
   }
   return out;
+}
+
+function NavGroup({
+  item,
+  pathname,
+  expanded,
+  onToggle,
+}: {
+  item: NavItem;
+  pathname: string;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const GroupIcon = ICONS[item.module] ?? Briefcase;
+  const children = item.children ?? [];
+  const groupId = `nav-group-${item.label.replace(/\s+/g, '-').toLowerCase()}`;
+
+  return (
+    <div className="space-y-0.5 pt-1">
+      <button
+        type="button"
+        id={groupId}
+        aria-expanded={expanded}
+        aria-controls={`${groupId}-panel`}
+        onClick={onToggle}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onToggle();
+          }
+        }}
+        className={cn(
+          'flex w-full items-start gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors',
+          'text-sidebar-foreground/80 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring',
+        )}
+      >
+        <GroupIcon className="mt-0.5 size-4 shrink-0" />
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-2">
+            <span className="block font-medium">{item.label}</span>
+            <ChevronRight
+              className={cn(
+                'size-3.5 shrink-0 opacity-70 transition-transform duration-200',
+                expanded && 'rotate-90',
+              )}
+              aria-hidden
+            />
+          </span>
+          {item.description ? (
+            <span className="mt-0.5 block text-xs opacity-70">
+              {item.description}
+            </span>
+          ) : null}
+        </span>
+      </button>
+      <div
+        id={`${groupId}-panel`}
+        role="region"
+        aria-labelledby={groupId}
+        hidden={!expanded}
+        className={cn(expanded ? 'space-y-0.5' : 'hidden')}
+      >
+        {children.map((child) => (
+          <NavLink
+            key={child.href ?? child.label}
+            item={child}
+            pathname={pathname}
+            nested
+          />
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function NavLink({
@@ -180,12 +296,59 @@ export function AppSidebar({
 }: Props) {
   const pathname = usePathname();
   const router = useRouter();
-  const items = filterNavForRole(MAIN_NAV, role, realRole);
+  const items = useMemo(
+    () => filterNavForRole(MAIN_NAV, role, realRole, liveLookActive),
+    [role, realRole, liveLookActive],
+  );
   const showSwitcher =
     realRole === 'visionary' &&
     impersonatableRoles.length > 0 &&
     !liveLookActive;
   const showLiveLook = realRole === 'visionary' && !liveLookActive;
+
+  const [accordion, setAccordion] = useState<Record<string, boolean>>({});
+  const [accordionReady, setAccordionReady] = useState(false);
+
+  useEffect(() => {
+    const stored = readAccordionState();
+    const next: Record<string, boolean> = { ...stored };
+    for (const item of items) {
+      if (!item.children?.length) continue;
+      if (childRouteActive(pathname, item.children)) {
+        next[item.label] = true;
+      } else if (next[item.label] === undefined) {
+        next[item.label] = false;
+      }
+    }
+    setAccordion(next);
+    setAccordionReady(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate once; path effect below keeps active parents open
+  }, []);
+
+  useEffect(() => {
+    if (!accordionReady) return;
+    setAccordion((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const item of items) {
+        if (!item.children?.length) continue;
+        if (childRouteActive(pathname, item.children) && !next[item.label]) {
+          next[item.label] = true;
+          changed = true;
+        }
+      }
+      if (changed) writeAccordionState(next);
+      return changed ? next : prev;
+    });
+  }, [pathname, items, accordionReady]);
+
+  const toggleGroup = (label: string) => {
+    setAccordion((prev) => {
+      const next = { ...prev, [label]: !prev[label] };
+      writeAccordionState(next);
+      return next;
+    });
+  };
 
   async function signOut() {
     if (liveLookActive) {
@@ -220,29 +383,17 @@ export function AppSidebar({
         ) : null}
         {items.map((item) => {
           if (item.children?.length) {
-            const GroupIcon = ICONS[item.module] ?? Briefcase;
+            const expanded = accordionReady
+              ? Boolean(accordion[item.label])
+              : childRouteActive(pathname, item.children);
             return (
-              <div key={item.label} className="space-y-0.5 pt-1">
-                <div className="flex items-start gap-3 px-3 py-2 text-sm text-sidebar-foreground/80">
-                  <GroupIcon className="mt-0.5 size-4 shrink-0" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block font-medium">{item.label}</span>
-                    {item.description ? (
-                      <span className="mt-0.5 block text-xs opacity-70">
-                        {item.description}
-                      </span>
-                    ) : null}
-                  </span>
-                </div>
-                {item.children.map((child) => (
-                  <NavLink
-                    key={child.href ?? child.label}
-                    item={child}
-                    pathname={pathname}
-                    nested
-                  />
-                ))}
-              </div>
+              <NavGroup
+                key={item.label}
+                item={item}
+                pathname={pathname}
+                expanded={expanded}
+                onToggle={() => toggleGroup(item.label)}
+              />
             );
           }
           return (

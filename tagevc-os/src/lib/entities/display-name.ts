@@ -7,6 +7,7 @@ const KNOWN_ENTITY_NAMES: Record<string, string> = {
   'ENT-FIRM': 'Tage Venture Capital',
   'ENT-R619': 'Recruit 619',
   'ENT-INDA': 'Instant NDA',
+  'ENT-SIGNENT': 'Signent',
   'ENT-002': 'Instant NDA', // legacy alias
   'ENT-001': 'Sample Closed Co',
   'ENT-003': 'Sample Indy SFR',

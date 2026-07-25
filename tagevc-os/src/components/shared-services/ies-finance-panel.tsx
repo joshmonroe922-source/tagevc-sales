@@ -301,7 +301,7 @@ export function IesFinancePanel({
                     setMessage(
                       res.ok
                         ? `Mapped ${mapEntityId} → ${mapRealmId}`
-                        : res.error,
+                        : ('error' in res ? res.error : 'Map failed'),
                     );
                     if (res.ok) setMapRealmId('');
                     router.refresh();

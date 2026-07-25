@@ -102,6 +102,64 @@ export const FORBID_LIST: ForbidRule[] = [
       'dismiss p0',
     ],
   },
+  {
+    code: 'role_permission_change',
+    label: 'Role / permission grants or revokes',
+    human_required: 'Visionary / Admin',
+    signals: [
+      'grant role',
+      'change role',
+      'permission grant',
+      'make visionary',
+      'promote to admin',
+      'revoke access',
+    ],
+  },
+  {
+    code: 'hr_termination',
+    label: 'Employee termination / offboarding destructive',
+    human_required: 'HR + Visionary',
+    signals: [
+      'terminate employee',
+      'fire employee',
+      'immediate offboard',
+      'disable all access permanently',
+    ],
+  },
+  {
+    code: 'credit_file_write',
+    label: 'Personal or business credit file mutation',
+    human_required: 'Visionary (personal) / finance (business)',
+    signals: [
+      'dispute credit',
+      'file dispute',
+      'change credit score',
+      'overwrite fico',
+      'delete credit snapshot',
+    ],
+  },
+  {
+    code: 'secret_env_change',
+    label: 'Production secret / env credential change',
+    human_required: 'Visionary / Admin',
+    signals: [
+      'rotate api key',
+      'change production secret',
+      'update env secret',
+      'overwrite service role',
+    ],
+  },
+  {
+    code: 'data_deletion',
+    label: 'Irreversible data deletion',
+    human_required: 'Visionary',
+    signals: [
+      'hard delete',
+      'purge database',
+      'drop table',
+      'wipe production data',
+    ],
+  },
 ];
 
 export function detectForbidHits(text: string): ForbidAction[] {

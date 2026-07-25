@@ -1,7 +1,9 @@
+import Link from 'next/link';
 import { FinanceControlPlaneClient } from '@/components/shared-services/finance-control-plane-client';
 import { IesFinancePanel } from '@/components/shared-services/ies-finance-panel';
 import { SscFunctionHomeStrip } from '@/components/shared-services/ssc-function-home-strip';
 import { getIesFinanceReport } from '@/lib/ies/report';
+import { canViewBusinessCredit } from '@/lib/net-worth/visibility';
 import { getFinanceControlPlanePhase55Report } from '@/lib/shared-services/finance-control-plane-phase55-server';
 import { listPortfolioFinanceBridgePhase62 } from '@/lib/shared-services/finance-ops-phase62-server';
 import { isFirmWideAccess } from '@/lib/rbac/entity-scope';
@@ -33,6 +35,7 @@ export default async function FinanceControlPlanePage({ searchParams }: Props) {
   const canWrite = ctx
     ? roleHasPermission(ctx.profile.role, 'write:shared_services')
     : false;
+  const showBizCredit = ctx ? canViewBusinessCredit(ctx.profile.role) : false;
 
   const iesBanner =
     params.ies === 'connected'
@@ -44,6 +47,17 @@ export default async function FinanceControlPlanePage({ searchParams }: Props) {
   return (
     <div className="space-y-6">
       <SscFunctionHomeStrip functionKey="finance" entityId={entityId} />
+      {showBizCredit ? (
+        <p className="text-sm text-muted-foreground">
+          Business credit monitoring ·{' '}
+          <Link
+            href="/portfolio/net-worth/credit"
+            className="font-medium underline-offset-4 hover:underline"
+          >
+            Credit Management
+          </Link>
+        </p>
+      ) : null}
       {iesBanner ? (
         <p className="rounded-md border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
           {iesBanner}

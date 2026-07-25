@@ -55,6 +55,13 @@ export type FirmHomeSnapshot = {
     firm_cash_k: number | null;
     min_runway_months: number | null;
   };
+  /** Firm-visible assets only — never private I-quadrant. */
+  firm_aum: {
+    total: number;
+    label: string;
+    asset_count: number;
+    freshest_as_of: string | null;
+  };
 };
 
 export async function getFirmHomeSnapshot(): Promise<FirmHomeSnapshot> {
@@ -77,6 +84,16 @@ export async function getFirmHomeSnapshot(): Promise<FirmHomeSnapshot> {
     listEmployees({ limit: 80 }),
     listRecentActivity(10),
   ]);
+
+  const { getFirmAumSnapshot } = await import('@/lib/net-worth/assets');
+  const firmAum = await getFirmAumSnapshot().catch(() => ({
+    total: 0,
+    label: 'Firm AUM · operating & real estate',
+    asset_count: 0,
+    freshest_as_of: null as string | null,
+    by_class: [],
+    excludes_private_i_quadrant: true as const,
+  }));
 
   const tickets = listTickets().filter(
     (t) => t.status !== 'Closed' && t.status !== 'Resolved',
@@ -154,6 +171,12 @@ export async function getFirmHomeSnapshot(): Promise<FirmHomeSnapshot> {
       portfolio_cash_k: snap.capital.portfolio_cash_k ?? null,
       firm_cash_k: snap.capital.firm_cash_k ?? null,
       min_runway_months: snap.capital.min_runway_mo ?? null,
+    },
+    firm_aum: {
+      total: firmAum.total,
+      label: firmAum.label,
+      asset_count: firmAum.asset_count,
+      freshest_as_of: firmAum.freshest_as_of,
     },
   };
 }

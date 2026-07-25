@@ -8,6 +8,7 @@ import {
   runHrisCadenceAction,
 } from '@/app/(app)/shared-services/hr/actions-hris';
 import { CompanySelect } from '@/components/shared/company-select';
+import { PeoplePicker } from '@/components/shared-services/people-picker';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -220,9 +221,8 @@ export function HrisDirectoryClient({
                 <Label htmlFor="start_date">Start date</Label>
                 <Input id="start_date" name="start_date" type="date" />
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="manager_name">Manager</Label>
-                <Input id="manager_name" name="manager_name" />
+              <div className="space-y-1.5 sm:col-span-2">
+                <PeoplePicker name="manager_profile_id" label="Manager" />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="department">Department</Label>

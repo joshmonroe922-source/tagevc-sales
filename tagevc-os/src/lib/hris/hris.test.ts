@@ -115,3 +115,208 @@ describe('template slug', () => {
     );
   });
 });
+
+describe('phase72 access + manager filter', () => {
+  it('limits compensation visibility', async () => {
+    const { canViewHrisCompensation, isManagerOwnedStep, filterManagerVisibleSteps } =
+      await import('./access');
+    expect(canViewHrisCompensation('visionary')).toBe(true);
+    expect(canViewHrisCompensation('associate')).toBe(false);
+    expect(
+      isManagerOwnedStep({ owner_role: 'Hiring Manager' }),
+    ).toBe(true);
+    expect(isManagerOwnedStep({ owner_role: 'Human Resources' })).toBe(false);
+    const steps = filterManagerVisibleSteps([
+      {
+        id: '1',
+        run_id: 'r',
+        step_key: 'a',
+        title: 'A',
+        category: 'c',
+        sort_order: 1,
+        owner_role: 'Hiring Manager',
+        timing_anchor: 'start_date',
+        offset_days: 0,
+        due_at: null,
+        status: 'pending',
+        evidence_required: false,
+        evidence_note: '',
+        evidence_url: null,
+        automation: 'manual',
+        destructive: false,
+        optional_for_audience: false,
+        system_hook: null,
+        blocker: false,
+        escalated_ticket_id: null,
+        completed_at: null,
+        notes: '',
+      },
+      {
+        id: '2',
+        run_id: 'r',
+        step_key: 'b',
+        title: 'B',
+        category: 'c',
+        sort_order: 2,
+        owner_role: 'IT',
+        timing_anchor: 'start_date',
+        offset_days: 0,
+        due_at: null,
+        status: 'pending',
+        evidence_required: false,
+        evidence_note: '',
+        evidence_url: null,
+        automation: 'assist',
+        destructive: false,
+        optional_for_audience: false,
+        system_hook: 'graph_provision',
+        blocker: false,
+        escalated_ticket_id: null,
+        completed_at: null,
+        notes: '',
+      },
+    ]);
+    expect(steps).toHaveLength(1);
+    expect(steps[0].owner_role).toBe('Hiring Manager');
+  });
+
+  it('redacts compensation for managers', async () => {
+    const { redactEmployeeComp } = await import('./employees');
+    const redacted = redactEmployeeComp({
+      id: '1',
+      employee_key: 'k',
+      full_name: 'Test',
+      work_email: 't@x.com',
+      personal_email: '',
+      phone: '',
+      entity_id: 'ENT-R619',
+      role_title: 'Rep',
+      department: '',
+      location: '',
+      manager_employee_id: null,
+      manager_name: 'Boss',
+      manager_profile_id: null,
+      status: 'onboarding',
+      start_date: null,
+      end_date: null,
+      offer_accepted_at: null,
+      onboarding_status: 'in_progress',
+      offboarding_status: 'none',
+      onboarding_pct: 10,
+      offboarding_pct: 0,
+      comp_amount: 120000,
+      comp_currency: 'USD',
+      comp_basis: 'salary',
+      pay_frequency: 'annual',
+      profile_id: null,
+      recruit_assignment: {},
+      notes: 'secret',
+      created_at: '',
+      updated_at: '',
+    });
+    expect(redacted.comp_amount).toBeNull();
+    expect(redacted.notes).toBe('');
+  });
+});
+
+describe('phase72 sql + docs presence', () => {
+  it('ships deepen migration and graph docs', async () => {
+    const { readFileSync, existsSync } = await import('fs');
+    const { resolve } = await import('path');
+    const sql = resolve(process.cwd(), 'supabase/phase72_hris_deepen.sql');
+    const docs = resolve(process.cwd(), 'docs/OS_PHASE72_HRIS.md');
+    const graph = resolve(process.cwd(), 'docs/MS_GRAPH_HRIS.md');
+    expect(existsSync(sql)).toBe(true);
+    expect(existsSync(docs)).toBe(true);
+    expect(existsSync(graph)).toBe(true);
+    const body = readFileSync(sql, 'utf8');
+    expect(body).toContain('os_hris_documents');
+    expect(body).toContain('graph_provision');
+    expect(body).toContain('hris-private');
+    expect(body).toContain('comp_amount');
+  });
+});
+
+describe('phase77 vault RLS + manager picker', () => {
+  it('parses entity-scoped and legacy storage paths', async () => {
+    const { parseHrisStorageEmployeeId } = await import('./access');
+    const emp = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+    expect(
+      parseHrisStorageEmployeeId(`ENT-R619/${emp}/file.pdf`),
+    ).toBe(emp);
+    expect(parseHrisStorageEmployeeId(`${emp}/file.pdf`)).toBe(emp);
+    expect(parseHrisStorageEmployeeId('garbage/path')).toBeNull();
+    expect(parseHrisStorageEmployeeId('ENT-R619/only')).toBeNull();
+  });
+
+  it('denies cross-manager and unauthorized vault access', async () => {
+    const { canAccessHrisEmployeeVault } = await import('./access');
+    const mgrA = '11111111-1111-4111-8111-111111111111';
+    const mgrB = '22222222-2222-4222-8222-222222222222';
+    expect(
+      canAccessHrisEmployeeVault({
+        role: 'associate',
+        profileId: mgrA,
+        employeeManagerProfileId: mgrA,
+        canAccessEntity: false,
+      }),
+    ).toBe(true);
+    expect(
+      canAccessHrisEmployeeVault({
+        role: 'associate',
+        profileId: mgrB,
+        employeeManagerProfileId: mgrA,
+        canAccessEntity: false,
+      }),
+    ).toBe(false);
+    expect(
+      canAccessHrisEmployeeVault({
+        role: 'partner',
+        profileId: mgrB,
+        employeeManagerProfileId: null,
+        canAccessEntity: true,
+      }),
+    ).toBe(false);
+    expect(
+      canAccessHrisEmployeeVault({
+        role: 'service_lead',
+        profileId: mgrB,
+        employeeManagerProfileId: null,
+        canAccessEntity: true,
+      }),
+    ).toBe(true);
+    expect(
+      canAccessHrisEmployeeVault({
+        role: 'visionary',
+        profileId: mgrB,
+        employeeManagerProfileId: null,
+        canAccessEntity: false,
+      }),
+    ).toBe(true);
+  });
+
+  it('ships phase77 SQL without dropping store snapshots', async () => {
+    const { readFileSync, existsSync } = await import('fs');
+    const { resolve } = await import('path');
+    const sql = resolve(process.cwd(), 'supabase/phase77_hris_vault_rls.sql');
+    expect(existsSync(sql)).toBe(true);
+    const body = readFileSync(sql, 'utf8');
+    expect(body).toContain('is_hris_employee_accessible');
+    expect(body).toContain('can_access_hris_storage_path');
+    expect(body).toContain('manager_profile_id');
+    expect(body).toContain('is_visionary_role');
+    expect(body).not.toMatch(/drop\s+table/i);
+    expect(body).toMatch(/Does NOT drop os_store_snapshots/);
+  });
+
+  it('documents vault RLS in MS_GRAPH_HRIS', async () => {
+    const { readFileSync } = await import('fs');
+    const { resolve } = await import('path');
+    const graph = readFileSync(
+      resolve(process.cwd(), 'docs/MS_GRAPH_HRIS.md'),
+      'utf8',
+    );
+    expect(graph).toContain('Document vault RLS');
+    expect(graph).toContain('people picker');
+  });
+});
