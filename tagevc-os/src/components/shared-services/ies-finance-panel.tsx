@@ -113,7 +113,11 @@ export function IesFinancePanel({
                       const res = await runIesSyncAction({
                         entityId: entityId || null,
                       });
-                      setMessage(res.message ?? (res.ok ? 'Synced' : 'Sync failed'));
+                      if ('message' in res) {
+                        setMessage(res.message);
+                      } else {
+                        setMessage(res.error ?? 'Sync failed');
+                      }
                       router.refresh();
                     })
                   }
