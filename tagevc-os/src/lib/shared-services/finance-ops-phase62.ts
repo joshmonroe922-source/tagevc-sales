@@ -48,6 +48,8 @@ export const IES_BOUNDARY = {
   tageRole: 'Visibility, close cadence, exceptions, and approvals',
   readOnlyToday: [
     'Cash / AR / AP / burn KPI cards (when feed is live)',
+    'Chart of accounts summary per company',
+    'Open / overdue invoice signals',
     'Close checklist orchestration status',
     'Anomaly and exception visibility',
     'Company financial snapshots from portfolio reporting',

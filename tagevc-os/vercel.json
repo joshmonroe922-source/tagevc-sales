@@ -103,6 +103,10 @@
     {
       "path": "/api/hris/cadence-worker?kind=escalate",
       "schedule": "35 */4 * * *"
+    },
+    {
+      "path": "/api/finance/ies/sync",
+      "schedule": "0 6 * * *"
     }
   ]
 }

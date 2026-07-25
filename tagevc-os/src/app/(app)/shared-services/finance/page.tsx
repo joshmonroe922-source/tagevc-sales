@@ -1,5 +1,7 @@
 import { FinanceControlPlaneClient } from '@/components/shared-services/finance-control-plane-client';
+import { IesFinancePanel } from '@/components/shared-services/ies-finance-panel';
 import { SscFunctionHomeStrip } from '@/components/shared-services/ssc-function-home-strip';
+import { getIesFinanceReport } from '@/lib/ies/report';
 import { getFinanceControlPlanePhase55Report } from '@/lib/shared-services/finance-control-plane-phase55-server';
 import { listPortfolioFinanceBridgePhase62 } from '@/lib/shared-services/finance-ops-phase62-server';
 import { isFirmWideAccess } from '@/lib/rbac/entity-scope';
@@ -7,7 +9,7 @@ import { getSessionContext, requirePermission } from '@/lib/rbac/session';
 import { roleHasPermission } from '@/lib/types/roles';
 
 type Props = {
-  searchParams?: Promise<{ entity?: string }>;
+  searchParams?: Promise<{ entity?: string; ies?: string; reason?: string }>;
 };
 
 export default async function FinanceControlPlanePage({ searchParams }: Props) {
@@ -23,17 +25,35 @@ export default async function FinanceControlPlanePage({ searchParams }: Props) {
     ? entityParam || null
     : (ctx?.profile.entity_id ?? (entityParam || null));
 
-  const [report, portfolioBridge] = await Promise.all([
+  const [report, portfolioBridge, iesReport] = await Promise.all([
     getFinanceControlPlanePhase55Report({ entityId }),
     listPortfolioFinanceBridgePhase62({ entityId }),
+    getIesFinanceReport({ entityId }),
   ]);
   const canWrite = ctx
     ? roleHasPermission(ctx.profile.role, 'write:shared_services')
     : false;
 
+  const iesBanner =
+    params.ies === 'connected'
+      ? 'IES company connected. Map realm if needed, then Pull latest.'
+      : params.ies === 'error'
+        ? `IES connect failed${params.reason ? `: ${params.reason}` : ''}.`
+        : null;
+
   return (
     <div className="space-y-6">
       <SscFunctionHomeStrip functionKey="finance" entityId={entityId} />
+      {iesBanner ? (
+        <p className="rounded-md border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
+          {iesBanner}
+        </p>
+      ) : null}
+      <IesFinancePanel
+        report={iesReport}
+        canWrite={canWrite}
+        entityId={entityId ?? ''}
+      />
       <FinanceControlPlaneClient
         report={report}
         canWrite={canWrite}

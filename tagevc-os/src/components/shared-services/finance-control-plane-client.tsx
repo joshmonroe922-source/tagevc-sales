@@ -213,9 +213,10 @@ export function FinanceControlPlaneClient({
     closeKind: 'month_end' | 'year_end',
     items: FinanceControlPlanePhase55Report['checklist'],
     emptyDescription: string,
+    sectionId?: string,
   ) {
     return (
-      <section className="space-y-3">
+      <section className="space-y-3" id={sectionId}>
         <div className="space-y-1">
           <h2 className="font-heading text-lg font-semibold text-[#3a414f]">
             {title}
@@ -431,6 +432,7 @@ export function FinanceControlPlaneClient({
         'month_end',
         monthEndItems,
         'No month-end close items yet. Refresh the board to seed stubs, or wait for the books feed.',
+        'month-end-close',
       )}
 
       {renderChecklist(
@@ -496,7 +498,8 @@ export function FinanceControlPlaneClient({
               Company financial visibility
             </CardTitle>
             <CardDescription>
-              Recruit 619 first; Instant NDA when data is available.
+              Operating companies mapped to IES books (Recruit 619, Instant NDA,
+              firm).
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">

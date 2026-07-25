@@ -94,8 +94,7 @@ const DEFAULT_SUBSIDIARIES: FinanceSubsidiaryVisibility[] = [
     priority: 1,
     feed_status: 'missing',
     has_data: false,
-    // TODO: wire IES feed for Recruit financial KPIs
-    todo: 'IES feed pending — Recruit KPIs are orchestration stubs',
+    todo: 'Connect IES realm for Recruit 619 and run finance sync',
   },
   {
     entity_id: 'ENT-INDA',
@@ -103,8 +102,7 @@ const DEFAULT_SUBSIDIARIES: FinanceSubsidiaryVisibility[] = [
     priority: 2,
     feed_status: 'missing',
     has_data: false,
-    // TODO: show ENT-INDA financials when IES/entity evidence exists
-    todo: 'TODO: show ENT-INDA financials when IES/entity evidence exists',
+    todo: 'Connect IES realm for Instant NDA and run finance sync',
   },
 ];
 
