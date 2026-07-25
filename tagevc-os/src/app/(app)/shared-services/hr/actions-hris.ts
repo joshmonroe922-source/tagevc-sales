@@ -171,7 +171,8 @@ export async function updateHrisStepAction(input: {
       const {
         runVisionaryMailboxAssist,
       } = await import('@/lib/hris/visionary-mailbox');
-      const emp = await getEmployee(input.employeeId);
+      const empRes = await getEmployee(input.employeeId);
+      const emp = empRes.employee;
       const assist = await runVisionaryMailboxAssist({
         employeeEmail: emp?.work_email ?? emp?.personal_email ?? null,
         employeeUserId: emp?.id ?? null,
