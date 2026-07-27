@@ -156,7 +156,7 @@ export default async function AdminPlatformEmailPage({ searchParams }: Props) {
         </Link>
         {' · '}
         <a
-          href="https://app.recruit619.com/bulk-email"
+          href="https://portal.recruit619.com/desk/bulk-email"
           target="_blank"
           rel="noreferrer"
           className="underline-offset-4 hover:underline"

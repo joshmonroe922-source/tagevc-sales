@@ -3,8 +3,9 @@ import { createPersistClient } from '@/lib/supabase/persist-client';
 export const PHASE53_SUBSIDIARY_ROLLUP_CONTRACT_VERSION = 'phase53-v1';
 export const PHASE53_RECRUIT_ENTITY_ID = 'ENT-R619';
 export const PHASE53_RECRUIT_PORTAL_BASE = 'https://portal.recruit619.com';
-/** Full My Recruiting Desk (TalentDesk) — day-to-day recruiter app. */
-export const PHASE53_MY_RECRUITING_DESK_BASE = 'https://app.recruit619.com';
+/** My Recruiting Desk — portal-native recruiter home. */
+export const PHASE53_MY_RECRUITING_DESK_BASE =
+  'https://portal.recruit619.com/desk/my-recruiting-desk';
 
 export type SubsidiaryRollupFreshness =
   | 'fresh'

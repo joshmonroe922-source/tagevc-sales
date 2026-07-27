@@ -1,13 +1,16 @@
 /**
  * My Recruiting Desk (formerly Talent Desk) — day-to-day recruiter experience.
- * Live at app.recruit619.com. R619 OS spine stays on portal.recruit619.com /
- * Tage entity OS; desk ↔ spine flow both ways.
+ * Primary UX now lives on portal.recruit619.com (desk home). Legacy
+ * app.recruit619.com remains live temporarily during cutover. OS spine
+ * (messaging, help desk, rollups) stays on portal / Tage entity OS.
  */
 
 export const MY_RECRUITING_DESK_ORIGIN = (
   process.env.NEXT_PUBLIC_MY_RECRUITING_DESK_URL?.trim() ||
   process.env.MY_RECRUITING_DESK_URL?.trim() ||
-  'https://app.recruit619.com'
+  process.env.NEXT_PUBLIC_RECRUIT_PORTAL_URL?.trim() ||
+  process.env.RECRUIT_PORTAL_URL?.trim() ||
+  'https://portal.recruit619.com'
 ).replace(/\/$/, '');
 
 export const RECRUIT_PORTAL_ORIGIN = (
@@ -17,16 +20,16 @@ export const RECRUIT_PORTAL_ORIGIN = (
 ).replace(/\/$/, '');
 
 export const MY_RECRUITING_DESK_PATHS = {
-  home: '/',
+  home: '/desk/my-recruiting-desk',
   login: '/login',
-  placement: '/placement',
-  placements: '/placements',
-  performance: '/performance',
-  hierarchy: '/hierarchy',
-  bulkEmail: '/bulk-email',
-  training: '/training',
+  placement: '/desk/placement',
+  placements: '/desk/placement',
+  performance: '/desk/performance',
+  hierarchy: '/desk/hierarchy',
+  bulkEmail: '/desk/bulk-email',
+  training: '/desk/training',
   thinkTank: '/think-tank',
-  search: '/search',
+  search: '/people',
   team: '/team',
 } as const;
 

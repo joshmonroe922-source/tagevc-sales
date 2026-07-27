@@ -28,8 +28,8 @@ export const ENTITY_REGISTRY_SEED = [
     canonical_name: 'Recruit 619',
     status: 'Active' as const,
     portal_url: 'https://portal.recruit619.com',
-    /** Day-to-day recruiter UX (My Recruiting Desk / former TalentDesk). */
-    desk_url: 'https://app.recruit619.com' as string | null,
+    /** Day-to-day recruiter UX (My Recruiting Desk on portal). */
+    desk_url: 'https://portal.recruit619.com/desk/my-recruiting-desk' as string | null,
     portal_url_todo: null as string | null,
     is_subsidiary: true,
   },

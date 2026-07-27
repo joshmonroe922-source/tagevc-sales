@@ -91,7 +91,7 @@ describe('Phase 53 Subsidiary Rollup Hub (Recruit first)', () => {
     );
     expect(report.drill_downs.portal).toBe(PHASE53_RECRUIT_PORTAL_BASE);
     expect(report.drill_downs.recruiting_desk).toBe(
-      'https://app.recruit619.com',
+      'https://portal.recruit619.com/desk/my-recruiting-desk',
     );
     expect(report.todo.toLowerCase()).toContain('awaiting live recruit');
     expect(isRecruitRollupEntity(PHASE53_RECRUIT_ENTITY_ID)).toBe(true);
