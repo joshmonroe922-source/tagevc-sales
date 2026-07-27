@@ -11,6 +11,7 @@ import {
 } from '@/lib/hris/employees';
 import { getActiveManagerProfile } from '@/lib/hris/people';
 import { listRunsForEmployee } from '@/lib/hris/runs';
+import { listScreeningOrders } from '@/lib/screening/repo';
 import { getSessionContext, requirePermission } from '@/lib/rbac/session';
 import { roleHasPermission } from '@/lib/types/roles';
 
@@ -31,15 +32,21 @@ export default async function HrisEmployeePage({ params }: Props) {
   if (!raw) notFound();
   const employee = canViewComp ? raw : redactEmployeeComp(raw);
 
-  const [runs, events, links, docs, managerProfile] = await Promise.all([
-    listRunsForEmployee(employee.id),
-    listEmployeeEvents(employee.id),
-    listEmployeeLinks(employee.id),
-    listEmployeeDocuments(employee.id),
-    employee.manager_profile_id
-      ? getActiveManagerProfile(employee.manager_profile_id)
-      : Promise.resolve(null),
-  ]);
+  const [runs, events, links, docs, managerProfile, screening] =
+    await Promise.all([
+      listRunsForEmployee(employee.id),
+      listEmployeeEvents(employee.id),
+      listEmployeeLinks(employee.id),
+      listEmployeeDocuments(employee.id),
+      employee.manager_profile_id
+        ? getActiveManagerProfile(employee.manager_profile_id)
+        : Promise.resolve(null),
+      listScreeningOrders({
+        subjectType: 'employee',
+        subjectId: employee.id,
+        limit: 20,
+      }),
+    ]);
 
   return (
     <div className="space-y-6">
@@ -63,6 +70,7 @@ export default async function HrisEmployeePage({ params }: Props) {
         events={events}
         links={links}
         documents={docs.rows}
+        screeningOrders={screening.orders}
         canWrite={canWrite}
         canViewComp={canViewComp}
         managerProfile={managerProfile}

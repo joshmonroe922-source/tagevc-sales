@@ -6,6 +6,7 @@ import {
   startImpersonationAction,
   stopImpersonationAction,
 } from '@/app/(app)/impersonation/actions';
+import { landingPathForRole } from '@/lib/rbac/ssc-roles';
 import { APP_ROLE_LABELS, type AppRole } from '@/lib/types/roles';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -42,6 +43,13 @@ export function RoleSwitcher({ roles, current }: Props) {
       const result = await startImpersonationAction(selected);
       if (!result.ok) {
         setError(result.error);
+        return;
+      }
+      const landing =
+        result.ok && result.role ? landingPathForRole(result.role) : null;
+      if (landing) {
+        router.push(landing);
+        router.refresh();
         return;
       }
       router.refresh();

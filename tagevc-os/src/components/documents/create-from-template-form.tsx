@@ -17,6 +17,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { DocumentVisibilityFields } from '@/components/documents/document-visibility-fields';
 import type { DocTemplate, Entity } from '@/lib/types';
 import { isCapitalDocument } from '@/lib/documents/capital-gate';
 
@@ -24,10 +25,12 @@ export function CreateFromTemplateForm({
   entities,
   templates,
   defaultEntityId,
+  canSetAcl = false,
 }: {
   entities: Entity[];
   templates: DocTemplate[];
   defaultEntityId?: string;
+  canSetAcl?: boolean;
 }) {
   const router = useRouter();
   const [state, action, pending] = useActionState<
@@ -99,6 +102,7 @@ export function CreateFromTemplateForm({
             <Label htmlFor="deal_id">Deal ID (optional)</Label>
             <Input id="deal_id" name="deal_id" placeholder="DE-001" />
           </div>
+          {canSetAcl ? <DocumentVisibilityFields /> : null}
           <div className="sm:col-span-2 flex items-center gap-3">
             <Button type="submit" disabled={pending}>
               {pending ? 'Merging…' : 'Create draft'}

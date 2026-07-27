@@ -8,6 +8,11 @@ const FIRM_WIDE_ROLES: readonly AppRole[] = [
   'coo',
   'counsel_ops',
   'service_lead',
+  'ssc_finance',
+  'ssc_hr',
+  'ssc_legal',
+  'ssc_it',
+  'ssc_marketing',
 ] as const;
 
 export type EntityParentIndex = Map<string, string | null | undefined>;
@@ -27,6 +32,8 @@ export function isFirmWideAccess(
   role: AppRole,
   entityId: string | null | undefined,
 ): boolean {
+  // Subsidiary Leader is always single-company scoped (never firm-wide).
+  if (role === 'sub_lead') return false;
   if (FIRM_WIDE_ROLES.includes(role)) return true;
   if (!entityId || entityId === 'ENT-FIRM') return true;
   return false;

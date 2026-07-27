@@ -1,9 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCreateTicketModal } from '@/components/help-desk/create-ticket-modal';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
@@ -27,16 +25,8 @@ export type HelpDeskTicketRow = {
 };
 
 export function HelpDeskClient({ tickets }: { tickets: HelpDeskTicketRow[] }) {
-  const { open } = useCreateTicketModal();
-
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
-        <Button type="button" onClick={() => open()}>
-          Create ticket
-        </Button>
-      </div>
-
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Your tickets</CardTitle>

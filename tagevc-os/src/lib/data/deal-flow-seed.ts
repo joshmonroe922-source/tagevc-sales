@@ -6,11 +6,13 @@ import { INITIAL_LEAD_TASKS, INITIAL_LEADS } from '@/lib/data/deal-flow-seed-lea
 export { INITIAL_LEADS, INITIAL_LEAD_TASKS };
 
 const now = '2026-03-15T12:00:00.000Z';
+const archivedDemo = '2026-07-26T17:00:00.000Z';
 
-/** Backfill missing stage templates for seeded leads (spawn-once). */
+/** Backfill missing stage templates for seeded leads (spawn-once). Skip archived. */
 export function buildInitialTasks() {
   let tasks = [...INITIAL_LEAD_TASKS];
   for (const lead of INITIAL_LEADS) {
+    if (lead.archived_at) continue;
     const spawned = spawnTasksForStage(lead, tasks);
     tasks = [...tasks, ...spawned];
   }
@@ -19,7 +21,7 @@ export function buildInitialTasks() {
 
 /**
  * Deal Active seeds from Excel.
- * DE-001 Orbit Data linked to LD-005; IC already passed.
+ * DE-001 Orbit Data (demo) hard-deleted from prod 2026-07-27 with LD-001..007.
  * DE-002 Example Advanced Co mid-docs.
  */
 export const INITIAL_DEALS: Deal[] = [
@@ -42,8 +44,8 @@ export const INITIAL_DEALS: Deal[] = [
     next_action: 'Draft term sheet; partner approve economics',
     handoff_id: null,
     created_at: '2026-03-22T12:00:00.000Z',
-    updated_at: now,
-    archived_at: null,
+    updated_at: archivedDemo,
+    archived_at: archivedDemo,
   },
   {
     id: '77777777-7777-4777-8777-777777777702',
@@ -151,10 +153,11 @@ export const INITIAL_IC_AUDITS: IcAuditEvent[] = [
   },
 ];
 
-/** Seed deal tasks for current exec stages (spawn-once). */
+/** Seed deal tasks for current exec stages (spawn-once). Skip archived deals. */
 export function buildInitialDealTasks(): DealTask[] {
   let tasks: DealTask[] = [];
   for (const deal of INITIAL_DEALS) {
+    if (deal.archived_at) continue;
     // Spawn for current stage and all prior stages so desk is populated.
     const stagesToSeed =
       deal.exec_stage === 'Docs Drafting'

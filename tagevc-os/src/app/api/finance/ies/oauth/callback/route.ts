@@ -82,7 +82,6 @@ export async function GET(request: Request) {
 
   const q: Record<string, string> = {
     ies: 'connected',
-    realm: realmId,
   };
   if (consumed.entity_id) q.entity = consumed.entity_id;
   return financeRedirect(q);

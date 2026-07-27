@@ -28,6 +28,7 @@ import {
   spawnTicketForSuggestion,
 } from '@/lib/documents/ai-actions';
 import { assertHumanCanSend, isCapitalDocument } from '@/lib/documents/capital-gate';
+import { defaultVisibleRolesForFolder } from '@/lib/documents/visibility';
 import {
   entityFolderPath,
   sanitizeFileName,
@@ -66,8 +67,11 @@ Renewal: 2026-09-01
 Certificate holder must receive 30 days notice prior to cancellation.
 Insured shall maintain continuous coverage and must provide updated COI upon renewal.`;
 
+/** Soft-voided so empty-DB reseeds / demos do not resurrect in Document Library. */
+const archivedDemo = '2026-07-26T18:00:00.000Z';
+
 function createStore(): DocStore {
-  const now = new Date().toISOString();
+  const now = archivedDemo;
   const entity = SEED_ENTITIES.find((e) => e.entity_id === 'ENT-002')!;
   const values = buildMergeValues({
     entity,
@@ -99,6 +103,7 @@ function createStore(): DocStore {
     },
   });
   const tpl = getTemplate('TPL-NDA')!;
+  // Soft-voided TEST seeds (legacy ENT-002). Kept for history; hidden from library lists.
   const seedNda: DocumentRecord = {
     id: '88888888-8888-4888-8888-888888888801',
     doc_id: 'DOC-001',
@@ -113,7 +118,7 @@ function createStore(): DocStore {
       'DOC-001_Mutual_NDA.txt',
     ),
     folder: '02_Deal',
-    status: 'Completed',
+    status: 'Voided',
     envelope_id: 'ENV-SEED-NDA',
     merged_body: applyMerge(tpl.body, values),
     merge_values: values,
@@ -129,7 +134,8 @@ function createStore(): DocStore {
     sent_at: now,
     completed_at: now,
     content_hash: 'seedhash',
-    notes: 'Seed completed NDA in library',
+    notes: 'Soft-archived TEST seed NDA (Document Library cleanup 2026-07-26)',
+    visible_roles: null,
     ai_review: null,
     created_at: now,
     updated_at: now,
@@ -149,7 +155,7 @@ function createStore(): DocStore {
       'DOC-002_Certificate_of_Insurance.txt',
     ),
     folder: '01_Corporate',
-    status: 'Completed',
+    status: 'Voided',
     envelope_id: null,
     merged_body: COI_SEED_BODY,
     merge_values: {},
@@ -158,7 +164,8 @@ function createStore(): DocStore {
     sent_at: null,
     completed_at: now,
     content_hash: createHash('sha256').update(COI_SEED_BODY).digest('hex').slice(0, 16),
-    notes: 'Seed COI for Phase 4.5 AI demo (expiration language)',
+    notes: 'Soft-archived TEST seed COI (Document Library cleanup 2026-07-26)',
+    visible_roles: null,
     ai_review: null,
     created_at: now,
     updated_at: now,
@@ -242,6 +249,10 @@ export async function hydrateDocStore() {
     await syncDocAudits(store.audits);
   }
 
+  for (const d of store.docs) {
+    if (d.visible_roles === undefined) d.visible_roles = null;
+  }
+
   markStoreHydrated('documents');
 }
 
@@ -285,9 +296,12 @@ export function listTemplates() {
 
 export function listDocuments(entityId?: string): DocumentRecord[] {
   const docs = getDocStore().docs;
-  const filtered = entityId
-    ? docs.filter((d) => d.entity_id === entityId)
-    : docs;
+  // Soft-archived docs use status Voided (no archived_at column on os_documents).
+  const filtered = docs.filter((d) => {
+    if (d.status === 'Voided') return false;
+    if (entityId) return d.entity_id === entityId;
+    return true;
+  });
   return [...filtered].sort((a, b) => b.updated_at.localeCompare(a.updated_at));
 }
 
@@ -320,6 +334,8 @@ export type CreateFromTemplateInput = {
   signatory_name?: string;
   signatory_email?: string;
   notes?: string;
+  /** Explicit role ACL; omit to inherit folder default. */
+  visible_roles?: DocumentRecord['visible_roles'];
 };
 
 /** §4 steps 1–3: select template, merge fields, route signers → Draft / Ready to Send. */
@@ -386,6 +402,10 @@ export function createDocumentFromTemplate(
     completed_at: null,
     content_hash: createHash('sha256').update(merged).digest('hex').slice(0, 16),
     notes: input.notes ?? null,
+    visible_roles:
+      input.visible_roles !== undefined
+        ? input.visible_roles
+        : defaultVisibleRolesForFolder(folder),
     ai_review: null,
     created_at: now,
     updated_at: now,
@@ -417,6 +437,8 @@ export type UploadDocumentInput = {
   doc_type?: DocumentRecord['doc_type'];
   notes?: string;
   content?: string;
+  /** Explicit role ACL; omit to inherit folder default. */
+  visible_roles?: DocumentRecord['visible_roles'];
 };
 
 /** Simple organize/upload into entity folder (content stored as text stub). */
@@ -448,6 +470,10 @@ export function uploadDocument(input: UploadDocumentInput): DocumentRecord {
     completed_at: null,
     content_hash: createHash('sha256').update(body).digest('hex').slice(0, 16),
     notes: input.notes ?? null,
+    visible_roles:
+      input.visible_roles !== undefined
+        ? input.visible_roles
+        : defaultVisibleRolesForFolder(input.folder),
     ai_review: null,
     created_at: now,
     updated_at: now,
@@ -470,6 +496,34 @@ export function uploadDocument(input: UploadDocumentInput): DocumentRecord {
  * Phase 4.5 — run (or re-run) document intelligence and spawn SS tickets.
  * Re-runs are allowed for demos; prior suggestion tickets are not deleted.
  */
+/** Visionary/Admin: set or clear per-file role ACL. */
+export function updateDocumentVisibleRoles(
+  docId: string,
+  visibleRoles: DocumentRecord['visible_roles'],
+  actorDetail?: string,
+): DocumentRecord {
+  const store = getDocStore();
+  const doc = store.docs.find((d) => d.doc_id === docId);
+  if (!doc) throw new Error('Document not found');
+  doc.visible_roles = visibleRoles;
+  doc.updated_at = new Date().toISOString();
+  const label =
+    visibleRoles == null
+      ? 'inherit-folder-default'
+      : visibleRoles.length === 0
+        ? 'open'
+        : visibleRoles.join(',');
+  audit(
+    store,
+    doc.doc_id,
+    'visibility_updated',
+    'human',
+    `roles=${label}${actorDetail ? `; by=${actorDetail}` : ''}`,
+  );
+  touchDocs();
+  return doc;
+}
+
 export function runAiReviewOnDocument(docId: string): DocumentRecord {
   const store = getDocStore();
   const doc = store.docs.find((d) => d.doc_id === docId);

@@ -313,7 +313,7 @@ export function FinanceControlPlaneClient({
   }
 
   return (
-    <div className="space-y-8">
+    <div className="scroll-mt-20 space-y-8" id="finance-control">
       <header className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="secondary">
@@ -322,9 +322,9 @@ export function FinanceControlPlaneClient({
           <Badge variant="outline">Books system of record</Badge>
           <Badge variant="outline">Money never auto-approved</Badge>
         </div>
-        <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#3a414f]">
-          Finance & Accounting
-        </h1>
+        <h2 className="font-heading text-lg font-semibold tracking-tight text-[#3a414f]">
+          Close &amp; KPI plane
+        </h2>
         <p className="max-w-2xl text-sm text-muted-foreground">
           Orchestrate close checklists, anomaly visibility, and dual-approve
           IES write-back proposals. Intuit Enterprise Suite remains the system
@@ -442,7 +442,10 @@ export function FinanceControlPlaneClient({
         'No year-end close items yet. They appear when year-end orchestration is seeded.',
       )}
 
-      <section className="grid gap-4 lg:grid-cols-2">
+      <section
+        className="scroll-mt-20 grid gap-4 lg:grid-cols-2"
+        id="finance-anomalies"
+      >
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Anomaly alerts</CardTitle>

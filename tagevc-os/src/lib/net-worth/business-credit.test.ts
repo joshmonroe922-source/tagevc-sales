@@ -163,7 +163,7 @@ describe('phase75 cards + stale detection', () => {
     expect(isStale(old, 60)).toBe(true);
   });
 
-  it('orders Tage first then A–Z', () => {
+  it('orders Tage VC → Recruit 619 → Signent HR → Instant NDA', () => {
     const ordered = orderCompanies([
       { entity_id: 'ENT-SIGNENT' },
       { entity_id: 'ENT-INDA' },
@@ -172,9 +172,9 @@ describe('phase75 cards + stale detection', () => {
     ]);
     expect(ordered.map((o) => o.entity_id)).toEqual([
       'ENT-FIRM',
-      'ENT-INDA', // Instant NDA
-      'ENT-R619', // Recruit 619
-      'ENT-SIGNENT', // Signent
+      'ENT-R619',
+      'ENT-SIGNENT',
+      'ENT-INDA',
     ]);
   });
 });

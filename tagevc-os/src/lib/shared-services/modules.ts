@@ -62,14 +62,25 @@ export const SS_FUNCTION_MODULES: SsHubModule[] = [
     docs: 'docs/OS_PHASE58.md',
   },
   {
-    id: 'docusign',
-    href: '/shared-services/legal/docusign',
+    id: 'legal',
+    href: '/shared-services/legal',
     title: 'Legal / Counsel',
     short: 'Legal',
     service: 'Legal',
     status: 'live',
     description:
-      'DocuSign · capital dual-control · template governance · archive integrity.',
+      'Matters · period tasks · counsel ops (DocuSign under Admin).',
+    docs: 'docs/OS_PHASE56.md',
+  },
+  {
+    id: 'docusign',
+    href: '/shared-services/legal/docusign',
+    title: 'DocuSign',
+    short: 'DocuSign',
+    service: 'Legal',
+    status: 'live',
+    description:
+      'Phase 56 · capital dual-control · template governance · archive integrity (Admin).',
     docs: 'docs/OS_PHASE56.md',
   },
 ];

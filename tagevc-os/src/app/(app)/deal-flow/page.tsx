@@ -7,6 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { ViewModeLayout } from '@/components/ui/view-mode-toggle';
 import {
   listScopedActiveDeals,
   listScopedActiveLeads,
@@ -14,6 +15,7 @@ import {
   listScopedActiveReDeals,
   listScopedIcQueue,
 } from '@/lib/data/pipeline-scope';
+import { VIEW_MODE_DEFAULTS } from '@/lib/view-mode';
 
 export default async function DealFlowHubPage() {
   const [leads, deals, icQueue, ma, re] = await Promise.all([
@@ -73,29 +75,64 @@ export default async function DealFlowHubPage() {
         <DealFlowTrackTabs active="hub" />
       </header>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        {tracks.map((t) => (
-          <Link key={t.href} href={t.href} className="group block">
-            <Card
-              className={`h-full transition-colors group-hover:bg-muted/30 ${t.accent} border-l-4`}
-            >
-              <CardHeader>
-                <CardTitle className="font-heading text-xl">{t.title}</CardTitle>
-                <CardDescription className="text-sm leading-relaxed">
-                  {t.description}
-                </CardDescription>
-                <div className="flex flex-wrap gap-2 pt-2">
+      <ViewModeLayout
+        surface="deal-flow-tracks"
+        defaultMode={VIEW_MODE_DEFAULTS['deal-flow-tracks']}
+        cards={
+          <div className="grid gap-4 lg:grid-cols-3">
+            {tracks.map((t) => (
+              <Link key={t.href} href={t.href} className="group block">
+                <Card
+                  className={`h-full transition-colors group-hover:bg-muted/30 ${t.accent} border-l-4`}
+                >
+                  <CardHeader>
+                    <CardTitle className="font-heading text-xl">
+                      {t.title}
+                    </CardTitle>
+                    <CardDescription className="text-sm leading-relaxed">
+                      {t.description}
+                    </CardDescription>
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      {t.stats.map((s) => (
+                        <Badge key={s} variant="secondary" className="font-normal">
+                          {s}
+                        </Badge>
+                      ))}
+                    </div>
+                  </CardHeader>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        }
+        list={
+          <div className="overflow-hidden rounded-lg border border-border bg-card divide-y divide-border">
+            {tracks.map((t) => (
+              <Link
+                key={t.href}
+                href={t.href}
+                className={`flex flex-wrap items-center justify-between gap-3 border-l-4 px-4 py-3 hover:bg-muted/40 ${t.accent}`}
+              >
+                <div className="min-w-0">
+                  <p className="font-heading text-base font-semibold text-[#3a414f]">
+                    {t.title}
+                  </p>
+                  <p className="text-xs text-muted-foreground line-clamp-1">
+                    {t.description}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
                   {t.stats.map((s) => (
                     <Badge key={s} variant="secondary" className="font-normal">
                       {s}
                     </Badge>
                   ))}
                 </div>
-              </CardHeader>
-            </Card>
-          </Link>
-        ))}
-      </div>
+              </Link>
+            ))}
+          </div>
+        }
+      />
 
       <div className="flex flex-wrap gap-4 text-sm">
         <Link

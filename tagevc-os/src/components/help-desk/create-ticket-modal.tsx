@@ -9,14 +9,23 @@ import {
   useTransition,
   type ReactNode,
 } from 'react';
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { ChevronDown } from 'lucide-react';
 import { createHelpDeskTicketAction } from '@/app/(app)/help-desk/actions';
 import { CompanySelect } from '@/components/shared/company-select';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SS_SERVICES, TICKET_PRIORITIES } from '@/lib/types';
 import { capturePageScreenshot } from '@/lib/help-desk/screenshot';
+import { cn } from '@/lib/utils';
 
 type Ctx = {
   open: (preset?: { title?: string }) => void;
@@ -231,16 +240,46 @@ export function CreateTicketModalProvider({ children }: { children: ReactNode })
   );
 }
 
+const createTicketBtnClass =
+  'bg-[#3a414f] text-white hover:bg-[#535c63] focus-visible:ring-white/30';
+
 export function GlobalCreateTicketButton() {
   const { open } = useCreateTicketModal();
   return (
-    <Button
-      type="button"
-      size="sm"
-      onClick={() => open()}
-      className="bg-[#3a414f] text-white hover:bg-[#535c63]"
+    <div
+      className="inline-flex items-stretch overflow-hidden rounded-[min(var(--radius-md),12px)] shadow-sm"
+      role="group"
+      aria-label="Create ticket and Help Desk"
     >
-      Create Ticket
-    </Button>
+      <Button
+        type="button"
+        size="sm"
+        onClick={() => open()}
+        className={cn(createTicketBtnClass, 'rounded-none rounded-l-[inherit]')}
+      >
+        Create Ticket
+      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          type="button"
+          aria-label="Open Help Desk menu"
+          className={cn(
+            buttonVariants({ size: 'sm' }),
+            createTicketBtnClass,
+            'rounded-none rounded-r-[inherit] border-l border-white/20 px-1.5',
+          )}
+        >
+          <ChevronDown className="size-3.5" aria-hidden />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" sideOffset={6} className="min-w-40">
+          <DropdownMenuItem
+            render={<Link href="/help-desk" />}
+            className="cursor-pointer"
+          >
+            Help Desk
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 }

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { refreshFirmOpsCommandPhase61Action } from '@/app/(app)/command-center/actions';
+import { DashboardMetricBoard } from '@/components/dashboard/dashboard-metric-board';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { CompanySelect } from '@/components/shared/company-select';
@@ -20,19 +21,6 @@ import {
   severityLabel,
   type FirmOpsCommandPhase61Report,
 } from '@/lib/firm-ops/firm-ops-command-phase61';
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-border bg-card px-3 py-2">
-      <p className="text-xs tracking-wide text-muted-foreground uppercase">
-        {label}
-      </p>
-      <p className="mt-1 font-heading text-xl font-semibold tabular-nums text-foreground">
-        {value}
-      </p>
-    </div>
-  );
-}
 
 export function FirmOpsCommandPhase61Client({
   report: initialReport,
@@ -132,12 +120,32 @@ export function FirmOpsCommandPhase61Client({
           <p className="text-sm text-muted-foreground">{message}</p>
         ) : null}
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Metric label="Critical" value={String(report.critical_count)} />
-          <Metric label="Warning" value={String(report.warning_count)} />
-          <Metric label="Stale items" value={String(report.stale_count)} />
-          <Metric label="Breaches" value={String(report.breach_count)} />
-        </div>
+        <DashboardMetricBoard
+          surface="firm-ops-command-metrics"
+          columns={4}
+          items={[
+            {
+              id: 'critical',
+              label: 'Critical',
+              value: String(report.critical_count),
+            },
+            {
+              id: 'warning',
+              label: 'Warning',
+              value: String(report.warning_count),
+            },
+            {
+              id: 'stale',
+              label: 'Stale items',
+              value: String(report.stale_count),
+            },
+            {
+              id: 'breaches',
+              label: 'Breaches',
+              value: String(report.breach_count),
+            },
+          ]}
+        />
 
         <section className="space-y-2">
           <h3 className="text-sm font-medium tracking-wide text-[#7c7871] uppercase">

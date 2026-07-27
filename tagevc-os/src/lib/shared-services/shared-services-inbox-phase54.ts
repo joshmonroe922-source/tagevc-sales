@@ -109,7 +109,7 @@ const DEFAULT_MODULE_STUBS: SsInboxModuleStub[] = [
   },
   {
     service: 'Legal',
-    href: '/shared-services/legal/docusign',
+    href: '/shared-services/legal',
     status: 'live',
     todo: null,
   },

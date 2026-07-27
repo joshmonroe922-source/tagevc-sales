@@ -3,6 +3,7 @@ import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 import {
   BUSINESS_CREDIT_ROLES,
+  canAccessInvestmentsPage,
   canAccessNetWorthPage,
   canViewBusinessCredit,
   canViewPersonalCredit,
@@ -52,9 +53,12 @@ describe('phase73 visibility matrix', () => {
     expect(defaultVisibilityForClass('real_estate')).toBe('firm_visible');
   });
 
-  it('blocks Net Worth / private / personal credit for non-Visionary', () => {
+  it('blocks Net Worth / Investments / private / personal credit for non-Visionary', () => {
     expect(
       canAccessNetWorthPage({ realRole: 'partner', liveLookActive: false }),
+    ).toBe(false);
+    expect(
+      canAccessInvestmentsPage({ realRole: 'coo', liveLookActive: false }),
     ).toBe(false);
     expect(
       canViewPrivateIQuadrant({ realRole: 'coo', liveLookActive: false }),
@@ -65,11 +69,17 @@ describe('phase73 visibility matrix', () => {
     expect(
       canAccessNetWorthPage({ realRole: 'visionary', liveLookActive: false }),
     ).toBe(true);
+    expect(
+      canAccessInvestmentsPage({ realRole: 'visionary', liveLookActive: false }),
+    ).toBe(true);
   });
 
-  it('blocks Net Worth and personal credit during Live Look even for Visionary', () => {
+  it('blocks Net Worth, Investments, and personal credit during Live Look even for Visionary', () => {
     expect(
       canAccessNetWorthPage({ realRole: 'visionary', liveLookActive: true }),
+    ).toBe(false);
+    expect(
+      canAccessInvestmentsPage({ realRole: 'visionary', liveLookActive: true }),
     ).toBe(false);
     expect(
       canViewPersonalCredit({ realRole: 'visionary', liveLookActive: true }),
@@ -160,12 +170,31 @@ describe('phase73 csv + coaching', () => {
 });
 
 describe('phase73 nav + sql + api surfaces', () => {
-  it('exposes Net Worth under Portfolio as Visionary-only + Live Look hidden', () => {
-    const portfolio = MAIN_NAV.find((n) => n.label === 'Portfolio');
-    expect(portfolio?.children?.some((c) => c.href === '/entities')).toBe(true);
-    const nw = portfolio?.children?.find((c) => c.href === '/portfolio/net-worth');
+  it('exposes Assets children with Investments + Net Worth Visionary-only', () => {
+    const assets = MAIN_NAV.find((n) => n.label === 'Assets');
+    expect(assets?.children?.map((c) => c.label)).toEqual([
+      'Net Worth',
+      'Businesses',
+      'Real Estate',
+      'Investments',
+    ]);
+    const inv = assets?.children?.find(
+      (c) => c.href === '/portfolio/investments',
+    );
+    const nw = assets?.children?.find((c) => c.href === '/portfolio/net-worth');
+    expect(inv?.visionaryOnly).toBe(true);
+    expect(inv?.hideDuringLiveLook).toBe(true);
     expect(nw?.visionaryOnly).toBe(true);
     expect(nw?.hideDuringLiveLook).toBe(true);
+  });
+
+  it('hides Command Center, Firm, and BD for COO role in nav config', () => {
+    const commandCenter = MAIN_NAV.find((n) => n.label === 'Command Center');
+    const firm = MAIN_NAV.find((n) => n.label === 'Firm');
+    const bd = MAIN_NAV.find((n) => n.label === 'Business Development');
+    expect(commandCenter?.hiddenForRoles).toContain('coo');
+    expect(firm?.hiddenForRoles).toContain('coo');
+    expect(bd?.hiddenForRoles).toContain('coo');
   });
 
   it('ships SQL migration and permission API routes', () => {

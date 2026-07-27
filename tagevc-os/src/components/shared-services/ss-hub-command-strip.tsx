@@ -145,7 +145,7 @@ export function SsHubCommandStrip({ glance }: Props) {
             {glance.functions.map((f) => (
               <Link
                 key={f.function_key}
-                href={`/shared-services/checklists?function=${f.function_key}&period=monthly&scope=parent_subs&time=current`}
+                href={`/shared-services/checklists?function=${f.function_key}&period=monthly&scope=parent_subs&time=active`}
                 className="rounded-md border border-border px-3 py-2 text-sm hover:border-[#3a414f]/40"
               >
                 <div className="flex items-center justify-between gap-2">

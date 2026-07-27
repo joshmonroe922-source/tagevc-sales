@@ -78,7 +78,7 @@ export function HrOpsDepthClient({
   }, [roster, companyFilter]);
 
   return (
-    <div className="space-y-8">
+    <div className="scroll-mt-20 space-y-8" id="hr-ops">
       <section className="space-y-3">
         <div className="space-y-1">
           <h2 className="font-heading text-lg font-semibold text-[#3a414f]">

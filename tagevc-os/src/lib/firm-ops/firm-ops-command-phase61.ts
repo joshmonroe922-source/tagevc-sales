@@ -98,7 +98,7 @@ const DEFAULT_MODULES: FirmOpsModuleLink[] = [
   },
   {
     module_key: 'legal',
-    href: '/shared-services/legal/docusign',
+    href: '/shared-services/legal',
     label: 'Legal',
     priority: 6,
     link_status: 'missing',

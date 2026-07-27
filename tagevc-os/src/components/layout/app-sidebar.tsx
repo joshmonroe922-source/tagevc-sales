@@ -24,8 +24,8 @@ import { SidebarAvailabilityControl } from '@/components/messaging/sidebar-avail
 import { ActivityUnreadBadge } from '@/components/layout/activity-unread-badge';
 import { createClient } from '@/lib/supabase/client';
 import { MAIN_NAV, type NavItem } from '@/lib/nav';
+import { filterNavForRole } from '@/lib/nav/role-visibility';
 import {
-  roleCanAccessModule,
   type AppRole,
   APP_ROLE_LABELS,
 } from '@/lib/types/roles';
@@ -34,6 +34,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { stopLiveLookAction } from '@/app/(app)/live-look/actions';
+import { canUseLiveLook } from '@/lib/live-look/access';
 
 const NAV_ACCORDION_STORAGE_KEY = 'tagevc.nav.accordion.v1';
 
@@ -58,6 +59,8 @@ type Props = {
   impersonatingAs: AppRole | null;
   impersonatableRoles: AppRole[];
   liveLookActive?: boolean;
+  /** Effective profile entity — labels Subsidiary Leader company nav. */
+  entityId?: string | null;
 };
 
 function isNavActive(pathname: string, href: string): boolean {
@@ -70,26 +73,61 @@ function isNavActive(pathname: string, href: string): boolean {
   if (href === '/help-desk') {
     return pathname === '/help-desk' || pathname.startsWith('/help-desk/');
   }
+  if (href === '/activity') {
+    return pathname === '/activity' || pathname.startsWith('/activity/');
+  }
+  if (href === '/admin') {
+    // Audit log nests under Technology/IT — do not light Admin.
+    // Document Library + DocuSign nest under Admin — children light themselves.
+    if (
+      pathname === '/admin/audit' ||
+      pathname.startsWith('/admin/audit/') ||
+      pathname === '/documents' ||
+      pathname.startsWith('/documents/') ||
+      pathname === '/shared-services/legal/docusign' ||
+      pathname.startsWith('/shared-services/legal/docusign/')
+    ) {
+      return false;
+    }
+    return pathname === '/admin' || pathname.startsWith('/admin/');
+  }
   if (href === '/deal-flow/vc/intake') {
     return (
       pathname === '/deal-flow/vc/intake' ||
       pathname.startsWith('/deal-flow/vc/intake/')
     );
   }
+  if (href === '/deal-flow/vc') {
+    // VC Sourcing portal — include intake/deals/IC under /deal-flow/vc/*
+    return (
+      pathname === '/deal-flow/vc' || pathname.startsWith('/deal-flow/vc/')
+    );
+  }
+  if (href === '/deal-flow/ma') {
+    return (
+      pathname === '/deal-flow/ma' || pathname.startsWith('/deal-flow/ma/')
+    );
+  }
+  if (href === '/deal-flow/re') {
+    return (
+      pathname === '/deal-flow/re' || pathname.startsWith('/deal-flow/re/')
+    );
+  }
   if (href === '/deal-flow') {
-    // Lead Intake is a sibling under Business Development — do not light both.
+    // Track portals + Lead Intake are siblings under BD — do not light hub too.
     if (
       pathname === '/deal-flow/vc/intake' ||
-      pathname.startsWith('/deal-flow/vc/intake/')
+      pathname.startsWith('/deal-flow/vc/intake/') ||
+      pathname === '/deal-flow/vc' ||
+      pathname.startsWith('/deal-flow/vc/') ||
+      pathname === '/deal-flow/ma' ||
+      pathname.startsWith('/deal-flow/ma/') ||
+      pathname === '/deal-flow/re' ||
+      pathname.startsWith('/deal-flow/re/')
     ) {
       return false;
     }
-    return (
-      pathname === '/deal-flow' ||
-      pathname.startsWith('/deal-flow/vc') ||
-      pathname.startsWith('/deal-flow/ma') ||
-      pathname.startsWith('/deal-flow/re')
-    );
+    return pathname === '/deal-flow' || pathname.startsWith('/deal-flow/');
   }
   if (href === '/portfolio') {
     return pathname === '/portfolio' || pathname.startsWith('/portfolio/');
@@ -103,16 +141,139 @@ function isNavActive(pathname: string, href: string): boolean {
       pathname.startsWith('/portfolio/net-worth/')
     );
   }
+  if (href === '/portfolio/investments') {
+    return (
+      pathname === '/portfolio/investments' ||
+      pathname.startsWith('/portfolio/investments/')
+    );
+  }
+  if (href === '/portfolio/real-estate') {
+    return (
+      pathname === '/portfolio/real-estate' ||
+      pathname.startsWith('/portfolio/real-estate/')
+    );
+  }
   if (href === '/portfolio') {
     return pathname === '/portfolio' || pathname.startsWith('/portfolio/');
+  }
+  if (href === '/shared-services/finance') {
+    return (
+      pathname === '/shared-services/finance' ||
+      pathname.startsWith('/shared-services/finance/')
+    );
+  }
+  if (href === '/shared-services/hr/screening') {
+    return (
+      pathname === '/shared-services/hr/screening' ||
+      pathname.startsWith('/shared-services/hr/screening/')
+    );
+  }
+  if (href === '/shared-services/hr') {
+    // Screening is nested under HR — do not light both.
+    if (
+      pathname === '/shared-services/hr/screening' ||
+      pathname.startsWith('/shared-services/hr/screening/')
+    ) {
+      return false;
+    }
+    return (
+      pathname === '/shared-services/hr' ||
+      pathname.startsWith('/shared-services/hr/')
+    );
+  }
+  if (href === '/shared-services/it/activity') {
+    return (
+      pathname === '/shared-services/it/activity' ||
+      pathname.startsWith('/shared-services/it/activity/')
+    );
+  }
+  if (href === '/shared-services/it/assets') {
+    // Nested IT children (Activity / Visionary Audit) — do not light IT home.
+    if (
+      pathname === '/shared-services/it/activity' ||
+      pathname.startsWith('/shared-services/it/activity/') ||
+      pathname === '/admin/audit' ||
+      pathname.startsWith('/admin/audit/')
+    ) {
+      return false;
+    }
+    return (
+      pathname === '/shared-services/it' ||
+      pathname.startsWith('/shared-services/it/')
+    );
+  }
+  if (href === '/shared-services/marketing') {
+    return (
+      pathname === '/shared-services/marketing' ||
+      pathname.startsWith('/shared-services/marketing/')
+    );
+  }
+  if (href === '/shared-services/legal/docusign') {
+    return (
+      pathname === '/shared-services/legal/docusign' ||
+      pathname.startsWith('/shared-services/legal/docusign/')
+    );
+  }
+  if (href === '/shared-services/legal') {
+    // DocuSign lives under Admin — do not light Legal desk.
+    if (
+      pathname === '/shared-services/legal/docusign' ||
+      pathname.startsWith('/shared-services/legal/docusign/')
+    ) {
+      return false;
+    }
+    return (
+      pathname === '/shared-services/legal' ||
+      pathname.startsWith('/shared-services/legal/')
+    );
+  }
+  if (href === '/documents') {
+    return (
+      pathname === '/documents' || pathname.startsWith('/documents/')
+    );
+  }
+  if (href === '/admin/audit') {
+    return (
+      pathname === '/admin/audit' || pathname.startsWith('/admin/audit/')
+    );
+  }
+  if (href === '/c-suite') {
+    return pathname === '/c-suite';
+  }
+  if (href.startsWith('/c-suite/')) {
+    return pathname === href || pathname.startsWith(`${href}/`);
   }
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
 function childRouteActive(pathname: string, children: NavItem[]): boolean {
   return children.some(
-    (c) => !!c.href && isNavActive(pathname, c.href),
+    (c) =>
+      (!!c.href && isNavActive(pathname, c.href)) ||
+      (!!c.children?.length && childRouteActive(pathname, c.children)),
   );
+}
+
+/** Force-open every ancestor whose descendant route is active. */
+function applyActiveAccordionParents(
+  items: NavItem[],
+  pathname: string,
+  next: Record<string, boolean>,
+): boolean {
+  let changed = false;
+  for (const item of items) {
+    if (!item.children?.length) continue;
+    if (childRouteActive(pathname, item.children)) {
+      if (!next[item.label]) {
+        next[item.label] = true;
+        changed = true;
+      }
+      if (applyActiveAccordionParents(item.children, pathname, next)) {
+        changed = true;
+      }
+    }
+  }
+  return changed;
 }
 
 function readAccordionState(): Record<string, boolean> {
@@ -139,80 +300,123 @@ function writeAccordionState(state: Record<string, boolean>) {
   }
 }
 
-function filterNavForRole(
-  items: NavItem[],
-  role: AppRole,
-  realRole: AppRole,
-  liveLookActive = false,
-): NavItem[] {
-  const out: NavItem[] = [];
-  for (const item of items) {
-    if (item.visionaryOnly && realRole !== 'visionary') continue;
-    if (item.hideDuringLiveLook && liveLookActive) continue;
-    if (!roleCanAccessModule(role, item.module)) continue;
-    const children = item.children
-      ? filterNavForRole(item.children, role, realRole, liveLookActive)
-      : undefined;
-    if (!item.href && (!children || children.length === 0)) continue;
-    out.push({ ...item, children });
-  }
-  return out;
-}
-
 function NavGroup({
   item,
   pathname,
   expanded,
   onToggle,
+  accordion,
+  onToggleGroup,
+  depth = 0,
 }: {
   item: NavItem;
   pathname: string;
   expanded: boolean;
   onToggle: () => void;
+  accordion: Record<string, boolean>;
+  onToggleGroup: (label: string) => void;
+  depth?: number;
 }) {
   const GroupIcon = ICONS[item.module] ?? Briefcase;
   const children = item.children ?? [];
   const groupId = `nav-group-${item.label.replace(/\s+/g, '-').toLowerCase()}`;
+  const nested = depth > 0;
+  const active = item.href ? isNavActive(pathname, item.href) : false;
+
+  const chevron = (
+    <ChevronRight
+      className={cn(
+        'size-3.5 shrink-0 opacity-70 transition-transform duration-200 motion-reduce:transition-none',
+        expanded && 'rotate-90',
+      )}
+      aria-hidden
+    />
+  );
 
   return (
-    <div className="space-y-0.5 pt-1">
-      <button
-        type="button"
-        id={groupId}
-        aria-expanded={expanded}
-        aria-controls={`${groupId}-panel`}
-        onClick={onToggle}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            onToggle();
-          }
-        }}
-        className={cn(
-          'flex w-full items-start gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors',
-          'text-sidebar-foreground/80 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring',
-        )}
-      >
-        <GroupIcon className="mt-0.5 size-4 shrink-0" />
-        <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-2">
-            <span className="block font-medium">{item.label}</span>
-            <ChevronRight
-              className={cn(
-                'size-3.5 shrink-0 opacity-70 transition-transform duration-200',
-                expanded && 'rotate-90',
-              )}
-              aria-hidden
-            />
-          </span>
-          {item.description ? (
-            <span className="mt-0.5 block text-xs opacity-70">
-              {item.description}
+    <div className={cn('space-y-0.5', !nested && 'pt-1')}>
+      {item.href ? (
+        <div
+          className={cn(
+            'flex w-full items-start gap-1 rounded-md text-sm transition-colors',
+            nested ? 'py-0 pl-9' : 'px-0',
+            active
+              ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+              : 'text-sidebar-foreground/80 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground',
+          )}
+        >
+          <Link
+            href={item.href}
+            className={cn(
+              'flex min-w-0 flex-1 items-start gap-3 rounded-md px-3 py-2 text-left',
+              nested && 'pl-0',
+            )}
+          >
+            {!nested ? <GroupIcon className="mt-0.5 size-4 shrink-0" /> : null}
+            <span className="min-w-0 flex-1">
+              <span className="block font-medium">{item.label}</span>
+              {item.description && !nested ? (
+                <span className="mt-0.5 block text-xs opacity-70">
+                  {item.description}
+                </span>
+              ) : null}
             </span>
-          ) : null}
-        </span>
-      </button>
+          </Link>
+          <button
+            type="button"
+            id={groupId}
+            aria-expanded={expanded}
+            aria-controls={`${groupId}-panel`}
+            aria-label={`Toggle ${item.label} submenu`}
+            onClick={onToggle}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onToggle();
+              }
+            }}
+            className={cn(
+              'mt-1 mr-1 shrink-0 rounded-md p-1.5',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring',
+            )}
+          >
+            {chevron}
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          id={groupId}
+          aria-expanded={expanded}
+          aria-controls={`${groupId}-panel`}
+          onClick={onToggle}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onToggle();
+            }
+          }}
+          className={cn(
+            'flex w-full items-start gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors',
+            'text-sidebar-foreground/80 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring',
+            nested && 'pl-9',
+          )}
+        >
+          {!nested ? <GroupIcon className="mt-0.5 size-4 shrink-0" /> : null}
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-2">
+              <span className="block font-medium">{item.label}</span>
+              {chevron}
+            </span>
+            {item.description && !nested ? (
+              <span className="mt-0.5 block text-xs opacity-70">
+                {item.description}
+              </span>
+            ) : null}
+          </span>
+        </button>
+      )}
       <div
         id={`${groupId}-panel`}
         role="region"
@@ -220,14 +424,32 @@ function NavGroup({
         hidden={!expanded}
         className={cn(expanded ? 'space-y-0.5' : 'hidden')}
       >
-        {children.map((child) => (
-          <NavLink
-            key={child.href ?? child.label}
-            item={child}
-            pathname={pathname}
-            nested
-          />
-        ))}
+        {children.map((child) => {
+          if (child.children?.length) {
+            const childExpanded = Boolean(accordion[child.label]);
+            return (
+              <NavGroup
+                key={child.label}
+                item={child}
+                pathname={pathname}
+                expanded={childExpanded}
+                onToggle={() => onToggleGroup(child.label)}
+                accordion={accordion}
+                onToggleGroup={onToggleGroup}
+                depth={depth + 1}
+              />
+            );
+          }
+          return (
+            <NavLink
+              key={child.href ?? child.label}
+              item={child}
+              pathname={pathname}
+              nested
+              depth={depth + 1}
+            />
+          );
+        })}
       </div>
     </div>
   );
@@ -237,10 +459,12 @@ function NavLink({
   item,
   pathname,
   nested = false,
+  depth = 0,
 }: {
   item: NavItem;
   pathname: string;
   nested?: boolean;
+  depth?: number;
 }) {
   if (!item.href) return null;
   const Icon =
@@ -262,7 +486,7 @@ function NavLink({
       href={item.href}
       className={cn(
         'flex items-start gap-3 rounded-md px-3 py-2.5 text-sm transition-colors',
-        nested && 'py-2 pl-9',
+        nested && (depth >= 2 ? 'py-2 pl-14' : 'py-2 pl-9'),
         active
           ? 'bg-sidebar-accent text-sidebar-accent-foreground'
           : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground',
@@ -293,18 +517,32 @@ export function AppSidebar({
   impersonatingAs,
   impersonatableRoles,
   liveLookActive = false,
+  entityId = null,
 }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const items = useMemo(
-    () => filterNavForRole(MAIN_NAV, role, realRole, liveLookActive),
-    [role, realRole, liveLookActive],
+    () =>
+      filterNavForRole(MAIN_NAV, {
+        role,
+        realRole,
+        liveLookActive,
+        entityId,
+      }),
+    [role, realRole, liveLookActive, entityId],
   );
   const showSwitcher =
     realRole === 'visionary' &&
     impersonatableRoles.length > 0 &&
     !liveLookActive;
-  const showLiveLook = realRole === 'visionary' && !liveLookActive;
+  const showLiveLook =
+    !liveLookActive &&
+    canUseLiveLook({
+      email,
+      realRole,
+      effectiveRole: role,
+      impersonatingAs,
+    });
 
   const [accordion, setAccordion] = useState<Record<string, boolean>>({});
   const [accordionReady, setAccordionReady] = useState(false);
@@ -314,12 +552,11 @@ export function AppSidebar({
     const next: Record<string, boolean> = { ...stored };
     for (const item of items) {
       if (!item.children?.length) continue;
-      if (childRouteActive(pathname, item.children)) {
-        next[item.label] = true;
-      } else if (next[item.label] === undefined) {
+      if (next[item.label] === undefined) {
         next[item.label] = false;
       }
     }
+    applyActiveAccordionParents(items, pathname, next);
     setAccordion(next);
     setAccordionReady(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate once; path effect below keeps active parents open
@@ -328,15 +565,8 @@ export function AppSidebar({
   useEffect(() => {
     if (!accordionReady) return;
     setAccordion((prev) => {
-      let changed = false;
       const next = { ...prev };
-      for (const item of items) {
-        if (!item.children?.length) continue;
-        if (childRouteActive(pathname, item.children) && !next[item.label]) {
-          next[item.label] = true;
-          changed = true;
-        }
-      }
+      const changed = applyActiveAccordionParents(items, pathname, next);
       if (changed) writeAccordionState(next);
       return changed ? next : prev;
     });
@@ -364,7 +594,14 @@ export function AppSidebar({
   }
 
   return (
-    <aside className="flex h-full w-64 shrink-0 flex-col overflow-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
+    <aside
+      className={cn(
+        // Pin to viewport: sticky + self-start so flex stretch cannot grow the
+        // aside with main content; shell overflow-hidden keeps document still.
+        'sticky top-0 z-20 flex h-dvh max-h-dvh w-64 shrink-0 flex-col self-start',
+        'overflow-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground',
+      )}
+    >
       <div className="shrink-0 px-5 py-6">
         <SidebarAvailabilityControl />
         <p className="text-xs font-medium tracking-[0.18em] text-sidebar-foreground/60 uppercase">
@@ -375,7 +612,7 @@ export function AppSidebar({
         </h1>
       </div>
 
-      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 pb-4">
+      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-3 pb-4">
         {showLiveLook ? (
           <div className="mb-1 px-0.5">
             <LiveLookNavControl />
@@ -393,6 +630,8 @@ export function AppSidebar({
                 pathname={pathname}
                 expanded={expanded}
                 onToggle={() => toggleGroup(item.label)}
+                accordion={accordion}
+                onToggleGroup={toggleGroup}
               />
             );
           }

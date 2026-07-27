@@ -1,8 +1,15 @@
 import { createPersistClient } from '@/lib/supabase/persist-client';
 import type { DocumentRecord } from '@/lib/types';
+import type { AppRole } from '@/lib/types/roles';
 
-function docToRow(doc: DocumentRecord) {
-  return {
+function parseVisibleRoles(raw: unknown): AppRole[] | null {
+  if (raw == null) return null;
+  if (!Array.isArray(raw)) return null;
+  return raw.filter((r): r is AppRole => typeof r === 'string') as AppRole[];
+}
+
+function docToRow(doc: DocumentRecord, includeVisibleRoles: boolean) {
+  const row: Record<string, unknown> = {
     id: doc.id,
     doc_id: doc.doc_id,
     entity_id: doc.entity_id,
@@ -26,6 +33,10 @@ function docToRow(doc: DocumentRecord) {
     created_at: doc.created_at,
     updated_at: doc.updated_at,
   };
+  if (includeVisibleRoles) {
+    row.visible_roles = doc.visible_roles;
+  }
+  return row;
 }
 
 function rowToDoc(row: Record<string, unknown>): DocumentRecord {
@@ -51,6 +62,7 @@ function rowToDoc(row: Record<string, unknown>): DocumentRecord {
     completed_at: (row.completed_at as string | null) ?? null,
     content_hash: (row.content_hash as string | null) ?? null,
     notes: (row.notes as string | null) ?? null,
+    visible_roles: parseVisibleRoles(row.visible_roles),
     ai_review: (row.ai_review as DocumentRecord['ai_review']) ?? null,
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
@@ -75,18 +87,41 @@ export async function fetchAllDocuments(): Promise<DocumentRecord[] | null> {
   }
 }
 
+async function upsertDocs(
+  docs: DocumentRecord[],
+  includeVisibleRoles: boolean,
+): Promise<{ ok: boolean; message?: string }> {
+  const supabase = await createPersistClient();
+  const { error } = await supabase
+    .from('os_documents')
+    .upsert(
+      docs.map((d) => docToRow(d, includeVisibleRoles)),
+      { onConflict: 'doc_id' },
+    );
+  if (error) return { ok: false, message: error.message };
+  return { ok: true };
+}
+
 export async function syncDocuments(docs: DocumentRecord[]): Promise<boolean> {
   try {
-    const supabase = await createPersistClient();
     if (docs.length === 0) return true;
-    const { error } = await supabase
-      .from('os_documents')
-      .upsert(docs.map(docToRow), { onConflict: 'doc_id' });
-    if (error) {
-      console.error('syncDocuments', error.message);
+    const first = await upsertDocs(docs, true);
+    if (first.ok) return true;
+    // Column may not exist until phase80 SQL is applied — retry without it.
+    if (
+      first.message &&
+      /visible_roles/i.test(first.message)
+    ) {
+      console.warn(
+        'syncDocuments: visible_roles column missing; syncing without ACL field',
+      );
+      const retry = await upsertDocs(docs, false);
+      if (retry.ok) return true;
+      console.error('syncDocuments', retry.message);
       return false;
     }
-    return true;
+    console.error('syncDocuments', first.message);
+    return false;
   } catch (e) {
     console.error('syncDocuments', e);
     return false;

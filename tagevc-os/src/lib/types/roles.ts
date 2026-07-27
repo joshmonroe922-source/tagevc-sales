@@ -12,6 +12,11 @@ export const APP_ROLES = [
   'sub_lead',
   'service_lead',
   'counsel_ops',
+  'ssc_finance',
+  'ssc_hr',
+  'ssc_legal',
+  'ssc_it',
+  'ssc_marketing',
   'admin',
 ] as const;
 
@@ -21,12 +26,17 @@ export const APP_ROLE_LABELS: Record<AppRole, string> = {
   visionary: 'Visionary',
   partner: 'Partner',
   associate: 'Associate / VC Sourcer',
-  re_sourcer: 'RE Sources',
+  re_sourcer: 'Sourcer',
   ma_associate: 'M&A Associate',
   coo: 'COO (Subsidiaries)',
   sub_lead: 'Subsidiary Leader',
   service_lead: 'Service Lead',
   counsel_ops: 'Counsel / Ops',
+  ssc_finance: 'Accounting / Finance',
+  ssc_hr: 'Human Resources',
+  ssc_legal: 'Legal',
+  ssc_it: 'Technology',
+  ssc_marketing: 'Marketing',
   admin: 'Admin',
 };
 
@@ -91,6 +101,17 @@ const ALL_READ: Permission[] = [
   'read:documents',
 ];
 
+/** Base SSC operator: Home + Ticket Portal, SSC work, docs, messages — not firm portfolio/BD. */
+const SSC_BASE: Permission[] = [
+  'read:command_center',
+  'read:messages',
+  'write:messages',
+  'read:shared_services',
+  'write:shared_services',
+  'read:documents',
+  'write:documents',
+];
+
 /** Role → permission map (high-level Phase 0; refine per workflow). */
 export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
   visionary: [
@@ -135,6 +156,8 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     'write:messages',
     'read:vc_pipeline',
     'write:vc_pipeline',
+    'read:ma_pipeline',
+    'write:ma_pipeline',
     'read:documents',
     'write:documents',
   ],
@@ -181,31 +204,31 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     'read:it_assets',
     'read:marketing',
   ],
-  service_lead: [
-    'read:command_center',
-    'read:messages',
-    'write:messages',
-    'read:shared_services',
-    'write:shared_services',
-    'read:documents',
-    'read:it_assets',
-    'write:it_assets',
-    'read:marketing',
-    'write:marketing',
-  ],
+  /** Led SSC desk only (Finance default in Role Switcher); use ssc_* for other desks. */
+  service_lead: [...SSC_BASE],
   counsel_ops: [
-    'read:command_center',
-    'read:messages',
-    'write:messages',
-    'read:vc_pipeline',
-    'read:ma_pipeline',
-    'read:re_pipeline',
-    'read:documents',
-    'write:documents',
-    'action:wire',
+    ...SSC_BASE,
     'action:docusign_manual_review',
     'action:docusign_reconcile',
+  ],
+  ssc_finance: [...SSC_BASE],
+  ssc_hr: [...SSC_BASE],
+  ssc_legal: [
+    ...SSC_BASE,
+    'action:docusign_manual_review',
+    'action:docusign_reconcile',
+  ],
+  ssc_it: [
+    ...SSC_BASE,
     'read:it_assets',
+    'write:it_assets',
+    'action:intune_retire',
+    'action:intune_manual_review',
+  ],
+  ssc_marketing: [
+    ...SSC_BASE,
+    'read:marketing',
+    'write:marketing',
   ],
   admin: [
     ...ALL_READ,

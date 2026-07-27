@@ -1729,7 +1729,10 @@ export function ItAssetsClient({
         </form>
       )}
 
-      <section className="space-y-3 rounded-lg border p-4">
+      <section
+        className="scroll-mt-20 space-y-3 rounded-lg border p-4"
+        id="intune"
+      >
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="text-base font-semibold">Intune action queue</h2>
@@ -2317,7 +2320,7 @@ export function ItAssetsClient({
         ) : null}
       </section>
 
-      <section className="space-y-3">
+      <section className="scroll-mt-20 space-y-3" id="hardware">
         <h2 className="text-base font-semibold">Hardware</h2>
         {hardware.length === 0 ? (
           <p className="text-sm text-muted-foreground">No hardware assets yet.</p>
@@ -2394,7 +2397,7 @@ export function ItAssetsClient({
         )}
       </section>
 
-      <section className="space-y-3">
+      <section className="scroll-mt-20 space-y-3" id="licenses">
         <h2 className="text-base font-semibold">Software licenses</h2>
         {canWrite && (
           <Button
@@ -2478,7 +2481,7 @@ export function ItAssetsClient({
       </section>
 
 
-      <section className="space-y-3">
+      <section className="scroll-mt-20 space-y-3" id="it-jml">
         <h2 className="text-base font-semibold">Onboarding</h2>
         {canWrite && (
           <div className="flex flex-wrap gap-2">

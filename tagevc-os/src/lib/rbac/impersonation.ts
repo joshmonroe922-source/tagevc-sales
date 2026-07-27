@@ -29,7 +29,7 @@ export const BREAK_GLASS_MESSAGE =
 
 /**
  * Visionary Role Switcher order (top → bottom).
- * Visionary is the default (no cookie). Associate kept at end (not in primary list).
+ * Visionary is the default (no cookie). SSC function roles follow Counsel/Ops.
  */
 export const ROLE_SWITCHER_ORDER: readonly AppRole[] = [
   'visionary',
@@ -37,6 +37,11 @@ export const ROLE_SWITCHER_ORDER: readonly AppRole[] = [
   'coo',
   'sub_lead',
   'counsel_ops',
+  'ssc_finance',
+  'ssc_hr',
+  'ssc_legal',
+  'ssc_it',
+  'ssc_marketing',
   'service_lead',
   'ma_associate',
   're_sourcer',

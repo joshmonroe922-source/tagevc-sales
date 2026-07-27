@@ -1,9 +1,8 @@
-import Link from 'next/link';
 import { MarketingClient } from '@/components/shared-services/marketing-client';
 import { MarketingHardeningPhase58Client } from '@/components/shared-services/marketing-hardening-phase58-client';
+import { MarketingPublisherDeskClient } from '@/components/shared-services/marketing-publisher-desk-client';
 import { MarketingRevenuePhase41 } from '@/components/shared-services/marketing-revenue-phase41';
-import { SscFunctionHomeStrip } from '@/components/shared-services/ssc-function-home-strip';
-import { Badge } from '@/components/ui/badge';
+import { SscFunctionHomeChromeServer } from '@/components/shared-services/ssc-function-home-chrome-server';
 import { listBrandVoices } from '@/lib/shared-services/marketing-brand';
 import { getMarketingAnalyticsSummary } from '@/lib/shared-services/marketing-analytics';
 import {
@@ -14,6 +13,7 @@ import {
   listScheduleJobs,
   listSocialAccounts,
 } from '@/lib/shared-services/marketing-repo';
+import { getPublisherChannelCatalog } from '@/lib/shared-services/marketing-publisher-desk';
 import { getMarketingHardeningPhase58Report } from '@/lib/shared-services/marketing-hardening-phase58-server';
 import { roleHasPermission } from '@/lib/types/roles';
 import { getSessionContext, requirePermission } from '@/lib/rbac/session';
@@ -61,6 +61,11 @@ export default async function MarketingModulePage({
   const firmWide = ctx
     ? isFirmWideAccess(ctx.profile.role, ctx.profile.entity_id)
     : false;
+  const entityParam =
+    typeof sp.entity === 'string' ? sp.entity.trim() : '';
+  const entityId = firmWide
+    ? entityParam || null
+    : (ctx?.profile.entity_id ?? (entityParam || null));
 
   const [
     campaigns,
@@ -194,6 +199,8 @@ export default async function MarketingModulePage({
     ? roleHasPermission(ctx.profile.role, 'write:marketing')
     : false;
 
+  const publisherChannels = getPublisherChannelCatalog();
+
   const tableError =
     campaigns.error ||
     content.error ||
@@ -204,79 +211,63 @@ export default async function MarketingModulePage({
 
   return (
     <div className="space-y-6">
-      <Link
-        href="/shared-services"
-        className="text-sm text-muted-foreground hover:text-foreground"
-      >
-        ← Shared Services
-      </Link>
+      <SscFunctionHomeChromeServer
+        functionKey="marketing"
+        entityId={entityId}
+        firmWide={firmWide}
+      />
 
-      <SscFunctionHomeStrip functionKey="marketing" />
+      {oauthFlash ? (
+        <p className="text-sm text-emerald-700">{oauthFlash}</p>
+      ) : null}
 
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline">Marketing</Badge>
-          <Badge variant="secondary">Phase 48</Badge>
-          <Badge variant="secondary">Phase 49</Badge>
-          <Badge variant="secondary">Phase 50</Badge>
-          <Badge variant="secondary">Phase 51</Badge>
-          <Badge variant="secondary">Phase 52</Badge>
-          <Badge variant="secondary">Phase 58</Badge>
-        </div>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Multichannel Marketing
-        </h1>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          Entity-bound paid delivery, production ledger authenticity, gated
-          cohort autopilot promotion, closed conflict-cohort archives, cohort
-          performance and conflict-resolution visibility, correction
-          monitoring over authoritative evidence, autopilot dry-run
-          dashboards, cohort promotion audit exports, gated dual-approved
-          promotion from dry-run into actual promotion for soaked-healthy
-          cohorts, auto-proposed (never auto-approved) promotions for
-          cohorts that have soaked healthy across consecutive audit-export
-          windows, and Phase 58 production hardening — approval SLA,
-          publishing controls, brand-voice enforcement, campaign dashboards,
-          and Recruit acquisition intelligence (never auto-approves money).
-        </p>
-        {oauthFlash && (
-          <p className="text-sm text-emerald-700">{oauthFlash}</p>
-        )}
+      <MarketingPublisherDeskClient
+        channels={publisherChannels}
+        accounts={accounts.rows}
+        canWrite={canWrite}
+        stubOAuthAllowed={
+          process.env.MARKETING_ALLOW_STUB_OAUTH === '1' ||
+          process.env.MARKETING_ALLOW_STUB_OAUTH === 'true'
+        }
+      />
+
+      <div id="mkt-hardening" className="scroll-mt-20">
+        <MarketingHardeningPhase58Client
+          report={phase58Hardening}
+          canWrite={canWrite}
+          initialEntityId={entityId ?? ''}
+        />
       </div>
 
-      <MarketingHardeningPhase58Client
-        report={phase58Hardening}
-        canWrite={canWrite}
-        initialEntityId={firmWide ? '' : (ctx?.profile.entity_id ?? '')}
-      />
-
-      <MarketingRevenuePhase41
-        report={authoritativeRevenue.report}
-        error={authoritativeRevenue.error}
-        canWrite={canWrite}
-        sloReport={productionSlos.report}
-        sloError={productionSlos.error}
-        opsReport={opsReport.report}
-        opsError={opsReport.error}
-        phase44OpsReport={phase44OpsReport.report}
-        phase44OpsError={phase44OpsReport.error}
-        phase45OpsReport={phase45OpsReport.report}
-        phase45OpsError={phase45OpsReport.error}
-        phase46OpsReport={phase46OpsReport.report}
-        phase46OpsError={phase46OpsReport.error}
-        phase47OpsReport={phase47OpsReport.report}
-        phase47OpsError={phase47OpsReport.error}
-        phase48OpsReport={phase48OpsReport.report}
-        phase48OpsError={phase48OpsReport.error}
-        phase49OpsReport={phase49OpsReport.report}
-        phase49OpsError={phase49OpsReport.error}
-        phase50OpsReport={phase50OpsReport.report}
-        phase50OpsError={phase50OpsReport.error}
-        phase51OpsReport={phase51OpsReport.report}
-        phase51OpsError={phase51OpsReport.error}
-        phase52OpsReport={phase52OpsReport.report}
-        phase52OpsError={phase52OpsReport.error}
-      />
+      <div id="mkt-revenue" className="scroll-mt-20">
+        <MarketingRevenuePhase41
+          report={authoritativeRevenue.report}
+          error={authoritativeRevenue.error}
+          canWrite={canWrite}
+          sloReport={productionSlos.report}
+          sloError={productionSlos.error}
+          opsReport={opsReport.report}
+          opsError={opsReport.error}
+          phase44OpsReport={phase44OpsReport.report}
+          phase44OpsError={phase44OpsReport.error}
+          phase45OpsReport={phase45OpsReport.report}
+          phase45OpsError={phase45OpsReport.error}
+          phase46OpsReport={phase46OpsReport.report}
+          phase46OpsError={phase46OpsReport.error}
+          phase47OpsReport={phase47OpsReport.report}
+          phase47OpsError={phase47OpsReport.error}
+          phase48OpsReport={phase48OpsReport.report}
+          phase48OpsError={phase48OpsReport.error}
+          phase49OpsReport={phase49OpsReport.report}
+          phase49OpsError={phase49OpsReport.error}
+          phase50OpsReport={phase50OpsReport.report}
+          phase50OpsError={phase50OpsReport.error}
+          phase51OpsReport={phase51OpsReport.report}
+          phase51OpsError={phase51OpsReport.error}
+          phase52OpsReport={phase52OpsReport.report}
+          phase52OpsError={phase52OpsReport.error}
+        />
+      </div>
 
       <MarketingClient
         campaigns={campaigns.rows}

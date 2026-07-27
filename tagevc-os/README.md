@@ -139,7 +139,7 @@ Engine is swappable: replace `analyzeDocument` in `src/lib/documents/ai-review.t
 - `/deal-flow` — hub (VC / M&A / RE)
 - `/deal-flow/vc` — Pipeline · `/deal-flow/vc/deals/DE-001` — Orbit Data desk + IC
 - `/deal-flow/vc/ic` — IC queue
-- `/deal-flow/ma` · `/deal-flow/ma/MA-001` — Midwest Ops Co (LOI / Exclusivity)
+- `/deal-flow/ma` — M&A pipeline (add targets via Lead Intake)
 - `/deal-flow/re` · `/deal-flow/re/RE-001` — Maple St (Residential UW)
 - Advance MA to **Integration** or RE to **Onboard** / VC to **Wired / Closed** → creates PH handoff stub
 

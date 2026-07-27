@@ -22,6 +22,7 @@ import {
   runScheduleWorkerAction,
   scheduleContentAction,
   stubConnectAccountAction,
+  connectBlogAccountAction,
   submitForReviewAction,
   syncPaidCampaignAction,
   upsertBrandVoiceAction,
@@ -152,6 +153,7 @@ export function MarketingClient({
     sla_assignee?: string | null;
     paid_ads_live?: boolean;
     tiktok_publish?: boolean;
+    blog_publish_webhook?: boolean;
     phase: number;
   };
 }) {
@@ -366,7 +368,7 @@ export function MarketingClient({
   return (
     <div className="space-y-8">
       <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-        Phase {foundation.phase} · AI:{' '}
+        Ops strip · Phase {foundation.phase} · AI:{' '}
         <span className="font-medium text-foreground">{foundation.ai_provider}</span>
         {' · '}
         Scheduler:{' '}
@@ -385,12 +387,18 @@ export function MarketingClient({
         {foundation.youtube_analytics ? '+an' : ''} · TT:
         {foundation.tiktok_oauth ? 'oauth' : foundation.tiktok_analytics ? 'an' : 'off'}
         {foundation.tiktok_publish ? '+pub' : ''}
+        {foundation.blog_publish_webhook ? ' · blog:LIVE' : ' · blog:scaffold'}
         {foundation.paid_ads_live ? ' · paid:live' : ' · paid:stub'}
         {foundation.approval_sla_hours
           ? ` · SLA ${foundation.approval_sla_hours}h`
           : ''}
         {foundation.sla_assignee ? ` → ${foundation.sla_assignee}` : ''}
       </div>
+
+      <p className="text-xs text-muted-foreground">
+        Campaigns, AI drafts, paid sync, and queues below are advanced ops —
+        day-to-day connect + publish lives in the Publish desk at the top.
+      </p>
 
       {tableError && (
         <p className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
@@ -403,7 +411,10 @@ export function MarketingClient({
         </p>
       )}
 
-      <section className="space-y-3 rounded-lg border p-4">
+      <section
+        id="mkt-analytics"
+        className="scroll-mt-20 space-y-3 rounded-lg border p-4"
+      >
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-base font-semibold">Analytics</h2>
           {analyticsError ? (
@@ -1195,8 +1206,9 @@ export function MarketingClient({
           <form action={acctAction} className="space-y-3 rounded-lg border p-4">
             <h2 className="text-sm font-semibold">Register social account</h2>
             <p className="text-xs text-muted-foreground">
-              Then Connect via OAuth (or stub) for LinkedIn, X, Meta, YouTube,
-              TikTok.
+              Prefer the Publish desk above. Advanced: register here, then
+              Connect via OAuth (or stub) for LinkedIn, X, Meta, YouTube,
+              TikTok, or Blog.
             </p>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
@@ -1208,6 +1220,7 @@ export function MarketingClient({
                   <option value="facebook">Facebook</option>
                   <option value="youtube">YouTube</option>
                   <option value="tiktok">TikTok</option>
+                  <option value="web">Blog / CMS</option>
                   <option value="other">Other</option>
                 </select>
               </div>
@@ -1447,7 +1460,7 @@ export function MarketingClient({
         </div>
       )}
 
-      <section className="space-y-2">
+      <section id="mkt-brand" className="scroll-mt-20 space-y-2">
         <h2 className="text-base font-semibold">Brand voices</h2>
         {brandVoices.length === 0 ? (
           <p className="text-sm text-muted-foreground">None yet — firm default uses generic tone.</p>
@@ -1468,7 +1481,7 @@ export function MarketingClient({
         )}
       </section>
 
-      <section className="space-y-3">
+      <section id="mkt-campaigns" className="scroll-mt-20 space-y-3">
         <h2 className="text-base font-semibold">Campaigns</h2>
         {campaigns.length === 0 ? (
           <p className="text-sm text-muted-foreground">No campaigns yet.</p>
@@ -1754,6 +1767,22 @@ export function MarketingClient({
                   )}
                 {canWrite &&
                   a.account_type === 'publisher' &&
+                  a.platform === 'web' &&
+                  a.status !== 'connected' && (
+                  <button
+                    type="button"
+                    className="ml-2 text-xs font-medium underline-offset-4 hover:underline"
+                    disabled={pending}
+                    onClick={() =>
+                      run(() => connectBlogAccountAction(a.account_id))
+                    }
+                  >
+                    Mark blog ready
+                  </button>
+                )}
+                {canWrite &&
+                  a.account_type === 'publisher' &&
+                  a.platform !== 'web' &&
                   a.status !== 'connected' && (
                   <button
                     type="button"

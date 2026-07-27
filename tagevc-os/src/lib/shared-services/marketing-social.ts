@@ -1,7 +1,9 @@
 /**
  * Social publishers — stub + LinkedIn / X / Meta / TikTok when OAuth tokens present.
+ * Blog/CMS uses BLOG_PUBLISH_WEBHOOK_URL when configured.
  */
 
+import { createHmac } from 'node:crypto';
 import { ensureFreshAccessToken } from '@/lib/shared-services/marketing-token-refresh';
 import type { MarketingPlatform } from '@/lib/shared-services/marketing-types';
 
@@ -47,6 +49,79 @@ export class StubSocialPublisher implements SocialPublisher {
       published_url: `https://example.invalid/posts/${id}?handle=${encodeURIComponent(input.handle)}`,
       stub: true,
     };
+  }
+}
+
+/** POST JSON to site CMS / RSS ingest when BLOG_PUBLISH_WEBHOOK_URL is set. */
+export class BlogWebhookPublisher implements SocialPublisher {
+  readonly id = 'blog-webhook';
+
+  async publish(input: PublishInput & { accessToken: string }): Promise<PublishResult> {
+    const url = process.env.BLOG_PUBLISH_WEBHOOK_URL?.trim();
+    if (!url) {
+      return {
+        ok: false,
+        publisher: this.id,
+        error: 'BLOG_PUBLISH_WEBHOOK_URL is not configured',
+      };
+    }
+    const payload = {
+      source: 'tagevc-os-marketing',
+      handle: input.handle,
+      title: input.title,
+      body: input.body,
+      media_url: input.media_url ?? null,
+      account_id: input.account_id,
+      published_at: new Date().toISOString(),
+    };
+    const body = JSON.stringify(payload);
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'User-Agent': 'TageVC-OS-Marketing/1.0',
+    };
+    const secret = process.env.BLOG_PUBLISH_WEBHOOK_SECRET?.trim();
+    if (secret) {
+      headers.Authorization = `Bearer ${secret}`;
+      headers['X-Tage-Signature'] = createHmac('sha256', secret)
+        .update(body)
+        .digest('hex');
+    }
+    try {
+      const res = await fetch(url, { method: 'POST', headers, body });
+      const text = await res.text();
+      if (!res.ok) {
+        return {
+          ok: false,
+          publisher: this.id,
+          error: `Blog webhook HTTP ${res.status}: ${text.slice(0, 200)}`,
+        };
+      }
+      let externalId = `blog-${Date.now().toString(36)}`;
+      let publishedUrl: string | undefined;
+      try {
+        const json = JSON.parse(text) as {
+          id?: string;
+          url?: string;
+          published_url?: string;
+        };
+        if (json.id) externalId = String(json.id);
+        publishedUrl = json.published_url || json.url;
+      } catch {
+        /* non-JSON OK */
+      }
+      return {
+        ok: true,
+        publisher: this.id,
+        external_id: externalId,
+        published_url: publishedUrl ?? url,
+      };
+    } catch (e) {
+      return {
+        ok: false,
+        publisher: this.id,
+        error: e instanceof Error ? e.message : 'Blog webhook failed',
+      };
+    }
   }
 }
 
@@ -492,26 +567,43 @@ async function loadAccessToken(accountId: string): Promise<{
 function publisherFor(platform: MarketingPlatform): SocialPublisher {
   if (platform === 'linkedin') return new LinkedInPublisher();
   if (platform === 'x') return new XPublisher();
-  if (platform === 'facebook' || platform === 'instagram') {
-    return new MetaPublisher();
-  }
+  // Facebook Graph /me/feed is LIVE; Instagram content publishing is still scaffold.
+  if (platform === 'facebook') return new MetaPublisher();
   if (platform === 'tiktok') return new TikTokPublisher();
+  if (platform === 'web' && process.env.BLOG_PUBLISH_WEBHOOK_URL?.trim()) {
+    return new BlogWebhookPublisher();
+  }
+  // instagram · youtube · web (no webhook) · other → honest stub
   return new StubSocialPublisher();
 }
 
 /**
  * Publish content for an account. Refreshes OAuth when needed;
  * stub publisher when no token (dev / unconfigured).
+ * Blog/web uses webhook when configured (no OAuth token required).
  */
 export async function publishForAccount(
   input: PublishInput,
 ): Promise<PublishResult> {
-  const { token } = await loadAccessToken(input.account_id);
   const forceStub =
     process.env.MARKETING_FORCE_STUB_PUBLISH === '1' ||
     process.env.MARKETING_FORCE_STUB_PUBLISH === 'true';
 
-  if (!token || forceStub) {
+  if (forceStub) {
+    const stub = new StubSocialPublisher();
+    return stub.publish({ ...input, accessToken: 'stub' });
+  }
+
+  if (input.platform === 'web' && process.env.BLOG_PUBLISH_WEBHOOK_URL?.trim()) {
+    return new BlogWebhookPublisher().publish({
+      ...input,
+      accessToken: 'webhook',
+    });
+  }
+
+  const { token } = await loadAccessToken(input.account_id);
+
+  if (!token) {
     const stub = new StubSocialPublisher();
     return stub.publish({ ...input, accessToken: 'stub' });
   }

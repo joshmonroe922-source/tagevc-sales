@@ -4,6 +4,7 @@ import {
   listActivePortfolioCompanies,
 } from '@/lib/data/repositories';
 import { listActiveLeads } from '@/lib/data/deal-flow-store';
+import { listDocuments } from '@/lib/data/document-store';
 import { listScopedTickets } from '@/lib/data/pipeline-scope';
 import { entityDisplayName } from '@/lib/entities/display-name';
 import {
@@ -12,8 +13,12 @@ import {
   type DashboardScopeMode,
   type RoleDashboardCard,
 } from '@/lib/dashboard/role-dashboard-catalog';
+import { formatPnlMetric } from '@/lib/dashboard/ies-pnl-view';
+import { getIesFinanceReport } from '@/lib/ies/report';
 import { classifyTicketSla } from '@/lib/shared-services/shared-services-inbox-phase54';
+import { createPersistClient } from '@/lib/supabase/persist-client';
 import type { AppRole } from '@/lib/types/roles';
+import { APP_ROLES } from '@/lib/types/roles';
 import { formatUsdK } from '@/lib/format';
 
 function cardFrom(
@@ -47,11 +52,12 @@ export async function buildRoleDashboardCards(opts: {
   const defs = catalogForRole(opts.role);
   const byId = Object.fromEntries(defs.map((d) => [d.kpi_id, d]));
 
-  const [rollup, companies, snapshot, tickets] = await Promise.all([
+  const [rollup, companies, snapshot, tickets, iesReport] = await Promise.all([
     getPortfolioRollup().catch(() => null),
     listActivePortfolioCompanies().catch(() => []),
     getCommandCenterSnapshot().catch(() => null),
     listScopedTickets().catch(() => []),
+    getIesFinanceReport().catch(() => null),
   ]);
 
   let activeLeads = 0;
@@ -174,6 +180,160 @@ export async function buildRoleDashboardCards(opts: {
       actual: 'Command Center snapshot available',
       data_state: 'partial',
     });
+  }
+
+  // Live IES: consolidated / finance KPIs (never invent sample P&L)
+  if (iesReport) {
+    const firm =
+      iesReport.companies.find((c) => c.entity_id === 'ENT-FIRM') ?? null;
+    const firmLive =
+      firm &&
+      (firm.cash_on_hand != null ||
+        firm.revenue != null ||
+        firm.net_income != null);
+    const consol = iesReport.consolidated;
+    const consolLive =
+      consol.cash_on_hand != null ||
+      consol.revenue != null ||
+      consol.net_income != null;
+
+    if (consolLive) {
+      set('sub_financials', {
+        actual: `Consol rev ${formatPnlMetric(consol.revenue)} · net ${formatPnlMetric(consol.net_income)} · cash ${formatPnlMetric(consol.cash_on_hand)}`,
+        data_state: consol.feed_status === 'ok' ? 'live' : 'partial',
+        variance_label: 'Management consolidation · eliminations not applied',
+      });
+      set('portfolio_performance', {
+        actual: `Consol net ${formatPnlMetric(consol.net_income)} · cash ${formatPnlMetric(consol.cash_on_hand)}`,
+        data_state: consol.feed_status === 'ok' ? 'live' : 'partial',
+      });
+      set('portfolio_health', {
+        actual: `IES cash ${formatPnlMetric(consol.cash_on_hand)} · net ${formatPnlMetric(consol.net_income)} · ${companies.length} cos`,
+        data_state: consol.feed_status === 'ok' ? 'live' : 'partial',
+        variance_label: 'Native IES sync · see Tage VC firm panel for parent',
+      });
+    }
+    set('cash_visibility', {
+      actual: consolLive
+        ? `Cash ${formatPnlMetric(consol.cash_on_hand)} · ${iesReport.companies.filter((c) => c.feed_status === 'ok' || c.feed_status === 'partial').length}/${iesReport.companies.length} companies synced`
+        : 'Not Connected — pull IES',
+      data_state: consolLive
+        ? consol.feed_status === 'ok'
+          ? 'live'
+          : 'partial'
+        : 'not_connected',
+      variance_label: iesReport.last_sync
+        ? `Last sync · ${iesReport.last_sync.status}`
+        : 'No sync runs yet',
+    });
+    set('kpi_pack_ready', {
+      actual: `${iesReport.companies.filter((c) => c.revenue != null || c.net_income != null).length}/${iesReport.companies.length} entities with P&L snapshot`,
+      data_state: consolLive ? 'partial' : 'not_connected',
+    });
+    if (opts.scope === 'company' && opts.entityId === 'ENT-FIRM' && firm) {
+      set('unit_economics', {
+        actual: firmLive
+          ? `Rev ${formatPnlMetric(firm.revenue)} · Exp ${formatPnlMetric(firm.expenses)} · Net ${formatPnlMetric(firm.net_income)}`
+          : 'Not Connected',
+        data_state: firmLive ? 'partial' : 'not_connected',
+        company_id: 'ENT-FIRM',
+        company_name: 'Tage Venture Capital',
+      });
+    }
+  }
+
+  // Admin ops KPIs — users, tickets, SSC health, docs, access
+  if (opts.role === 'admin') {
+    set('ticket_backlog', {
+      actual: `${openTickets.length} open · ${dueCounts.overdue} overdue · ${dueCounts.due_soon} due soon`,
+      data_state: 'live',
+    });
+    set('ticket_sla', {
+      actual:
+        dueAttainment == null
+          ? `${openTickets.length} open · no due dates`
+          : `${dueAttainment}% on time (${dueCounts.on_time}/${withDue}) · ${dueCounts.overdue} overdue`,
+      data_state: openTickets.length ? 'live' : 'partial',
+      goal: '≥ 90% on time',
+      on_track: dueAttainment == null ? null : dueAttainment >= 90,
+      variance_label:
+        dueAttainment == null
+          ? 'Goal not set'
+          : dueAttainment >= 90
+            ? 'On track'
+            : `${90 - dueAttainment} pts below goal`,
+    });
+    set('help_desk_load', {
+      actual: `${openTickets.length} open tickets firm-wide`,
+      data_state: 'live',
+    });
+    set('ssc_health', {
+      actual:
+        dueCounts.overdue > 0
+          ? `${dueCounts.overdue} overdue · ${dueCounts.due_soon} due soon (SSC pressure)`
+          : `${openTickets.length} open · no SLA breaches`,
+      data_state: 'partial',
+      on_track: dueCounts.overdue === 0 ? true : false,
+      variance_label:
+        dueCounts.overdue === 0 ? 'Healthy' : 'Needs attention',
+    });
+    try {
+      const docs = listDocuments();
+      const withAcl = docs.filter(
+        (d) => Array.isArray(d.visible_roles) && d.visible_roles.length > 0,
+      ).length;
+      set('doc_library', {
+        actual: `${docs.length} active documents`,
+        data_state: 'partial',
+      });
+      set('access_control', {
+        actual: `${withAcl} docs with role ACL · ${APP_ROLES.length} roles defined`,
+        data_state: 'partial',
+      });
+    } catch {
+      set('doc_library', {
+        actual: null,
+        data_state: 'not_connected',
+      });
+    }
+    try {
+      const sb = await createPersistClient();
+      const { count, error } = await sb
+        .from('profiles')
+        .select('id', { count: 'exact', head: true })
+        .eq('active', true);
+      if (!error && count != null) {
+        set('active_users', {
+          actual: `${count} active profiles`,
+          data_state: 'live',
+        });
+        set('admin_queue', {
+          actual: `${count} users · Admin + system health tools`,
+          data_state: 'partial',
+          variance_label: 'Open Shared Services → Admin',
+        });
+      } else {
+        set('active_users', {
+          actual: null,
+          data_state: 'not_connected',
+        });
+        set('admin_queue', {
+          actual: 'Users · roles · system health',
+          data_state: 'partial',
+          variance_label: 'Open Shared Services → Admin',
+        });
+      }
+    } catch {
+      set('active_users', {
+        actual: null,
+        data_state: 'not_connected',
+      });
+      set('admin_queue', {
+        actual: 'Users · roles · system health',
+        data_state: 'partial',
+        variance_label: 'Open Shared Services → Admin',
+      });
+    }
   }
 
   if (opts.scope === 'company' && opts.entityId) {

@@ -43,6 +43,7 @@ export const BUSINESS_CREDIT_ROLES: readonly AppRole[] = [
   'service_lead',
   'counsel_ops',
   'coo',
+  'ssc_finance',
 ] as const;
 
 export function defaultVisibilityForClass(
@@ -67,12 +68,23 @@ export function canAccessNetWorthPage(input: {
   return input.realRole === 'visionary';
 }
 
+/**
+ * Investments page (retirement / stocks / crypto) — same Visionary-only gate
+ * as Net Worth; blocked during Live Look.
+ */
+export function canAccessInvestmentsPage(input: {
+  realRole: AppRole;
+  liveLookActive?: boolean;
+}): boolean {
+  return canAccessNetWorthPage(input);
+}
+
 /** Private investments / crypto / retirement detail. */
 export function canViewPrivateIQuadrant(input: {
   realRole: AppRole;
   liveLookActive?: boolean;
 }): boolean {
-  return canAccessNetWorthPage(input);
+  return canAccessInvestmentsPage(input);
 }
 
 /** Personal bureau / scores / disputes. */

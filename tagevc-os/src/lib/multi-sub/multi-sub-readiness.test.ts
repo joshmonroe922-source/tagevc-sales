@@ -326,5 +326,7 @@ describe('Multi-subsidiary readiness P1–P6', () => {
     );
     expect(mw).toContain("/api/subsidiary/tickets");
     expect(mw).toContain("/api/identity/lifecycle");
+    expect(mw).toContain("/api/finance/ies/snapshot");
+    expect(mw).toContain("/api/presence");
   });
 });

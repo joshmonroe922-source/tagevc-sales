@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { CommandCenterBoardsClient } from '@/components/command-center/command-center-boards-client';
 import { FirmOpsCommandPhase61Client } from '@/components/firm-ops/firm-ops-command-phase61-client';
 import { HealthBadge } from '@/components/portfolio/health-badge';
 import { Badge } from '@/components/ui/badge';
@@ -15,38 +16,11 @@ import {
   listActivePortfolioCompanies,
 } from '@/lib/data/repositories';
 import { getFirmOpsCommandPhase61Report } from '@/lib/firm-ops/firm-ops-command-phase61-server';
-import {
-  formatPct,
-  formatRunway,
-  formatUsdK,
-} from '@/lib/format';
+import { formatUsdK } from '@/lib/format';
 import { getSessionContext } from '@/lib/rbac/session';
 import { roleHasPermission } from '@/lib/types/roles';
-import { APP_ROLE_LABELS, PORTFOLIO_HEALTH } from '@/lib/types';
-
-function Metric({
-  label,
-  value,
-  hint,
-}: {
-  label: string;
-  value: string | number;
-  hint?: string;
-}) {
-  return (
-    <div className="rounded-lg border border-border bg-card px-4 py-3">
-      <p className="text-xs tracking-wide text-muted-foreground uppercase">
-        {label}
-      </p>
-      <p className="mt-1 font-heading text-2xl font-semibold tabular-nums text-foreground">
-        {value}
-      </p>
-      {hint ? (
-        <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
-      ) : null}
-    </div>
-  );
-}
+import { APP_ROLE_LABELS } from '@/lib/types';
+import { redirect } from 'next/navigation';
 
 const MODULE_QUICK_NAV = [
   { href: '/think-tank', label: 'Think Tank' },
@@ -56,10 +30,11 @@ const MODULE_QUICK_NAV = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/shared-services', label: 'Shared Services' },
   { href: '/shared-services/finance', label: 'Finance' },
-  { href: '/shared-services/legal/docusign', label: 'Legal' },
+  { href: '/shared-services/legal', label: 'Legal' },
   { href: '/shared-services/marketing', label: 'Marketing' },
   { href: '/firm', label: 'Firm' },
   { href: '/documents', label: 'Document Library' },
+  { href: '/shared-services/legal/docusign', label: 'DocuSign' },
   { href: '/entities', label: 'Entities' },
   { href: '/entities/ENT-R619#rollup', label: 'Recruit 619' },
   { href: '/activity', label: 'Activity' },
@@ -68,14 +43,18 @@ const MODULE_QUICK_NAV = [
 ] as const;
 
 export default async function CommandCenterPage() {
-  const [session, snap, companies, activityResult, firmOps] =
-    await Promise.all([
-      getSessionContext(),
-      getCommandCenterSnapshot(),
-      listActivePortfolioCompanies(),
-      listRecentActivity(8),
-      getFirmOpsCommandPhase61Report(),
-    ]);
+  const session = await getSessionContext();
+  // COO (subsidiaries) — nav + route gate; Home/Dashboard remain.
+  if (session?.profile.role === 'coo') {
+    redirect('/dashboard');
+  }
+
+  const [snap, companies, activityResult, firmOps] = await Promise.all([
+    getCommandCenterSnapshot(),
+    listActivePortfolioCompanies(),
+    listRecentActivity(8),
+    getFirmOpsCommandPhase61Report(),
+  ]);
   const profile = session?.profile ?? null;
   const activity = activityResult.events;
   const canWriteFirmOps = Boolean(
@@ -101,7 +80,8 @@ export default async function CommandCenterPage() {
         </div>
         <p className="max-w-2xl text-sm text-muted-foreground">
           Firm health at a glance — funnel, capital, portfolio attention, and
-          action queues. Money is never auto-approved.
+          action queues. Money is never auto-approved. Use Cards | List on each
+          board.
           {profile ? (
             <>
               {' '}
@@ -143,99 +123,7 @@ export default async function CommandCenterPage() {
         </div>
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium tracking-wide text-[#7c7871] uppercase">
-          Funnel snapshot
-        </h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <Metric label="Active leads" value={snap.funnel.active_leads} />
-          <Metric label="Ready for DD" value={snap.funnel.ready_for_dd} />
-          <Metric label="Open DD tasks" value={snap.funnel.open_dd_tasks} />
-          <Metric
-            label="Blocked DD tasks"
-            value={snap.funnel.blocked_dd_tasks}
-          />
-          <Metric label="Active deals" value={snap.funnel.active_deals} />
-          <Metric
-            label="Deals in closing"
-            value={snap.funnel.deals_in_closing}
-          />
-        </div>
-      </section>
-
-      <section className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Portfolio health</CardTitle>
-            <CardDescription>
-              {snap.active_portfolio_companies} active companies · attention
-              required:{' '}
-              <span className="font-medium text-foreground">
-                {snap.attention_required}
-              </span>
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-3">
-            {PORTFOLIO_HEALTH.map((status) => (
-              <div
-                key={status}
-                className="rounded-md border border-border px-3 py-2"
-              >
-                <div className="mb-1">
-                  <HealthBadge health={status} />
-                </div>
-                <p className="text-xl font-semibold tabular-nums">
-                  {snap.portfolio_health[status]}
-                </p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Capital pulse</CardTitle>
-            <CardDescription>
-              Portfolio totals with firm cash kept separate, then combined.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-3">
-            <Metric
-              label="Portfolio ARR ($k)"
-              value={formatUsdK(snap.capital.portfolio_arr_k)}
-            />
-            <Metric
-              label="Gross margin"
-              value={formatPct(snap.capital.portfolio_gross_margin)}
-            />
-            <Metric
-              label="Net burn ($k)"
-              value={formatUsdK(snap.capital.portfolio_net_burn_k)}
-            />
-            <Metric
-              label="Portfolio cash ($k)"
-              value={formatUsdK(snap.capital.portfolio_cash_k)}
-            />
-            <Metric
-              label="Firm cash ($k)"
-              value={formatUsdK(snap.capital.firm_cash_k)}
-            />
-            <Metric
-              label="Consolidated cash ($k)"
-              value={formatUsdK(snap.capital.consolidated_cash_k)}
-            />
-            <Metric
-              label="Min runway"
-              value={formatRunway(snap.capital.min_runway_mo)}
-              hint={
-                snap.capital.runway_breach
-                  ? 'REVIEW — at least one sub <12 mo'
-                  : 'ok'
-              }
-            />
-          </CardContent>
-        </Card>
-      </section>
+      <CommandCenterBoardsClient snap={snap} />
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-4">

@@ -251,7 +251,7 @@ export function functionHomeHref(fn: SscFunction): string {
     case 'marketing':
       return '/shared-services/marketing';
     case 'legal':
-      return '/shared-services/legal/docusign';
+      return '/shared-services/legal';
   }
 }
 

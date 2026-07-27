@@ -8,6 +8,7 @@ import {
   recordPortfolioRiskMilestonePhase60Action,
   refreshPortfolioOperatingCadencePhase60Action,
 } from '@/app/(app)/portfolio/actions';
+import { DashboardMetricBoard } from '@/components/dashboard/dashboard-metric-board';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -33,10 +34,13 @@ export function OperatingCadencePhase60Client({
   report: initialReport,
   canWrite,
   initialEntityId = '',
+  companyOptions,
 }: {
   report: PortfolioOperatingCadencePhase60Report;
   canWrite: boolean;
   initialEntityId?: string;
+  /** Registry-visible companies only (samples / legacy Instant NDA omitted). */
+  companyOptions?: Array<{ value: string; label: string }>;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -151,6 +155,7 @@ export function OperatingCadencePhase60Client({
               value={entityId}
               onChange={setEntityId}
               className="w-44"
+              options={companyOptions}
             />
           </div>
           <Button type="button" size="sm" disabled={pending} onClick={runRefresh}>
@@ -164,47 +169,72 @@ export function OperatingCadencePhase60Client({
           </Link>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Metric label="Companies" value={String(report.company_count)} />
-          <Metric
-            label="Attention required"
-            value={String(report.attention_required)}
-          />
-          <Metric
-            label="Missing risks"
-            value={String(report.missing_risk_count)}
-          />
-          <Metric
-            label="Missing milestones"
-            value={String(report.missing_milestone_count)}
-          />
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Metric label="On Track" value={String(report.on_track_count)} />
-          <Metric label="Watch" value={String(report.watch_count)} />
-          <Metric label="At Risk" value={String(report.at_risk_count)} />
-          <Metric label="Critical" value={String(report.critical_count)} />
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Metric
-            label="Handoff completeness"
-            value={formatCompletenessPct(report.handoff_completeness_pct)}
-          />
-          <Metric
-            label="Handoffs incomplete"
-            value={String(report.handoff_incomplete)}
-          />
-          <Metric
-            label="Linked to portfolio"
-            value={String(report.linked_to_portfolio)}
-          />
-          <Metric
-            label="Handoff board"
-            value={boardStatusLabel(String(report.handoff_board_status))}
-          />
-        </div>
+        <DashboardMetricBoard
+          surface="dashboard-operating-cadence"
+          columns={4}
+          items={[
+            {
+              id: 'companies',
+              label: 'Companies',
+              value: String(report.company_count),
+            },
+            {
+              id: 'attention',
+              label: 'Attention required',
+              value: String(report.attention_required),
+            },
+            {
+              id: 'missing_risks',
+              label: 'Missing risks',
+              value: String(report.missing_risk_count),
+            },
+            {
+              id: 'missing_milestones',
+              label: 'Missing milestones',
+              value: String(report.missing_milestone_count),
+            },
+            {
+              id: 'on_track',
+              label: 'On Track',
+              value: String(report.on_track_count),
+            },
+            {
+              id: 'watch',
+              label: 'Watch',
+              value: String(report.watch_count),
+            },
+            {
+              id: 'at_risk',
+              label: 'At Risk',
+              value: String(report.at_risk_count),
+            },
+            {
+              id: 'critical',
+              label: 'Critical',
+              value: String(report.critical_count),
+            },
+            {
+              id: 'handoff_pct',
+              label: 'Handoff completeness',
+              value: formatCompletenessPct(report.handoff_completeness_pct),
+            },
+            {
+              id: 'handoff_incomplete',
+              label: 'Handoffs incomplete',
+              value: String(report.handoff_incomplete),
+            },
+            {
+              id: 'linked',
+              label: 'Linked to portfolio',
+              value: String(report.linked_to_portfolio),
+            },
+            {
+              id: 'handoff_board',
+              label: 'Handoff board',
+              value: boardStatusLabel(String(report.handoff_board_status)),
+            },
+          ]}
+        />
 
         <div className="space-y-2">
           <p className="text-[11px] font-medium tracking-[0.12em] text-muted-foreground uppercase">
@@ -364,16 +394,5 @@ export function OperatingCadencePhase60Client({
         <p className="text-xs text-muted-foreground">{report.todo}</p>
       </CardContent>
     </Card>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-border px-3 py-2">
-      <p className="text-[11px] tracking-wide text-muted-foreground uppercase">
-        {label}
-      </p>
-      <p className="mt-1 text-lg font-semibold text-[#3a414f]">{value}</p>
-    </div>
   );
 }

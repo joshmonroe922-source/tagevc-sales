@@ -3,7 +3,16 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { buildSscAiBriefing, draftAuditFinding } from './ai';
 import { auditItemLibrary } from './audit-library';
-import { periodBounds, shiftPeriod, classifyTimeNav } from './period';
+import {
+  periodBounds,
+  shiftPeriod,
+  classifyTimeNav,
+  normalizeTimeNav,
+  compareSscTaskUrgency,
+  classifySscAttention,
+  addDaysToDateStr,
+} from './period';
+import { partitionFunctionHomeGlance } from './function-home-glance';
 import { resolveScopeEntityIds } from './scope';
 import { libraryStats, templatesFor, SSC_TASK_LIBRARY } from './task-library';
 import {
@@ -59,6 +68,157 @@ describe('SSC period helpers', () => {
     expect(classifyTimeNav(b.period_start, b.period_end, ref)).toBe('current');
     expect(classifyTimeNav('2020-01-01', '2020-01-31', ref)).toBe('past');
     expect(classifyTimeNav('2099-01-01', '2099-01-31', ref)).toBe('future');
+  });
+
+  it('normalizes past/current to active operator view', () => {
+    expect(normalizeTimeNav('past')).toBe('active');
+    expect(normalizeTimeNav('current')).toBe('active');
+    expect(normalizeTimeNav('active')).toBe('active');
+    expect(normalizeTimeNav(undefined)).toBe('active');
+    expect(normalizeTimeNav('future')).toBe('future');
+  });
+
+  it('sorts most overdue first, then due soon', () => {
+    const rows = [
+      { is_overdue: false, due_date: '2026-07-20' },
+      { is_overdue: true, due_date: '2026-07-01' },
+      { is_overdue: true, due_date: '2026-06-15' },
+      { is_overdue: false, due_date: null },
+      { is_overdue: false, due_date: '2026-07-10' },
+    ];
+    const sorted = [...rows].sort(compareSscTaskUrgency);
+    expect(sorted.map((r) => r.due_date)).toEqual([
+      '2026-06-15',
+      '2026-07-01',
+      '2026-07-10',
+      '2026-07-20',
+      null,
+    ]);
+  });
+
+  it('addDaysToDateStr stays on calendar days', () => {
+    expect(addDaysToDateStr('2026-07-26', 7)).toBe('2026-08-02');
+    expect(addDaysToDateStr('2026-07-26', 5)).toBe('2026-07-31');
+  });
+
+  it('classifies Needs attention beyond overdue/due today', () => {
+    const today = '2026-07-26';
+    const period_end = '2026-07-31';
+
+    expect(
+      classifySscAttention({
+        status: 'not_started',
+        due_date: '2026-07-20',
+        today,
+        period_end,
+      }).attention_kind,
+    ).toBe('overdue');
+
+    expect(
+      classifySscAttention({
+        status: 'in_progress',
+        due_date: '2026-07-26',
+        today,
+        period_end,
+      }).attention_kind,
+    ).toBe('due_today');
+
+    // Jul 31 is within 7 days of Jul 26 — due soon (Josh screenshot case)
+    expect(
+      classifySscAttention({
+        status: 'not_started',
+        due_date: '2026-07-31',
+        today,
+        period_end,
+      }).attention_kind,
+    ).toBe('due_soon');
+
+    // Dated past period end still counts as open at-risk on the active period
+    expect(
+      classifySscAttention({
+        status: 'not_started',
+        due_date: '2026-08-10',
+        today: '2026-07-01',
+        period_end: '2026-07-31',
+      }),
+    ).toMatchObject({ needs_attention: true, attention_kind: 'open' });
+
+    expect(
+      classifySscAttention({
+        status: 'not_started',
+        due_date: '2026-07-25',
+        today: '2026-07-01',
+        period_end: '2026-07-31',
+      }).attention_kind,
+    ).toBe('due_this_period');
+
+    expect(
+      classifySscAttention({
+        status: 'blocked',
+        due_date: null,
+        today,
+        period_end,
+      }).attention_kind,
+    ).toBe('open');
+
+    expect(
+      classifySscAttention({
+        status: 'done',
+        due_date: '2026-07-20',
+        today,
+        period_end,
+      }).needs_attention,
+    ).toBe(false);
+  });
+});
+
+describe('SSC function-home glance', () => {
+  it('puts due-soon and open unfinished period tasks in Needs attention', () => {
+    // Josh screenshot: Overdue 0, Open 20, due 2026-07-31 on Jul 26 → was empty
+    // under overdue/due-today-only; must surface as due_soon / open.
+    const glance = partitionFunctionHomeGlance({
+      today: '2026-07-26',
+      period_end: '2026-07-31',
+      companyName: () => 'Tage VC',
+      tasks: [
+        {
+          id: '1',
+          title: 'Month-end close',
+          status: 'not_started',
+          due_date: '2026-07-31',
+          entity_id: 'ENT-FIRM',
+        },
+        {
+          id: '2',
+          title: 'Access review',
+          status: 'in_progress',
+          due_date: null,
+          entity_id: 'ENT-R619',
+        },
+        {
+          id: '3',
+          title: 'Done already',
+          status: 'done',
+          due_date: '2026-07-20',
+          entity_id: 'ENT-FIRM',
+        },
+        {
+          id: '4',
+          title: 'Late invoice',
+          status: 'not_started',
+          due_date: '2026-07-01',
+          entity_id: 'ENT-INDA',
+        },
+      ],
+    });
+
+    expect(glance.open_count).toBe(3);
+    expect(glance.needs_attention.map((t) => t.id)).toEqual(['4', '1', '2']);
+    expect(glance.needs_attention[0].attention_kind).toBe('overdue');
+    expect(glance.needs_attention[1].attention_kind).toBe('due_soon');
+    expect(glance.needs_attention[2].attention_kind).toBe('open');
+    expect(glance.overdue_count).toBe(1);
+    expect(glance.due_soon_count).toBe(1);
   });
 });
 

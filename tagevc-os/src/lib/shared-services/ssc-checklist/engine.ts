@@ -9,10 +9,13 @@ import { buildSscAiBriefingAsync, draftAuditFinding, suggestTaskNextAction } fro
 import { collectEvidenceHints, formatEvidenceNote, evidenceFreshnessIso } from './evidence';
 import { escalateOverdueSscTasks } from './escalate';
 import {
-  classifyTimeNav,
+  compareSscTaskUrgency,
+  normalizeTimeNav,
   periodBounds,
   shiftPeriod,
   toDateStr,
+  type SscTimeNav,
+  type SscTimeNavInput,
 } from './period';
 import { companyName, resolveScopeEntityIds } from './scope';
 import { collectSubsidiarySyncHooks } from './sync-hooks';
@@ -22,7 +25,6 @@ import { listCompletionPackages, type CompletionPackage } from './completion-pac
 import {
   SSC_FUNCTIONS,
   SSC_PHASE66_CONTRACT,
-  functionLabel,
   periodLabel,
   type SscAiBriefing,
   type SscAuditRow,
@@ -50,12 +52,15 @@ export type SscOperatorQuery = {
   period_type: SscPeriodType;
   scope_mode: SscScopeMode;
   single_entity_id?: string | null;
-  time_nav: 'past' | 'current' | 'future';
+  /** Active = past + current periods; Future stays separate. */
+  time_nav: SscTimeNavInput;
   period_offset?: number;
   status?: SscTaskStatus | 'all';
   owner_role?: string | 'all';
   company_entity_id?: string | 'all';
   risk?: 'all' | 'high_plus';
+  /** When true, only tasks flagged is_overdue. */
+  overdue_only?: boolean;
 };
 
 export type SscOperatorBundle = {
@@ -65,7 +70,7 @@ export type SscOperatorBundle = {
   period_start: string;
   period_end: string;
   due_at: string;
-  time_nav: 'past' | 'current' | 'future';
+  time_nav: SscTimeNav;
   instances: SscChecklistInstanceRow[];
   tasks: SscChecklistTaskRow[];
   monitoring: SscMonitoringSummary[];
@@ -614,31 +619,49 @@ export async function listAuditsForScope(input: {
 export async function getSscOperatorBundle(
   query: SscOperatorQuery,
 ): Promise<SscOperatorBundle> {
-  const offset =
-    query.time_nav === 'current'
-      ? query.period_offset ?? 0
-      : query.time_nav === 'past'
-        ? -1 - Math.abs(query.period_offset ?? 0)
-        : 1 + Math.abs(query.period_offset ?? 0);
-  const ref = shiftPeriod(query.period_type, new Date(), offset);
-  const bounds = periodBounds(query.period_type, ref);
-  const time_nav = classifyTimeNav(bounds.period_start, bounds.period_end);
+  const time_nav = normalizeTimeNav(query.time_nav);
+  const now = new Date();
+  const currentRef = shiftPeriod(
+    query.period_type,
+    now,
+    query.period_offset ?? 0,
+  );
+  const pastRef = shiftPeriod(query.period_type, currentRef, -1);
+  const futureRef = shiftPeriod(
+    query.period_type,
+    now,
+    1 + Math.abs(query.period_offset ?? 0),
+  );
 
-  const { generated } = await ensurePeriodInstances({
-    function: query.function,
-    period_type: query.period_type,
-    scope_mode: query.scope_mode,
-    single_entity_id: query.single_entity_id,
-    refDate: ref,
-    include_next: query.time_nav !== 'past',
-  });
+  const refs =
+    time_nav === 'active' ? [pastRef, currentRef] : [futureRef];
+  const primaryBounds = periodBounds(
+    query.period_type,
+    time_nav === 'active' ? currentRef : futureRef,
+  );
+  const periodKeys = [
+    ...new Set(
+      refs.map((r) => periodBounds(query.period_type, r).period_key),
+    ),
+  ];
 
-  // Mark overdue + escalate high/critical into tickets
-  await markOverdueTasks();
+  let generated = 0;
+  for (const ref of refs) {
+    const res = await ensurePeriodInstances({
+      function: query.function,
+      period_type: query.period_type,
+      scope_mode: query.scope_mode,
+      single_entity_id: query.single_entity_id,
+      refDate: ref,
+      // Active view seeds past+current only; Future seeds the next period.
+      include_next: false,
+    });
+    generated += res.generated;
+  }
+
+  // Parallel maintenance after instances exist; escalate after overdue marks.
+  await Promise.all([markOverdueTasks(), attachAutoEvidenceDrafts(query)]);
   const escalation = await escalateOverdueSscTasks({ limit: 25 });
-
-  // Auto-attach evidence drafts for open tasks missing notes (sample)
-  await attachAutoEvidenceDrafts(query);
 
   let instances: SscChecklistInstanceRow[] = [];
   let tasks: SscChecklistTaskRow[] = [];
@@ -652,7 +675,7 @@ export async function getSscOperatorBundle(
       .from('os_ssc_checklist_instances')
       .select('*')
       .eq('period_type', query.period_type)
-      .eq('period_key', bounds.period_key)
+      .in('period_key', periodKeys)
       .eq('scope_mode', query.scope_mode)
       .in('function_key', functions);
 
@@ -689,7 +712,11 @@ export async function getSscOperatorBundle(
     // fail-soft empty
   }
 
-  // Filters
+  // Filters — function is primarily applied via instance_id, but also
+  // enforce on task rows so a mismatched seed cannot leak other groups.
+  if (query.function !== 'all') {
+    tasks = tasks.filter((t) => t.function_key === query.function);
+  }
   if (query.status && query.status !== 'all') {
     tasks = tasks.filter((t) => t.status === query.status);
   }
@@ -704,15 +731,50 @@ export async function getSscOperatorBundle(
       (t) => t.risk_level === 'high' || t.risk_level === 'critical',
     );
   }
+  if (query.overdue_only) {
+    tasks = tasks.filter((t) => t.is_overdue);
+  }
+
+  // Most overdue → due soon → rest
+  tasks = [...tasks].sort(compareSscTaskUrgency);
 
   // Scope company filter for multi views when single filter not set —
   // tasks already seeded only for scope entities
 
   const monitoring = buildMonitoring(tasks);
-  const audits = await listAuditsForScope({
-    scope_mode: query.scope_mode,
-    single_entity_id: query.single_entity_id,
-  });
+  const scopeEntityIds = resolveScopeEntityIds(
+    query.scope_mode,
+    query.single_entity_id,
+  );
+
+  const periodLabelText =
+    time_nav === 'active' && periodKeys.length > 1
+      ? `${periodLabel(query.period_type)} ${periodKeys.join(' · ')}`
+      : `${periodLabel(query.period_type)} ${primaryBounds.period_key}`;
+
+  const [audits, sync, trends, packages, ai] = await Promise.all([
+    listAuditsForScope({
+      scope_mode: query.scope_mode,
+      single_entity_id: query.single_entity_id,
+    }),
+    collectSubsidiarySyncHooks({ entityIds: scopeEntityIds }),
+    getSscPeriodTrends({
+      period_type:
+        query.period_type === 'as_needed' ? 'weekly' : query.period_type,
+      scope_mode: query.scope_mode,
+      entity_id:
+        query.scope_mode === 'single' ? query.single_entity_id : null,
+      history: 6,
+    }),
+    listCompletionPackages({ entityIds: scopeEntityIds }),
+    buildSscAiBriefingAsync({
+      tasks,
+      monitoring,
+      periodLabel: periodLabelText,
+      functionFilter: query.function,
+    }),
+  ]);
+
   for (const m of monitoring) {
     if (m.function_key === 'all') {
       m.audit_open_items = audits.reduce((s, a) => s + a.open_item_count, 0);
@@ -729,43 +791,22 @@ export async function getSscOperatorBundle(
     }
   }
 
-  const sync = await collectSubsidiarySyncHooks({
-    entityIds: resolveScopeEntityIds(
-      query.scope_mode,
-      query.single_entity_id,
-    ),
-  });
-
-  const [trends, packages, ai] = await Promise.all([
-    getSscPeriodTrends({
-      period_type:
-        query.period_type === 'as_needed' ? 'weekly' : query.period_type,
-      scope_mode: query.scope_mode,
-      entity_id:
-        query.scope_mode === 'single' ? query.single_entity_id : null,
-      history: 6,
-    }),
-    listCompletionPackages({
-      entityIds: resolveScopeEntityIds(
-        query.scope_mode,
-        query.single_entity_id,
-      ),
-    }),
-    buildSscAiBriefingAsync({
-      tasks,
-      monitoring,
-      periodLabel: `${periodLabel(query.period_type)} ${bounds.period_key}`,
-      functionFilter: query.function,
-    }),
-  ]);
+  if (process.env.TAGE_UI_PERF === '1') {
+    console.info(
+      `[TAGE_UI_PERF] ssc-bundle period=${periodKeys.join('+')} tasks=${tasks.length} audits=${audits.length}`,
+    );
+  }
 
   return {
     contract_version: SSC_PHASE66_CONTRACT,
-    query,
-    period_key: bounds.period_key,
-    period_start: bounds.period_start,
-    period_end: bounds.period_end,
-    due_at: bounds.due_at,
+    query: { ...query, time_nav },
+    period_key:
+      time_nav === 'active' && periodKeys.length > 1
+        ? periodKeys.join(' · ')
+        : primaryBounds.period_key,
+    period_start: primaryBounds.period_start,
+    period_end: primaryBounds.period_end,
+    due_at: primaryBounds.due_at,
     time_nav,
     instances,
     tasks,

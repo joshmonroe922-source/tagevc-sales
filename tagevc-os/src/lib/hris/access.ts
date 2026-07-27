@@ -11,6 +11,8 @@ const COMP_ROLES = new Set<AppRole>([
   'counsel_ops',
   'coo',
   'service_lead',
+  'ssc_hr',
+  'ssc_finance',
 ]);
 
 const HRIS_HR_ROLES = new Set<AppRole>([
@@ -19,6 +21,8 @@ const HRIS_HR_ROLES = new Set<AppRole>([
   'coo',
   'counsel_ops',
   'service_lead',
+  'ssc_hr',
+  'ssc_legal',
 ]);
 
 export function canViewHrisCompensation(role: AppRole): boolean {

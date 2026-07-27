@@ -8,12 +8,17 @@ import {
   runAiReviewOnDocument,
   simulateDocuSignProgress,
   updateAiSuggestion,
+  updateDocumentVisibleRoles,
   uploadDocument,
 } from '@/lib/data/document-store';
 import { sendDocumentViaDocuSign } from '@/lib/docusign/send';
 import { insertDocuSignEvent } from '@/lib/docusign/events-repo';
 import { isCapitalDocument } from '@/lib/documents/capital-gate';
-import { guardPermission } from '@/lib/rbac/session';
+import {
+  canManageDocumentAcl,
+  parseVisibleRolesFormData,
+} from '@/lib/documents/visibility';
+import { guardPermission, getSessionContext } from '@/lib/rbac/session';
 import {
   canAccessEntityId,
   entityScopeDeniedMessage,
@@ -58,9 +63,14 @@ export async function createFromTemplateAction(
     return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid' };
   }
   try {
+    const session = await getSessionContext();
+    const roles = canManageDocumentAcl(session?.profile.role)
+      ? parseVisibleRolesFormData(formData)
+      : undefined;
     const doc = createDocumentFromTemplate({
       ...parsed.data,
       signatory_email: parsed.data.signatory_email || undefined,
+      visible_roles: roles,
     });
     revalidateDocs(doc.entity_id, doc.doc_id);
     const n = doc.ai_review?.suggestions.length ?? 0;
@@ -100,13 +110,73 @@ export async function uploadDocumentAction(
     return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid' };
   }
   try {
-    const doc = uploadDocument(parsed.data);
+    const session = await getSessionContext();
+    const roles = canManageDocumentAcl(session?.profile.role)
+      ? parseVisibleRolesFormData(formData)
+      : undefined;
+    const doc = uploadDocument({
+      ...parsed.data,
+      visible_roles: roles,
+    });
     revalidateDocs(doc.entity_id, doc.doc_id);
     const n = doc.ai_review?.suggestions.length ?? 0;
     return {
       ok: true,
       docId: doc.doc_id,
       message: `Uploaded ${doc.doc_id}${n ? ` · AI: ${n} suggestion(s)` : ''}`,
+    };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Failed' };
+  }
+}
+
+export async function updateDocumentVisibilityAction(
+  _prev: DocActionResult | null,
+  formData: FormData,
+): Promise<DocActionResult> {
+  const gate = await guardPermission('write:documents');
+  if (!gate.ok) return gate;
+  if (!canManageDocumentAcl(gate.profile.role)) {
+    return {
+      ok: false,
+      error: 'Only Visionary or Admin can set document role ACL.',
+    };
+  }
+  const docId = String(formData.get('doc_id') ?? '');
+  if (!docId) return { ok: false, error: 'Missing document' };
+  const existing = getDocument(docId);
+  if (!existing) return { ok: false, error: 'Document not found' };
+  if (
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      existing.entity_id,
+    )
+  ) {
+    return {
+      ok: false,
+      error: entityScopeDeniedMessage(existing.entity_id || 'firm-wide'),
+    };
+  }
+  const mode = String(formData.get('mode') ?? 'set');
+  let nextRoles: typeof existing.visible_roles;
+  if (mode === 'inherit') nextRoles = null;
+  else if (mode === 'open') nextRoles = [];
+  else {
+    const parsed = parseVisibleRolesFormData(formData);
+    nextRoles = parsed === undefined ? [] : parsed;
+  }
+  try {
+    const doc = updateDocumentVisibleRoles(
+      docId,
+      nextRoles,
+      gate.profile.email ?? gate.profile.role,
+    );
+    revalidateDocs(doc.entity_id, doc.doc_id);
+    return {
+      ok: true,
+      docId: doc.doc_id,
+      message: 'Role access updated',
     };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Failed' };

@@ -1,8 +1,12 @@
 import Link from 'next/link';
 import { Suspense } from 'react';
+import { DashboardPnlPanel } from '@/components/dashboard/dashboard-pnl-panel';
+import { DashboardPortfolioBoards } from '@/components/dashboard/dashboard-portfolio-boards';
 import { RoleDashboardClient } from '@/components/dashboard/role-dashboard-client';
+import { TageVcFirmPerformancePanel } from '@/components/dashboard/tage-vc-firm-performance';
 import { OperatingCadencePhase60Client } from '@/components/portfolio/operating-cadence-phase60-client';
 import { PortfolioCompaniesTable } from '@/components/portfolio/portfolio-companies-table';
+import { ReportingTimeframeBar } from '@/components/reporting/reporting-timeframe-bar';
 import { Badge } from '@/components/ui/badge';
 import {
   Card,
@@ -11,20 +15,35 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import {
+  buildDashboardPnlView,
+  buildTageVcFirmPerformance,
+} from '@/lib/dashboard/ies-pnl-view';
+import {
+  enforcePnlDashboardScope,
+  filterCompanyOptionsForPnl,
+  filterIesReportForPnlAccess,
+  resolvePnlScopeAccess,
+} from '@/lib/dashboard/pnl-visibility';
 import { buildRoleDashboardCards } from '@/lib/dashboard/role-dashboard-server';
 import type { DashboardScopeMode } from '@/lib/dashboard/role-dashboard-catalog';
 import { DASHBOARD_VIEW_ROLES } from '@/lib/dashboard/role-dashboard-catalog';
 import { getMasterDataSource } from '@/lib/data/master-data';
-import { listActivePortfolioCompanies, getPortfolioRollup } from '@/lib/data/repositories';
+import {
+  listActivePortfolioCompanies,
+  listEntities,
+  getPortfolioRollup,
+} from '@/lib/data/repositories';
 import {
   formatPct,
-  formatRunway,
   formatUsdK,
 } from '@/lib/format';
+import { getIesFinanceReport } from '@/lib/ies/report';
 import { getPortfolioOperatingCadencePhase60Report } from '@/lib/portfolio/operating-cadence-phase60-server';
+import { normalizeEntityId } from '@/lib/entities/display-name';
+import { toVisibleCompanySelectOptions } from '@/lib/entities/registry-visibility';
 import { getSessionContext } from '@/lib/rbac/session';
 import { roleHasPermission, type AppRole } from '@/lib/types/roles';
-import { PORTFOLIO_HEALTH } from '@/lib/types';
 
 export default async function DashboardPage({
   searchParams,
@@ -37,8 +56,9 @@ export default async function DashboardPage({
   );
   const sp = (await searchParams) ?? {};
   const scopeRaw = typeof sp.scope === 'string' ? sp.scope : 'consolidated';
-  const entityRaw = typeof sp.entity === 'string' ? sp.entity.trim() : '';
-  const scope: DashboardScopeMode =
+  const entityRaw =
+    typeof sp.entity === 'string' ? normalizeEntityId(sp.entity.trim()) : '';
+  const requestedScope: DashboardScopeMode =
     scopeRaw === 'company' && entityRaw
       ? 'company'
       : scopeRaw === 'by_company'
@@ -52,32 +72,78 @@ export default async function DashboardPage({
       ? (asRaw as AppRole)
       : role;
 
-  const [companies, rollup, cadenceReport, roleDash] = await Promise.all([
-    listActivePortfolioCompanies(),
-    getPortfolioRollup(),
-    getPortfolioOperatingCadencePhase60Report(),
-    buildRoleDashboardCards({
-      role: viewAsRole,
-      scope,
-      entityId: scope === 'company' ? entityRaw : null,
-    }),
-  ]);
+  const [companies, entities, rollup, cadenceReport, iesReportRaw] =
+    await Promise.all([
+      listActivePortfolioCompanies(),
+      listEntities().catch(() => []),
+      getPortfolioRollup(),
+      getPortfolioOperatingCadencePhase60Report(),
+      getIesFinanceReport().catch(() => null),
+    ]);
+
+  const pnlAccess = resolvePnlScopeAccess({
+    role: viewAsRole,
+    profileEntityId: session?.profile.entity_id,
+    profileFullName: session?.profile.full_name,
+    entities,
+  });
+  const enforced = enforcePnlDashboardScope({
+    access: pnlAccess,
+    requestedScope,
+    requestedEntityId: entityRaw || null,
+  });
+  const scope = enforced.scope;
+  const scopedEntityId = enforced.entityId;
+
+  const roleDash = await buildRoleDashboardCards({
+    role: viewAsRole,
+    scope,
+    entityId: scope === 'company' ? scopedEntityId : null,
+  });
+
   const source = getMasterDataSource();
+  const isAdminOpsDash = viewAsRole === 'admin';
   // Company table + roll-up proof: Visionary, Partner, COO (Subsidiaries) only
   const showCompanyRollup = (['visionary', 'partner', 'coo'] as const).includes(
     viewAsRole as 'visionary' | 'partner' | 'coo',
   );
+  // Firm portfolio summary strip — hide for Admin ops dashboard
+  const showFirmPortfolioSummary = !isAdminOpsDash;
 
-  const companyOptions = [
-    ...companies.map((c) => ({
-      entity_id: c.entity_id,
-      name: c.company_name || c.entity_id,
-    })),
-    { entity_id: 'ENT-FIRM', name: 'Tage Venture Capital' },
-    { entity_id: 'ENT-R619', name: 'Recruit 619' },
-    { entity_id: 'ENT-INDA', name: 'Instant NDA' },
-  ].filter(
-    (c, i, arr) => arr.findIndex((x) => x.entity_id === c.entity_id) === i,
+  const iesReport = iesReportRaw
+    ? filterIesReportForPnlAccess(iesReportRaw, pnlAccess)
+    : null;
+
+  // Live P&L: role-scoped company filter (native IES); no URL bypass
+  const showLivePnl = pnlAccess.canViewLivePnl;
+  const pnlView = showLivePnl
+    ? buildDashboardPnlView({
+        report: iesReport,
+        scope,
+        entityId: scope === 'company' ? scopedEntityId : null,
+      })
+    : null;
+  // Parent firm performance: Visionary + Accounting / Finance only
+  const showFirmPerformance = pnlAccess.canViewFirmPerformance;
+  const firmPerformance = showFirmPerformance
+    ? buildTageVcFirmPerformance(iesReportRaw)
+    : null;
+
+  // Registry-visibility filter: drop legacy Instant NDA (ENT-002) + samples;
+  // keep canonical ENT-INDA (IES Instant NDA). Dedupes alias/label duplicates.
+  // Then apply P&L role scope (COO assigned / sub_lead led).
+  const companyOptions = filterCompanyOptionsForPnl(
+    toVisibleCompanySelectOptions([
+      ...companies.map((c) => ({
+        entity_id: c.entity_id,
+        company_name: c.company_name || c.entity_id,
+      })),
+      { entity_id: 'ENT-FIRM', name: 'Tage Venture Capital' },
+      { entity_id: 'ENT-R619', name: 'Recruit 619' },
+      { entity_id: 'ENT-SIGNENT', name: 'Signent HR' },
+      { entity_id: 'ENT-INDA', name: 'Instant NDA' },
+    ]),
+    pnlAccess,
   );
 
   return (
@@ -95,9 +161,11 @@ export default async function DashboardPage({
           </Badge>
         </div>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Role-based operating dashboard with goals vs actuals. Portfolio health
-          and weekly review tools remain below.
+          {isAdminOpsDash
+            ? 'Admin operations dashboard — users, tickets, SSC health, documents, and access. Not firm Visionary KPIs.'
+            : 'Role-based operating dashboard with goals vs actuals. Portfolio health and weekly review tools remain below. Use Cards | List on each board.'}
         </p>
+        <ReportingTimeframeBar defaultPeriod="week" />
       </header>
 
       <Suspense fallback={null}>
@@ -106,46 +174,44 @@ export default async function DashboardPage({
           viewAsRole={viewAsRole}
           canSwitchRoles={canSwitch}
           scope={roleDash.scope}
-          selectedEntityId={entityRaw || null}
+          selectedEntityId={scopedEntityId}
           companies={companyOptions}
+          canViewConsolidated={pnlAccess.canViewConsolidated}
           cards={roleDash.cards}
         />
       </Suspense>
 
-      <OperatingCadencePhase60Client
-        report={cadenceReport}
-        canWrite={canWrite}
-      />
+      {showFirmPerformance && firmPerformance ? (
+        <TageVcFirmPerformancePanel view={firmPerformance} />
+      ) : null}
 
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <SummaryCard label="Companies" value={String(companies.length)} />
-        <SummaryCard
-          label="Portfolio ARR ($k)"
-          value={formatUsdK(rollup.portfolio_arr_k)}
-        />
-        <SummaryCard
-          label="Net Burn ($k)"
-          value={formatUsdK(rollup.portfolio_net_burn_k)}
-        />
-        <SummaryCard
-          label="Min runway"
-          value={formatRunway(rollup.min_runway_mo)}
-          hint={rollup.runway_breach ? 'REVIEW — sub <12 mo' : 'ok'}
-        />
-      </section>
+      {showLivePnl && pnlView ? (
+        <Suspense fallback={null}>
+          <DashboardPnlPanel
+            view={pnlView}
+            companies={companyOptions}
+            canViewConsolidated={pnlAccess.canViewConsolidated}
+          />
+        </Suspense>
+      ) : null}
 
-      <section className="grid gap-3 sm:grid-cols-4">
-        {PORTFOLIO_HEALTH.map((status) => (
-          <Card key={status}>
-            <CardHeader className="pb-2">
-              <CardDescription>{status}</CardDescription>
-              <CardTitle className="text-2xl tabular-nums">
-                {rollup.health_counts[status]}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-        ))}
-      </section>
+      {showFirmPortfolioSummary ? (
+        <>
+          <OperatingCadencePhase60Client
+            report={cadenceReport}
+            canWrite={canWrite}
+            companyOptions={companyOptions.map((c) => ({
+              value: c.entity_id,
+              label: c.name,
+            }))}
+          />
+
+          <DashboardPortfolioBoards
+            companyCount={companies.length}
+            rollup={rollup}
+          />
+        </>
+      ) : null}
 
       {showCompanyRollup ? (
         <>
@@ -155,8 +221,8 @@ export default async function DashboardPage({
             <CardHeader>
               <CardTitle className="text-base">Roll-up proof</CardTitle>
               <CardDescription>
-                SUM money · WEIGHTED gross margin from sums · MIN runway among
-                burning entities.
+                SUM of visible company rows · WEIGHTED gross margin from their
+                P&L · firm cash only when IES is connected.
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-2 text-sm sm:grid-cols-3">
@@ -175,8 +241,15 @@ export default async function DashboardPage({
               <div>
                 Consolidated cash{' '}
                 <span className="font-medium tabular-nums">
-                  ${formatUsdK(rollup.consolidated_cash_k)}k
+                  {rollup.consolidated_cash_k == null
+                    ? 'Not Connected'
+                    : `$${formatUsdK(rollup.consolidated_cash_k)}k`}
                 </span>
+                {rollup.firm_cash_k == null ? (
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    Firm IES cash not attached
+                  </span>
+                ) : null}
               </div>
             </CardContent>
           </Card>
@@ -195,29 +268,5 @@ export default async function DashboardPage({
         </>
       ) : null}
     </div>
-  );
-}
-
-function SummaryCard({
-  label,
-  value,
-  hint,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-}) {
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardDescription>{label}</CardDescription>
-        <CardTitle className="font-heading text-2xl tabular-nums">
-          {value}
-        </CardTitle>
-        {hint ? (
-          <p className="text-xs text-muted-foreground">{hint}</p>
-        ) : null}
-      </CardHeader>
-    </Card>
   );
 }

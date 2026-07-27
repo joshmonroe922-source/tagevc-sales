@@ -3,6 +3,8 @@ import { createPersistClient } from '@/lib/supabase/persist-client';
 export const PHASE53_SUBSIDIARY_ROLLUP_CONTRACT_VERSION = 'phase53-v1';
 export const PHASE53_RECRUIT_ENTITY_ID = 'ENT-R619';
 export const PHASE53_RECRUIT_PORTAL_BASE = 'https://portal.recruit619.com';
+/** Full My Recruiting Desk (TalentDesk) — day-to-day recruiter app. */
+export const PHASE53_MY_RECRUITING_DESK_BASE = 'https://app.recruit619.com';
 
 export type SubsidiaryRollupFreshness =
   | 'fresh'
@@ -18,6 +20,8 @@ export type SubsidiaryRollupFeedStatus =
 
 export type SubsidiaryRollupDrillDowns = {
   portal: string;
+  /** My Recruiting Desk full app (commissions, AI matching, training). */
+  recruiting_desk: string;
   reqs: string;
   pipeline: string;
   placements: string;
@@ -69,9 +73,10 @@ export function emptySubsidiaryRollupPhase53Report(
     recent_alerts: [],
     drill_downs: {
       portal: PHASE53_RECRUIT_PORTAL_BASE,
+      recruiting_desk: PHASE53_MY_RECRUITING_DESK_BASE,
       reqs: `${PHASE53_RECRUIT_PORTAL_BASE}/jobs`,
-      pipeline: `${PHASE53_RECRUIT_PORTAL_BASE}/pipeline`,
-      placements: `${PHASE53_RECRUIT_PORTAL_BASE}/placements`,
+      pipeline: `${PHASE53_RECRUIT_PORTAL_BASE}/candidates/pipeline`,
+      placements: `${PHASE53_RECRUIT_PORTAL_BASE}/home#placements`,
     },
     todo: 'Awaiting live Recruit feed row in os_recruit_feed_metrics',
     money_auto_approve: false,
@@ -246,6 +251,9 @@ function normalizeReport(
       : [],
     drill_downs: {
       portal: String(drills.portal ?? empty.drill_downs.portal),
+      recruiting_desk: String(
+        drills.recruiting_desk ?? empty.drill_downs.recruiting_desk,
+      ),
       reqs: String(drills.reqs ?? empty.drill_downs.reqs),
       pipeline: String(drills.pipeline ?? empty.drill_downs.pipeline),
       placements: String(drills.placements ?? empty.drill_downs.placements),

@@ -20,6 +20,8 @@ import {
   applyLiveLookToProfile,
   loadLiveLookTarget,
 } from '@/lib/live-look/server';
+import { isLiveLookOperator } from '@/lib/live-look/access';
+import { resolveSubsidiaryLeaderEntityId } from '@/lib/entities/assignment-lead';
 
 const DEV_PROFILE: Profile = {
   id: '00000000-0000-0000-0000-000000000001',
@@ -140,17 +142,31 @@ export async function getSessionContext(): Promise<SessionContext | null> {
   let liveLookTarget: LiveLookTarget | null = null;
 
   if (realRole === 'visionary') {
-    const liveId = await readLiveLookCookie();
-    if (liveId) {
-      liveLookTarget = await loadLiveLookTarget(liveId);
-      if (!liveLookTarget) {
-        // Stale cookie
-        try {
+    // Live Look cookie only applies for the locked operator email.
+    if (isLiveLookOperator({ email: real.email, realRole })) {
+      const liveId = await readLiveLookCookie();
+      if (liveId) {
+        liveLookTarget = await loadLiveLookTarget(liveId);
+        if (!liveLookTarget) {
+          // Stale cookie
+          try {
+            const { clearLiveLookCookie } = await import('@/lib/live-look/cookie');
+            await clearLiveLookCookie();
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+    } else {
+      // Non-operator Visionary must not retain a Live Look cookie.
+      try {
+        const liveId = await readLiveLookCookie();
+        if (liveId) {
           const { clearLiveLookCookie } = await import('@/lib/live-look/cookie');
           await clearLiveLookCookie();
-        } catch {
-          /* ignore */
         }
+      } catch {
+        /* ignore */
       }
     }
     if (!liveLookTarget) {
@@ -160,11 +176,20 @@ export async function getSessionContext(): Promise<SessionContext | null> {
 
   const liveLookActive = Boolean(liveLookTarget);
 
-  const profile: Profile = liveLookTarget
+  let profile: Profile = liveLookTarget
     ? applyLiveLookToProfile(real, liveLookTarget)
     : impersonatingAs
       ? { ...real, role: impersonatingAs }
       : real;
+
+  // Subsidiary Leader always carries a concrete led entity (impersonation from
+  // ENT-FIRM Visionary defaults to Recruit 619).
+  if (profile.role === 'sub_lead') {
+    profile = {
+      ...profile,
+      entity_id: resolveSubsidiaryLeaderEntityId(profile.entity_id),
+    };
+  }
 
   return {
     profile,
@@ -191,6 +216,16 @@ export function normalizeRole(value: unknown): AppRole | null {
     coo_subsidiaries: 'coo',
     counsel: 'counsel_ops',
     ops: 'counsel_ops',
+    finance: 'ssc_finance',
+    accounting: 'ssc_finance',
+    accounting_and_finance: 'ssc_finance',
+    hr: 'ssc_hr',
+    human_resources: 'ssc_hr',
+    legal: 'ssc_legal',
+    it: 'ssc_it',
+    technology: 'ssc_it',
+    technology_it: 'ssc_it',
+    marketing: 'ssc_marketing',
   };
   return aliases[v] ?? null;
 }

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { BandBadge } from '@/components/shared-services/band-badge';
 import { CreateTicketForm } from '@/components/shared-services/create-ticket-form';
 import { SsHubCommandStrip } from '@/components/shared-services/ss-hub-command-strip';
@@ -11,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { ViewModeLayout } from '@/components/ui/view-mode-toggle';
 import { listScopedTickets } from '@/lib/data/pipeline-scope';
 import { FORBID_LIST } from '@/lib/shared-services/forbid-list';
 import { ALLOW_LIST } from '@/lib/shared-services/allow-list';
@@ -28,11 +30,16 @@ import { listOperationalHealth } from '@/lib/shared-services/operational-health'
 import { buildMultiSubHealthFromTickets } from '@/lib/multi-sub/health';
 import { getSessionContext } from '@/lib/rbac/session';
 import { isFirmWideAccess } from '@/lib/rbac/entity-scope';
+import {
+  isSscScopedRole,
+  landingPathForRole,
+} from '@/lib/rbac/ssc-roles';
 import { SloPolicyAdmin } from '@/components/shared-services/slo-policy-admin';
 import { listSloPolicyAdministration } from '@/lib/shared-services/slo-policy';
 import { getSscHubGlance } from '@/lib/shared-services/ssc-checklist/hub-glance';
 import { ensurePeriodInstances, seedAllCompanyAudits } from '@/lib/shared-services/ssc-checklist/engine';
 import { escalateOverdueSscTasks } from '@/lib/shared-services/ssc-checklist/escalate';
+import { VIEW_MODE_DEFAULTS } from '@/lib/view-mode';
 
 type Props = {
   searchParams?: Promise<{
@@ -54,19 +61,26 @@ export default async function SharedServicesPage({ searchParams }: Props) {
   const initialTemplate = params.template?.trim() ?? '';
 
   const ctx = await getSessionContext();
+  // One-function SSC desks skip the multi-service hub.
+  if (ctx && isSscScopedRole(ctx.profile.role)) {
+    const landing = landingPathForRole(ctx.profile.role);
+    if (landing && landing !== '/shared-services') redirect(landing);
+  }
   const firmWide = ctx
     ? isFirmWideAccess(ctx.profile.role, ctx.profile.entity_id)
     : false;
 
-  // Best-effort: ensure current+next monthly instances, audits, escalations
+  // Best-effort: ensure current+next monthly instances, audits, escalations (parallel)
   try {
-    await ensurePeriodInstances({
-      function: 'all',
-      period_type: 'monthly',
-      scope_mode: 'parent_subs',
-      include_next: true,
-    });
-    await seedAllCompanyAudits();
+    await Promise.all([
+      ensurePeriodInstances({
+        function: 'all',
+        period_type: 'monthly',
+        scope_mode: 'parent_subs',
+        include_next: true,
+      }),
+      seedAllCompanyAudits(),
+    ]);
     await escalateOverdueSscTasks({ actorId: ctx?.profile.id ?? null });
   } catch {
     // fail-soft — hub still loads
@@ -129,56 +143,106 @@ export default async function SharedServicesPage({ searchParams }: Props) {
             above — use those for cadence across companies.
           </p>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {functionModules.map((m) => {
-            const fnKey =
-              m.id === 'it_assets'
-                ? 'it'
-                : m.id === 'docusign'
-                  ? 'legal'
-                  : m.id;
-            return (
-              <Card
-                key={m.id}
-                className="h-full transition-colors hover:border-[#3a414f]/35"
-              >
-                <CardHeader>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="outline">{m.short ?? m.service}</Badge>
-                    <Badge
-                      variant={m.status === 'live' ? 'default' : 'secondary'}
-                    >
-                      {ssHubStatusLabel(m.status)}
-                    </Badge>
+        <ViewModeLayout
+          surface="shared-services-functions"
+          defaultMode={VIEW_MODE_DEFAULTS['shared-services-functions']}
+          cards={
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {functionModules.map((m) => {
+                const fnKey =
+                  m.id === 'it_assets'
+                    ? 'it'
+                    : m.id === 'docusign'
+                      ? 'legal'
+                      : m.id;
+                return (
+                  <Card
+                    key={m.id}
+                    className="h-full transition-colors hover:border-[#3a414f]/35"
+                  >
+                    <CardHeader>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="outline">{m.short ?? m.service}</Badge>
+                        <Badge
+                          variant={m.status === 'live' ? 'default' : 'secondary'}
+                        >
+                          {ssHubStatusLabel(m.status)}
+                        </Badge>
+                      </div>
+                      <CardTitle className="font-heading text-base">
+                        <Link
+                          href={m.href}
+                          className="hover:underline underline-offset-2"
+                        >
+                          {m.title}
+                        </Link>
+                      </CardTitle>
+                      <CardDescription>{m.description}</CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex flex-wrap gap-3 text-xs">
+                      <Link
+                        href={m.href}
+                        className="font-medium text-[#3a414f] underline-offset-2 hover:underline"
+                      >
+                        Open home →
+                      </Link>
+                      <Link
+                        href={`/shared-services/checklists?function=${fnKey}&period=monthly&scope=parent_subs&time=active`}
+                        className="text-muted-foreground underline-offset-2 hover:underline"
+                      >
+                        Period checklist
+                      </Link>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          }
+          list={
+            <div className="overflow-hidden rounded-lg border border-border bg-card divide-y divide-border">
+              {functionModules.map((m) => {
+                const fnKey =
+                  m.id === 'it_assets'
+                    ? 'it'
+                    : m.id === 'docusign'
+                      ? 'legal'
+                      : m.id;
+                return (
+                  <div
+                    key={m.id}
+                    className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5"
+                  >
+                    <div className="min-w-0">
+                      <Link
+                        href={m.href}
+                        className="font-medium text-[#3a414f] underline-offset-2 hover:underline"
+                      >
+                        {m.title}
+                      </Link>
+                      <p className="text-xs text-muted-foreground line-clamp-1">
+                        {m.description}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <Badge variant="outline">{m.short ?? m.service}</Badge>
+                      <Badge
+                        variant={m.status === 'live' ? 'default' : 'secondary'}
+                      >
+                        {ssHubStatusLabel(m.status)}
+                      </Badge>
+                      <Link
+                        href={`/shared-services/checklists?function=${fnKey}&period=monthly&scope=parent_subs&time=active`}
+                        className="text-muted-foreground underline-offset-2 hover:underline"
+                      >
+                        Checklist
+                      </Link>
+                    </div>
                   </div>
-                  <CardTitle className="font-heading text-base">
-                    <Link
-                      href={m.href}
-                      className="hover:underline underline-offset-2"
-                    >
-                      {m.title}
-                    </Link>
-                  </CardTitle>
-                  <CardDescription>{m.description}</CardDescription>
-                </CardHeader>
-                <CardContent className="flex flex-wrap gap-3 text-xs">
-                  <Link
-                    href={m.href}
-                    className="font-medium text-[#3a414f] underline-offset-2 hover:underline"
-                  >
-                    Open home →
-                  </Link>
-                  <Link
-                    href={`/shared-services/checklists?function=${fnKey}&period=monthly&scope=parent_subs&time=current`}
-                    className="text-muted-foreground underline-offset-2 hover:underline"
-                  >
-                    Period checklist
-                  </Link>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+                );
+              })}
+            </div>
+          }
+        />
       </section>
 
       <section className="space-y-3">

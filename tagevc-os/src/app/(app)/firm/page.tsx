@@ -7,9 +7,10 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { redirect } from 'next/navigation';
 import { getFirmHomeSnapshot } from '@/lib/firm-ops/firm-home';
 import { formatUsdK } from '@/lib/format';
-import { requirePermission } from '@/lib/rbac/session';
+import { getSessionContext, requirePermission } from '@/lib/rbac/session';
 
 function Metric({
   label,
@@ -49,6 +50,11 @@ const LINKS = [
 
 export default async function FirmPage() {
   await requirePermission('read:firm');
+  const session = await getSessionContext();
+  // COO (subsidiaries) — Assets-scoped; Firm hub is Visionary/partner ops.
+  if (session?.profile.role === 'coo') {
+    redirect('/dashboard');
+  }
   const firm = await getFirmHomeSnapshot();
 
   return (

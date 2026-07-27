@@ -33,6 +33,7 @@ import {
   syncHandoffs,
 } from '@/lib/data/normalized/handoffs-repo';
 import {
+  preferNormalizedTables,
   queueNormalizedSync,
   shouldUseNormalizedRows,
 } from '@/lib/data/normalized/sync';
@@ -154,12 +155,17 @@ export async function hydrateDealFlowStore() {
     ]);
 
   // Prefer normalized rows when present (or forced via USE_NORMALIZED_TABLES).
-  if (shouldUseNormalizedRows(sqlLeads)) {
-    if (sqlLeads.length > 0) store.leads = sqlLeads;
-    if (sqlTasks && sqlTasks.length > 0) store.tasks = sqlTasks;
-  } else if (sqlLeads !== null && store.leads.length > 0) {
-    // Tables exist but empty — migrate snapshot/seed into SQL once.
-    await syncLeadsAndTasks(store.leads, store.tasks);
+  // Empty SQL is authoritative — do not resurrect seed/snapshot demo leads.
+  if (sqlLeads !== null) {
+    if (sqlLeads.length > 0 || preferNormalizedTables()) {
+      store.leads = sqlLeads;
+      if (sqlTasks != null && (sqlTasks.length > 0 || preferNormalizedTables())) {
+        store.tasks = sqlTasks;
+      }
+    } else {
+      store.leads = [];
+      if (sqlTasks != null) store.tasks = sqlTasks;
+    }
   }
 
   if (shouldUseNormalizedRows(sqlDeals)) {

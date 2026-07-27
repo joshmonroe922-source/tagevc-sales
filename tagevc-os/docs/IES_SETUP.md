@@ -4,10 +4,16 @@ IES is the financial system of record. Tage is the orchestration/control plane (
 
 ## Architecture
 
-- One IES login environment covers Tage Venture Capital, Recruit 619, Instant NDA (Signent later).
-- Each company maps to an Intuit `realmId` via `os_ies_entity_map`.
+- One IES login environment covers Tage Venture Capital, Recruit 619, Signent HR, Instant NDA.
+- Each company maps to an Intuit `realmId` via `os_ies_entity_map` / view `os_ies_company_map`.
+- Authoritative company IDs (seeded in `phase81_ies_multi_entity.sql`):
+  - Tage Venture Capital → `9341457251412290` (parent)
+  - Recruit 619 → `9341457251406251`
+  - Signent HR → `9341457251424506`
+  - Instant NDA → `9341457533727282`
 - Books API path: Intuit OAuth 2.0 + QuickBooks Online Accounting API (`com.intuit.quickbooks.accounting`).
-- Sync writes only to Tage tables: `os_ies_finance_feed`, `os_ies_coa_snapshots`, `os_ies_invoice_signals`, `os_ies_sync_runs`.
+- Sync writes only to Tage tables: `os_ies_finance_feed`, `os_ies_coa_snapshots`, `os_ies_invoice_signals`, `os_ies_financial_snapshots`, `os_ies_sync_runs`.
+- Full multi-entity contract: `docs/IES_MULTI_ENTITY.md`.
 
 ## Vercel secrets (app.tagevc.com)
 
@@ -19,6 +25,8 @@ IES is the financial system of record. Tage is the orchestration/control plane (
 | `IES_ENVIRONMENT` | no | `sandbox` (default) or `production` |
 | `IES_REDIRECT_URI` | no | Defaults to `{NEXT_PUBLIC_APP_URL}/api/finance/ies/oauth/callback` |
 | `NEXT_PUBLIC_APP_URL` | recommended | `https://app.tagevc.com` |
+| `IES_SYNC_ENABLED` | no | Exact `1` enables read sync; default off |
+| `IES_WRITE_ENABLED` | no | Exact `1` for future dual-approved draft submit; default **0** fail-closed |
 
 Also ensure cron auth uses existing `CRON_SECRET` or `DIGEST_SECRET` for `/api/finance/ies/sync`.
 
@@ -41,16 +49,20 @@ Also ensure cron auth uses existing `CRON_SECRET` or `DIGEST_SECRET` for `/api/f
 
 ## SQL
 
-Apply `tagevc-os/supabase/phase70_ies_connection.sql` (idempotent).
+Apply (idempotent):
+
+1. `tagevc-os/supabase/phase70_ies_connection.sql`
+2. `tagevc-os/supabase/phase81_ies_multi_entity.sql` (locks company IDs + snapshots + write proposals)
 
 ## Subsidiary portals
 
 - Recruit 619 / Instant NDA show lightweight finance visibility + handoff links into Tage Finance.
 - They are not a second ledger. Placement/subscription signals may inform requests; books remain in IES.
+- Signent HR: marketing site only — strip scaffold doc, no portal UI.
 
 ## Residual gaps
 
-- Intercompany eliminations not applied in consolidated totals.
-- Signent HR company mapping deferred until Signent OS.
+- Intercompany eliminations not applied in consolidated totals (management consol labeled).
 - Report row label matching for cash/AR/AP is best-effort across COA variants.
 - Production Intuit app review / Partner Program may be required for live traffic.
+- OAuth tokens still required per company before sync returns live numbers.

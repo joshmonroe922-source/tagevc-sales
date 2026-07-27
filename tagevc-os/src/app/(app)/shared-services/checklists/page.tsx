@@ -17,8 +17,15 @@ import { getSessionContext, requirePermission } from '@/lib/rbac/session';
 import { roleHasPermission } from '@/lib/types/roles';
 
 type Props = {
-  searchParams?: Promise<Record<string, string | undefined>>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
+
+function firstParam(
+  raw: string | string[] | undefined,
+): string | undefined {
+  if (Array.isArray(raw)) return raw[0];
+  return raw;
+}
 
 function parseFunction(raw?: string): SscFunction | 'all' {
   if (raw === 'all') return 'all';
@@ -42,9 +49,9 @@ function parseScope(raw?: string): SscScopeMode {
   return 'parent_subs';
 }
 
-function parseTime(raw?: string): 'past' | 'current' | 'future' {
-  if (raw === 'past' || raw === 'future') return raw;
-  return 'current';
+function parseTime(raw?: string): 'active' | 'future' {
+  if (raw === 'future') return 'future';
+  return 'active';
 }
 
 export default async function SscChecklistsPage({ searchParams }: Props) {
@@ -55,14 +62,14 @@ export default async function SscChecklistsPage({ searchParams }: Props) {
     ? isFirmWideAccess(ctx.profile.role, ctx.profile.entity_id)
     : false;
 
-  let scope = parseScope(params.scope);
-  let single = params.entity?.trim() || null;
+  let scope = parseScope(firstParam(params.scope));
+  let single = firstParam(params.entity)?.trim() || null;
   if (!firmWide) {
     scope = 'single';
     single = ctx?.profile.entity_id ?? single;
   }
 
-  const statusRaw = params.status?.trim();
+  const statusRaw = firstParam(params.status)?.trim();
   const status =
     statusRaw &&
     (statusRaw === 'all' ||
@@ -71,15 +78,16 @@ export default async function SscChecklistsPage({ searchParams }: Props) {
       : 'all';
 
   const bundle = await getSscOperatorBundle({
-    function: parseFunction(params.function),
-    period_type: parsePeriod(params.period),
+    function: parseFunction(firstParam(params.function)),
+    period_type: parsePeriod(firstParam(params.period)),
     scope_mode: scope,
     single_entity_id: single,
-    time_nav: parseTime(params.time),
+    time_nav: parseTime(firstParam(params.time)),
     status,
-    owner_role: params.owner?.trim() || 'all',
-    company_entity_id: params.company?.trim() || 'all',
-    risk: params.risk === 'high_plus' ? 'high_plus' : 'all',
+    owner_role: firstParam(params.owner)?.trim() || 'all',
+    company_entity_id: firstParam(params.company)?.trim() || 'all',
+    risk: firstParam(params.risk) === 'high_plus' ? 'high_plus' : 'all',
+    overdue_only: firstParam(params.overdue) === '1',
   });
 
   const canWrite = ctx

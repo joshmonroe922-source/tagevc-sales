@@ -4,10 +4,9 @@ import { NetWorthClient } from '@/components/portfolio/net-worth-client';
 import { writeAuditEvent } from '@/lib/audit/write';
 import {
   computeNetWorthBreakdown,
+  getFirmAumSnapshot,
   listInvestorAssets,
 } from '@/lib/net-worth/assets';
-import { probeNetWorthConnectors } from '@/lib/net-worth/connectors';
-import { getFirmAumSnapshot } from '@/lib/net-worth/assets';
 import { canAccessNetWorthPage } from '@/lib/net-worth/visibility';
 import { getSessionContext } from '@/lib/rbac/session';
 
@@ -35,7 +34,6 @@ export default async function NetWorthPage() {
     getFirmAumSnapshot(),
   ]);
   const breakdown = computeNetWorthBreakdown(rows);
-  const connectors = probeNetWorthConnectors();
 
   return (
     <div className="space-y-6">
@@ -45,7 +43,13 @@ export default async function NetWorthPage() {
             href="/entities"
             className="text-muted-foreground hover:text-foreground"
           >
-            ← Portfolio companies
+            ← Businesses
+          </Link>
+          <Link
+            href="/portfolio/investments"
+            className="text-muted-foreground hover:text-foreground"
+          >
+            Investments
           </Link>
           <Link
             href="/portfolio/net-worth/credit"
@@ -58,17 +62,14 @@ export default async function NetWorthPage() {
           Net Worth
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Visionary capital picture across private I-quadrant investments,
-          crypto, retirement, business portfolio, and real estate. Private
-          balances stay Visionary-only.
+          Visionary roll-up of Businesses, Real Estate, and Investments. Manage
+          private holdings under Investments; credit stays here.
         </p>
       </header>
 
       <NetWorthClient
-        assets={rows}
         breakdown={breakdown}
         firmAum={firmAum}
-        connectors={connectors}
         error={error}
       />
     </div>

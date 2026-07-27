@@ -10,6 +10,11 @@ import {
   updateHrisStepAction,
   uploadHrisDocumentAction,
 } from '@/app/(app)/shared-services/hr/actions-hris';
+import {
+  confirmScreeningOrderAction,
+  createPendingScreeningOrderAction,
+  waiveScreeningOrderAction,
+} from '@/app/(app)/screening/actions';
 import { CompanySelect } from '@/components/shared/company-select';
 import { PeoplePicker } from '@/components/shared-services/people-picker';
 import { Badge } from '@/components/ui/badge';
@@ -37,6 +42,7 @@ import {
   type HrisProcessStep,
   type HrisStepStatus,
 } from '@/lib/hris/types';
+import type { ScreeningOrder } from '@/lib/screening/types';
 
 function isDocuSignStep(step: HrisProcessStep): boolean {
   return (
@@ -47,12 +53,22 @@ function isDocuSignStep(step: HrisProcessStep): boolean {
   );
 }
 
+function isScreeningStep(step: HrisProcessStep): boolean {
+  return (
+    step.system_hook === 'verified_first' ||
+    step.system_hook === 'screening' ||
+    step.step_key.includes('verified_first') ||
+    /background|drug.?screen|verified.?first/i.test(step.title)
+  );
+}
+
 export function HrisEmployeeDetailClient({
   employee,
   runs,
   events,
   links,
   documents,
+  screeningOrders = [],
   canWrite,
   canViewComp,
   managerProfile,
@@ -62,6 +78,7 @@ export function HrisEmployeeDetailClient({
   events: HrisEmployeeEvent[];
   links: HrisEmployeeLink[];
   documents: HrisDocumentRow[];
+  screeningOrders?: ScreeningOrder[];
   canWrite: boolean;
   canViewComp: boolean;
   managerProfile?: {
@@ -589,6 +606,18 @@ export function HrisEmployeeDetailClient({
               {(run!.steps ?? []).map((step) => {
                 const overdue = isStepOverdue(step);
                 const ds = isDocuSignStep(step);
+                const screening = isScreeningStep(step);
+                const stepOrders = screeningOrders.filter(
+                  (o) =>
+                    o.consumer_ref.hris_step_id === step.id ||
+                    (o.subject_type === 'employee' &&
+                      o.subject_id === employee.id),
+                );
+                const openOrder = stepOrders.find((o) =>
+                  ['pending', 'ordered', 'in_progress', 'review'].includes(
+                    o.status,
+                  ),
+                );
                 return (
                   <div
                     key={step.id}
@@ -604,10 +633,19 @@ export function HrisEmployeeDetailClient({
                           {step.optional_for_audience ? ' · optional' : ''}
                           {step.destructive ? ' · destructive' : ''}
                           {ds ? ' · DocuSign' : ''}
+                          {screening ? ' · Verified First' : ''}
                         </p>
                         {step.evidence_note ? (
                           <p className="mt-1 text-xs text-muted-foreground">
                             Evidence: {step.evidence_note}
+                          </p>
+                        ) : null}
+                        {screening && stepOrders[0] ? (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Order status: {stepOrders[0].status}
+                            {stepOrders[0].package_code
+                              ? ` · ${stepOrders[0].package_code}`
+                              : ''}
                           </p>
                         ) : null}
                       </div>
@@ -621,6 +659,122 @@ export function HrisEmployeeDetailClient({
                       </div>
                     </div>
                     {canWrite &&
+                    screening &&
+                    !['done', 'waived', 'na'].includes(step.status) ? (
+                      <div className="mt-2 space-y-2">
+                        {!openOrder ? (
+                          <form
+                            action={createPendingScreeningOrderAction}
+                            className="flex flex-wrap gap-2"
+                          >
+                            <input
+                              type="hidden"
+                              name="entity_id"
+                              value={employee.entity_id}
+                            />
+                            <input
+                              type="hidden"
+                              name="subject_type"
+                              value="employee"
+                            />
+                            <input
+                              type="hidden"
+                              name="subject_id"
+                              value={employee.id}
+                            />
+                            <input type="hidden" name="kind" value="bg" />
+                            <input
+                              type="hidden"
+                              name="hris_step_id"
+                              value={step.id}
+                            />
+                            <input
+                              type="hidden"
+                              name="hris_run_id"
+                              value={run!.id}
+                            />
+                            <input
+                              type="hidden"
+                              name="subject_name"
+                              value={employee.full_name}
+                            />
+                            <input
+                              type="hidden"
+                              name="subject_email"
+                              value={
+                                employee.work_email || employee.personal_email
+                              }
+                            />
+                            <Button type="submit" size="sm" variant="secondary">
+                              Create pending screen order
+                            </Button>
+                          </form>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            <form
+                              action={confirmScreeningOrderAction}
+                              className="flex flex-wrap items-center gap-2"
+                            >
+                              <input
+                                type="hidden"
+                                name="order_id"
+                                value={openOrder.id}
+                              />
+                              <input
+                                type="hidden"
+                                name="subject_name"
+                                value={employee.full_name}
+                              />
+                              <input
+                                type="hidden"
+                                name="subject_email"
+                                value={
+                                  employee.work_email ||
+                                  employee.personal_email
+                                }
+                              />
+                              <label className="flex items-center gap-1 text-xs">
+                                <input
+                                  type="checkbox"
+                                  name="human_confirm"
+                                  value="1"
+                                  required
+                                />
+                                Confirm order
+                              </label>
+                              <Button type="submit" size="sm">
+                                Confirm &amp; order
+                              </Button>
+                            </form>
+                            <form
+                              action={waiveScreeningOrderAction}
+                              className="flex flex-wrap gap-1"
+                            >
+                              <input
+                                type="hidden"
+                                name="order_id"
+                                value={openOrder.id}
+                              />
+                              <input
+                                name="waiver_reason"
+                                required
+                                placeholder="Waiver reason"
+                                className="rounded-md border border-border px-2 py-1 text-xs"
+                              />
+                              <Button type="submit" size="sm" variant="outline">
+                                Waive
+                              </Button>
+                            </form>
+                          </div>
+                        )}
+                        <p className="text-xs text-muted-foreground">
+                          Step completes when order is clear or waived (or mark
+                          N/A if not required).
+                        </p>
+                      </div>
+                    ) : null}
+                    {canWrite &&
+                    !screening &&
                     !['done', 'waived', 'na'].includes(step.status) ? (
                       <div className="mt-2 flex flex-wrap gap-1">
                         <Button

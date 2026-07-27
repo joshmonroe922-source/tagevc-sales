@@ -18,7 +18,12 @@ export function thinkTankRoleBand(
     return 'leadership';
   }
   if (r === 'admin') return 'admin';
-  if (r === 'counsel_ops' || r === 'service_lead' || r === 'sub_lead') {
+  if (
+    r === 'counsel_ops' ||
+    r === 'service_lead' ||
+    r === 'sub_lead' ||
+    r.startsWith('ssc_')
+  ) {
     return 'operator';
   }
   if (

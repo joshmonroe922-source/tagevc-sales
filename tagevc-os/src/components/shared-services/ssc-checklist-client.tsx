@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { CompanySelect } from '@/components/shared/company-select';
+import { EmptyState } from '@/components/ui/empty-state';
 import { Badge } from '@/components/ui/badge';
 import {
   Card,
@@ -30,6 +31,10 @@ import {
 } from '@/lib/shared-services/ssc-checklist/types';
 import { listSscCompanies } from '@/lib/shared-services/ssc-checklist/scope';
 import { sparklineBars } from '@/lib/shared-services/ssc-checklist/types';
+import {
+  timeNavLabel,
+  type SscTimeNav,
+} from '@/lib/shared-services/ssc-checklist/period';
 
 type Props = {
   bundle: SscOperatorBundle;
@@ -38,6 +43,8 @@ type Props = {
 };
 
 type Tab = 'overview' | 'tasks' | 'audits' | 'sync';
+
+const TASK_WINDOW = 60;
 
 const FUNCTIONS: Array<SscFunction | 'all'> = [
   'all',
@@ -82,22 +89,43 @@ export function SscChecklistClient({
   const [groupBy, setGroupBy] = useState<'function' | 'company' | 'status'>(
     'function',
   );
+  const [taskLimit, setTaskLimit] = useState(TASK_WINDOW);
   const q = bundle.query;
+  /** Optimistic function selection — avoids controlled-select snap-back while RSC reloads. */
+  const [functionFilter, setFunctionFilter] = useState<SscFunction | 'all'>(
+    q.function,
+  );
   const companies = useMemo(() => listSscCompanies(), []);
   const firm = bundle.monitoring.find((m) => m.function_key === 'all');
+
+  useEffect(() => {
+    setFunctionFilter(q.function);
+    setTaskLimit(TASK_WINDOW);
+  }, [
+    q.function,
+    q.period_type,
+    q.scope_mode,
+    q.time_nav,
+    q.status,
+    q.owner_role,
+    q.company_entity_id,
+    q.risk,
+    q.overdue_only,
+  ]);
 
   function navigate(patch: Record<string, string>) {
     const params = new URLSearchParams();
     const next = {
-      function: q.function,
+      function: functionFilter,
       period: q.period_type,
       scope: q.scope_mode,
-      time: q.time_nav,
+      time: q.time_nav === 'past' || q.time_nav === 'current' ? 'active' : q.time_nav,
       entity: q.single_entity_id ?? '',
       status: q.status ?? 'all',
       owner: q.owner_role ?? 'all',
       company: q.company_entity_id ?? 'all',
       risk: q.risk ?? 'all',
+      overdue: q.overdue_only ? '1' : '',
       ...patch,
     };
     params.set('function', next.function);
@@ -109,11 +137,14 @@ export function SscChecklistClient({
     if (next.owner && next.owner !== 'all') params.set('owner', next.owner);
     if (next.company && next.company !== 'all') params.set('company', next.company);
     if (next.risk && next.risk !== 'all') params.set('risk', next.risk);
+    if (next.overdue === '1') params.set('overdue', '1');
     const base =
       mode === 'audits'
         ? '/shared-services/audits'
         : '/shared-services/checklists';
-    router.push(`${base}?${params.toString()}`);
+    startTransition(() => {
+      router.push(`${base}?${params.toString()}`);
+    });
   }
 
   function onTaskStatus(taskId: string, status: SscTaskStatus) {
@@ -140,9 +171,28 @@ export function SscChecklistClient({
     });
   }
 
+  const visibleTasks = useMemo(() => {
+    if (functionFilter === 'all') return bundle.tasks;
+    return bundle.tasks.filter((t) => t.function_key === functionFilter);
+  }, [bundle.tasks, functionFilter]);
+
+  const visibleAudits = useMemo(() => {
+    if (functionFilter === 'all') return bundle.audits;
+    return bundle.audits
+      .map((audit) => ({
+        ...audit,
+        items: audit.items.filter(
+          (item) =>
+            item.function_key === functionFilter ||
+            item.function_key === 'cross',
+        ),
+      }))
+      .filter((audit) => audit.items.length > 0);
+  }, [bundle.audits, functionFilter]);
+
   const groupedTasks = useMemo(() => {
-    const map = new Map<string, typeof bundle.tasks>();
-    for (const task of bundle.tasks) {
+    const map = new Map<string, typeof visibleTasks>();
+    for (const task of visibleTasks) {
       const key =
         groupBy === 'company'
           ? task.company_name
@@ -153,16 +203,39 @@ export function SscChecklistClient({
       list.push(task);
       map.set(key, list);
     }
-    return [...map.entries()];
-  }, [bundle.tasks, groupBy]);
+    // Window per group so All still surfaces every function group.
+    return [...map.entries()].map(
+      ([group, tasks]) => [group, tasks.slice(0, taskLimit)] as const,
+    );
+  }, [visibleTasks, groupBy, taskLimit]);
+
+  const hiddenTaskCount = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const task of visibleTasks) {
+      const key =
+        groupBy === 'company'
+          ? task.company_name
+          : groupBy === 'status'
+            ? statusLabel(task.status)
+            : functionLabel(task.function_key);
+      map.set(key, (map.get(key) ?? 0) + 1);
+    }
+    let hidden = 0;
+    for (const count of map.values()) {
+      hidden += Math.max(0, count - taskLimit);
+    }
+    return hidden;
+  }, [visibleTasks, groupBy, taskLimit]);
+
+  const overdueCount = visibleTasks.filter((t) => t.is_overdue).length;
 
   const tabs: Array<{ id: Tab; label: string; count?: number }> = [
     { id: 'overview', label: 'Overview' },
-    { id: 'tasks', label: 'Tasks', count: bundle.tasks.length },
+    { id: 'tasks', label: 'Tasks', count: visibleTasks.length },
     {
       id: 'audits',
       label: 'Audits',
-      count: bundle.audits.reduce((s, a) => s + a.open_item_count, 0),
+      count: visibleAudits.reduce((s, a) => s + a.items.filter((i) => i.status !== 'done' && i.status !== 'waived').length, 0),
     },
     { id: 'sync', label: 'Data sync', count: bundle.sync.length },
   ];
@@ -182,7 +255,8 @@ export function SscChecklistClient({
             </div>
             <p className="max-w-2xl text-sm text-muted-foreground">
               {scopeLabel(q.scope_mode)} · {periodLabel(q.period_type)}{' '}
-              {bundle.period_key} · {bundle.time_nav} · due {bundle.due_at}
+              {bundle.period_key} · {timeNavLabel(bundle.time_nav)} · due{' '}
+              {bundle.due_at}
             </p>
           </div>
           <Link
@@ -209,17 +283,46 @@ export function SscChecklistClient({
               {typeof t.count === 'number' ? ` (${t.count})` : ''}
             </button>
           ))}
+          {mode === 'checklists' ? (
+            <>
+              <button
+                type="button"
+                className={`h-9 rounded-md border px-3 text-sm ${
+                  q.overdue_only
+                    ? 'border-red-700 bg-red-700 text-white'
+                    : 'border-border bg-background'
+                }`}
+                onClick={() =>
+                  navigate({ overdue: q.overdue_only ? '' : '1' })
+                }
+              >
+                Overdue{overdueCount ? ` (${overdueCount})` : ''}
+              </button>
+              <button
+                type="button"
+                className="h-9 rounded-md border border-border bg-background px-3 text-sm"
+                onClick={() => navigate({ overdue: '', status: 'all', risk: 'all' })}
+              >
+                Clear filters
+              </button>
+            </>
+          ) : null}
         </div>
       </header>
 
-      <Card>
+      <Card className="sticky top-0 z-10 border-border/80 bg-background/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <CardContent className="grid gap-3 pt-4 md:grid-cols-3 lg:grid-cols-6">
           <label className="space-y-1 text-sm">
             <span className="text-muted-foreground">Function</span>
             <select
               className="h-9 w-full rounded-md border border-border bg-background px-2"
-              value={q.function}
-              onChange={(e) => navigate({ function: e.target.value })}
+              value={functionFilter}
+              onChange={(e) => {
+                const next = e.target.value as SscFunction | 'all';
+                setFunctionFilter(next);
+                setTaskLimit(TASK_WINDOW);
+                navigate({ function: next });
+              }}
             >
               {FUNCTIONS.map((f) => (
                 <option key={f} value={f}>
@@ -248,6 +351,10 @@ export function SscChecklistClient({
               <CompanySelect
                 value={q.single_entity_id ?? 'ENT-FIRM'}
                 onChange={(v) => navigate({ entity: v, scope: 'single' })}
+                options={companies.map((c) => ({
+                  value: c.entity_id,
+                  label: c.company_name,
+                }))}
               />
             </label>
           ) : null}
@@ -268,18 +375,24 @@ export function SscChecklistClient({
           <label className="space-y-1 text-sm">
             <span className="text-muted-foreground">Time</span>
             <div className="flex h-9 overflow-hidden rounded-md border border-border">
-              {(['past', 'current', 'future'] as const).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  className={`flex-1 text-xs capitalize ${
-                    q.time_nav === t ? 'bg-[#3a414f] text-white' : 'bg-background'
-                  }`}
-                  onClick={() => navigate({ time: t })}
-                >
-                  {t}
-                </button>
-              ))}
+              {(['active', 'future'] as const satisfies readonly SscTimeNav[]).map(
+                (t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    className={`flex-1 text-xs ${
+                      q.time_nav === t ||
+                      (t === 'active' &&
+                        (q.time_nav === 'past' || q.time_nav === 'current'))
+                        ? 'bg-[#3a414f] text-white'
+                        : 'bg-background'
+                    }`}
+                    onClick={() => navigate({ time: t })}
+                  >
+                    {timeNavLabel(t)}
+                  </button>
+                ),
+              )}
             </div>
           </label>
           {mode === 'checklists' ? (
@@ -305,11 +418,12 @@ export function SscChecklistClient({
       {tab === 'overview' ? (
         <div className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {(q.function === 'all'
+            {(functionFilter === 'all'
               ? bundle.monitoring
               : bundle.monitoring.filter(
                   (m) =>
-                    m.function_key === 'all' || m.function_key === q.function,
+                    m.function_key === 'all' ||
+                    m.function_key === functionFilter,
                 )
             ).map((m) => {
               const trend = bundle.trends.find(
@@ -523,13 +637,37 @@ export function SscChecklistClient({
           </div>
 
           {groupedTasks.length === 0 ? (
-            <Card>
-              <CardContent className="py-8 text-sm text-muted-foreground">
-                No tasks for this selection. Try Current time or All functions.
-              </CardContent>
-            </Card>
+            <EmptyState
+              title="No tasks for this selection"
+              description="Try Active period, clear Overdue, or open All functions. Escalations still appear in tickets when AUTO/DRAFT applies."
+              action={
+                <div className="flex flex-wrap justify-center gap-2">
+                  <button
+                    type="button"
+                    className="h-8 rounded-md border border-border bg-background px-3 text-sm"
+                    onClick={() =>
+                      navigate({
+                        time: 'active',
+                        overdue: '',
+                        status: 'all',
+                        risk: 'all',
+                      })
+                    }
+                  >
+                    Reset to Active
+                  </button>
+                  <Link
+                    href="/shared-services"
+                    className="inline-flex h-8 items-center rounded-md border border-border px-3 text-sm"
+                  >
+                    SSC hub
+                  </Link>
+                </div>
+              }
+            />
           ) : (
-            groupedTasks.map(([group, tasks]) => (
+            <>
+            {groupedTasks.map(([group, tasks]) => (
               <Card key={group}>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base">
@@ -645,21 +783,31 @@ export function SscChecklistClient({
                   ))}
                 </CardContent>
               </Card>
-            ))
+            ))}
+            {hiddenTaskCount > 0 ? (
+              <button
+                type="button"
+                className="h-9 w-full rounded-md border border-border bg-background text-sm"
+                onClick={() => setTaskLimit((n) => n + TASK_WINDOW)}
+              >
+                Show more tasks ({hiddenTaskCount} remaining)
+              </button>
+            ) : null}
+            </>
           )}
         </div>
       ) : null}
 
       {tab === 'audits' ? (
         <div className="space-y-4">
-          {bundle.audits.length === 0 ? (
+          {visibleAudits.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-sm text-muted-foreground">
                 No audits in scope yet.
               </CardContent>
             </Card>
           ) : (
-            bundle.audits.map((audit) => (
+            visibleAudits.map((audit) => (
               <Card key={audit.id}>
                 <CardHeader>
                   <div className="flex flex-wrap items-center gap-2">

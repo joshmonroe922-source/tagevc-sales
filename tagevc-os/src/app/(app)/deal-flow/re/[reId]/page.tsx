@@ -21,6 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { canAccessScopedReDeal } from '@/lib/data/pipeline-scope';
 import { getReDeal, listTasksForRe } from '@/lib/data/re-store';
 import { formatDate, formatUsdK } from '@/lib/format';
 
@@ -30,6 +31,7 @@ export default async function ReDetailPage({ params }: Props) {
   const { reId } = await params;
   const deal = getReDeal(reId);
   if (!deal) notFound();
+  if (!(await canAccessScopedReDeal(deal))) notFound();
   const tasks = listTasksForRe(deal.re_id);
   const open = tasks.filter((t) => t.status !== 'Completed');
 
@@ -40,7 +42,7 @@ export default async function ReDetailPage({ params }: Props) {
           href="/deal-flow/re"
           className="text-sm text-muted-foreground hover:text-foreground"
         >
-          ← RE Pipeline
+          ← Sourcing Platform
         </Link>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>

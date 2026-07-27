@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { AiReviewPanel } from '@/components/documents/ai-review-panel';
+import { DocumentAclEditor } from '@/components/documents/document-acl-editor';
 import { DocumentSendActions } from '@/components/documents/document-send-actions';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -14,9 +15,16 @@ import {
   getDocument,
   listDocAudits,
 } from '@/lib/data/document-store';
+import { canAccessScopedEntity } from '@/lib/data/pipeline-scope';
 import { isCapitalDocument } from '@/lib/documents/capital-gate';
+import {
+  canManageDocumentAcl,
+  canViewDocumentForRole,
+  formatVisibleRolesLabel,
+  resolveDocumentVisibleRoles,
+} from '@/lib/documents/visibility';
 import { formatDate } from '@/lib/format';
-import { isImpersonating } from '@/lib/rbac/session';
+import { getSessionContext, isImpersonating } from '@/lib/rbac/session';
 
 type Props = { params: Promise<{ docId: string }> };
 
@@ -24,9 +32,15 @@ export default async function DocumentDetailPage({ params }: Props) {
   const { docId } = await params;
   const doc = getDocument(docId);
   if (!doc) notFound();
+  if (!(await canAccessScopedEntity(doc.entity_id))) notFound();
+  const session = await getSessionContext();
+  const role = session?.profile.role ?? null;
+  if (!canViewDocumentForRole(role, doc)) notFound();
   const breakGlassBlocked = await isImpersonating();
   const audits = listDocAudits(doc.doc_id);
   const capital = isCapitalDocument(doc.doc_type);
+  const effectiveRoles = resolveDocumentVisibleRoles(doc);
+  const canSetAcl = canManageDocumentAcl(role);
 
   return (
     <div className="space-y-8">
@@ -49,6 +63,11 @@ export default async function DocumentDetailPage({ params }: Props) {
           <Badge variant="secondary">{doc.doc_type}</Badge>
           <Badge variant="outline">{doc.status}</Badge>
           {capital ? <Badge variant="destructive">Capital · human send</Badge> : null}
+          {effectiveRoles ? (
+            <Badge variant="outline">Role-restricted</Badge>
+          ) : (
+            <Badge variant="secondary">Open access</Badge>
+          )}
           {doc.ai_review ? (
             <Badge
               variant="outline"
@@ -67,6 +86,24 @@ export default async function DocumentDetailPage({ params }: Props) {
         breakGlassBlocked={breakGlassBlocked}
       />
 
+      {canSetAcl ? (
+        <DocumentAclEditor
+          docId={doc.doc_id}
+          effectiveRoles={effectiveRoles}
+          storedRoles={doc.visible_roles}
+        />
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Role access</CardTitle>
+            <CardDescription>
+              Visible to: {formatVisibleRolesLabel(effectiveRoles)}. Only
+              Visionary or Admin can change file ACL.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      )}
+
       <AiReviewPanel docId={doc.doc_id} review={doc.ai_review} />
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -81,6 +118,7 @@ export default async function DocumentDetailPage({ params }: Props) {
             <Row label="Template" value={doc.template_id ?? '—'} />
             <Row label="Envelope" value={doc.envelope_id ?? '—'} />
             <Row label="Folder" value={doc.folder} />
+            <Row label="Access" value={formatVisibleRolesLabel(effectiveRoles)} />
             <Row label="Path" value={doc.library_path} />
             <Row label="Sent by" value={doc.sent_by ?? '—'} />
             <Row label="Sent at" value={formatDate(doc.sent_at)} />

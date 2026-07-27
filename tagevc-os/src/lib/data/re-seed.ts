@@ -1,9 +1,13 @@
 import type { ReDeal, ReTask } from '@/lib/types';
 import { spawnReTasksForStage } from '@/lib/deal-flow/re/spawn-tasks';
 
-const now = '2026-03-15T12:00:00.000Z';
+/** Soft-archived so empty-DB reseeds / demos do not resurrect on RE Active. */
+const archivedDemo = '2026-07-26T17:00:00.000Z';
 
-/** RE Pipeline Active seeds (Excel). */
+/**
+ * RE Pipeline seeds (Excel). Sample assets stay for history but are
+ * soft-archived so Deal Flow → Real Estate Active stays empty of sample noise.
+ */
 export const INITIAL_RE_DEALS: ReDeal[] = [
   {
     id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb01',
@@ -27,8 +31,8 @@ export const INITIAL_RE_DEALS: ReDeal[] = [
     entity_id: null,
     handoff_id: null,
     created_at: '2026-03-10T12:00:00.000Z',
-    updated_at: now,
-    archived_at: null,
+    updated_at: archivedDemo,
+    archived_at: archivedDemo,
   },
   {
     id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb02',
@@ -52,14 +56,15 @@ export const INITIAL_RE_DEALS: ReDeal[] = [
     entity_id: null,
     handoff_id: null,
     created_at: '2026-03-05T12:00:00.000Z',
-    updated_at: now,
-    archived_at: null,
+    updated_at: archivedDemo,
+    archived_at: archivedDemo,
   },
 ];
 
 export function buildInitialReTasks(): ReTask[] {
   let tasks: ReTask[] = [];
   for (const deal of INITIAL_RE_DEALS) {
+    if (deal.archived_at) continue;
     const stages =
       deal.re_id === 'RE-002'
         ? ([

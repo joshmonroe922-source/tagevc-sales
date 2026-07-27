@@ -8,6 +8,7 @@ import { randomUUID } from 'crypto';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 import { writeAuditEvent } from '@/lib/audit/write';
 import { entityDisplayName } from '@/lib/entities/display-name';
+import { sortEntitiesForSelect } from '@/lib/entities/display-order';
 import { daysSince, isStale } from '@/lib/net-worth/credit-parse';
 import {
   extractTextFromPdfBuffer,
@@ -65,15 +66,9 @@ function mapConnection(r: Record<string, unknown>): BusinessBureauConnection {
   };
 }
 
-/** Tage first, then subs A–Z by display name. */
+/** Canonical select order: Tage VC → Recruit 619 → Signent HR → Instant NDA → A–Z. */
 export function orderCompanies<T extends { entity_id: string }>(rows: T[]): T[] {
-  return [...rows].sort((a, b) => {
-    if (a.entity_id === 'ENT-FIRM') return -1;
-    if (b.entity_id === 'ENT-FIRM') return 1;
-    return entityDisplayName(a.entity_id, a.entity_id).localeCompare(
-      entityDisplayName(b.entity_id, b.entity_id),
-    );
-  });
+  return sortEntitiesForSelect(rows);
 }
 
 export async function listBusinessBureauCompanies(): Promise<{

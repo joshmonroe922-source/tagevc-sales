@@ -677,7 +677,12 @@ export function getMarketingFoundationStatus() {
     paid_ads_live:
       process.env.MARKETING_PAID_ADS_LIVE === '1' ||
       process.env.MARKETING_PAID_ADS_LIVE === 'true',
-    tiktok_publish: true,
+    tiktok_publish:
+      process.env.TIKTOK_PUBLISH_DIRECT === '1' ||
+      process.env.TIKTOK_PUBLISH_DIRECT === 'true',
+    blog_publish_webhook: Boolean(
+      process.env.BLOG_PUBLISH_WEBHOOK_URL?.trim(),
+    ),
     phase: 39,
   };
 }

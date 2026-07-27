@@ -177,7 +177,12 @@ export function HrItHardeningPhase57Client({
       : 'HR operations hardening';
 
   return (
-    <div className={surface === 'hr' ? 'space-y-8' : undefined}>
+    <div
+      id={surface === 'it' ? 'it-hardening' : 'hr-hardening'}
+      className={
+        surface === 'hr' ? 'scroll-mt-20 space-y-8' : 'scroll-mt-20'
+      }
+    >
       {surface === 'hr' && showPageHeader ? (
         <header className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">

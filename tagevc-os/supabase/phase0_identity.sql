@@ -14,6 +14,11 @@ do $$ begin
     'sub_lead',
     'service_lead',
     'counsel_ops',
+    'ssc_finance',
+    'ssc_hr',
+    'ssc_legal',
+    'ssc_it',
+    'ssc_marketing',
     'admin'
   );
 exception when duplicate_object then null;

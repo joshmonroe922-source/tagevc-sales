@@ -157,9 +157,15 @@ export function subsidiaryMessagesDeepLink(entityId: string | null | undefined):
   if (canon === 'ENT-INDA') {
     return {
       tage_messages: tage,
+      portal_messages: 'https://portal.instantnda.us/messages',
+      todo: null,
+    };
+  }
+  if (canon === 'ENT-SIGNENT') {
+    return {
+      tage_messages: tage,
       portal_messages: null,
-      // TODO: Instant NDA portal URL for SSO deep-links
-      todo: 'TODO: Instant NDA portal URL for SSO deep-links',
+      todo: 'TODO: Signent HR portal URL for SSO deep-links',
     };
   }
   return { tage_messages: tage, portal_messages: null, todo: null };

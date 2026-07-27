@@ -18,10 +18,12 @@ export type IesEnvironment = 'sandbox' | 'production';
 export const IES_SCOPE = 'com.intuit.quickbooks.accounting';
 export const IES_MINOR_VERSION = '75';
 export const PHASE70_IES_CONTRACT_VERSION = 'phase70-v1' as const;
+export const IES_MULTI_ENTITY_CONTRACT_VERSION = 'phase81-v1' as const;
 
 export const IES_OPERATING_ENTITIES = [
   'ENT-FIRM',
   'ENT-R619',
+  'ENT-SIGNENT',
   'ENT-INDA',
 ] as const;
 
@@ -45,6 +47,8 @@ export function getIesEnvironment(): IesEnvironment {
 
 export function getIesConfig(): {
   configured: boolean;
+  syncEnabled: boolean;
+  writeEnabled: boolean;
   clientId: string | null;
   clientSecret: string | null;
   redirectUri: string;
@@ -67,6 +71,9 @@ export function getIesConfig(): {
   if (!vaultReady) missing.push('IES_TOKEN_SECRET');
   return {
     configured: Boolean(clientId && clientSecret && vaultReady),
+    syncEnabled: process.env.IES_SYNC_ENABLED === '1',
+    // Exact opt-in only. Missing, blank, or any other value fails closed.
+    writeEnabled: process.env.IES_WRITE_ENABLED === '1',
     clientId,
     clientSecret,
     redirectUri,
@@ -93,4 +100,6 @@ export const IES_SECRETS_DOC = [
   'IES_ENVIRONMENT — sandbox (default) or production',
   'IES_REDIRECT_URI — optional override; must match Intuit app redirect list',
   'NEXT_PUBLIC_APP_URL — https://app.tagevc.com (redirect derivation)',
+  'IES_SYNC_ENABLED — exact 1 enables read sync; defaults off',
+  'IES_WRITE_ENABLED — exact 1 enables eligible dual-approved draft submission; defaults off',
 ] as const;

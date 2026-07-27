@@ -1,5 +1,6 @@
 /**
- * Live Look — Visionary-only read-only observation of another user's OS.
+ * Live Look — read-only observation of another user's OS.
+ * Restricted to joshmonroe@tagevc.com as Visionary (see access.ts).
  * Distinct from role impersonation (which can act). No notify to target.
  */
 

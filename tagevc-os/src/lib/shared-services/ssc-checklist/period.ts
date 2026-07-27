@@ -104,6 +104,10 @@ export function shiftPeriod(
   return d;
 }
 
+export type SscTimeNav = 'active' | 'future';
+/** URL / legacy inputs — past + current both mean the combined Active view. */
+export type SscTimeNavInput = SscTimeNav | 'past' | 'current';
+
 export function classifyTimeNav(
   periodStart: string,
   periodEnd: string,
@@ -115,15 +119,125 @@ export function classifyTimeNav(
   return 'current';
 }
 
+/** Operator chrome: Past+Current → Active; Future stays separate. */
+export function normalizeTimeNav(raw?: string | null): SscTimeNav {
+  if (raw === 'future') return 'future';
+  return 'active';
+}
+
+export function timeNavLabel(nav: SscTimeNav): string {
+  return nav === 'active' ? 'Active' : 'Future';
+}
+
+/**
+ * Urgency sort: most overdue first (oldest due), then due soon,
+ * then undated / furthest out.
+ */
+export function compareSscTaskUrgency(
+  a: { is_overdue?: boolean; due_date?: string | null },
+  b: { is_overdue?: boolean; due_date?: string | null },
+): number {
+  const aOver = Boolean(a.is_overdue);
+  const bOver = Boolean(b.is_overdue);
+  if (aOver !== bOver) return aOver ? -1 : 1;
+  const ad = a.due_date?.slice(0, 10) || '9999-12-31';
+  const bd = b.due_date?.slice(0, 10) || '9999-12-31';
+  return ad.localeCompare(bd);
+}
+
 export function toDateStr(d: Date): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
+/** Calendar-day arithmetic on YYYY-MM-DD (local, not UTC). */
+export function addDaysToDateStr(isoDate: string, days: number): string {
+  const [y, m, d] = isoDate.slice(0, 10).split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + days);
+  return toDateStr(dt);
+}
+
+/** Why a task belongs in Needs attention on function homes. */
+export type SscAttentionKind =
+  | 'overdue'
+  | 'due_today'
+  | 'due_soon'
+  | 'due_this_period'
+  | 'open';
+
+export const SSC_DUE_SOON_DAYS = 7;
+
+/**
+ * Classify open checklist work for the Needs attention panel.
+ * Broader than overdue/due-today: due soon (7d), due by period end, and any
+ * remaining open/at-risk work on the active period — so the panel is useful
+ * whenever open period tasks exist.
+ */
+export function classifySscAttention(opts: {
+  status: string;
+  due_date: string | null | undefined;
+  today: string;
+  period_end: string;
+  due_soon_days?: number;
+}): {
+  closed: boolean;
+  is_overdue: boolean;
+  due_today: boolean;
+  due_soon: boolean;
+  due_this_period: boolean;
+  needs_attention: boolean;
+  attention_kind: SscAttentionKind | null;
+} {
+  const status = opts.status;
+  const closed = status === 'done' || status === 'waived';
+  const due = opts.due_date ? String(opts.due_date).slice(0, 10) : null;
+  const today = opts.today.slice(0, 10);
+  const periodEnd = opts.period_end.slice(0, 10);
+  const soonDays = opts.due_soon_days ?? SSC_DUE_SOON_DAYS;
+  const soonEnd = addDaysToDateStr(today, soonDays);
+
+  if (closed) {
+    return {
+      closed: true,
+      is_overdue: false,
+      due_today: false,
+      due_soon: false,
+      due_this_period: false,
+      needs_attention: false,
+      attention_kind: null,
+    };
+  }
+
+  const is_overdue = Boolean(due && due < today);
+  const due_today = Boolean(due && due === today);
+  const due_soon = Boolean(due && due > today && due <= soonEnd);
+  const due_this_period = Boolean(
+    due && due > soonEnd && due <= periodEnd,
+  );
+
+  let attention_kind: SscAttentionKind;
+  if (is_overdue) attention_kind = 'overdue';
+  else if (due_today) attention_kind = 'due_today';
+  else if (due_soon) attention_kind = 'due_soon';
+  else if (due_this_period) attention_kind = 'due_this_period';
+  else attention_kind = 'open'; // undated or dated beyond period — still at-risk open work
+
+  return {
+    closed: false,
+    is_overdue,
+    due_today,
+    due_soon,
+    due_this_period,
+    needs_attention: true,
+    attention_kind,
+  };
+}
+
 export function parsePeriodOffset(
-  timeNav: 'past' | 'current' | 'future',
+  timeNav: SscTimeNavInput,
   offset = 0,
 ): number {
-  if (timeNav === 'current') return offset;
-  if (timeNav === 'past') return -1 - Math.abs(offset);
+  const nav = normalizeTimeNav(timeNav);
+  if (nav === 'active') return offset;
   return 1 + Math.abs(offset);
 }

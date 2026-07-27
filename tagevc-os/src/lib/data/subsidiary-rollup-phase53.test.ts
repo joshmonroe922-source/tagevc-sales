@@ -90,6 +90,9 @@ describe('Phase 53 Subsidiary Rollup Hub (Recruit first)', () => {
       PHASE53_SUBSIDIARY_ROLLUP_CONTRACT_VERSION,
     );
     expect(report.drill_downs.portal).toBe(PHASE53_RECRUIT_PORTAL_BASE);
+    expect(report.drill_downs.recruiting_desk).toBe(
+      'https://app.recruit619.com',
+    );
     expect(report.todo.toLowerCase()).toContain('awaiting live recruit');
     expect(isRecruitRollupEntity(PHASE53_RECRUIT_ENTITY_ID)).toBe(true);
     expect(isRecruitRollupEntity('ENT-002')).toBe(false);
@@ -157,12 +160,15 @@ describe('Phase 53 Subsidiary Rollup Hub (Recruit first)', () => {
     expect(entityOs).toContain('subsidiary_rollup');
     expect(panel).toContain('Company performance summary');
     expect(panel).toContain('id="rollup"');
-    expect(panel).toContain('portal.recruit619.com');
+    expect(panel).toContain('My Recruiting Desk');
+    expect(panel).toContain('Recruit 619 OS');
+    expect(panel).toContain('desk/my-recruiting-desk');
     expect(sectionNav).toContain('rollup');
-    expect(entitiesPage).toContain('ENT-R619');
-    expect(entitiesPage).toContain('performance rollup');
+    // Index is a role-scoped Businesses list; R619 rollup lives on /entities/ENT-R619.
+    expect(entitiesPage).toContain('Businesses');
+    expect(entitiesPage).toContain('AssetEntityList');
     expect(nav).toContain('/entities');
-    expect(nav).toContain('Entities');
+    expect(nav).toContain('Businesses');
     expect(nav).toContain('Dashboard');
     expect(nav).not.toContain('Recruit 619 Rollup');
     expect(actions).toContain('refreshSubsidiaryRollupPhase53Action');

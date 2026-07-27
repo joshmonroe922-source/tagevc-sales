@@ -30,9 +30,11 @@ export default async function LeadIntakePage() {
     listSubsidiaryEntities(),
     listScopedAllLeads(),
   ]);
-  const recent = leads.slice(0, 12);
-  const inbound = leads.filter((l) => l.source === 'Inbound').slice(0, 8);
-  const website = leads
+  // Recent intake is active opportunities only — archived/demo rows stay off this list.
+  const active = leads.filter((l) => !l.archived_at);
+  const recent = active.slice(0, 12);
+  const inbound = active.filter((l) => l.source === 'Inbound').slice(0, 8);
+  const website = active
     .filter((l) => (l.source_detail ?? '').includes('website_form'))
     .slice(0, 8);
 
@@ -106,8 +108,8 @@ export default async function LeadIntakePage() {
         <CardHeader>
           <CardTitle className="text-base">Recent intake</CardTitle>
           <CardDescription>
-            Newest opportunities, including ones that already closed into a
-            company.
+            Newest active opportunities (archived / prelaunch test leads are
+            excluded).
           </CardDescription>
         </CardHeader>
         <CardContent className="overflow-hidden rounded-lg border border-border p-0">
@@ -172,14 +174,14 @@ export default async function LeadIntakePage() {
       </Card>
 
       <p className="text-xs text-muted-foreground">
-        Try Instant NDA entity OS:{' '}
+        Company follow-ons:{' '}
         <Link
-          href="/entities/ENT-002"
+          href="/entities/ENT-INDA"
           className="underline underline-offset-2"
         >
-          /entities/ENT-002
-        </Link>{' '}
-        · origin LD-006 (Inbound) + follow-on LD-007.
+          Instant NDA entity OS
+        </Link>
+        .
       </p>
     </div>
   );

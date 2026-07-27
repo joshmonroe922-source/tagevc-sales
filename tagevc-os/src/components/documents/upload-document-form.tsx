@@ -17,6 +17,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { DocumentVisibilityFields } from '@/components/documents/document-visibility-fields';
 import { FOLDER_LABELS } from '@/lib/documents/library';
 import type { Entity } from '@/lib/types';
 import { ENTITY_DOC_FOLDERS } from '@/lib/types/enums';
@@ -24,9 +25,12 @@ import { ENTITY_DOC_FOLDERS } from '@/lib/types/enums';
 export function UploadDocumentForm({
   entities,
   defaultEntityId,
+  canSetAcl = false,
 }: {
   entities: Entity[];
   defaultEntityId?: string;
+  /** Visionary / Admin — show role ACL controls. */
+  canSetAcl?: boolean;
 }) {
   const router = useRouter();
   const [state, action, pending] = useActionState<
@@ -103,6 +107,7 @@ export function UploadDocumentForm({
               creates a Shared Services follow-up ticket.
             </p>
           </div>
+          {canSetAcl ? <DocumentVisibilityFields /> : null}
           <div className="sm:col-span-2">
             <Button type="submit" disabled={pending}>
               {pending ? 'Saving…' : 'Add to library'}

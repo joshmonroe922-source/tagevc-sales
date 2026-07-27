@@ -223,13 +223,97 @@ export async function getEntityOperatingView(
   };
 }
 
-export async function listSubsidiaryEntities() {
+export type AssetPortfolioKind = 'business' | 'real_estate' | 'all';
+
+/**
+ * Assets → Businesses / Real Estate lists.
+ * Hides sample/registry rows; COO + sub_lead only see entities they lead.
+ */
+export async function listAssetPortfolioEntities(
+  kind: AssetPortfolioKind = 'all',
+) {
   const { listEntities } = await import('@/lib/data/repositories');
-  const entities = await listEntities();
-  return entities
-    .filter(
-      (e) =>
-        e.entity_type === 'Subsidiary' || e.entity_type === 'RE Asset Entity',
-    )
-    .sort((a, b) => a.canonical_name.localeCompare(b.canonical_name));
+  const { isHiddenRegistryEntity } = await import(
+    '@/lib/entities/registry-visibility'
+  );
+  const { filterEntitiesAssignedToLead } = await import(
+    '@/lib/entities/assignment-lead'
+  );
+  const { getSessionContext } = await import('@/lib/rbac/session');
+
+  const [entities, ctx] = await Promise.all([
+    listEntities(),
+    getSessionContext(),
+  ]);
+
+  const typed = entities.filter((e) => {
+    if (kind === 'business') return e.entity_type === 'Subsidiary';
+    if (kind === 'real_estate') return e.entity_type === 'RE Asset Entity';
+    return (
+      e.entity_type === 'Subsidiary' || e.entity_type === 'RE Asset Entity'
+    );
+  });
+
+  const visible = typed.filter((e) => !isHiddenRegistryEntity(e));
+  const assigned = filterEntitiesAssignedToLead(visible, {
+    role: ctx?.profile.role,
+    profileEntityId: ctx?.profile.entity_id,
+    profileFullName: ctx?.profile.full_name,
+  });
+
+  return assigned.sort((a, b) =>
+    a.canonical_name.localeCompare(b.canonical_name),
+  );
+}
+
+/** @deprecated Prefer listAssetPortfolioEntities('all' | 'business'). */
+export async function listSubsidiaryEntities() {
+  return listAssetPortfolioEntities('all');
+}
+
+/**
+ * Document Library entity/folder sections.
+ * Includes ENT-FIRM (Tage Venture Capital) alongside operating subsidiaries.
+ * Preserves pipeline entity scope + registry hide; Visionary/Admin see all.
+ */
+export async function listDocumentLibraryEntities() {
+  const { listEntities } = await import('@/lib/data/repositories');
+  const { isHiddenRegistryEntity } = await import(
+    '@/lib/entities/registry-visibility'
+  );
+  const { sortEntitiesForSelect } = await import(
+    '@/lib/entities/display-order'
+  );
+  const { isDocumentLibraryEntityType } = await import(
+    '@/lib/documents/library'
+  );
+  const {
+    canAccessPipelineEntity,
+    getPipelineNullEntityMode,
+  } = await import('@/lib/rbac/entity-scope');
+  const { getPipelineScope } = await import('@/lib/data/pipeline-scope');
+
+  const [entities, scope] = await Promise.all([
+    listEntities(),
+    getPipelineScope(),
+  ]);
+  const nullMode = getPipelineNullEntityMode();
+
+  const candidates = entities.filter((e) => {
+    if (isHiddenRegistryEntity(e)) return false;
+    return isDocumentLibraryEntityType(e.entity_type);
+  });
+
+  const scoped = candidates.filter((e) => {
+    if (scope.firmWide || !scope.role) return true;
+    return canAccessPipelineEntity(
+      scope.role,
+      scope.entityId,
+      e.entity_id,
+      scope.parentByEntityId,
+      nullMode,
+    );
+  });
+
+  return sortEntitiesForSelect(scoped);
 }

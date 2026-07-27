@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { CreateLeadForm } from '@/components/deal-flow/create-lead-form';
 import { DealFlowTrackTabs } from '@/components/deal-flow/deal-flow-track-tabs';
 import {
   PipelineStageSummary,
@@ -67,7 +66,17 @@ export default async function VcDealFlowPage() {
 
       <PipelineStageSummary leads={leads} />
       <PipelineTable leads={leads} />
-      <CreateLeadForm />
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed px-4 py-3 text-sm">
+        <span className="text-muted-foreground">
+          Have a new opportunity to add?
+        </span>
+        <Link
+          href="/deal-flow/vc/intake"
+          className="font-medium underline-offset-4 hover:underline"
+        >
+          Add a lead → Lead Intake
+        </Link>
+      </div>
     </div>
   );
 }

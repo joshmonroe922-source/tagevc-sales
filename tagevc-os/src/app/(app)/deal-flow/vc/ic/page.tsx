@@ -16,9 +16,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { ViewModeLayout } from '@/components/ui/view-mode-toggle';
 import { getDeal } from '@/lib/data/deal-flow-store';
 import { listScopedIcQueue } from '@/lib/data/pipeline-scope';
 import { isImpersonating } from '@/lib/rbac/session';
+import { VIEW_MODE_DEFAULTS } from '@/lib/view-mode';
 
 export default async function IcQueuePage() {
   const [reviews, breakGlassBlocked] = await Promise.all([
@@ -57,31 +59,63 @@ export default async function IcQueuePage() {
       </header>
 
       {open.length > 0 ? (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {open.map((r) => (
-            <Card key={r.ic_id}>
-              <CardHeader>
-                <CardTitle className="text-base">
-                  <Link
-                    href={`/deal-flow/vc/deals/${r.deal_id}`}
-                    className="underline-offset-4 hover:underline"
-                  >
-                    {r.company_name}
-                  </Link>
-                </CardTitle>
-                <CardDescription>
-                  {r.ic_id} · {r.deal_id} · {r.status}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <IcDecisionForm
-                  icId={r.ic_id}
-                  breakGlassBlocked={breakGlassBlocked}
-                />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <ViewModeLayout
+          surface="ic-queue-open"
+          defaultMode={VIEW_MODE_DEFAULTS['ic-queue-open']}
+          cards={
+            <div className="grid gap-4 lg:grid-cols-2">
+              {open.map((r) => (
+                <Card key={r.ic_id}>
+                  <CardHeader>
+                    <CardTitle className="text-base">
+                      <Link
+                        href={`/deal-flow/vc/deals/${r.deal_id}`}
+                        className="underline-offset-4 hover:underline"
+                      >
+                        {r.company_name}
+                      </Link>
+                    </CardTitle>
+                    <CardDescription>
+                      {r.ic_id} · {r.deal_id} · {r.status}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <IcDecisionForm
+                      icId={r.ic_id}
+                      breakGlassBlocked={breakGlassBlocked}
+                    />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          }
+          list={
+            <div className="space-y-3">
+              {open.map((r) => (
+                <div
+                  key={r.ic_id}
+                  className="rounded-lg border border-border bg-card px-4 py-3"
+                >
+                  <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+                    <Link
+                      href={`/deal-flow/vc/deals/${r.deal_id}`}
+                      className="font-medium underline-offset-4 hover:underline"
+                    >
+                      {r.company_name}
+                    </Link>
+                    <span className="text-xs text-muted-foreground">
+                      {r.ic_id} · {r.status}
+                    </span>
+                  </div>
+                  <IcDecisionForm
+                    icId={r.ic_id}
+                    breakGlassBlocked={breakGlassBlocked}
+                  />
+                </div>
+              ))}
+            </div>
+          }
+        />
       ) : (
         <Card className="border-dashed">
           <CardHeader>

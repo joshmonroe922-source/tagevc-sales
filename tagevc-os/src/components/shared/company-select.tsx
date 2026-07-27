@@ -1,15 +1,21 @@
 'use client';
 
+import {
+  DEFAULT_COMPANY_SELECT_OPTIONS,
+  CONSOLIDATED_SELECT_LABEL,
+  CONSOLIDATED_SELECT_VALUE,
+  entitySelectLabel,
+  sortEntitiesForSelect,
+} from '@/lib/entities/display-order';
 import { entityDisplayName } from '@/lib/entities/display-name';
+import {
+  isHiddenRegistryEntity,
+  toVisibleCompanySelectOptions,
+} from '@/lib/entities/registry-visibility';
 import { cn } from '@/lib/utils';
 
-export const COMPANY_SELECT_OPTIONS = [
-  { value: 'ENT-FIRM', label: 'Tage Venture Capital' },
-  { value: 'ENT-R619', label: 'Recruit 619' },
-  { value: 'ENT-INDA', label: 'Instant NDA' },
-  { value: 'ENT-001', label: 'Sample Closed Co' },
-  { value: 'ENT-003', label: 'Sample Indy SFR' },
-] as const;
+/** @deprecated Prefer DEFAULT_COMPANY_SELECT_OPTIONS from display-order. */
+export const COMPANY_SELECT_OPTIONS = DEFAULT_COMPANY_SELECT_OPTIONS;
 
 type Props = {
   id?: string;
@@ -19,6 +25,9 @@ type Props = {
   onChange?: (entityId: string) => void;
   allowAll?: boolean;
   allLabel?: string;
+  /** When true, prepend Consolidated rollup option. */
+  allowConsolidated?: boolean;
+  consolidatedLabel?: string;
   required?: boolean;
   className?: string;
   /** Extra options (value stays entity id; label should be company name). */
@@ -28,6 +37,8 @@ type Props = {
 /**
  * Company dropdown for forms/filters.
  * Values remain entity ids for routing/RBAC; labels are company names only.
+ * Order: Consolidated (optional) → Tage Venture Capital → Recruit 619 → Signent HR → Instant NDA → A–Z.
+ * Samples / legacy Instant NDA duplicates are filtered via registry-visibility.
  */
 export function CompanySelect({
   id,
@@ -37,17 +48,47 @@ export function CompanySelect({
   onChange,
   allowAll = false,
   allLabel = 'All companies',
+  allowConsolidated = false,
+  consolidatedLabel = CONSOLIDATED_SELECT_LABEL,
   required,
   className,
   options,
 }: Props) {
-  const list =
+  const base =
     options && options.length > 0
-      ? options
-      : COMPANY_SELECT_OPTIONS.map((o) => ({
+      ? toVisibleCompanySelectOptions(
+          options.map((o) => ({
+            entity_id: o.value,
+            name:
+              o.label ||
+              entitySelectLabel(o.value) ||
+              entityDisplayName(o.value),
+          })),
+        ).map((o) => ({ value: o.entity_id, label: o.name }))
+      : DEFAULT_COMPANY_SELECT_OPTIONS.filter(
+          (o) =>
+            !isHiddenRegistryEntity({
+              entity_id: o.value,
+              canonical_name: o.label,
+            }),
+        ).map((o) => ({
           value: o.value,
           label: o.label,
         }));
+
+  const sorted = sortEntitiesForSelect(
+    base.map((o) => ({ value: o.value, label: o.label })),
+  ).map((o) => ({
+    value: String((o as { value: string }).value),
+    label: String((o as { label: string }).label),
+  }));
+
+  const list = allowConsolidated
+    ? [
+        { value: CONSOLIDATED_SELECT_VALUE, label: consolidatedLabel },
+        ...sorted.filter((o) => o.value !== CONSOLIDATED_SELECT_VALUE),
+      ]
+    : sorted;
 
   return (
     <select
@@ -60,7 +101,15 @@ export function CompanySelect({
       )}
       {...(value !== undefined
         ? { value, onChange: (e) => onChange?.(e.target.value) }
-        : { defaultValue: defaultValue ?? (allowAll ? '' : list[0]?.value) })}
+        : {
+            defaultValue:
+              defaultValue ??
+              (allowAll
+                ? ''
+                : allowConsolidated
+                  ? CONSOLIDATED_SELECT_VALUE
+                  : list[0]?.value),
+          })}
     >
       {allowAll ? <option value="">{allLabel}</option> : null}
       {list.map((o) => (

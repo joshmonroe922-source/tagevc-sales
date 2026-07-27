@@ -38,6 +38,11 @@ function isSampleCompanyName(name: string): boolean {
     n.includes('sample closed') ||
     n.includes('sample indy') ||
     n.includes('orbit data') ||
+    n.includes('acme ai') ||
+    n.includes('beacon robotics') ||
+    n.includes('nova health') ||
+    n.includes('ledgerly') ||
+    n.includes('instant nda enterprise upsell') ||
     n.startsWith('sample ') ||
     n.includes('demo co') ||
     n.includes('test company')

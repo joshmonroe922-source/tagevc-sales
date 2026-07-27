@@ -17,18 +17,58 @@ export default async function AdminPage() {
           Admin
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Users, roles, and system health tools. Day-to-day work lives in the
-          modules above.
+          Document Library, DocuSign, users/roles, and system health. Day-to-day
+          function work lives on the SSC desks.
         </p>
       </header>
 
       <div className="grid gap-4 sm:grid-cols-2">
+        <Link href="/documents">
+          <Card className="h-full transition-colors hover:border-[#3a414f]/35">
+            <CardHeader>
+              <CardTitle className="text-base">Document Library</CardTitle>
+              <CardDescription>
+                Company files · folders · role ACL.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        </Link>
+        <Link href="/shared-services/legal/docusign">
+          <Card className="h-full transition-colors hover:border-[#3a414f]/35">
+            <CardHeader>
+              <CardTitle className="text-base">DocuSign</CardTitle>
+              <CardDescription>
+                Envelopes · templates · archive integrity.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        </Link>
+        <Link href="/admin/email">
+          <Card className="h-full transition-colors hover:border-[#3a414f]/35">
+            <CardHeader>
+              <CardTitle className="text-base">Email analytics</CardTitle>
+              <CardDescription>
+                Platform Graph/Resend opens · clicks · entity scope.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        </Link>
         <Link href="/admin/normalization">
           <Card className="h-full transition-colors hover:border-[#3a414f]/35">
             <CardHeader>
               <CardTitle className="text-base">System health</CardTitle>
               <CardDescription>
                 Data readiness, soak checks, and archive tools.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        </Link>
+        <Link href="/admin/email">
+          <Card className="h-full transition-colors hover:border-[#3a414f]/35">
+            <CardHeader>
+              <CardTitle className="text-base">Email analytics</CardTitle>
+              <CardDescription>
+                Platform Graph / Resend opens · clicks · entity scope.
               </CardDescription>
             </CardHeader>
           </Card>

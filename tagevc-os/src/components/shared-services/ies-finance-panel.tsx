@@ -16,7 +16,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import {
   Table,
   TableBody,
@@ -29,6 +28,8 @@ import { formatFinanceMetric } from '@/lib/shared-services/finance-control-plane
 import { labelFinanceFeedStatus } from '@/lib/shared-services/finance-ops-phase62';
 import type { IesFinanceReport } from '@/lib/ies/report';
 import { entityDisplayName } from '@/lib/entities/display-name';
+import { iesCompanySelectOrder } from '@/lib/ies/company-map';
+import { CompanySelect } from '@/components/shared/company-select';
 
 export function IesFinancePanel({
   report,
@@ -43,14 +44,33 @@ export function IesFinancePanel({
   const [pending, start] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [mapEntityId, setMapEntityId] = useState(entityId || 'ENT-FIRM');
-  const [mapRealmId, setMapRealmId] = useState('');
 
   const connectHref = entityId
     ? `/api/finance/ies/oauth?entity=${encodeURIComponent(entityId)}`
     : '/api/finance/ies/oauth';
+  const selectedCompany = entityId
+    ? report.companies.find((company) => company.entity_id === entityId) ?? null
+    : null;
+  const scopeMetrics = selectedCompany
+    ? {
+        cash_on_hand: selectedCompany.cash_on_hand,
+        ar_balance: selectedCompany.ar_balance,
+        ap_balance: selectedCompany.ap_balance,
+        open_invoices: selectedCompany.open_invoices,
+        overdue_invoices: selectedCompany.overdue_invoices,
+        revenue: selectedCompany.revenue,
+        expenses: selectedCompany.expenses,
+        net_income: selectedCompany.net_income,
+      }
+    : {
+        ...report.consolidated,
+        revenue: report.consolidated.revenue,
+        expenses: report.consolidated.expenses,
+        net_income: report.consolidated.net_income,
+      };
 
   return (
-    <section className="space-y-4" id="ies-books">
+    <section className="scroll-mt-20 space-y-4" id="ies-books">
       <div className="space-y-1">
         <h2 className="font-heading text-lg font-semibold text-[#3a414f]">
           Intuit Enterprise Suite books
@@ -77,6 +97,12 @@ export function IesFinancePanel({
               </Badge>
               <Badge variant="outline">
                 Connections · {report.connections.length}
+              </Badge>
+              <Badge variant={report.sync_enabled ? 'secondary' : 'outline'}>
+                Read sync · {report.sync_enabled ? 'enabled' : 'off'}
+              </Badge>
+              <Badge variant="outline">
+                IES writes · {report.write_enabled ? 'gated' : 'off'}
               </Badge>
             </div>
             {!report.configured ? (
@@ -107,7 +133,7 @@ export function IesFinancePanel({
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={pending || !report.configured}
+                  disabled={pending || !report.configured || !report.sync_enabled}
                   onClick={() =>
                     start(async () => {
                       const res = await runIesSyncAction({
@@ -134,37 +160,57 @@ export function IesFinancePanel({
 
         <Card className="lg:col-span-2">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Consolidated parent view</CardTitle>
-            <CardDescription>{report.consolidated.note}</CardDescription>
+            <CardTitle className="text-base">
+              {selectedCompany
+                ? `${selectedCompany.company_name} books`
+                : 'Consolidated management view'}
+            </CardTitle>
+            <CardDescription>
+              {selectedCompany
+                ? `IES snapshot as of ${selectedCompany.as_of ?? 'not synced'}`
+                : report.consolidated.note}
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
               {[
                 {
+                  label: 'Revenue',
+                  value: formatFinanceMetric(scopeMetrics.revenue),
+                },
+                {
+                  label: 'Expenses',
+                  value: formatFinanceMetric(scopeMetrics.expenses),
+                },
+                {
+                  label: 'Net income',
+                  value: formatFinanceMetric(scopeMetrics.net_income),
+                },
+                {
                   label: 'Cash',
-                  value: formatFinanceMetric(report.consolidated.cash_on_hand),
+                  value: formatFinanceMetric(scopeMetrics.cash_on_hand),
                 },
                 {
                   label: 'AR',
-                  value: formatFinanceMetric(report.consolidated.ar_balance),
+                  value: formatFinanceMetric(scopeMetrics.ar_balance),
                 },
                 {
                   label: 'AP',
-                  value: formatFinanceMetric(report.consolidated.ap_balance),
+                  value: formatFinanceMetric(scopeMetrics.ap_balance),
                 },
                 {
                   label: 'Open invoices',
                   value:
-                    report.consolidated.open_invoices == null
+                    scopeMetrics.open_invoices == null
                       ? '—'
-                      : String(report.consolidated.open_invoices),
+                      : String(scopeMetrics.open_invoices),
                 },
                 {
                   label: 'Overdue',
                   value:
-                    report.consolidated.overdue_invoices == null
+                    scopeMetrics.overdue_invoices == null
                       ? '—'
-                      : String(report.consolidated.overdue_invoices),
+                      : String(scopeMetrics.overdue_invoices),
                 },
               ].map((m) => (
                 <div
@@ -182,8 +228,17 @@ export function IesFinancePanel({
             </div>
             <div className="mt-3 flex flex-wrap gap-3 text-xs">
               <Badge variant="secondary">
-                Feed · {labelFinanceFeedStatus(report.consolidated.feed_status)}
+                Feed ·{' '}
+                {labelFinanceFeedStatus(
+                  selectedCompany?.feed_status ?? report.consolidated.feed_status,
+                )}
               </Badge>
+              {selectedCompany?.stale ? (
+                <Badge variant="outline">Stale · refresh needed</Badge>
+              ) : null}
+              {!selectedCompany && report.consolidated.management_consolidation ? (
+                <Badge variant="outline">Management consolidation</Badge>
+              ) : null}
               <Link
                 href={report.month_end_checklist_href}
                 className="text-muted-foreground underline-offset-2 hover:underline"
@@ -205,8 +260,9 @@ export function IesFinancePanel({
         <CardHeader>
           <CardTitle className="text-base">By company</CardTitle>
           <CardDescription>
-            Operating entities in the shared IES environment. Signent reserved
-            for later.
+            Parent and stand-alone operating entities in the shared IES tenant.
+            Operating revenue stays in each subsidiary; parent books hold
+            capital, SSC, and intercompany activity.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -214,8 +270,8 @@ export function IesFinancePanel({
             <TableHeader>
               <TableRow>
                 <TableHead>Company</TableHead>
-                <TableHead>IES realm</TableHead>
                 <TableHead>Cash</TableHead>
+                <TableHead>P&amp;L</TableHead>
                 <TableHead>AR / AP</TableHead>
                 <TableHead>Invoices</TableHead>
                 <TableHead>COA</TableHead>
@@ -232,17 +288,23 @@ export function IesFinancePanel({
                         entity_id: c.entity_id,
                       })}
                     </div>
-                    {c.ies_company_name ? (
+                    {c.ies_company_name &&
+                    c.ies_company_name !==
+                      entityDisplayName({
+                        name: c.company_name,
+                        entity_id: c.entity_id,
+                      }) ? (
                       <div className="text-xs text-muted-foreground">
                         Books · {c.ies_company_name}
                       </div>
                     ) : null}
                   </TableCell>
-                  <TableCell className="font-mono text-xs">
-                    {c.realm_id ?? '—'}
-                  </TableCell>
                   <TableCell className="tabular-nums">
                     {formatFinanceMetric(c.cash_on_hand)}
+                  </TableCell>
+                  <TableCell className="tabular-nums text-xs">
+                    Rev {formatFinanceMetric(c.revenue)} · Net{' '}
+                    {formatFinanceMetric(c.net_income)}
                   </TableCell>
                   <TableCell className="tabular-nums text-xs">
                     {formatFinanceMetric(c.ar_balance)} /{' '}
@@ -263,6 +325,9 @@ export function IesFinancePanel({
                     <Badge variant="outline">
                       {labelFinanceFeedStatus(c.feed_status)}
                     </Badge>
+                    {c.stale ? (
+                      <p className="mt-1 text-xs text-amber-800">Stale</p>
+                    ) : null}
                     {c.todo ? (
                       <p className="mt-1 text-xs text-muted-foreground">
                         {c.todo}
@@ -275,51 +340,45 @@ export function IesFinancePanel({
           </Table>
 
           {canWrite ? (
-            <div className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-[1fr_1fr_auto]">
-              <Input
+            <div className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-[1fr_auto]">
+              <CompanySelect
+                id="ies-map-company"
                 value={mapEntityId}
-                onChange={(e) => setMapEntityId(e.target.value)}
-                placeholder="ENT-FIRM"
-                aria-label="Entity ID"
-              />
-              <Input
-                value={mapRealmId}
-                onChange={(e) => setMapRealmId(e.target.value)}
-                placeholder="Intuit realmId"
-                aria-label="Realm ID"
+                onChange={setMapEntityId}
+                options={iesCompanySelectOrder().map((row) => ({
+                  value: row.entity_id,
+                  label: row.display_name,
+                }))}
               />
               <Button
                 size="sm"
                 variant="outline"
-                disabled={pending || !mapEntityId || !mapRealmId}
+                disabled={pending || !mapEntityId}
                 onClick={() =>
                   start(async () => {
                     const res = await mapIesEntityAction({
                       entityId: mapEntityId.trim(),
-                      realmId: mapRealmId.trim(),
                     });
                     setMessage(
                       res.ok
-                        ? `Mapped ${mapEntityId} → ${mapRealmId}`
+                        ? `Mapped ${'displayName' in res ? res.displayName : mapEntityId}`
                         : ('error' in res ? res.error : 'Map failed'),
                     );
-                    if (res.ok) setMapRealmId('');
                     router.refresh();
                   })
                 }
               >
-                Map realm
+                Map company
               </Button>
             </div>
           ) : null}
 
           {report.connections.length > 0 ? (
             <div className="space-y-1 text-xs text-muted-foreground">
-              <p className="font-medium text-foreground">Connected realms</p>
+              <p className="font-medium text-foreground">Connected companies</p>
               {report.connections.map((c) => (
-                <p key={c.realm_id}>
-                  {c.company_name || 'Unnamed'} · {c.realm_id} · {c.status} ·{' '}
-                  {c.environment}
+                <p key={`${c.display_name}-${c.connected_at ?? c.status}`}>
+                  {c.display_name} · {c.status} · {c.environment}
                 </p>
               ))}
             </div>

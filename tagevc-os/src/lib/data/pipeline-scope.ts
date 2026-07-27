@@ -11,6 +11,15 @@ import { listActiveMaTargets } from '@/lib/data/ma-store';
 import { listActiveReDeals } from '@/lib/data/re-store';
 import { hydrateTicketStore, listTickets } from '@/lib/data/ticket-store';
 import {
+  filterMaTargetsAssignedToAssociate,
+  isMaTargetAssignedToAssociate,
+} from '@/lib/deal-flow/ma/assignment';
+import {
+  filterReDealsAssignedToSourcer,
+  isReDealAssignedToSourcer,
+} from '@/lib/deal-flow/re/assignment';
+import { canViewDocumentForRole } from '@/lib/documents/visibility';
+import {
   buildParentIndex,
   canAccessPipelineEntity,
   getPipelineNullEntityMode,
@@ -34,6 +43,7 @@ export type PipelineScope = {
   firmWide: boolean;
   role: AppRole | null;
   entityId: string | null;
+  profileFullName: string | null;
   parentByEntityId: EntityParentIndex;
   nullMode: ReturnType<typeof getPipelineNullEntityMode>;
 };
@@ -50,6 +60,7 @@ export async function getPipelineScope(): Promise<PipelineScope> {
       firmWide: false,
       role: null,
       entityId: null,
+      profileFullName: null,
       parentByEntityId,
       nullMode,
     };
@@ -61,6 +72,7 @@ export async function getPipelineScope(): Promise<PipelineScope> {
     ),
     role: session.profile.role,
     entityId: session.profile.entity_id,
+    profileFullName: session.profile.full_name,
     parentByEntityId,
     nullMode,
   };
@@ -124,19 +136,64 @@ export async function listScopedTickets(): Promise<Ticket[]> {
   return listTickets().filter((t) => allow(scope, t.entity_id));
 }
 
-export async function listScopedDocuments(): Promise<DocumentRecord[]> {
+export async function listScopedDocuments(
+  entityId?: string,
+): Promise<DocumentRecord[]> {
   const scope = await getPipelineScope();
-  return listDocuments().filter((d) => allow(scope, d.entity_id));
+  return listDocuments(entityId).filter(
+    (d) =>
+      allow(scope, d.entity_id) && canViewDocumentForRole(scope.role, d),
+  );
 }
 
 export async function listScopedActiveMaTargets(): Promise<MaTarget[]> {
   const scope = await getPipelineScope();
-  return listActiveMaTargets().filter((t) => allow(scope, t.entity_id));
+  const entityScoped = listActiveMaTargets().filter((t) =>
+    allow(scope, t.entity_id),
+  );
+  return filterMaTargetsAssignedToAssociate(entityScoped, {
+    role: scope.role,
+    profileFullName: scope.profileFullName,
+  });
+}
+
+/** Detail gate — entity scope + M&A Associate owner assignment. */
+export async function canAccessScopedMaTarget(
+  target: Pick<MaTarget, 'entity_id' | 'owner'>,
+): Promise<boolean> {
+  const scope = await getPipelineScope();
+  if (!allow(scope, target.entity_id)) return false;
+  if (!scope.role) return false;
+  return isMaTargetAssignedToAssociate({
+    role: scope.role,
+    profileFullName: scope.profileFullName,
+    target,
+  });
 }
 
 export async function listScopedActiveReDeals(): Promise<ReDeal[]> {
   const scope = await getPipelineScope();
-  return listActiveReDeals().filter((d) => allow(scope, d.entity_id));
+  const entityScoped = listActiveReDeals().filter((d) =>
+    allow(scope, d.entity_id),
+  );
+  return filterReDealsAssignedToSourcer(entityScoped, {
+    role: scope.role,
+    profileFullName: scope.profileFullName,
+  });
+}
+
+/** Detail gate — entity scope + Sourcer assignment. */
+export async function canAccessScopedReDeal(
+  deal: Pick<ReDeal, 'entity_id' | 'sourcer'>,
+): Promise<boolean> {
+  const scope = await getPipelineScope();
+  if (!allow(scope, deal.entity_id)) return false;
+  if (!scope.role) return false;
+  return isReDealAssignedToSourcer({
+    role: scope.role,
+    profileFullName: scope.profileFullName,
+    deal,
+  });
 }
 
 /** Detail gate — returns false when row is out of scope. */

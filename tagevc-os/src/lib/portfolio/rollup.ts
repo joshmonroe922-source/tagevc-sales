@@ -29,25 +29,42 @@ export function countPortfolioHealth(
 /**
  * Portfolio Roll-up methods from Core Structure §3A:
  * SUM money · WEIGHTED margin from sums · MIN runway among burners · COUNT health.
+ *
+ * ARR / burn / cash / runway come from the visible company rows so KPI cards and
+ * Roll-up proof match the company table. COGS / margin use period P&L for those
+ * same entities. Firm cash is injected by the caller from a live feed (or null).
  */
 export function computePortfolioRollup(args: {
   period: string;
   companies: PortfolioCompany[];
   pnlRows: EntityMonthPnl[];
+  /** Live firm cash ($k). null = Not Connected (do not use seed firm P&L). */
+  liveFirmCashK?: number | null;
 }): PortfolioRollup {
   const { period, companies, pnlRows } = args;
-  const subPnl = pnlRows.filter((r) => r.period === period && !r.is_firm);
-  const firmPnl = pnlRows.find((r) => r.period === period && r.is_firm);
+  const liveFirmCashK = args.liveFirmCashK ?? null;
+  const visibleIds = new Set(companies.map((c) => c.entity_id));
+  const subPnl = pnlRows.filter(
+    (r) =>
+      r.period === period &&
+      !r.is_firm &&
+      (visibleIds.size === 0 || visibleIds.has(r.entity_id)),
+  );
 
-  const portfolio_arr_k = sum(subPnl.map((r) => r.revenue_arr_k));
+  // Company-row money — matches Portfolio Active / Dashboard table.
+  const portfolio_arr_k = sum(companies.map((c) => c.arr_k));
+  const portfolio_net_burn_k = sum(companies.map((c) => c.net_burn_k));
+  const portfolio_cash_k = sum(companies.map((c) => c.cash_k));
+
+  // P&L structure for visible entities only (never sample / hidden rows).
   const portfolio_cogs_k = sum(subPnl.map((r) => r.cogs_k));
   const portfolio_gross_profit_k = portfolio_arr_k - portfolio_cogs_k;
   const portfolio_opex_k = sum(subPnl.map((r) => r.opex_k));
   const portfolio_ebitda_k = portfolio_gross_profit_k - portfolio_opex_k;
-  const portfolio_net_burn_k = sum(subPnl.map((r) => r.net_burn_k));
-  const portfolio_cash_k = sum(subPnl.map((r) => r.ending_cash_k));
-  const firm_cash_k = firmPnl?.ending_cash_k ?? 0;
-  const consolidated_cash_k = portfolio_cash_k + firm_cash_k;
+
+  const firm_cash_k = liveFirmCashK;
+  const consolidated_cash_k =
+    firm_cash_k == null ? null : portfolio_cash_k + firm_cash_k;
 
   const portfolio_gross_margin =
     portfolio_arr_k > 0 ? portfolio_gross_profit_k / portfolio_arr_k : null;

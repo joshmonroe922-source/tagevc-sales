@@ -20,6 +20,12 @@ export function EmptyState({
         className,
       )}
     >
+      <div
+        className="mb-1 flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground"
+        aria-hidden
+      >
+        <span className="text-lg leading-none">∅</span>
+      </div>
       <p className="text-sm font-medium text-foreground">{title}</p>
       {description ? (
         <p className="max-w-sm text-sm text-muted-foreground">{description}</p>

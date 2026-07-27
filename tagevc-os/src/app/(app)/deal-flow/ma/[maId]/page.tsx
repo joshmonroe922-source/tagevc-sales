@@ -21,6 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { canAccessScopedMaTarget } from '@/lib/data/pipeline-scope';
 import { getMaTarget, listTasksForMa } from '@/lib/data/ma-store';
 import { formatDate } from '@/lib/format';
 
@@ -30,6 +31,7 @@ export default async function MaDetailPage({ params }: Props) {
   const { maId } = await params;
   const target = getMaTarget(maId);
   if (!target) notFound();
+  if (!(await canAccessScopedMaTarget(target))) notFound();
   const tasks = listTasksForMa(target.ma_id);
   const open = tasks.filter((t) => t.status !== 'Completed');
 

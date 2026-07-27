@@ -96,6 +96,36 @@ const FINANCE: SscTaskTemplate[] = [
     risk_level: 'high',
   }),
   t({
+    key: 'fin.m.intercompany_review',
+    title: 'Intercompany balance review',
+    description:
+      'Review parent/sub balances and document exceptions in IES. Manual/guided only; do not auto-post.',
+    function: 'finance',
+    period_type: 'monthly',
+    owner_role: 'service_lead',
+    risk_level: 'high',
+  }),
+  t({
+    key: 'fin.m.management_fee',
+    title: 'Management fee review',
+    description:
+      'Review the management-fee support and propose any IES draft for dual human approval.',
+    function: 'finance',
+    period_type: 'monthly',
+    owner_role: 'coo',
+    risk_level: 'high',
+  }),
+  t({
+    key: 'fin.m.allocation_review',
+    title: 'Shared-cost allocation review',
+    description:
+      'Review allocation support by company. No silent GL automation or autonomous posting.',
+    function: 'finance',
+    period_type: 'monthly',
+    owner_role: 'coo',
+    risk_level: 'high',
+  }),
+  t({
     key: 'fin.m.close_signoff',
     title: 'Close sign-off',
     description: 'Obtain month-end close sign-off from accountable owner.',

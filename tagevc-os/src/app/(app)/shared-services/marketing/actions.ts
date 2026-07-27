@@ -313,7 +313,7 @@ export async function registerAccountAction(
   revalidateMarketing();
   return {
     ok: true,
-    message: `Registered ${res.account.account_id} (pending OAuth — Phase 23+)`,
+    message: `Registered ${res.account.account_id} — use Connect on the Publish desk`,
   };
 }
 
@@ -503,6 +503,186 @@ export async function stubConnectAccountAction(
   if (!res.ok) return res;
   revalidateMarketing();
   return { ok: true, message: `Stub-connected ${accountId}` };
+}
+
+/** Mark a Blog/CMS (web) account connected when the publish webhook is configured. */
+export async function connectBlogAccountAction(
+  accountId: string,
+): Promise<MarketingActionResult> {
+  const gate = await guardPermission('write:marketing');
+  if (!gate.ok) return gate;
+  if (!process.env.BLOG_PUBLISH_WEBHOOK_URL?.trim()) {
+    return {
+      ok: false,
+      error:
+        'Set BLOG_PUBLISH_WEBHOOK_URL in Vercel first, then reconnect this blog account',
+    };
+  }
+  const accounts = await listSocialAccounts(200);
+  const account = accounts.rows.find((row) => row.account_id === accountId);
+  if (!account || account.platform !== 'web') {
+    return { ok: false, error: 'Blog account not found (platform must be web)' };
+  }
+  if (
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      account.entity_id,
+    )
+  ) {
+    return {
+      ok: false,
+      error: entityScopeDeniedMessage(account.entity_id || 'firm-wide'),
+    };
+  }
+  try {
+    const sb = await createPersistClient();
+    const now = new Date().toISOString();
+    const { error } = await sb
+      .from('os_marketing_social_accounts')
+      .update({
+        status: 'connected',
+        notes: 'Blog/CMS ready — publishes via BLOG_PUBLISH_WEBHOOK_URL',
+        updated_at: now,
+        last_synced_at: now,
+      })
+      .eq('account_id', accountId);
+    if (error) return { ok: false, error: error.message };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'Blog connect failed',
+    };
+  }
+  revalidateMarketing();
+  return { ok: true, message: `Blog connected · ${account.handle}` };
+}
+
+/**
+ * Hootsuite-style compose: one body → one content row per channel,
+ * auto-approve + queue (now or scheduled).
+ */
+export async function composePublishDeskAction(
+  _prev: MarketingActionResult | null,
+  formData: FormData,
+): Promise<MarketingActionResult> {
+  const gate = await guardPermission('write:marketing');
+  if (!gate.ok) return gate;
+
+  const platformsRaw = formData.getAll('platforms').map(String);
+  const parsed = z
+    .object({
+      title: z.string().min(2),
+      body: z.string().min(1),
+      entity_id: z.string().optional(),
+      platforms: z.array(z.enum(MARKETING_PLATFORMS)).min(1),
+      when: z.enum(['now', 'schedule']),
+      scheduled_for: z.string().optional(),
+      media_url: z.string().url().optional(),
+    })
+    .safeParse({
+      title: formData.get('title'),
+      body: formData.get('body'),
+      entity_id: formData.get('entity_id') || undefined,
+      platforms: platformsRaw,
+      when: formData.get('when') || 'now',
+      scheduled_for: formData.get('scheduled_for') || undefined,
+      media_url: formData.get('media_url') || undefined,
+    });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid' };
+  }
+  if (
+    !canAccessEntityId(
+      gate.profile.role,
+      gate.profile.entity_id,
+      parsed.data.entity_id,
+    )
+  ) {
+    return {
+      ok: false,
+      error: entityScopeDeniedMessage(parsed.data.entity_id || 'firm-wide'),
+    };
+  }
+
+  const scheduledForRaw =
+    parsed.data.when === 'schedule'
+      ? parsed.data.scheduled_for
+      : new Date().toISOString();
+  const scheduledMs = scheduledForRaw ? Date.parse(scheduledForRaw) : NaN;
+  if (!scheduledForRaw || Number.isNaN(scheduledMs)) {
+    return { ok: false, error: 'Pick a valid schedule time' };
+  }
+  const scheduledFor = new Date(scheduledMs).toISOString();
+
+  const accounts = await listSocialAccounts(200);
+  const created: string[] = [];
+  const warnings: string[] = [];
+
+  for (const platform of parsed.data.platforms) {
+    const kind = platform === 'web' ? 'blog' : 'social';
+    const res = await createContent({
+      title: parsed.data.title,
+      kind,
+      body: parsed.data.body,
+      entity_id: parsed.data.entity_id || null,
+      platform,
+      media_url: parsed.data.media_url || null,
+    });
+    if (!res.ok) {
+      warnings.push(`${platform}: ${res.error}`);
+      continue;
+    }
+    const approved = await approveContent(res.content.content_id);
+    if (!approved.ok) {
+      warnings.push(`${platform}: approve failed — ${approved.error}`);
+      created.push(res.content.content_id);
+      continue;
+    }
+    const matching = accounts.rows.find(
+      (a) =>
+        a.platform === platform &&
+        a.account_type === 'publisher' &&
+        a.status === 'connected' &&
+        (a.entity_id ?? null) === (parsed.data.entity_id || null),
+    );
+    if (!matching) {
+      warnings.push(
+        `${platform}: no connected account for this brand — content saved as approved, not queued`,
+      );
+      created.push(res.content.content_id);
+      continue;
+    }
+    const queued = await enqueueScheduleJob({
+      content_id: res.content.content_id,
+      scheduled_for: scheduledFor,
+      account_id: matching.account_id,
+      entity_id: parsed.data.entity_id || null,
+    });
+    if (!queued.ok) {
+      warnings.push(`${platform}: queue failed — ${queued.error}`);
+    }
+    created.push(res.content.content_id);
+  }
+
+  if (created.length === 0) {
+    return {
+      ok: false,
+      error: warnings[0] ?? 'Nothing created',
+    };
+  }
+
+  if (parsed.data.when === 'now') {
+    await processDueScheduleJobs({ force: true }).catch(() => undefined);
+  }
+
+  revalidateMarketing();
+  return {
+    ok: true,
+    message: `Queued ${created.length} channel(s)${
+      warnings.length ? ` · notes: ${warnings.join('; ')}` : ''
+    }`,
+  };
 }
 
 export async function queuePaidMetricsBackfillAction(

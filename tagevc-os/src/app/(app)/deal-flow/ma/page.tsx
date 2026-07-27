@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { DealFlowTrackTabs } from '@/components/deal-flow/deal-flow-track-tabs';
-import { CreateMaTargetForm, MaStageSelect } from '@/components/deal-flow/ma-actions';
+import { MaStageSelect } from '@/components/deal-flow/ma-actions';
 import { Badge } from '@/components/ui/badge';
 import {
   Table,
@@ -30,15 +30,22 @@ export default async function MaPipelinePage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#3a414f]">
-              M&A deals
+              M&A Activities
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
               Platform, add-on, and merger targets from sourcing through close.
+              Associates see projects assigned to them.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary">{targets.length} active</Badge>
             <Badge variant="outline">{exclusivity} in exclusivity</Badge>
+            <Link
+              href="/deal-flow/vc/intake"
+              className="text-sm font-medium underline-offset-4 hover:underline"
+            >
+              Lead Intake →
+            </Link>
           </div>
         </div>
         <DealFlowTrackTabs active="ma" />
@@ -116,7 +123,17 @@ export default async function MaPipelinePage() {
         </Table>
       </div>
 
-      <CreateMaTargetForm />
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed px-4 py-3 text-sm">
+        <span className="text-muted-foreground">
+          Have a new M&A target to add?
+        </span>
+        <Link
+          href="/deal-flow/vc/intake"
+          className="font-medium underline-offset-4 hover:underline"
+        >
+          Add a lead → Lead Intake
+        </Link>
+      </div>
     </div>
   );
 }

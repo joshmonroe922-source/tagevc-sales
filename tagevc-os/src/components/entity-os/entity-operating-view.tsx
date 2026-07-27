@@ -37,6 +37,11 @@ import {
   formatRunway,
   formatUsdK,
 } from '@/lib/format';
+import {
+  isRecruit619EntityId,
+  myRecruitingDeskUrl,
+  recruitPortalUrl,
+} from '@/lib/desk/my-recruiting-desk';
 import { CORE_KPI_CATALOG } from '@/lib/portfolio/core-kpis';
 import { entityDisplayName } from '@/lib/entities/display-name';
 import type { EntityLinkedTask, EntityOperatingView } from '@/lib/types';
@@ -195,6 +200,70 @@ export function EntityOperatingViewPanel({
         <EntitySectionNav />
       </div>
 
+      {isRecruit619EntityId(entity.entity_id) ? (
+        <Card className="border-[#3a414f]/20 bg-muted/20">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">My Recruiting Desk</CardTitle>
+            <CardDescription>
+              Day-to-day desk for recruiters, managers, and leadership
+              (commissions, KPIs, AI matching, training, mass email). OS spine
+              (help desk, messaging, finance rollups) stays here and on
+              portal.recruit619.com — desk ↔ spine flow both ways.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-3 text-sm">
+            <a
+              href={myRecruitingDeskUrl('placement')}
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium underline-offset-4 hover:underline"
+            >
+              Open Placement →
+            </a>
+            <a
+              href={myRecruitingDeskUrl('performance')}
+              target="_blank"
+              rel="noreferrer"
+              className="underline-offset-4 hover:underline"
+            >
+              Performance
+            </a>
+            <a
+              href={myRecruitingDeskUrl('bulkEmail')}
+              target="_blank"
+              rel="noreferrer"
+              className="underline-offset-4 hover:underline"
+            >
+              Mass email
+            </a>
+            <a
+              href={myRecruitingDeskUrl('training')}
+              target="_blank"
+              rel="noreferrer"
+              className="underline-offset-4 hover:underline"
+            >
+              Training
+            </a>
+            <a
+              href={recruitPortalUrl('/desk/my-recruiting-desk')}
+              target="_blank"
+              rel="noreferrer"
+              className="underline-offset-4 hover:underline"
+            >
+              R619 OS desk hub
+            </a>
+            <a
+              href={recruitPortalUrl('/desk')}
+              target="_blank"
+              rel="noreferrer"
+              className="underline-offset-4 hover:underline"
+            >
+              AM Desk (OS)
+            </a>
+          </CardContent>
+        </Card>
+      ) : null}
+
       {view.subsidiary_rollup ? (
         <section id="rollup" className="scroll-mt-24 space-y-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -259,8 +328,8 @@ export function EntityOperatingViewPanel({
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Source mix</CardTitle>
               <CardDescription>
-                Empty until the Recruit feed lands. Drill down to
-                portal.recruit619.com for live desk work.
+                Empty until the Recruit feed lands. Open My Recruiting Desk for
+                day-to-day work, or Recruit 619 OS for the spine.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
@@ -285,12 +354,28 @@ export function EntityOperatingViewPanel({
               </p>
               <div className="flex flex-wrap gap-3">
                 <a
+                  href={view.subsidiary_rollup.drill_downs.recruiting_desk}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-medium underline-offset-4 hover:underline"
+                >
+                  My Recruiting Desk
+                </a>
+                <a
+                  href={`${view.subsidiary_rollup.drill_downs.portal.replace(/\/$/, '')}/desk/my-recruiting-desk`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline-offset-4 hover:underline"
+                >
+                  Desk hub (OS)
+                </a>
+                <a
                   href={view.subsidiary_rollup.drill_downs.portal}
                   target="_blank"
                   rel="noreferrer"
                   className="underline-offset-4 hover:underline"
                 >
-                  Recruit portal
+                  Recruit 619 OS
                 </a>
                 <a
                   href={view.subsidiary_rollup.drill_downs.reqs}

@@ -34,16 +34,20 @@ export default async function AuditLogPage({
     <div className="space-y-6">
       <header className="space-y-2">
         <div className="flex flex-wrap items-center gap-3 text-sm">
-          <Link href="/admin" className="text-muted-foreground hover:text-foreground">
-            ← Admin
+          <Link
+            href="/shared-services/it/assets"
+            className="text-muted-foreground hover:text-foreground"
+          >
+            ← Technology / IT
           </Link>
         </div>
         <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#3a414f]">
-          Audit log
+          Visionary Audit log
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Visionary-only append-only record of meaningful OS activity. Coverage
-          expands continuously via the central audit writer.
+          Visionary-only append-only record of meaningful OS activity. IT
+          operators use the operational Activity log under Technology / IT —
+          not this surface. Coverage expands via the central audit writer.
         </p>
       </header>
 

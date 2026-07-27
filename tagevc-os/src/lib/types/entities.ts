@@ -622,8 +622,10 @@ export type PortfolioRollup = {
   portfolio_ebitda_k: number;
   portfolio_net_burn_k: number;
   portfolio_cash_k: number;
-  firm_cash_k: number;
-  consolidated_cash_k: number;
+  /** Firm cash ($k); null when IES/live firm feed is not connected */
+  firm_cash_k: number | null;
+  /** Portfolio + firm; null when firm cash is not connected */
+  consolidated_cash_k: number | null;
   /** MIN runway among entities with burn > 0 */
   min_runway_mo: number | null;
   runway_breach: boolean;
@@ -645,14 +647,18 @@ export type CommandCenterSnapshot = {
   };
   portfolio_health: PortfolioHealthCounts;
   capital: {
-    portfolio_arr_k: number;
+    /** Live IES only — null when Not connected (never seed inflation). */
+    portfolio_arr_k: number | null;
     portfolio_gross_margin: number | null;
-    portfolio_net_burn_k: number;
-    portfolio_cash_k: number;
-    firm_cash_k: number;
-    consolidated_cash_k: number;
+    portfolio_net_burn_k: number | null;
+    portfolio_cash_k: number | null;
+    firm_cash_k: number | null;
+    consolidated_cash_k: number | null;
     min_runway_mo: number | null;
     runway_breach: boolean;
+    source: 'ies' | 'not_connected';
+    as_of: string | null;
+    source_label: string;
   };
   active_portfolio_companies: number;
   attention_required: number;
@@ -703,6 +709,12 @@ export type DocumentRecord = {
   completed_at: string | null;
   content_hash: string | null;
   notes: string | null;
+  /**
+   * Role ACL for this file. `null` inherits folder default
+   * (`05_HR` restricted; other folders open). Empty array = open.
+   * Visionary/Admin always see the whole library.
+   */
+  visible_roles: AppRole[] | null;
   /** Phase 4.5 — AI document intelligence */
   ai_review: DocumentAiReview | null;
   created_at: string;

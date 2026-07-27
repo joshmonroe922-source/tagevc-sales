@@ -1,10 +1,13 @@
+import { buildCapitalPulseFromIes } from '@/lib/command-center/capital-pulse';
 import { SEED_PERIOD } from '@/lib/data/seed';
 import { ensureMasterData } from '@/lib/data/master-data';
+import { isHiddenActiveCompany } from '@/lib/entities/registry-visibility';
 import {
   listScopedActiveDeals,
   listScopedActiveLeads,
   listScopedOpenLeadTasks,
 } from '@/lib/data/pipeline-scope';
+import { getIesFinanceReport } from '@/lib/ies/report';
 import { computePortfolioRollup } from '@/lib/portfolio/rollup';
 import {
   buildParentIndex,
@@ -99,9 +102,9 @@ export async function listActivePortfolioCompanies(): Promise<
     ensureMasterData(),
     scopeFilter(),
   ]);
-  return filterCompanies(master.companies, scope).sort((a, b) =>
-    a.company_name.localeCompare(b.company_name),
-  );
+  return filterCompanies(master.companies, scope)
+    .filter((c) => !isHiddenActiveCompany(c))
+    .sort((a, b) => a.company_name.localeCompare(b.company_name));
 }
 
 export async function getPortfolioCompanyById(
@@ -159,15 +162,27 @@ export async function getEntityById(entityId: string): Promise<Entity | null> {
 export async function getPortfolioRollup(
   period?: string,
 ): Promise<PortfolioRollup> {
-  const [master, scope] = await Promise.all([
+  const [master, scope, iesReport] = await Promise.all([
     ensureMasterData(),
     scopeFilter(),
+    getIesFinanceReport({ entityId: 'ENT-FIRM' }).catch(() => null),
   ]);
-  const companies = filterCompanies(master.companies, scope);
+  // Match listActivePortfolioCompanies: exclude Sample Closed Co / Sample Indy
+  // SFR so KPI cards (ARR, burn, runway, cash) equal the visible company table.
+  const companies = filterCompanies(master.companies, scope).filter(
+    (c) => !isHiddenActiveCompany(c),
+  );
+  const visibleEntityIds = new Set(companies.map((c) => c.entity_id));
+  const pnlRows = filterPnl(master.pnl, scope).filter(
+    (r) => !r.is_firm && visibleEntityIds.has(r.entity_id),
+  );
+  const pulse = buildCapitalPulseFromIes(iesReport);
   return computePortfolioRollup({
     period: period ?? master.period ?? SEED_PERIOD,
     companies,
-    pnlRows: filterPnl(master.pnl, scope),
+    pnlRows,
+    // Never fall back to seed firm P&L ($800k) — honest Not Connected.
+    liveFirmCashK: pulse.firm_cash_k,
   });
 }
 
@@ -175,10 +190,12 @@ export async function getCommandCenterSnapshot(): Promise<CommandCenterSnapshot>
   const master = await ensureMasterData();
   const companies = await listActivePortfolioCompanies();
   const rollup = await getPortfolioRollup(master.period);
-  const [activeLeads, openTasks, deals] = await Promise.all([
+  const [activeLeads, openTasks, deals, iesReport] = await Promise.all([
     listScopedActiveLeads(),
     listScopedOpenLeadTasks(),
     listScopedActiveDeals(),
+    // Capital Pulse: live IES only — never seed portfolio P&L inflation.
+    getIesFinanceReport().catch(() => null),
   ]);
   const readyForDd = activeLeads.filter((l) => l.stage === 'Ready for DD');
   const blocked = openTasks.filter((t) => t.status === 'Blocked');
@@ -188,10 +205,16 @@ export async function getCommandCenterSnapshot(): Promise<CommandCenterSnapshot>
       d.exec_stage === 'Signing Ready' ||
       d.exec_stage === 'Wired / Closed',
   );
+  const capital = buildCapitalPulseFromIes(iesReport);
 
   return {
     period: rollup.period,
-    freshness: master.source === 'sql' ? 'FRESH' : 'UNKNOWN',
+    freshness:
+      capital.source === 'ies'
+        ? 'FRESH'
+        : master.source === 'sql'
+          ? 'FRESH'
+          : 'UNKNOWN',
     funnel: {
       active_leads: activeLeads.length,
       ready_for_dd: readyForDd.length,
@@ -201,16 +224,7 @@ export async function getCommandCenterSnapshot(): Promise<CommandCenterSnapshot>
       deals_in_closing: closing.length,
     },
     portfolio_health: rollup.health_counts,
-    capital: {
-      portfolio_arr_k: rollup.portfolio_arr_k,
-      portfolio_gross_margin: rollup.portfolio_gross_margin,
-      portfolio_net_burn_k: rollup.portfolio_net_burn_k,
-      portfolio_cash_k: rollup.portfolio_cash_k,
-      firm_cash_k: rollup.firm_cash_k,
-      consolidated_cash_k: rollup.consolidated_cash_k,
-      min_runway_mo: rollup.min_runway_mo,
-      runway_breach: rollup.runway_breach,
-    },
+    capital,
     active_portfolio_companies: companies.length,
     attention_required: rollup.attention_required,
   };

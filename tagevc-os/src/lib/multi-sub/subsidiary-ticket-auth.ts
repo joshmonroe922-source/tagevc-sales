@@ -16,16 +16,50 @@ export type SubsidiaryClient = {
   scopes: SubsidiaryTicketScope[];
 };
 
-const KNOWN_CLIENTS: Record<string, Omit<SubsidiaryClient, 'client_id'>> = {
+const DEFAULT_SCOPES: SubsidiaryTicketScope[] = [
+  'tickets:read',
+  'tickets:write',
+];
+
+/** Built-in clients + env-registered future subsidiaries. */
+const BUILTIN_CLIENTS: Record<string, Omit<SubsidiaryClient, 'client_id'>> = {
   recruit619_portal: {
     entity_id: 'ENT-R619',
-    scopes: ['tickets:read', 'tickets:write'],
+    scopes: DEFAULT_SCOPES,
   },
   instantnda_portal: {
     entity_id: 'ENT-INDA',
-    scopes: ['tickets:read', 'tickets:write'],
+    scopes: DEFAULT_SCOPES,
+  },
+  // Scaffold for Signent HR portal — activate via env secret when live.
+  signent_hr_portal: {
+    entity_id: 'ENT-SIGNENT',
+    scopes: DEFAULT_SCOPES,
   },
 };
+
+/**
+ * Optional env map for future subsidiaries without a code change:
+ * SUBSIDIARY_API_CLIENTS=acme_portal:ENT-ACME,other_portal:ENT-OTHER
+ */
+function envRegisteredClients(): Record<
+  string,
+  Omit<SubsidiaryClient, 'client_id'>
+> {
+  const raw = process.env.SUBSIDIARY_API_CLIENTS?.trim();
+  if (!raw) return {};
+  const out: Record<string, Omit<SubsidiaryClient, 'client_id'>> = {};
+  for (const part of raw.split(',')) {
+    const [clientId, entityId] = part.split(':').map((s) => s.trim());
+    if (!clientId || !entityId) continue;
+    out[clientId] = { entity_id: entityId, scopes: DEFAULT_SCOPES };
+  }
+  return out;
+}
+
+function knownClients(): Record<string, Omit<SubsidiaryClient, 'client_id'>> {
+  return { ...BUILTIN_CLIENTS, ...envRegisteredClients() };
+}
 
 function secretsForClient(clientId: string): string[] {
   const out: string[] = [];
@@ -75,7 +109,7 @@ function verifySignedToken(
   if (!Number.isFinite(exp) || exp * 1000 < Date.now()) {
     return { ok: false, error: 'Token expired' };
   }
-  const known = KNOWN_CLIENTS[clientId];
+  const known = knownClients()[clientId];
   if (!known) return { ok: false, error: 'Unknown client' };
   const canon = resolveCanonicalEntityId(entityId);
   if (canon !== known.entity_id) {
@@ -142,7 +176,8 @@ export async function authorizeSubsidiaryTicketRequest(
     '';
   const headerSecret = request.headers.get('x-tagevc-subsidiary-secret')?.trim();
 
-  if (clientId && KNOWN_CLIENTS[clientId]) {
+  const registry = knownClients();
+  if (clientId && registry[clientId]) {
     const secrets = secretsForClient(clientId);
     const candidate = headerSecret || (token || undefined);
     if (
@@ -155,8 +190,8 @@ export async function authorizeSubsidiaryTicketRequest(
     ) {
       const client: SubsidiaryClient = {
         client_id: clientId,
-        entity_id: KNOWN_CLIENTS[clientId].entity_id,
-        scopes: KNOWN_CLIENTS[clientId].scopes,
+        entity_id: registry[clientId].entity_id,
+        scopes: registry[clientId].scopes,
       };
       if (!client.scopes.includes(requiredScope)) {
         return { ok: false, status: 403, error: 'Insufficient scope' };

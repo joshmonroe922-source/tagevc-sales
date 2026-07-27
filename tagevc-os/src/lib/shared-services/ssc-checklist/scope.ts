@@ -2,6 +2,10 @@
 
 import { ENTITY_REGISTRY_SEED } from '@/lib/multi-sub/entity-registry';
 import { entityDisplayNameFromId } from '@/lib/entities/display-name';
+import {
+  entitySelectLabel,
+  sortEntitiesForSelect,
+} from '@/lib/entities/display-order';
 import type { SscScopeMode } from './types';
 
 export const SSC_PARENT_ENTITY = 'ENT-FIRM';
@@ -13,11 +17,12 @@ export type SscScopedCompany = {
 };
 
 export function listSscCompanies(): SscScopedCompany[] {
-  return ENTITY_REGISTRY_SEED.map((e) => ({
+  const rows = ENTITY_REGISTRY_SEED.map((e) => ({
     entity_id: e.entity_code,
-    company_name: e.canonical_name,
+    company_name: entitySelectLabel(e.entity_code),
     is_subsidiary: e.is_subsidiary,
   }));
+  return sortEntitiesForSelect(rows);
 }
 
 export function resolveScopeEntityIds(

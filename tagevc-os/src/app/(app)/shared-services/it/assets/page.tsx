@@ -1,8 +1,6 @@
-import Link from 'next/link';
 import { HrItHardeningPhase57Client } from '@/components/shared-services/hr-it-hardening-phase57-client';
 import { ItAssetsClient } from '@/components/shared-services/it-assets-client';
-import { SscFunctionHomeStrip } from '@/components/shared-services/ssc-function-home-strip';
-import { Badge } from '@/components/ui/badge';
+import { SscFunctionHomeChromeServer } from '@/components/shared-services/ssc-function-home-chrome-server';
 import {
   listAssignmentEvents,
   listHardwareAssets,
@@ -185,45 +183,11 @@ export default async function ItAssetsModulePage() {
 
   return (
     <div className="space-y-6">
-      <Link
-        href="/shared-services"
-        className="text-sm text-muted-foreground hover:text-foreground"
-      >
-        ← Shared Services
-      </Link>
-
-      <SscFunctionHomeStrip functionKey="it" />
-
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline">IT</Badge>
-          <Badge variant="secondary">Phase 43</Badge>
-          <Badge variant="secondary">Phase 44</Badge>
-          <Badge variant="secondary">Phase 49</Badge>
-          <Badge variant="secondary">Phase 50</Badge>
-          <Badge variant="secondary">Phase 51</Badge>
-          <Badge variant="secondary">Phase 52</Badge>
-          <Badge variant="secondary">Phase 57</Badge>
-        </div>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Hardware &amp; licensing
-        </h1>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          Phase 43 soak cycle evidence plus Phase 44 breaker performance trends,
-          canary/outage ops alerts, and correlation across outages, tuning, and
-          recovery. Observe-only — never closes or resets open breakers.
-          Phase 50 extends dual distinct-approver review to breaker tuning
-          and waive promotions, with suggested-vs-applied visibility for
-          both. Phase 51 unifies postmortem, breaker tuning, and waive
-          dual-approve items into one pending-approvals inbox. Never
-          auto-closes or resets breakers; apply/approve remain human actions
-          requiring 2 distinct approvers. Phase 52 records per-category
-          backlog trends (postmortem / breaker / waive) from that inbox —
-          observe-only, dual-approve required, no entity identifiers.
-          Phase 57 adds onboarding/offboarding completeness, assignment
-          visibility, revocation evidence, and inbox aging/escalations.
-        </p>
-      </div>
+      <SscFunctionHomeChromeServer
+        functionKey="it"
+        entityId={phase57EntityId}
+        firmWide={firmWideEarly}
+      />
 
       <HrItHardeningPhase57Client
         report={phase57Report}

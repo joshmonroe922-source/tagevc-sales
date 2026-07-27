@@ -2,8 +2,13 @@ import type { MaTarget, MaTask } from '@/lib/types';
 import { spawnMaTasksForStage } from '@/lib/deal-flow/ma/spawn-tasks';
 
 const now = '2026-03-15T12:00:00.000Z';
+/** Soft-archived so empty-DB reseeds / demos do not resurrect on M&A Active. */
+const archivedDemo = '2026-07-26T17:00:00.000Z';
 
-/** M&A Pipeline Active seeds (Excel). */
+/**
+ * M&A Pipeline seeds (Excel). Demo/test targets stay in seed for history
+ * but are soft-archived so M&A Active stays empty of sample noise.
+ */
 export const INITIAL_MA_TARGETS: MaTarget[] = [
   {
     id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa01',
@@ -28,8 +33,8 @@ export const INITIAL_MA_TARGETS: MaTarget[] = [
     entity_id: null,
     handoff_id: null,
     created_at: '2026-03-01T12:00:00.000Z',
-    updated_at: now,
-    archived_at: null,
+    updated_at: archivedDemo,
+    archived_at: archivedDemo,
   },
   {
     id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa02',
@@ -54,8 +59,8 @@ export const INITIAL_MA_TARGETS: MaTarget[] = [
     entity_id: null,
     handoff_id: null,
     created_at: '2026-03-12T12:00:00.000Z',
-    updated_at: now,
-    archived_at: null,
+    updated_at: archivedDemo,
+    archived_at: archivedDemo,
   },
 ];
 

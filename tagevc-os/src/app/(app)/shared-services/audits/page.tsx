@@ -61,9 +61,7 @@ export default async function SscAuditsPage({ searchParams }: Props) {
     scope_mode: scope,
     single_entity_id: single,
     time_nav:
-      params.time === 'past' || params.time === 'future'
-        ? params.time
-        : 'current',
+      params.time === 'future' ? 'future' : 'active',
   });
 
   const canWrite = ctx

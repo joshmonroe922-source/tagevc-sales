@@ -22,6 +22,10 @@ export type IesSyncEntityResult = {
   cash_on_hand?: number | null;
   ar_balance?: number | null;
   ap_balance?: number | null;
+  revenue_mtd?: number | null;
+  expenses_mtd?: number | null;
+  net_income_mtd?: number | null;
+  data_gaps?: string[];
 };
 
 export type IesSyncRunResult = {
@@ -169,6 +173,39 @@ export async function syncIesEntity(input: {
     const cash = balances.ok ? balances.data.cashOnHand : null;
     const ar = balances.ok ? balances.data.arBalance : null;
     const ap = balances.ok ? balances.data.apBalance : null;
+    const periodStart = `${asOf.slice(0, 8)}01`;
+
+    if (balances.ok) {
+      const reportGaps = balances.data.notes.slice(0, 12);
+      await sb.from('os_ies_financial_snapshots').insert([
+        {
+          entity_id: input.entity_id,
+          realm_id: input.realm_id,
+          report_type: 'profit_loss',
+          period_start: periodStart,
+          period_end: asOf,
+          as_of: asOf,
+          payload: {
+            revenue: balances.data.revenueMtd,
+            expenses: balances.data.expensesMtd,
+            net_income: balances.data.netIncomeMtd,
+          },
+          data_gaps: reportGaps,
+        },
+        {
+          entity_id: input.entity_id,
+          realm_id: input.realm_id,
+          report_type: 'balance_sheet',
+          as_of: asOf,
+          payload: {
+            cash: balances.data.cashOnHand,
+            accounts_receivable: balances.data.arBalance,
+            accounts_payable: balances.data.apBalance,
+          },
+          data_gaps: reportGaps,
+        },
+      ]);
+    }
 
     await sb.from('os_ies_finance_feed').insert({
       entity_id: input.entity_id,
@@ -180,7 +217,7 @@ export async function syncIesEntity(input: {
       close_pct_complete: null,
       source_system: 'ies',
       detail: {
-        phase: 'phase70',
+        phase: 'phase81',
         realm_id: input.realm_id,
         revenue_mtd: balances.ok ? balances.data.revenueMtd : null,
         expenses_mtd: balances.ok ? balances.data.expensesMtd : null,
@@ -192,6 +229,19 @@ export async function syncIesEntity(input: {
       },
     });
 
+    await sb
+      .from('os_ies_entity_map')
+      .update({
+        last_sync_at: new Date().toISOString(),
+        last_sync_status:
+          notes.length > 0 || !(coa.ok && balances.ok && invoices.ok)
+            ? 'partial'
+            : 'ok',
+        data_gaps: notes.slice(0, 12),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('entity_id', input.entity_id);
+
     const ok = coa.ok || balances.ok || invoices.ok;
     return {
       entity_id: input.entity_id,
@@ -202,6 +252,10 @@ export async function syncIesEntity(input: {
       cash_on_hand: cash,
       ar_balance: ar,
       ap_balance: ap,
+      revenue_mtd: balances.ok ? balances.data.revenueMtd : null,
+      expenses_mtd: balances.ok ? balances.data.expensesMtd : null,
+      net_income_mtd: balances.ok ? balances.data.netIncomeMtd : null,
+      data_gaps: notes,
     };
   } catch (e) {
     return {
@@ -259,6 +313,21 @@ export async function runIesSync(input?: {
   entity_id?: string | null;
 }): Promise<IesSyncRunResult> {
   const cfg = getIesConfig();
+  if (!cfg.syncEnabled) {
+    return {
+      ok: false,
+      status: 'skipped',
+      run_id: null,
+      attempted: 0,
+      succeeded: 0,
+      failed: 0,
+      results: [],
+      message: 'IES read sync disabled (set IES_SYNC_ENABLED=1 when ready)',
+      contract_version: PHASE70_IES_CONTRACT_VERSION,
+      money_auto_approve: false,
+      ies_write_executed: false,
+    };
+  }
   if (!cfg.configured) {
     return {
       ok: false,

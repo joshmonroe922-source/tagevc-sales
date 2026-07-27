@@ -1,6 +1,9 @@
 import type { EntityDocFolder } from '@/lib/types';
 import { ENTITY_DOC_FOLDERS } from '@/lib/types/enums';
 
+/** Firm-level Document Library scope (Tage Venture Capital). */
+export const FIRM_DOCUMENT_ENTITY_ID = 'ENT-FIRM' as const;
+
 export const FIRM_FOLDERS = ['Firm/Corporate', 'Firm/IC_Memos'] as const;
 
 export const FOLDER_LABELS: Record<EntityDocFolder, string> = {
@@ -12,6 +15,21 @@ export const FOLDER_LABELS: Record<EntityDocFolder, string> = {
   '06_Ops': '06 Ops — playbooks, GTM, board decks',
   '07_Signed': '07 Signed — DocuSign completed + certificates',
 };
+
+export function isFirmDocumentEntity(
+  entityId: string | null | undefined,
+): boolean {
+  return (entityId ?? '').trim() === FIRM_DOCUMENT_ENTITY_ID;
+}
+
+/** Entity types that get a Document Library section (firm + operating units). */
+export function isDocumentLibraryEntityType(entityType: string): boolean {
+  return (
+    entityType === 'Firm' ||
+    entityType === 'Subsidiary' ||
+    entityType === 'RE Asset Entity'
+  );
+}
 
 export function entityFolderPath(
   entityId: string,

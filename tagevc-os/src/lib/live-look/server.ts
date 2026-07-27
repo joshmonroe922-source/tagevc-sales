@@ -10,6 +10,7 @@ import {
   setLiveLookCookie,
   type LiveLookTarget,
 } from '@/lib/live-look/cookie';
+import { canUseLiveLook, isLiveLookOperator } from '@/lib/live-look/access';
 import { entityDisplayName } from '@/lib/entities/display-name';
 import type { Profile } from '@/lib/types';
 import { APP_ROLES, type AppRole } from '@/lib/types/roles';
@@ -90,6 +91,18 @@ export async function startLiveLookSession(input: {
   viewer: Profile;
   targetProfileId: string;
 }): Promise<{ ok: true; target: LiveLookTarget } | { ok: false; error: string }> {
+  if (
+    !canUseLiveLook({
+      email: input.viewer.email,
+      realRole: input.viewer.role,
+      effectiveRole: input.viewer.role,
+    })
+  ) {
+    return {
+      ok: false,
+      error: 'Live Look is restricted to the Visionary operator',
+    };
+  }
   const target = await loadLiveLookTarget(input.targetProfileId);
   if (!target) return { ok: false, error: 'User not found or inactive' };
   if (target.profileId === input.viewer.id) {
@@ -145,6 +158,17 @@ export async function stopLiveLookSession(input: {
   viewer: Profile;
   reason?: 'exit' | 'sign_out' | 'expire';
 }): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (
+    !isLiveLookOperator({
+      email: input.viewer.email,
+      realRole: input.viewer.role,
+    })
+  ) {
+    return {
+      ok: false,
+      error: 'Live Look is restricted to the Visionary operator',
+    };
+  }
   let targetEmail: string | null = null;
   let targetId: string | null = null;
   let entityId: string | null = null;
