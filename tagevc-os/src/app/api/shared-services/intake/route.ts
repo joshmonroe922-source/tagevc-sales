@@ -232,6 +232,7 @@ export async function POST(request: Request) {
       entity_id: entityId,
       company_name: brand.company,
       links,
+      source_ref: 'help_desk',
     });
   } catch (err) {
     return NextResponse.json(

@@ -9,9 +9,21 @@ import {
 } from '@/lib/data/deal-flow-store';
 import { ensureMasterData } from '@/lib/data/master-data';
 import {
+  getTicketStore,
   hydrateTicketStore,
+  isDemoSeedTicket,
   listTickets,
 } from '@/lib/data/ticket-store';
+import {
+  deleteTicketAuditsByTicketIds,
+  syncTicketAudits,
+} from '@/lib/data/normalized/audits-repo';
+import {
+  deleteTicketsByIds,
+  syncTickets,
+} from '@/lib/data/normalized/tickets-repo';
+import { queueNormalizedSync } from '@/lib/data/normalized/sync';
+import { queueStorePersist } from '@/lib/data/persist';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 import { logActivity } from '@/lib/data/activity';
 import {
@@ -49,6 +61,19 @@ function isSampleCompanyName(name: string): boolean {
   );
 }
 
+function isSeedOrSampleTicket(t: {
+  ticket_id: string;
+  company_name?: string | null;
+  entity_id?: string | null;
+}): boolean {
+  return (
+    isDemoSeedTicket(t.ticket_id) ||
+    /^TK-00\d+$/i.test(t.ticket_id) ||
+    Boolean(t.company_name && isSampleCompanyName(t.company_name)) ||
+    Boolean(t.entity_id && SAMPLE_ENTITY_IDS.has(t.entity_id))
+  );
+}
+
 export async function inventoryDemoData(): Promise<CleanupInventory> {
   await Promise.all([
     hydrateTicketStore({ forceSql: true }).catch(() => undefined),
@@ -67,12 +92,7 @@ export async function inventoryDemoData(): Promise<CleanupInventory> {
         (l.related_entity_id &&
           SAMPLE_ENTITY_IDS.has(l.related_entity_id))),
   );
-  const seedTickets = listTickets().filter(
-    (t) =>
-      /^TK-00\d+$/i.test(t.ticket_id) ||
-      (t.company_name && isSampleCompanyName(t.company_name)) ||
-      (t.entity_id && SAMPLE_ENTITY_IDS.has(t.entity_id)),
-  );
+  const seedTickets = listTickets().filter(isSeedOrSampleTicket);
   const samplePortfolio = master.companies.filter(
     (p) =>
       SAMPLE_ENTITY_IDS.has(p.entity_id) ||
@@ -213,22 +233,29 @@ export async function executeDemoCleanup(input: {
       }
       actions.push(`leads_sample: archived ${n} leads`);
     } else if (domain === 'tickets_seed') {
-      const { listTickets: lt } = await import('@/lib/data/ticket-store');
-      const tickets = lt();
-      let n = 0;
-      for (const t of tickets) {
-        if (
-          /^TK-00\d+$/i.test(t.ticket_id) ||
-          (t.entity_id && SAMPLE_ENTITY_IDS.has(t.entity_id))
-        ) {
-          if (t.status !== 'Closed' && t.status !== 'Resolved') {
-            t.status = 'Closed';
-            t.updated_at = new Date().toISOString();
-            n += 1;
-          }
-        }
-      }
-      actions.push(`tickets_seed: closed ${n} seed/sample tickets`);
+      const tickets = listTickets().filter(isSeedOrSampleTicket);
+      const ids = tickets.map((t) => t.ticket_id);
+      const drop = new Set(ids.map((id) => id.toUpperCase()));
+      const store = getTicketStore();
+      store.tickets = store.tickets.filter(
+        (t) => !drop.has(t.ticket_id.toUpperCase()),
+      );
+      store.audits = store.audits.filter(
+        (a) => !drop.has(a.ticket_id.toUpperCase()),
+      );
+      queueStorePersist('tickets', () => structuredClone(store));
+      // Remaining real tickets may still dual-write; seeds are hard-deleted.
+      queueNormalizedSync('os_tickets', async () => {
+        await syncTickets(store.tickets);
+      });
+      queueNormalizedSync('os_ticket_audits', async () => {
+        await syncTicketAudits(store.audits);
+      });
+      await deleteTicketAuditsByTicketIds(ids);
+      await deleteTicketsByIds(ids);
+      actions.push(
+        `tickets_seed: deleted ${ids.length} seed/sample tickets from memory+SQL`,
+      );
     } else if (domain === 'hris_sample') {
       try {
         const sb = await createPersistClient();

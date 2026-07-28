@@ -126,6 +126,8 @@ export async function escalateOverdueSscTasks(opts?: {
             links: '/shared-services/checklists',
             assignee_name: String(row.owner_role ?? 'service_lead'),
             ai_generated: true,
+            source_system: 'system',
+            source_ref: 'ssc_checklist',
           });
           ticketId = ticket.ticket_id;
 

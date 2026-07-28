@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { HelpDeskClient } from '@/components/help-desk/help-desk-client';
 import { listScopedTickets } from '@/lib/data/pipeline-scope';
 import { entityDisplayName } from '@/lib/entities/display-name';
+import { isHelpDeskTicket } from '@/lib/help-desk/ticket-scope';
 import { getSessionContext } from '@/lib/rbac/session';
 import { classifyTicketSla } from '@/lib/shared-services/shared-services-inbox-phase54';
 import { dueStatusLabel } from '@/lib/shared-services/due-status';
@@ -13,7 +14,10 @@ export default async function HelpDeskPage() {
   const tickets = await listScopedTickets().catch(() => []);
   const cutoff = Date.now() - ARCHIVE_DAYS * 24 * 60 * 60 * 1000;
 
-  const mine = tickets.filter((t) => {
+  // Help Desk = requester / portal tickets only (no SSC checklist, HRIS, AI doc work).
+  const helpDeskOnly = tickets.filter(isHelpDeskTicket);
+
+  const mine = helpDeskOnly.filter((t) => {
     const requester = (t.requester_name ?? '').toLowerCase();
     const me =
       (session?.profile.full_name ?? '').toLowerCase() ||
@@ -21,7 +25,7 @@ export default async function HelpDeskPage() {
     if (me && requester && requester.includes(me.split('@')[0] ?? me)) {
       return true;
     }
-    // Firm-wide viewers still see recent scoped tickets; personal filter soft
+    // Firm-wide viewers still see recent scoped help-desk tickets; personal filter soft
     return true;
   });
 
@@ -74,8 +78,12 @@ export default async function HelpDeskPage() {
           Help Desk
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Create a request from any page, or browse your active tickets here.
-          Closed tickets older than {ARCHIVE_DAYS} days are archived off this
+          Requester tickets only — Create Ticket and subsidiary portal intake.
+          SSC checklist work and pipeline follow-ups live on{' '}
+          <Link href="/to-do" className="underline underline-offset-2">
+            To Do List
+          </Link>
+          . Closed tickets older than {ARCHIVE_DAYS} days are archived off this
           list. Full service inbox:{' '}
           <Link href="/shared-services" className="underline underline-offset-2">
             Shared Services

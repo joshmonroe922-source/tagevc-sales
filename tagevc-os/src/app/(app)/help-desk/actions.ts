@@ -123,6 +123,7 @@ export async function createHelpDeskTicketAction(
       requester_name:
         session?.profile.full_name || session?.profile.email || 'User',
       links: linkParts.length ? linkParts.join(' | ') : undefined,
+      source_ref: 'help_desk',
     });
 
     revalidatePath('/help-desk');

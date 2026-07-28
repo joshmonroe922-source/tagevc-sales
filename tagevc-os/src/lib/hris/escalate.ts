@@ -96,6 +96,8 @@ export async function escalateOverdueHrisSteps(opts?: {
         requester_name: 'HRIS cadence',
         desired_outcome: `Complete or waive step: ${row.title}`,
         links: `/shared-services/hr/employees/${emp.id}`,
+        source_system: 'system',
+        source_ref: 'hris_escalate',
       });
 
       await sb

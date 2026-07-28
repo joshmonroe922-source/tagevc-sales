@@ -123,7 +123,7 @@ export async function POST(request: Request) {
       links: body.links ? String(body.links) : undefined,
       sla_due_at: body.sla_due_at ? String(body.sla_due_at) : undefined,
       source_system: sourceSystem,
-      source_ref: body.source_ref ? String(body.source_ref) : null,
+      source_ref: body.source_ref ? String(body.source_ref) : 'help_desk',
     });
 
     return NextResponse.json({

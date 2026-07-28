@@ -122,6 +122,7 @@ export async function createTicketAction(
     const ticket = createTicket({
       ...parsed.data,
       company_name: companyName,
+      source_ref: 'help_desk',
     });
     revalidateTickets(ticket.ticket_id);
     return {

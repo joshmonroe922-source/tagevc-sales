@@ -31,15 +31,15 @@ export function HelpDeskClient({ tickets }: { tickets: HelpDeskTicketRow[] }) {
         <CardHeader>
           <CardTitle className="text-base">Your tickets</CardTitle>
           <CardDescription>
-            Active and recent — closed items older than 30 days are archived off
-            this list.
+            Help Desk tickets only — SSC checklist and pipeline tasks stay on To
+            Do List. Closed items older than 30 days are archived off this list.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
           {tickets.length === 0 ? (
             <EmptyState
               title="No open tickets in view"
-              description="Create a ticket from any page with the Create Ticket button."
+              description="Create a ticket from any page with the Create Ticket button. SSC and follow-up work is on To Do List."
             />
           ) : (
             tickets.map((t) => (

@@ -123,3 +123,25 @@ export async function syncTickets(tickets: Ticket[]): Promise<boolean> {
     return false;
   }
 }
+
+/** Hard-delete tickets by business id (demo wipe / cleanup). */
+export async function deleteTicketsByIds(
+  ticketIds: string[],
+): Promise<boolean> {
+  if (ticketIds.length === 0) return true;
+  try {
+    const supabase = await createPersistClient();
+    const { error } = await supabase
+      .from('os_tickets')
+      .delete()
+      .in('ticket_id', ticketIds);
+    if (error) {
+      console.error('deleteTicketsByIds', error.message);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error('deleteTicketsByIds', e);
+    return false;
+  }
+}

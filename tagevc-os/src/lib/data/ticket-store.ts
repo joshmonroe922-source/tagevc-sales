@@ -1,17 +1,16 @@
 import { createHash, randomUUID } from 'crypto';
 import { logActivity } from '@/lib/data/activity';
 import {
-  fetchAllTicketAudits,
-  syncTicketAudits,
-} from '@/lib/data/normalized/audits-repo';
-import {
-  queueNormalizedSync,
-  shouldUseNormalizedRows,
-} from '@/lib/data/normalized/sync';
-import {
+  deleteTicketsByIds,
   fetchAllTickets,
   syncTickets,
 } from '@/lib/data/normalized/tickets-repo';
+import {
+  deleteTicketAuditsByTicketIds,
+  fetchAllTicketAudits,
+  syncTicketAudits,
+} from '@/lib/data/normalized/audits-repo';
+import { queueNormalizedSync } from '@/lib/data/normalized/sync';
 import {
   isStoreHydrated,
   loadStoreSnapshot,
@@ -50,6 +49,37 @@ declare global {
 }
 
 const now = '2026-03-15T12:00:00.000Z';
+
+/** Hardcoded demo TK-001…TK-005 ids — never load/sync these in production. */
+const DEMO_SEED_TICKET_IDS = new Set([
+  'TK-001',
+  'TK-002',
+  'TK-003',
+  'TK-004',
+  'TK-005',
+]);
+
+/**
+ * Demo Help Desk seeds only for vitest or an explicit flag.
+ * Production / preview always start empty and trust SQL.
+ */
+export function shouldSeedHelpDeskTickets(): boolean {
+  if (process.env.NODE_ENV === 'test') return true;
+  const flag = process.env.SEED_HELP_DESK_TICKETS;
+  return flag === '1' || flag === 'true';
+}
+
+export function isDemoSeedTicket(ticketId: string): boolean {
+  return DEMO_SEED_TICKET_IDS.has(ticketId.toUpperCase());
+}
+
+function stripDemoSeedTickets(store: TicketStore): TicketStore {
+  if (shouldSeedHelpDeskTickets()) return store;
+  return {
+    tickets: store.tickets.filter((t) => !isDemoSeedTicket(t.ticket_id)),
+    audits: store.audits.filter((a) => !isDemoSeedTicket(a.ticket_id)),
+  };
+}
 
 function seedTickets(): Ticket[] {
   const samples: Array<{
@@ -154,6 +184,9 @@ function seedTickets(): Ticket[] {
 }
 
 function createStore(): TicketStore {
+  if (!shouldSeedHelpDeskTickets()) {
+    return { tickets: [], audits: [] };
+  }
   const tickets = seedTickets();
   const audits: AgentAuditLog[] = tickets.map((t, i) => ({
     id: `77777777-7777-4777-8777-77777777770${i + 1}`,
@@ -189,23 +222,33 @@ function touchTickets() {
   });
 }
 
-/** Pull latest os_tickets into memory (inbound SS tickets, other isolates). */
+/**
+ * Pull latest os_tickets into memory (inbound SS tickets, other isolates).
+ * Empty SQL is authoritative — never resurrect or sync seed tickets to prod.
+ */
 export async function refreshTicketsFromSql(): Promise<void> {
   const store = getTicketStore();
   const [sqlTickets, sqlAudits] = await Promise.all([
     fetchAllTickets(),
     fetchAllTicketAudits(),
   ]);
-  if (shouldUseNormalizedRows(sqlTickets)) {
-    if (sqlTickets.length > 0) store.tickets = sqlTickets;
-  } else if (sqlTickets !== null && store.tickets.length > 0) {
-    await syncTickets(store.tickets);
+
+  // Prefer SQL whenever the table is reachable (including 0 rows).
+  // Do NOT push in-memory/seed tickets back when SQL is empty.
+  if (sqlTickets !== null) {
+    store.tickets = shouldSeedHelpDeskTickets()
+      ? sqlTickets
+      : sqlTickets.filter((t) => !isDemoSeedTicket(t.ticket_id));
+  } else if (!shouldSeedHelpDeskTickets()) {
+    store.tickets = store.tickets.filter((t) => !isDemoSeedTicket(t.ticket_id));
   }
 
-  if (shouldUseNormalizedRows(sqlAudits)) {
-    if (sqlAudits.length > 0) store.audits = sqlAudits;
-  } else if (sqlAudits !== null && store.audits.length > 0) {
-    await syncTicketAudits(store.audits);
+  if (sqlAudits !== null) {
+    store.audits = shouldSeedHelpDeskTickets()
+      ? sqlAudits
+      : sqlAudits.filter((a) => !isDemoSeedTicket(a.ticket_id));
+  } else if (!shouldSeedHelpDeskTickets()) {
+    store.audits = store.audits.filter((a) => !isDemoSeedTicket(a.ticket_id));
   }
 
   markStoreHydrated('tickets');
@@ -221,14 +264,43 @@ export async function hydrateTicketStore(opts?: { forceSql?: boolean }) {
   if (readGate.allow) {
     const snap = await loadStoreSnapshot<TicketStore>('tickets');
     if (snap?.payload?.tickets) {
-      globalThis.__tageTicketStore = snap.payload;
+      globalThis.__tageTicketStore = stripDemoSeedTickets(snap.payload);
     } else {
       const store = getTicketStore();
-      await saveStoreSnapshot('tickets', store);
+      // Never persist demo seeds into the snapshot store in production.
+      if (store.tickets.length > 0 || shouldSeedHelpDeskTickets()) {
+        await saveStoreSnapshot('tickets', store);
+      }
     }
   }
 
   await refreshTicketsFromSql();
+}
+
+/** Remove demo/sample tickets from memory and hard-delete from SQL. */
+export function purgeDemoSeedTicketsFromMemory(): string[] {
+  const store = getTicketStore();
+  const removed = store.tickets
+    .filter((t) => isDemoSeedTicket(t.ticket_id))
+    .map((t) => t.ticket_id);
+  if (removed.length === 0) return [];
+  const drop = new Set(removed.map((id) => id.toUpperCase()));
+  store.tickets = store.tickets.filter(
+    (t) => !drop.has(t.ticket_id.toUpperCase()),
+  );
+  store.audits = store.audits.filter(
+    (a) => !drop.has(a.ticket_id.toUpperCase()),
+  );
+  queueStorePersist('tickets', () => structuredClone(store));
+  queueNormalizedSync('os_tickets', async () => {
+    await deleteTicketsByIds(removed);
+    await syncTickets(store.tickets);
+  });
+  queueNormalizedSync('os_ticket_audits', async () => {
+    await deleteTicketAuditsByTicketIds(removed);
+    await syncTicketAudits(store.audits);
+  });
+  return removed;
 }
 
 function nextTicketId(tickets: Ticket[]): string {
@@ -323,6 +395,8 @@ export function createAiDocumentTicket(
     ai_generated: true,
     source_doc_id: input.doc_id,
     ai_suggestion_id: input.suggestion.suggestion_id,
+    source_system: 'system',
+    source_ref: 'ai_document',
   });
 }
 

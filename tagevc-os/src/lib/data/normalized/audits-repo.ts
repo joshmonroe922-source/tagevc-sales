@@ -166,6 +166,27 @@ export async function syncTicketAudits(
   }
 }
 
+export async function deleteTicketAuditsByTicketIds(
+  ticketIds: string[],
+): Promise<boolean> {
+  if (ticketIds.length === 0) return true;
+  try {
+    const supabase = await createPersistClient();
+    const { error } = await supabase
+      .from('os_ticket_audits')
+      .delete()
+      .in('ticket_id', ticketIds);
+    if (error) {
+      console.error('deleteTicketAuditsByTicketIds', error.message);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error('deleteTicketAuditsByTicketIds', e);
+    return false;
+  }
+}
+
 export async function fetchAllDocAudits(): Promise<DocAuditEvent[] | null> {
   try {
     const supabase = await createPersistClient();
