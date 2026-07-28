@@ -1,7 +1,7 @@
 /**
  * Command Center Capital Pulse — live IES / finance actuals only.
  *
- * Never falls back to seed/sample portfolio P&L (Instant NDA 480 ARR, etc.).
+ * Never falls back to seed/sample portfolio P&L.
  * Real operating entities: Tage VC (firm), Recruit 619, Instant NDA, Signent HR.
  */
 

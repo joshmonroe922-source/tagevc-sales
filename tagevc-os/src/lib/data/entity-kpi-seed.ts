@@ -24,15 +24,21 @@ function coreRow(
   };
 }
 
-/** Period 2026-03 CORE KPIs — Instant NDA is the demo-complete subsidiary. */
+/** Period 2026-03 CORE KPIs — Instant NDA zeros until live IES (no sample pack). */
 export const SEED_ENTITY_MONTH_KPI: EntityMonthKpi[] = [
-  // ENT-002 Instant NDA — full CORE pack
-  coreRow('a1111111-1111-4111-8111-111111111101', 'ENT-002', 'revenue_arr', 480),
-  coreRow('a1111111-1111-4111-8111-111111111102', 'ENT-002', 'mom_growth', 0.08),
-  coreRow('a1111111-1111-4111-8111-111111111103', 'ENT-002', 'gross_margin', 0.8125),
-  coreRow('a1111111-1111-4111-8111-111111111104', 'ENT-002', 'net_burn', 30),
-  coreRow('a1111111-1111-4111-8111-111111111105', 'ENT-002', 'ending_cash', 540),
-  coreRow('a1111111-1111-4111-8111-111111111106', 'ENT-002', 'runway_mo', 18),
+  // ENT-002 Instant NDA (legacy seed id; canonical registry ENT-INDA) — zeros
+  coreRow('a1111111-1111-4111-8111-111111111101', 'ENT-002', 'revenue_arr', 0),
+  coreRow('a1111111-1111-4111-8111-111111111102', 'ENT-002', 'mom_growth', 0),
+  coreRow('a1111111-1111-4111-8111-111111111103', 'ENT-002', 'gross_margin', null),
+  coreRow('a1111111-1111-4111-8111-111111111104', 'ENT-002', 'net_burn', 0),
+  coreRow('a1111111-1111-4111-8111-111111111105', 'ENT-002', 'ending_cash', 0),
+  coreRow(
+    'a1111111-1111-4111-8111-111111111106',
+    'ENT-002',
+    'runway_mo',
+    null,
+    'n/a',
+  ),
   coreRow(
     'a1111111-1111-4111-8111-111111111107',
     'ENT-002',
@@ -45,20 +51,20 @@ export const SEED_ENTITY_MONTH_KPI: EntityMonthKpi[] = [
     'ENT-002',
     'top_risk',
     null,
-    'Enterprise sales cycle',
+    'Not connected — await IES',
   ),
   coreRow(
     'a1111111-1111-4111-8111-111111111109',
     'ENT-002',
     'customer_concentration',
-    0.22,
+    null,
   ),
-  coreRow('a1111111-1111-4111-8111-111111111110', 'ENT-002', 'headcount_fte', 14),
+  coreRow('a1111111-1111-4111-8111-111111111110', 'ENT-002', 'headcount_fte', 0),
   coreRow(
     'a1111111-1111-4111-8111-111111111111',
     'ENT-002',
     'pipeline_coverage',
-    2.4,
+    null,
   ),
 
   // ENT-001 Sample Closed Co
@@ -132,44 +138,9 @@ export const SEED_ENTITY_MONTH_KPI: EntityMonthKpi[] = [
   coreRow('a1111111-1111-4111-8111-111111111310', 'ENT-R619', 'headcount_fte', 6),
 ];
 
-/** FLEX KPIs — entity-detail only; never into portfolio money roll-up. */
+/** FLEX KPIs — entity-detail only; never into portfolio money roll-up.
+ * Instant NDA SaaS sample FLEX (NRR/CAC/LTV) removed — live data only. */
 export const SEED_ENTITY_MONTH_KPI_FLEX: EntityMonthKpiFlex[] = [
-  {
-    id: 'b2222222-2222-4222-8222-222222222201',
-    entity_id: 'ENT-002',
-    period: SEED_PERIOD,
-    flex_key: 'nrr',
-    label: 'NRR',
-    value_num: 1.12,
-    value_text: null,
-    unit: '%',
-    industry_module: 'SaaS',
-    standard: 'FLEX',
-  },
-  {
-    id: 'b2222222-2222-4222-8222-222222222202',
-    entity_id: 'ENT-002',
-    period: SEED_PERIOD,
-    flex_key: 'cac',
-    label: 'CAC',
-    value_num: 4200,
-    value_text: null,
-    unit: '$',
-    industry_module: 'SaaS',
-    standard: 'FLEX',
-  },
-  {
-    id: 'b2222222-2222-4222-8222-222222222203',
-    entity_id: 'ENT-002',
-    period: SEED_PERIOD,
-    flex_key: 'ltv',
-    label: 'LTV',
-    value_num: 38000,
-    value_text: null,
-    unit: '$',
-    industry_module: 'SaaS',
-    standard: 'FLEX',
-  },
   {
     id: 'b2222222-2222-4222-8222-222222222204',
     entity_id: 'ENT-R619',

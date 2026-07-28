@@ -71,6 +71,7 @@ export const INITIAL_DEALS: Deal[] = [
   },
   /**
    * Closed Launch deal for Instant NDA — linked to ENT-002 / PF-002.
+   * Operating metrics live on portfolio/IES (not seeded on this deal).
    * Surfaces Post-Close tasks on Subsidiary OS.
    */
   {
