@@ -185,7 +185,7 @@ export function functionLabel(fn: SscFunction | 'all' | 'cross'): string {
     case 'hr':
       return 'Human Resources';
     case 'it':
-      return 'Technology / IT';
+      return 'Technology';
     case 'marketing':
       return 'Marketing';
     case 'legal':
@@ -243,7 +243,7 @@ export function statusLabel(s: SscTaskStatus): string {
 export function functionHomeHref(fn: SscFunction): string {
   switch (fn) {
     case 'finance':
-      return '/shared-services/finance';
+      return '/shared-services/af/finance';
     case 'hr':
       return '/shared-services/hr';
     case 'it':

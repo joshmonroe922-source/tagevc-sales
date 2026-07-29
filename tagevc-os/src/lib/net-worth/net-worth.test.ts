@@ -186,6 +186,23 @@ describe('phase73 nav + sql + api surfaces', () => {
     expect(inv?.hideDuringLiveLook).toBe(true);
     expect(nw?.visionaryOnly).toBe(true);
     expect(nw?.hideDuringLiveLook).toBe(true);
+    expect(nw?.description).not.toMatch(/credit/i);
+  });
+
+  it('places Credit Management under Personal as Visionary-exclusive', () => {
+    const personal = MAIN_NAV.find((n) => n.label === 'Personal');
+    expect(personal?.visionaryExclusive).toBe(true);
+    expect(personal?.hiddenForRoles).toContain('think_tank');
+    expect(personal?.children?.map((c) => c.label)).toEqual([
+      'Personal Finance',
+      'Credit Management',
+    ]);
+    const credit = personal?.children?.find((c) => c.label === 'Credit Management');
+    expect(credit?.href).toBe('/personal/credit');
+    expect(credit?.visionaryExclusive).toBe(true);
+    expect(credit?.visionaryOnly).toBe(true);
+    expect(credit?.hideDuringLiveLook).toBe(true);
+    expect(credit?.hiddenForRoles).toContain('think_tank');
   });
 
   it('hides Command Center, Firm, and BD for COO role in nav config', () => {

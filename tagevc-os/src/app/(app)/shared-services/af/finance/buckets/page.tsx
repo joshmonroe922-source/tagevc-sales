@@ -1,5 +1,6 @@
 import { PageHeader } from '@/components/ui/page-header';
 import { AfBackLink, Money } from '@/components/af/af-ui';
+import { MetricCardBoard } from '@/components/platform/metric-card-board';
 import { AF_ALLOCATION_PROFILES, AF_ENTITIES, bucketBalances, getAfStore, profitSubSplit } from '@/lib/af';
 import { resolveAfEntityParam } from '@/lib/af/page-helpers';
 import { requirePermission } from '@/lib/rbac/session';
@@ -33,18 +34,16 @@ export default async function BucketsPage({ searchParams }: Props) {
           </a>
         ))}
       </div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {profile.map((b) => (
-          <div key={b.bucket} className="rounded-xl border border-border px-4 py-3">
-            <div className="flex items-center justify-between gap-2">
-              <p className="font-heading font-semibold text-[#3a414f]">{b.bucket}</p>
-              <p className="text-xs text-muted-foreground">{b.dept}</p>
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">{b.name}{b.pct != null ? ` · ${Math.round(b.pct * 1000) / 10}%` : ' · plug'}</p>
-            <p className="mt-2 text-xl font-semibold tabular-nums"><Money value={balances[b.bucket] ?? 0} /></p>
-          </div>
-        ))}
-      </div>
+      <MetricCardBoard
+        surface="af-finance-buckets"
+        columns={3}
+        items={profile.map((b) => ({
+          id: b.bucket,
+          label: `${b.bucket} · ${b.dept}`,
+          value: balances[b.bucket] ?? 0,
+          hint: `${b.name}${b.pct != null ? ` · ${Math.round(b.pct * 1000) / 10}%` : ' · plug'}`,
+        }))}
+      />
       <div className="rounded-xl border border-border px-4 py-3 text-sm">
         <p className="font-medium text-[#3a414f]">PROFIT sub-split (group policy)</p>
         <p className="mt-1 text-muted-foreground">90% Bank for Investments planning <Money value={split.investments} /> · 10% distributions <Money value={split.distributions} /></p>

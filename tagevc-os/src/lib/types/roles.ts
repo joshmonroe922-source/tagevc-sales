@@ -44,12 +44,20 @@ export const APP_ROLE_LABELS: Record<AppRole, string> = {
 
 /**
  * Visionary-breadth firm IA (C-Suite, Net Worth nav, Investments, audit).
- * Think Tank matches Visionary nav except Credit Management (gated separately).
+ * Think Tank matches Visionary nav except Personal ▼ (Josh-only) and
+ * Credit Management (also under Personal).
  */
 export function isVisionaryBreadthRole(
   role: AppRole | string | null | undefined,
 ): boolean {
   return role === 'visionary' || role === 'think_tank';
+}
+
+/** Josh / Visionary only — Personal Finance, Credit Management, Personal ▼. */
+export function isVisionaryExclusiveRole(
+  role: AppRole | string | null | undefined,
+): boolean {
+  return role === 'visionary';
 }
 
 /** Navigation module keys (Platform Spec M0–M8). */
@@ -154,7 +162,7 @@ const VISIONARY_PERMS: Permission[] = [
 
 export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
   visionary: [...VISIONARY_PERMS],
-  /** VP Think Tank / Strategic Thinking — Visionary breadth minus Credit Management UI. */
+  /** Think Tank / Principal Strategist breadth — Visionary minus Personal ▼. */
   think_tank: [...VISIONARY_PERMS],
   partner: [
     ...ALL_READ,

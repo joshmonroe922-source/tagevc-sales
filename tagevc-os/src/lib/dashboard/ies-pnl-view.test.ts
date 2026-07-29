@@ -83,7 +83,7 @@ function report(companies: IesEntityFinanceRow[]): IesFinanceReport {
     },
     last_sync: null,
     ssc_close_href: '/shared-services/checklists',
-    month_end_checklist_href: '/shared-services/finance',
+    month_end_checklist_href: '/shared-services/af/finance',
     contract_version: 'phase70-v1',
     money_auto_approve: false,
     ies_write_executed: false,

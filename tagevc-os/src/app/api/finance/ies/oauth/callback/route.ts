@@ -8,7 +8,7 @@ import { getIesEnvironment } from '@/lib/ies/config';
 import { fetchCompanyInfo } from '@/lib/ies/qbo-client';
 
 function financeRedirect(query: Record<string, string>): NextResponse {
-  const u = new URL('https://app.tagevc.com/shared-services/finance');
+  const u = new URL('https://app.tagevc.com/shared-services/af/finance');
   if (process.env.NEXT_PUBLIC_APP_URL) {
     try {
       const base = new URL(process.env.NEXT_PUBLIC_APP_URL);

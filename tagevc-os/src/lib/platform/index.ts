@@ -9,6 +9,9 @@
  * A&F spine (Accounting · Finance · Audit · Controls): see `af/` and
  * `docs/TAGE_VC_AF.md`. Future OS clones inherit the same four sections
  * under `{Entity Name} A&F`.
+ *
+ * Cards | List: see `view-mode/` + `docs/SUBSIDIARY_OS_SHELL.md` § Cards | List.
+ * New card sections must use ViewModeLayout / ModuleLinkBoard / MetricCardBoard.
  */
 export {
   DEFAULT_REPORTING_PERIODS,
@@ -40,3 +43,13 @@ export {
   type AfSection,
   type AfSectionId,
 } from '@/lib/platform/af';
+
+export {
+  VIEW_MODE_DEFAULTS,
+  VIEW_MODE_STORAGE_PREFIX,
+  defaultViewModeFor,
+  parseViewMode,
+  viewModeStorageKey,
+  type ViewMode,
+  type ViewModeSurface,
+} from '@/lib/platform/view-mode';

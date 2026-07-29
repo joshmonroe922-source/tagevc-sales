@@ -202,3 +202,43 @@ describe('go-live setup', () => {
     expect(progress.orgPct).toBe(100);
   });
 });
+
+describe('close + budgets + collections + vendors', () => {
+  it('evaluates close checklist from store signals', async () => {
+    const {
+      evaluateCloseChecklist,
+      closeProgress,
+      currentPeriod,
+      getAfStore,
+      buildAllBudgets,
+      buildCollectionsQueue,
+      buildVendorPortal,
+      build1099Register,
+      buildAfOpenApiDocument,
+      assertSegregationOfDuties,
+    } = await import('@/lib/af');
+    const store = getAfStore();
+    const tasks = evaluateCloseChecklist({
+      period: currentPeriod(),
+      balances: store.openingBalances,
+      invoices: store.invoices,
+      bills: store.bills,
+      journals: store.journals,
+      feedTxns: store.feedTxns,
+      locks: store.periodLocks ?? [],
+      snapshots: store.snapshots ?? [],
+    });
+    expect(tasks.length).toBe(12);
+    expect(closeProgress(tasks).total).toBeGreaterThan(0);
+    expect(buildAllBudgets(store.openingBalances).length).toBe(4);
+    expect(buildCollectionsQueue({ invoices: store.invoices }).length).toBeGreaterThanOrEqual(0);
+    expect(Array.isArray(buildVendorPortal({ bills: store.bills }))).toBe(true);
+    expect(build1099Register().some((r) => r.status === 'Needs W-9' || r.status === 'Ready')).toBe(
+      true,
+    );
+    expect(buildAfOpenApiDocument().openapi).toBe('3.0.3');
+    expect(
+      assertSegregationOfDuties({ preparerId: 'a', approverId: 'a' }).ok,
+    ).toBe(false);
+  });
+});

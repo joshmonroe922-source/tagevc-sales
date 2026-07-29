@@ -23,7 +23,7 @@ Hub: `/shared-services/af` · Go-Live: `/shared-services/af/setup`
 - AP portal pay: Dr AP / Cr Cash, bill Paid; feed matches Payment only (no double AP)
 - Invoice send: PDF + entity Wire + I-9 (+ customer/extras)
 - Net Worth: company entity + consolidated (IC elim, exclude PERS); personal full stack − liability total (no card UI)
-- Personal ▼ → **Personal Finance** only (`/personal/finance/*`)
+- Personal ▼ → **Personal Finance** + **Credit Management** (`/personal/*`) — **Visionary / Josh only** (not Think Tank / Lauren)
 - Go-Live Setup wizard gates production until ORG+ENT required steps Done
 - Health enums only: On Track | Watch | At Risk | Critical
 
@@ -35,12 +35,32 @@ Hub: `/shared-services/af` · Go-Live: `/shared-services/af/setup`
 
 | Portal | Nav label | Notes |
 | --- | --- | --- |
-| Tage VC | **Tage VC A&F** | Nested under Shared Services |
+| Tage VC | **Tage VC A&F** | Nested under Shared Services (replaces legacy Finance nav) |
 | Recruit 619 | **Recruit 619 A&F** | Spine section via `buildAfNav*` |
 | Instant NDA | **Instant NDA A&F** | Flat MAIN_NAV |
 | Signent HR | **Signent HR A&F** | Flat MAIN_NAV |
 | Future clones | **`{Entity Name} A&F`** | `src/lib/platform/af/` |
 
-## Personal Finance (Visionary)
+Legacy `/shared-services/finance` redirects to `/shared-services/af/finance`.
 
-`/personal/finance` — isolated `books_id=PERS`. Cards under Personal Finance, not a separate Credit Management menu.
+## Personal (Visionary only)
+
+`/personal/finance` — isolated `books_id=PERS`. `/personal/credit` — Credit Management. Entire Personal ▼ is Josh / Visionary exclusive (nav `visionaryExclusive` + `requirePersonalVisionary`).
+
+## API / event bus
+
+- OpenAPI 3: `GET /api/af/openapi`
+- Events: `GET|POST /api/af/events` (Idempotency-Key)
+- Inbound OS webhooks: `POST /api/af/webhooks/inbound`
+- REST sketch: `GET /api/af/{entities|invoices|bills|kpis}`
+
+## Bank feeds (ENT-03)
+
+Live Plaid OAuth when `PLAID_CLIENT_ID` + `PLAID_SECRET` are set (`PLAID_ENV` optional, default `sandbox`).
+**Connect** opens Plaid Link → for OAuth banks (KeyBank) Link redirects to the bank then back via `redirect_uri` → exchange `public_token` → **match last4 / Plaid accounts to MD `bank_account_id` rows** → Save mappings.
+
+Register this exact URI in Plaid Dashboard → Team → API → Allowed redirect URIs:
+`https://app.tagevc.com/shared-services/af/setup/banks/connect`
+(Optional override: `PLAID_REDIRECT_URI`.)
+
+Otherwise clean stub mode with **Test import** so go-live can proceed.

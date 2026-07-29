@@ -56,6 +56,8 @@ type Props = {
   realRole: AppRole;
   fullName: string | null;
   email: string;
+  /** profiles.job_title — e.g. Principal Strategist (shown above role badge). */
+  jobTitle?: string | null;
   impersonatingAs: AppRole | null;
   impersonatableRoles: AppRole[];
   liveLookActive?: boolean;
@@ -136,6 +138,13 @@ function isNavActive(pathname: string, href: string): boolean {
     return pathname === '/entities' || pathname.startsWith('/entities/');
   }
   if (href === '/portfolio/net-worth') {
+    // Credit Management moved under Personal — do not light Net Worth for it.
+    if (
+      pathname === '/portfolio/net-worth/credit' ||
+      pathname.startsWith('/portfolio/net-worth/credit/')
+    ) {
+      return false;
+    }
     return (
       pathname === '/portfolio/net-worth' ||
       pathname.startsWith('/portfolio/net-worth/')
@@ -153,8 +162,19 @@ function isNavActive(pathname: string, href: string): boolean {
       pathname.startsWith('/portfolio/real-estate/')
     );
   }
-  if (href === '/portfolio') {
-    return pathname === '/portfolio' || pathname.startsWith('/portfolio/');
+  if (href === '/personal/credit') {
+    return (
+      pathname === '/personal/credit' ||
+      pathname.startsWith('/personal/credit/') ||
+      pathname === '/portfolio/net-worth/credit' ||
+      pathname.startsWith('/portfolio/net-worth/credit/')
+    );
+  }
+  if (href === '/personal/finance') {
+    return (
+      pathname === '/personal/finance' ||
+      pathname.startsWith('/personal/finance/')
+    );
   }
   if (href === '/shared-services/af/accounting') {
     return (
@@ -180,12 +200,6 @@ function isNavActive(pathname: string, href: string): boolean {
       pathname.startsWith('/shared-services/af/controls/')
     );
   }
-  if (href === '/personal/finance') {
-    return (
-      pathname === '/personal/finance' ||
-      pathname.startsWith('/personal/finance/')
-    );
-  }
   if (href === '/shared-services/af') {
     // Nested A&F children light themselves — do not light A&F hub.
     if (
@@ -207,10 +221,18 @@ function isNavActive(pathname: string, href: string): boolean {
       pathname.startsWith('/shared-services/af/')
     );
   }
+  if (href === '/shared-services/af/finance' || href === '/shared-services/af') {
+    return (
+      pathname === '/shared-services/af' ||
+      pathname.startsWith('/shared-services/af/')
+    );
+  }
   if (href === '/shared-services/finance') {
+    // Legacy sunset route — still highlight A&F if somehow linked
     return (
       pathname === '/shared-services/finance' ||
-      pathname.startsWith('/shared-services/finance/')
+      pathname.startsWith('/shared-services/finance/') ||
+      pathname.startsWith('/shared-services/af/')
     );
   }
   if (href === '/shared-services/hr/screening') {
@@ -567,6 +589,7 @@ export function AppSidebar({
   realRole,
   fullName,
   email,
+  jobTitle,
   impersonatingAs,
   impersonatableRoles,
   liveLookActive = false,
@@ -713,6 +736,11 @@ export function AppSidebar({
           <p className="truncate text-sm font-medium text-sidebar-foreground">
             {fullName ?? email}
           </p>
+          {jobTitle ? (
+            <p className="truncate text-xs text-sidebar-foreground/70">
+              {jobTitle}
+            </p>
+          ) : null}
           <p className="truncate text-xs text-sidebar-foreground/60">{email}</p>
           <div className="mt-2 flex flex-wrap gap-1.5">
             <Badge variant="secondary" className="font-normal">

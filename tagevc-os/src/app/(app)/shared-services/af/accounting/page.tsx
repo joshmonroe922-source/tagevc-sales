@@ -18,7 +18,7 @@ export default async function AccountingHubPage({ searchParams }: Props) {
         description="Books, close, GL, AR/AP, banks, commissions, and intercompany."
         secondaryActions={<AfBackLink href={`/shared-services/af${qs}`} label="Tage VC A&F" />}
       />
-      <AfModuleGrid modules={ACCOUNTING_MODULES} qs={qs} />
+      <AfModuleGrid modules={ACCOUNTING_MODULES} qs={qs} surface="af-accounting-modules" />
     </div>
   );
 }

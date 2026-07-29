@@ -1,21 +1,10 @@
 import { PageHeader } from '@/components/ui/page-header';
 import { AfBackLink, Money } from '@/components/af/af-ui';
 import { computeCombinedView, getNetWorthSnapshot } from '@/lib/af';
-import { redirect } from 'next/navigation';
-import { canAccessNetWorthPage } from '@/lib/net-worth/visibility';
-import { getSessionContext } from '@/lib/rbac/session';
+import { requirePersonalVisionary } from '@/lib/personal/access';
 
 export default async function PersonalNetWorthPage() {
-  const ctx = await getSessionContext();
-  if (
-    !ctx ||
-    !canAccessNetWorthPage({
-      realRole: ctx.realRole,
-      liveLookActive: ctx.liveLookActive,
-    })
-  ) {
-    redirect('/entities');
-  }
+  await requirePersonalVisionary();
   const snap = getNetWorthSnapshot();
   const nw = snap.personal;
   const combined = computeCombinedView(nw);

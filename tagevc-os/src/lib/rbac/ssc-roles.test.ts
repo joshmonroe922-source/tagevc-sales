@@ -54,13 +54,13 @@ describe('SSC Role Switcher + nav scope', () => {
   it('lands each SSC role on its function home', () => {
     expect(landingPathForRole('counsel_ops')).toBe('/shared-services/legal');
     expect(landingPathForRole('ssc_legal')).toBe('/shared-services/legal');
-    expect(landingPathForRole('ssc_finance')).toBe('/shared-services/finance');
+    expect(landingPathForRole('ssc_finance')).toBe('/shared-services/af/finance');
     expect(landingPathForRole('ssc_hr')).toBe('/shared-services/hr');
     expect(landingPathForRole('ssc_it')).toBe('/shared-services/it/assets');
     expect(landingPathForRole('ssc_marketing')).toBe(
       '/shared-services/marketing',
     );
-    expect(landingPathForRole('service_lead')).toBe('/shared-services/finance');
+    expect(landingPathForRole('service_lead')).toBe('/shared-services/af/finance');
   });
 
   it('lands desk roles on their pipeline homes', () => {
@@ -115,16 +115,16 @@ describe('SSC Role Switcher + nav scope', () => {
 
   it('scopes each function role to its SSC home + Admin docs + tickets', () => {
     expect(sscChildrenFor('ssc_finance')).toEqual(
-      expect.arrayContaining(['Finance', 'Admin', 'Ticket Portal']),
+      expect.arrayContaining(['Tage VC A&F', 'Admin', 'Ticket Portal']),
     );
     expect(sscChildrenFor('ssc_finance')).not.toContain('Legal');
     expect(adminChildrenFor('ssc_finance')).toEqual(['Document Library']);
     expect(sscChildrenFor('ssc_hr')).toEqual(
-      expect.arrayContaining(['HR', 'Admin', 'Ticket Portal']),
+      expect.arrayContaining(['Human Resources', 'Admin', 'Ticket Portal']),
     );
     expect(adminChildrenFor('ssc_hr')).toEqual(['Document Library']);
     expect(sscChildrenFor('ssc_it')).toEqual(
-      expect.arrayContaining(['IT', 'Admin', 'Ticket Portal']),
+      expect.arrayContaining(['Technology', 'Admin', 'Ticket Portal']),
     );
     expect(adminChildrenFor('ssc_it')).toEqual(['Document Library']);
     expect(sscChildrenFor('ssc_marketing')).toEqual(
@@ -139,7 +139,9 @@ describe('SSC Role Switcher + nav scope', () => {
       realRole: 'visionary',
       entityId: 'ENT-FIRM',
     }).find((i) => i.label === 'Shared Services');
-    const visionaryIt = visionarySsc?.children?.find((c) => c.label === 'IT');
+    const visionaryIt = visionarySsc?.children?.find(
+      (c) => c.label === 'Technology',
+    );
     expect(visionaryIt?.children?.map((c) => c.label)).toEqual([
       'Activity log',
       'Audit log',
@@ -148,14 +150,16 @@ describe('SSC Role Switcher + nav scope', () => {
       visionarySsc?.children?.find((c) => c.label === 'Admin')?.children?.map(
         (c) => c.label,
       ),
-    ).toEqual(['Document Library', 'DocuSign']);
+    ).toEqual(
+      expect.arrayContaining(['Document Library', 'DocuSign']),
+    );
 
     const itSsc = filterNavForRole(MAIN_NAV, {
       role: 'ssc_it',
       realRole: 'visionary',
       entityId: 'ENT-FIRM',
     }).find((i) => i.label === 'Shared Services');
-    const itDesk = itSsc?.children?.find((c) => c.label === 'IT');
+    const itDesk = itSsc?.children?.find((c) => c.label === 'Technology');
     expect(itDesk?.children?.map((c) => c.label)).toEqual(['Activity log']);
     expect(itDesk?.children?.[0]?.href).toBe('/shared-services/it/activity');
     expect(itSsc?.children?.some((c) => c.label === 'Audit log')).toBe(false);
@@ -164,11 +168,11 @@ describe('SSC Role Switcher + nav scope', () => {
   it('scopes Service Lead to led SSC function only (Finance default)', () => {
     const children = sscChildrenFor('service_lead');
     expect(children).toEqual(
-      expect.arrayContaining(['Finance', 'Admin', 'Ticket Portal']),
+      expect.arrayContaining(['Tage VC A&F', 'Admin', 'Ticket Portal']),
     );
     expect(adminChildrenFor('service_lead')).toEqual(['Document Library']);
-    expect(children).not.toContain('HR');
-    expect(children).not.toContain('IT');
+    expect(children).not.toContain('Human Resources');
+    expect(children).not.toContain('Technology');
     expect(children).not.toContain('Marketing');
     expect(children).not.toContain('Legal');
   });

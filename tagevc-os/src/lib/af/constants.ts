@@ -66,6 +66,18 @@ export const ACCOUNTING_MODULES = [
     description: 'Approvals · pay · auto-match',
   },
   {
+    id: 'vendors',
+    label: 'Vendors & 1099',
+    path: `${AF_BASE}/accounting/vendors`,
+    description: 'Portal · W-9 gate · 1099 YTD',
+  },
+  {
+    id: 'collections',
+    label: 'Collections',
+    path: `${AF_BASE}/accounting/collections`,
+    description: 'Reminders −3 / due / +7 / +14 / +30',
+  },
+  {
     id: 'banks',
     label: 'Banks & Cards',
     path: `${AF_BASE}/accounting/banks`,

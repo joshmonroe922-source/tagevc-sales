@@ -2,21 +2,10 @@ import Link from 'next/link';
 import { PageHeader } from '@/components/ui/page-header';
 import { AfModuleGrid, Money } from '@/components/af/af-ui';
 import { PERSONAL_FINANCE_MODULES, getNetWorthSnapshot } from '@/lib/af';
-import { redirect } from 'next/navigation';
-import { canAccessNetWorthPage } from '@/lib/net-worth/visibility';
-import { getSessionContext } from '@/lib/rbac/session';
+import { requirePersonalVisionary } from '@/lib/personal/access';
 
 export default async function PersonalFinanceHomePage() {
-  const ctx = await getSessionContext();
-  if (
-    !ctx ||
-    !canAccessNetWorthPage({
-      realRole: ctx.realRole,
-      liveLookActive: ctx.liveLookActive,
-    })
-  ) {
-    redirect('/entities');
-  }
+  await requirePersonalVisionary();
   const nw = getNetWorthSnapshot().personal;
   const modules = PERSONAL_FINANCE_MODULES.filter((m) => m.id !== 'home');
 
@@ -49,7 +38,7 @@ export default async function PersonalFinanceHomePage() {
         </div>
       </div>
 
-      <AfModuleGrid modules={modules} />
+      <AfModuleGrid modules={modules} surface="personal-finance-modules" />
     </div>
   );
 }

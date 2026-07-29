@@ -140,17 +140,17 @@ export function buildDashboardPnlView(opts: {
       title: entityId
         ? `${entityDisplayName(entityId)} P&L`
         : 'Consolidated P&L',
-      note: 'IES not available — connect books in Shared Services → Finance.',
+      note: 'IES not available — connect books in Shared Services → Tage VC A&F.',
       finance_href: entityId
-        ? `/shared-services/finance?entity=${encodeURIComponent(entityId)}`
-        : '/shared-services/finance',
+        ? `/shared-services/af/finance?entity=${encodeURIComponent(entityId)}`
+        : '/shared-services/af/finance',
     });
   }
 
   if (entityId) {
     const row =
       report.companies.find((c) => c.entity_id === entityId) ?? null;
-    const href = `/shared-services/finance?entity=${encodeURIComponent(entityId)}`;
+    const href = `/shared-services/af/finance?entity=${encodeURIComponent(entityId)}`;
     const companySynced = row?.last_sync_at ?? lastSyncAt;
     if (!row || !hasAnyPnl(row)) {
       return {
@@ -236,7 +236,7 @@ export function buildDashboardPnlView(opts: {
     note: `${c.note} ${IES_EMBED_POLICY}`,
     data_gaps: c.data_gaps.slice(0, 6),
     display_mode: 'native_ies_sync',
-    finance_href: '/shared-services/finance',
+    finance_href: '/shared-services/af/finance',
     open_in_ies_href: iesOpenInBooksHref(null),
     last_synced_at: lastSyncAt,
     embed_policy: IES_EMBED_POLICY,

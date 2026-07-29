@@ -109,7 +109,20 @@ describe('phase71 live look + nav + mailbox', () => {
     expect(APP_ROLE_LABELS.think_tank).toBe('Think Tank');
   });
 
-  it('Think Tank keeps Visionary-breadth nav minus credit access', () => {
+  it('Visionary Personal nav includes Credit Management', () => {
+    const items = filterNavForRole(MAIN_NAV, {
+      role: 'visionary',
+      realRole: 'visionary',
+      entityId: 'ENT-FIRM',
+    });
+    const personal = items.find((i) => i.label === 'Personal');
+    expect(personal?.children?.map((c) => c.label)).toEqual([
+      'Personal Finance',
+      'Credit Management',
+    ]);
+  });
+
+  it('Think Tank keeps Visionary-breadth nav without Personal ▼', () => {
     const items = filterNavForRole(MAIN_NAV, {
       role: 'think_tank',
       realRole: 'visionary',
@@ -120,6 +133,7 @@ describe('phase71 live look + nav + mailbox', () => {
     expect(labels).toContain('Assets');
     expect(labels).toContain('Firm');
     expect(labels).toContain('Business Development');
+    expect(labels).not.toContain('Personal');
     const bd = items.find((i) => i.label === 'Business Development');
     expect(bd?.children?.map((c) => c.label)).toEqual([
       'Lead Intake',

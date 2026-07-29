@@ -72,7 +72,7 @@ export async function collectEvidenceHints(input: {
         hints.push({
           source: 'finance_anomalies',
           note: `${openAnomalies} finance anomaly alert row(s)`,
-          href: '/shared-services/finance',
+          href: '/shared-services/af/finance',
           freshness_at: now,
         });
       }
@@ -85,7 +85,7 @@ export async function collectEvidenceHints(input: {
         hints.push({
           source: 'finance_anomaly_latest',
           note: `Latest anomaly signal at ${String(sample.created_at).slice(0, 16)}`,
-          href: '/shared-services/finance',
+          href: '/shared-services/af/finance',
           freshness_at: String(sample.created_at),
         });
       }
@@ -97,7 +97,7 @@ export async function collectEvidenceHints(input: {
         hints.push({
           source: 'finance_close_events',
           note: `${closeEvents} close checklist event(s) firm-wide`,
-          href: '/shared-services/finance',
+          href: '/shared-services/af/finance',
           freshness_at: now,
         });
       }

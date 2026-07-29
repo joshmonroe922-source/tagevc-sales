@@ -139,12 +139,35 @@ describe('UI/UX polish primitives', () => {
     assert.match(metricBoard, /<table/);
 
     const viewMode = readFileSync(
-      join(process.cwd(), 'src/lib/view-mode.ts'),
+      join(process.cwd(), 'src/lib/platform/view-mode/index.ts'),
       'utf8',
     );
     assert.match(viewMode, /role-dashboard/);
     assert.match(viewMode, /dashboard-operating-cadence/);
     assert.match(viewMode, /command-center-funnel/);
     assert.match(viewMode, /firm-ops-command-metrics/);
+    assert.match(viewMode, /af-hub-accounting/);
+    assert.match(viewMode, /personal-finance-modules/);
+    assert.match(viewMode, /net-worth-breakdown/);
+  });
+
+  it('ships platform ModuleLinkBoard for A&F / Personal card sections', () => {
+    const board = readFileSync(
+      join(process.cwd(), 'src/components/platform/module-link-board.tsx'),
+      'utf8',
+    );
+    assert.match(board, /ViewModeLayout/);
+    assert.match(board, /<table/);
+    const afGrid = readFileSync(
+      join(process.cwd(), 'src/components/af/af-module-grid.tsx'),
+      'utf8',
+    );
+    assert.match(afGrid, /ModuleLinkBoard/);
+    const shell = readFileSync(
+      join(process.cwd(), 'docs/SUBSIDIARY_OS_SHELL.md'),
+      'utf8',
+    );
+    assert.match(shell, /Cards \| List/);
+    assert.match(shell, /module-link-board/);
   });
 });

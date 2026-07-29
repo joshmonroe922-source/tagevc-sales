@@ -117,7 +117,7 @@ export function IesSyncControls({
         ) : null}
         {!showConnect && canConnect && entityId ? (
           <Link
-            href={`/shared-services/finance?entity=${encodeURIComponent(entityId)}`}
+            href={`/shared-services/af/finance?entity=${encodeURIComponent(entityId)}`}
             className="text-xs text-muted-foreground underline-offset-2 hover:underline"
           >
             Finance books

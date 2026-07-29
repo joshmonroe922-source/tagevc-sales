@@ -20,6 +20,11 @@ export type NavItem = {
    * (Role Switcher / Live Look hide these for other personas).
    */
   visionaryOnly?: boolean;
+  /**
+   * When true, only shown when *effective* role is Visionary (Josh).
+   * Excludes Think Tank / Lauren — use for Personal ▼ and children.
+   */
+  visionaryExclusive?: boolean;
   /** Hide while Live Look is active (private capital / personal credit). */
   hideDuringLiveLook?: boolean;
   /** Extra permission gate beyond module access (e.g. IT / Marketing). */
@@ -83,7 +88,7 @@ export const MAIN_NAV: NavItem[] = [
         module: 'portfolio',
         href: '/portfolio/net-worth',
         label: 'Net Worth',
-        description: 'Roll-up · credit management',
+        description: 'Company roll-up · businesses · RE · investments',
         visionaryOnly: true,
         hideDuringLiveLook: true,
       },
@@ -303,10 +308,12 @@ export const MAIN_NAV: NavItem[] = [
   {
     module: 'portfolio',
     label: 'Personal',
-    description: 'Personal Finance (Visionary)',
+    description: 'Personal Finance · Credit Management (Josh / Visionary only)',
     visionaryOnly: true,
+    visionaryExclusive: true,
     hideDuringLiveLook: true,
     hiddenForRoles: [
+      'think_tank',
       'associate',
       'ma_associate',
       're_sourcer',
@@ -321,14 +328,26 @@ export const MAIN_NAV: NavItem[] = [
         label: 'Personal Finance',
         description: 'Books · cards · family · net worth',
         visionaryOnly: true,
+        visionaryExclusive: true,
         hideDuringLiveLook: true,
+        hiddenForRoles: ['think_tank'],
+      },
+      {
+        module: 'portfolio',
+        href: '/personal/credit',
+        label: 'Credit Management',
+        description: 'Personal + business bureau · FICO · disputes',
+        visionaryOnly: true,
+        visionaryExclusive: true,
+        hideDuringLiveLook: true,
+        hiddenForRoles: ['think_tank'],
       },
     ],
   },
   {
     module: 'shared_services',
     label: 'Shared Services',
-    description: 'Tage VC A&F · Finance · HR · IT · Marketing · Legal · Admin',
+    description: 'Tage VC A&F · Human Resources · Technology · Marketing · Legal · Admin',
     children: [
       {
         module: 'shared_services',
@@ -350,20 +369,12 @@ export const MAIN_NAV: NavItem[] = [
           ],
         })),
       },
-      {
-        module: 'shared_services',
-        href: '/shared-services/finance',
-        label: 'Finance',
-        description: 'Close · KPI · exceptions',
-        hiddenForRoles: [
-          ...sscRolesHiddenFromFunction('Finance'),
-          ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
-        ],
-      },
+      // Legacy Shared Services → Finance (/shared-services/finance) sunsets;
+      // use Tage VC A&F → Finance. Old route redirects.
       {
         module: 'shared_services',
         href: '/shared-services/hr',
-        label: 'HR',
+        label: 'Human Resources',
         description: 'Roster · JML · onboarding · screening',
         hiddenForRoles: [
           ...sscRolesHiddenFromFunction('HR'),
@@ -395,7 +406,7 @@ export const MAIN_NAV: NavItem[] = [
       {
         module: 'shared_services',
         href: '/shared-services/it/assets',
-        label: 'IT',
+        label: 'Technology',
         description: 'Assets · licenses · Intune · activity',
         requiredPermission: 'read:it_assets',
         hiddenForRoles: [

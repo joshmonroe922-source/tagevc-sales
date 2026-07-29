@@ -25,6 +25,7 @@ import { getSessionContext } from '@/lib/rbac/session';
 
 function revalidateNw() {
   revalidatePath('/portfolio/net-worth');
+  revalidatePath('/personal/credit');
   revalidatePath('/portfolio/net-worth/credit');
   revalidatePath('/portfolio/investments');
   revalidatePath('/firm');

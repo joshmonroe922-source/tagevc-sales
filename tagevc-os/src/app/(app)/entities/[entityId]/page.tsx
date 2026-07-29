@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { getEntityOperatingView } from '@/lib/data/entity-os';
 import { listBusinessCreditProfiles } from '@/lib/net-worth/credit';
 import {
-  canAccessCreditManagement,
+  canAccessPersonalSection,
   canViewBusinessCredit,
 } from '@/lib/net-worth/visibility';
 import { getSessionContext } from '@/lib/rbac/session';
@@ -29,7 +29,7 @@ export default async function EntityOsPage({ params }: Props) {
   let creditChip: { status: string; href: string } | null = null;
   if (
     ctx &&
-    canAccessCreditManagement({
+    canAccessPersonalSection({
       role: ctx.profile.role,
       realRole: ctx.realRole,
       liveLookActive: ctx.liveLookActive,
@@ -43,7 +43,7 @@ export default async function EntityOsPage({ params }: Props) {
     const row = rows[0];
     creditChip = {
       status: row?.duns_status ?? 'not_started',
-      href: `/portfolio/net-worth/credit?entity=${encodeURIComponent(entityId)}`,
+      href: `/personal/credit?entity=${encodeURIComponent(entityId)}`,
     };
   }
 

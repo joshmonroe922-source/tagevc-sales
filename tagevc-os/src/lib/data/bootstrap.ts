@@ -6,6 +6,7 @@ export async function bootstrapDomainStores() {
   const { hydrateReStore } = await import('./re-store');
   const { hydrateMasterData } = await import('./master-data');
   const { hydrateAllStores } = await import('./persist');
+  const { hydrateAfStore } = await import('@/lib/af');
   await Promise.all([
     hydrateMasterData(),
     hydrateAllStores({
@@ -14,6 +15,9 @@ export async function bootstrapDomainStores() {
       documents: hydrateDocStore,
       ma: hydrateMaStore,
       re: hydrateReStore,
+    }),
+    hydrateAfStore().catch((e) => {
+      console.error('hydrateAfStore', e);
     }),
   ]);
 }

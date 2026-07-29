@@ -79,18 +79,21 @@ describe('SSC + entity dropdowns use shared order', () => {
 });
 
 describe('Shared Services nav accordion', () => {
-  it('expands to Finance/HR/IT/Marketing/Legal/Ticket Portal/Admin in order', () => {
+  it('expands to A&F/Human Resources/Technology/Marketing/Legal/Ticket Portal/Admin in order', () => {
     const ssc = MAIN_NAV.find((i) => i.label === 'Shared Services');
     expect(ssc?.href).toBeUndefined();
     expect(ssc?.children?.map((c) => c.label)).toEqual([
-      'Finance',
-      'HR',
-      'IT',
+      'Tage VC A&F',
+      'Human Resources',
+      'Technology',
       'Marketing',
       'Legal',
       'Ticket Portal',
       'Admin',
     ]);
+    expect(ssc?.children?.some((c) => c.href === '/shared-services/finance')).toBe(
+      false,
+    );
     const legal = ssc?.children?.find((c) => c.label === 'Legal');
     expect(legal?.href).toBe('/shared-services/legal');
     expect(MAIN_NAV.some((i) => i.label === 'Document Library')).toBe(false);
@@ -100,29 +103,34 @@ describe('Shared Services nav accordion', () => {
     expect(admin?.href).toBe('/admin');
     expect(admin?.module).toBe('admin');
     expect(admin?.children?.map((c) => c.label)).toEqual([
+      'Org Chart',
+      'Hire impact',
       'Document Library',
       'DocuSign',
       'Email analytics',
     ]);
-    expect(admin?.children?.[0]?.href).toBe('/documents');
-    expect(admin?.children?.[0]?.module).toBe('documents');
-    expect(admin?.children?.[1]?.href).toBe(
+    expect(admin?.children?.[2]?.href).toBe('/documents');
+    expect(admin?.children?.[2]?.module).toBe('documents');
+    expect(admin?.children?.[3]?.href).toBe(
       '/shared-services/legal/docusign',
     );
   });
 
-  it('nests Screening under HR (not as SSC sibling)', () => {
+  it('nests Screening under Human Resources (not as SSC sibling)', () => {
     const ssc = MAIN_NAV.find((i) => i.label === 'Shared Services');
-    const hr = ssc?.children?.find((c) => c.label === 'HR');
+    const hr = ssc?.children?.find((c) => c.label === 'Human Resources');
     expect(hr?.href).toBe('/shared-services/hr');
-    expect(hr?.children?.map((c) => c.label)).toEqual(['Screening']);
-    expect(hr?.children?.[0]?.href).toBe('/shared-services/hr/screening');
+    expect(hr?.children?.map((c) => c.label)).toEqual([
+      'Operating System',
+      'Screening',
+    ]);
+    expect(hr?.children?.[1]?.href).toBe('/shared-services/hr/screening');
     expect(ssc?.children?.some((c) => c.label === 'Screening')).toBe(false);
   });
 
-  it('nests Activity log + Visionary Audit log under IT / Technology (not Admin)', () => {
+  it('nests Activity log + Visionary Audit log under Technology (not Admin)', () => {
     const ssc = MAIN_NAV.find((i) => i.label === 'Shared Services');
-    const it = ssc?.children?.find((c) => c.label === 'IT');
+    const it = ssc?.children?.find((c) => c.label === 'Technology');
     expect(it?.href).toBe('/shared-services/it/assets');
     expect(it?.children?.map((c) => c.label)).toEqual([
       'Activity log',
@@ -135,6 +143,8 @@ describe('Shared Services nav accordion', () => {
     expect(it?.children?.[1]?.visionaryOnly).toBe(true);
     const admin = ssc?.children?.find((c) => c.label === 'Admin');
     expect(admin?.children?.map((c) => c.label)).toEqual([
+      'Org Chart',
+      'Hire impact',
       'Document Library',
       'DocuSign',
       'Email analytics',

@@ -1,36 +1,7 @@
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
-export function AfModuleGrid({
-  modules,
-  qs = '',
-}: {
-  modules: readonly {
-    id: string;
-    label: string;
-    path: string;
-    description: string;
-  }[];
-  qs?: string;
-}) {
-  return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {modules.map((m) => (
-        <Link
-          key={m.id}
-          href={`${m.path}${qs}`}
-          className="group relative overflow-hidden rounded-xl border border-border/80 bg-gradient-to-br from-white via-[#f7f6f3] to-[#eef1f6] px-4 py-4 transition-all hover:border-[#3a414f]/30 hover:shadow-sm"
-        >
-          <div className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-[#3a414f]/[0.04] transition-transform group-hover:scale-110" />
-          <p className="font-heading text-base font-semibold text-[#3a414f]">
-            {m.label}
-          </p>
-          <p className="mt-1 text-sm text-muted-foreground">{m.description}</p>
-        </Link>
-      ))}
-    </div>
-  );
-}
+export { AfModuleGrid, type AfModuleItem } from '@/components/af/af-module-grid';
 
 export function AfEntityChips({
   active,

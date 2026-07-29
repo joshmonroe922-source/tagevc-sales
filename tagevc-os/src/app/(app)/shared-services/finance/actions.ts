@@ -34,7 +34,7 @@ export type FinancePhase55ActionResult =
     };
 
 function revalidateFinance(entityId?: string | null) {
-  revalidatePath('/shared-services/finance');
+  revalidatePath('/shared-services/af/finance');
   revalidatePath('/shared-services');
   if (entityId) revalidatePath(`/entities/${entityId}`);
 }

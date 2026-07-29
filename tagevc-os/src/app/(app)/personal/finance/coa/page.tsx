@@ -1,21 +1,10 @@
 import { PageHeader } from '@/components/ui/page-header';
 import { AfBackLink } from '@/components/af/af-ui';
 import { getCoa } from '@/lib/af';
-import { redirect } from 'next/navigation';
-import { canAccessNetWorthPage } from '@/lib/net-worth/visibility';
-import { getSessionContext } from '@/lib/rbac/session';
+import { requirePersonalVisionary } from '@/lib/personal/access';
 
 export default async function PersonalCoaPage() {
-  const ctx = await getSessionContext();
-  if (
-    !ctx ||
-    !canAccessNetWorthPage({
-      realRole: ctx.realRole,
-      liveLookActive: ctx.liveLookActive,
-    })
-  ) {
-    redirect('/entities');
-  }
+  await requirePersonalVisionary();
   const coa = getCoa('PERS');
   return (
     <div className="space-y-8">

@@ -27,7 +27,9 @@
  *   (`/to-do`) is left-nav for operator work (not tickets). Lands on `/dashboard`.
  * - `visionaryOnly` follows the *effective* role so Role Switcher hides
  *   C-Suite / Investments / Net Worth when viewing as COO, SSC, or sub_lead.
- *   Think Tank keeps Visionary-breadth IA (minus Credit Management UI).
+ *   Think Tank keeps Visionary-breadth IA (minus Personal ▼ — Josh-only).
+ * - `visionaryExclusive` is Visionary (Josh) only — Personal Finance +
+ *   Credit Management under Personal ▼. Think Tank / Lauren never see these.
  * - IA note: order is Home → Dashboard → Assets (Assets not nested under
  *   Dashboard). BD stays top-level (not under Assets) so associate / sourcer
  *   transforms keep working.
@@ -40,6 +42,7 @@ import { entityDisplayName } from '@/lib/entities/display-name';
 import type { NavItem } from '@/lib/nav';
 import {
   isVisionaryBreadthRole,
+  isVisionaryExclusiveRole,
   roleCanAccessModule,
   roleHasPermission,
   type AppRole,
@@ -61,7 +64,8 @@ export function filterNavForRole(
   const out: NavItem[] = [];
   for (const item of items) {
     // Effective role so Role Switcher / Live Look match annotated persona view.
-    // Think Tank shares Visionary-breadth surfaces (credit gated elsewhere).
+    // Think Tank shares Visionary-breadth surfaces except visionaryExclusive.
+    if (item.visionaryExclusive && !isVisionaryExclusiveRole(role)) continue;
     if (item.visionaryOnly && !isVisionaryBreadthRole(role)) continue;
     if (item.hideDuringLiveLook && liveLookActive) continue;
     if (item.hiddenForRoles?.includes(role)) continue;

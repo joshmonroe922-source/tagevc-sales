@@ -239,7 +239,7 @@ describe('Assets + COO / Subsidiary Leader nav gates', () => {
     expect(
       financeSsc?.children?.some((c) => c.label === 'Tage VC A&F'),
     ).toBe(true);
-    expect(financeSsc?.children?.some((c) => c.label === 'HR')).toBe(false);
+    expect(financeSsc?.children?.some((c) => c.label === 'Human Resources')).toBe(false);
 
     const hrSsc = filterNavForRole(MAIN_NAV, {
       role: 'ssc_hr',

@@ -34,7 +34,7 @@ const MODULE_QUICK_NAV = [
   { href: '/deal-flow/vc/intake', label: 'Lead Intake' },
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/shared-services', label: 'Shared Services' },
-  { href: '/shared-services/finance', label: 'Finance' },
+  { href: '/shared-services/af/finance', label: 'Tage VC A&F Finance' },
   { href: '/shared-services/legal', label: 'Legal' },
   { href: '/shared-services/marketing', label: 'Marketing' },
   { href: '/firm', label: 'Firm' },

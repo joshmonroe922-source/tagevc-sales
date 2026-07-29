@@ -91,8 +91,8 @@ const DEFAULT_MODULES: FirmOpsModuleLink[] = [
   },
   {
     module_key: 'finance',
-    href: '/shared-services/finance',
-    label: 'Finance',
+    href: '/shared-services/af/finance',
+    label: 'A&F Finance',
     priority: 5,
     link_status: 'missing',
   },

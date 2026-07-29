@@ -1,28 +1,17 @@
 import { PageHeader } from '@/components/ui/page-header';
 import { AfBackLink, Money } from '@/components/af/af-ui';
 import { getAfStore } from '@/lib/af';
-import { redirect } from 'next/navigation';
-import { canAccessNetWorthPage } from '@/lib/net-worth/visibility';
-import { getSessionContext } from '@/lib/rbac/session';
+import { requirePersonalVisionary } from '@/lib/personal/access';
 
 export default async function PersonalCardsPage() {
-  const ctx = await getSessionContext();
-  if (
-    !ctx ||
-    !canAccessNetWorthPage({
-      realRole: ctx.realRole,
-      liveLookActive: ctx.liveLookActive,
-    })
-  ) {
-    redirect('/entities');
-  }
+  await requirePersonalVisionary();
   const bal = getAfStore().personalBalances['2000'] ?? 0;
   return (
     <div className="space-y-8">
       <PageHeader
         eyebrow="Personal Finance"
         title="Credit cards"
-        description="Card balances, feeds, pay, and utilization live here — not under a separate Credit Management menu, and not on Net Worth."
+        description="Card balances, feeds, pay, and utilization live here — not on Net Worth. Bureau/FICO Credit Management is under Personal → Credit Management."
         secondaryActions={<AfBackLink href="/personal/finance" label="Personal Finance" />}
       />
       <div className="rounded-xl border border-border px-5 py-4">

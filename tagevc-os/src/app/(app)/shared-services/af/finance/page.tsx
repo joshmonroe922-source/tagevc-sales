@@ -24,7 +24,7 @@ export default async function FinanceHubPage({ searchParams }: Props) {
         <p className="font-heading text-3xl font-semibold text-[#3a414f]"><Money value={nw.consolidated.netWorth} /></p>
         <p className="mt-1 text-sm text-muted-foreground">Cash <Money value={nw.consolidated.cash} /> · IC eliminations applied · personal books excluded</p>
       </div>
-      <AfModuleGrid modules={FINANCE_MODULES} qs={qs} />
+      <AfModuleGrid modules={FINANCE_MODULES} qs={qs} surface="af-finance-modules" />
     </div>
   );
 }

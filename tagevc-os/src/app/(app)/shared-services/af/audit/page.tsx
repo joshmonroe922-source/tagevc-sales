@@ -1,6 +1,6 @@
-import Link from 'next/link';
 import { PageHeader } from '@/components/ui/page-header';
 import { AfBackLink } from '@/components/af/af-ui';
+import { ModuleLinkBoard } from '@/components/platform/module-link-board';
 import { resolveAfEntityParam } from '@/lib/af/page-helpers';
 import { requirePermission } from '@/lib/rbac/session';
 
@@ -19,27 +19,25 @@ export default async function AuditPage({ searchParams }: Props) {
         description="Assurance workspace, PBC requests, and one-click auditor packages."
         secondaryActions={<AfBackLink href={`/shared-services/af${qs}`} label="Tage VC A&F" />}
       />
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Link
-          href={`/shared-services/af/audit/workspace${qs}`}
-          className="rounded-xl border border-border px-4 py-5 hover:bg-muted/30"
-        >
-          <p className="font-heading text-lg font-semibold text-[#3a414f]">
-            Annual audit workspace
-          </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Auditor view · snapshots · download package
-          </p>
-        </Link>
-        <div className="rounded-xl border border-border px-4 py-5">
-          <p className="font-heading text-lg font-semibold text-[#3a414f]">
-            PBC checklist
-          </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Startup audit readiness — Spec - Audit & Controls depth next.
-          </p>
-        </div>
-      </div>
+      <ModuleLinkBoard
+        surface="af-audit-modules"
+        columns={2}
+        variant="plain"
+        items={[
+          {
+            id: 'workspace',
+            label: 'Annual audit workspace',
+            href: `/shared-services/af/audit/workspace${qs}`,
+            description: 'Auditor view · snapshots · download package',
+          },
+          {
+            id: 'pbc',
+            label: 'PBC checklist',
+            href: `/shared-services/af/audit/workspace${qs}`,
+            description: 'Startup audit readiness · Spec - Audit & Controls',
+          },
+        ]}
+      />
     </div>
   );
 }

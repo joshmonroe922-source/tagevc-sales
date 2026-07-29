@@ -70,7 +70,10 @@ export default async function BanksPage({ searchParams }: Props) {
           </Link>
         </div>
         {store.feedTxns.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No feed transactions yet. Pay a bill to simulate a bank debit + auto-match.</p>
+          <p className="text-sm text-muted-foreground">
+            No live feed transactions yet. Connect banks in Setup, then click
+            Sync live Plaid.
+          </p>
         ) : (
           <div className="overflow-hidden rounded-xl border border-border">
             <table className="w-full text-sm">

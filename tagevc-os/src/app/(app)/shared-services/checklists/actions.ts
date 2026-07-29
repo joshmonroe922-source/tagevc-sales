@@ -12,7 +12,7 @@ function revalidateSsc() {
   revalidatePath('/shared-services/checklists');
   revalidatePath('/shared-services/audits');
   revalidatePath('/shared-services');
-  revalidatePath('/shared-services/finance');
+  revalidatePath('/shared-services/af/finance');
   revalidatePath('/shared-services/hr');
   revalidatePath('/shared-services/marketing');
   revalidatePath('/shared-services/it/assets');

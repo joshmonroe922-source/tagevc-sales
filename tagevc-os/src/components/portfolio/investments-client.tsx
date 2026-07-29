@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { MetricCardBoard } from '@/components/platform/metric-card-board';
 import { entityDisplayName } from '@/lib/entities/display-name';
 import { formatUsdK } from '@/lib/format';
 import type { InvestorAsset, NetWorthBreakdown } from '@/lib/net-worth/assets';
@@ -105,21 +106,15 @@ export function InvestmentsClient({
         </CardContent>
       </Card>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        {cards.map((c) => (
-          <div
-            key={c.key}
-            className="rounded-lg border border-border bg-card px-4 py-3"
-          >
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">
-              {c.label}
-            </p>
-            <p className="mt-1 font-heading text-xl font-semibold tabular-nums">
-              {money(c.value)}
-            </p>
-          </div>
-        ))}
-      </div>
+      <MetricCardBoard
+        surface="investments-breakdown"
+        columns={3}
+        items={cards.map((c) => ({
+          id: c.key,
+          label: c.label,
+          value: c.value,
+        }))}
+      />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>

@@ -312,7 +312,7 @@ export function CreditManagementClient({
               </button>
             ))}
             <Link
-              href="/portfolio/net-worth/credit"
+              href="/personal/credit"
               className="text-muted-foreground underline-offset-4 hover:underline"
             >
               All

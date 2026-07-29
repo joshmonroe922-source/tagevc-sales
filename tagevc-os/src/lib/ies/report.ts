@@ -364,7 +364,7 @@ export async function getIesFinanceReport(input?: {
     },
     last_sync: lastSync,
     ssc_close_href: `/shared-services/checklists${entityQs}`,
-    month_end_checklist_href: `/shared-services/finance${entityQs}#month-end-close`,
+    month_end_checklist_href: `/shared-services/af/finance${entityQs}`,
     contract_version: PHASE70_IES_CONTRACT_VERSION,
     money_auto_approve: false,
     ies_write_executed: false,

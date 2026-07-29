@@ -1,14 +1,12 @@
 import { PageHeader } from '@/components/ui/page-header';
 import { AfBackLink, StatusPill } from '@/components/af/af-ui';
-import { redirect } from 'next/navigation';
-import { canAccessNetWorthPage } from '@/lib/net-worth/visibility';
-import { getSessionContext } from '@/lib/rbac/session';
+import { requirePersonalVisionary } from '@/lib/personal/access';
 
 const STEPS = [
   'Enable Personal Finance (books PERS)',
   'Load MD — Personal Family members',
   'Load CoA — Personal',
-  'Add banks/cards + feeds',
+  'Add banks/cards + feeds (Connect bank via Plaid)',
   'Enter opening balances',
   'Set budgets',
   'Test bill + income invoice',
@@ -16,16 +14,7 @@ const STEPS = [
 ];
 
 export default async function PersonalSetupPage() {
-  const ctx = await getSessionContext();
-  if (
-    !ctx ||
-    !canAccessNetWorthPage({
-      realRole: ctx.realRole,
-      liveLookActive: ctx.liveLookActive,
-    })
-  ) {
-    redirect('/entities');
-  }
+  await requirePersonalVisionary();
   return (
     <div className="space-y-8">
       <PageHeader

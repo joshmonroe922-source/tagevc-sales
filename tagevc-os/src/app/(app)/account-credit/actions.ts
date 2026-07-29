@@ -55,7 +55,7 @@ export async function requestAccountCreditCheckAction(
     actorId: gate.session.profile.id,
   });
   if (error || !check) return { ok: false, error: error ?? 'Request failed.' };
-  revalidatePath('/shared-services/finance');
+  revalidatePath('/shared-services/af/finance');
   return { ok: true, message: 'Credit check requested.', checkId: check.id };
 }
 
@@ -97,7 +97,7 @@ export async function uploadAccountCreditReportAction(
     actorId: gate.session.profile.id,
   });
   if (error || !check) return { ok: false, error: error ?? 'Upload failed.' };
-  revalidatePath('/shared-services/finance');
+  revalidatePath('/shared-services/af/finance');
   return {
     ok: true,
     message: `Check ${check.status} · risk ${check.risk_band ?? 'n/a'} · suggest ${check.suggested_terms ?? 'n/a'}`,
@@ -120,7 +120,7 @@ export async function waiveAccountCreditCheckAction(
     actorId: gate.session.profile.id,
   });
   if (error || !check) return { ok: false, error: error ?? 'Waiver failed.' };
-  revalidatePath('/shared-services/finance');
+  revalidatePath('/shared-services/af/finance');
   return { ok: true, message: 'Check waived — DUR remains default.' };
 }
 
@@ -148,7 +148,7 @@ export async function saveAccountCreditManualAction(
     actorId: gate.session.profile.id,
   });
   if (error || !check) return { ok: false, error: error ?? 'Save failed.' };
-  revalidatePath('/shared-services/finance');
+  revalidatePath('/shared-services/af/finance');
   return { ok: true, message: 'Manual scores saved.', checkId: check.id };
 }
 

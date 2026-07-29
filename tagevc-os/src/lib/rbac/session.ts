@@ -22,6 +22,10 @@ import {
   liveLookViewerMode,
 } from '@/lib/live-look/access';
 import { resolveSubsidiaryLeaderEntityId } from '@/lib/entities/assignment-lead';
+import {
+  isLaurenMonroeEmail,
+  LAUREN_MONROE_JOB_TITLE,
+} from '@/lib/org/staff-titles';
 
 const DEV_PROFILE: Profile = {
   id: '00000000-0000-0000-0000-000000000001',
@@ -30,6 +34,7 @@ const DEV_PROFILE: Profile = {
   role: 'visionary',
   entity_id: 'ENT-FIRM',
   avatar_url: null,
+  job_title: 'Owner / CEO',
   active: true,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
@@ -92,6 +97,21 @@ export async function getRealProfile(): Promise<Profile | null> {
   if (data) {
     const profile = data as Profile;
     if (!profile.active) return null;
+    // Ensure Lauren's display title when profile exists without job_title set.
+    if (
+      isLaurenMonroeEmail(profile.email) &&
+      !(profile.job_title ?? '').trim()
+    ) {
+      const patched = {
+        ...profile,
+        job_title: LAUREN_MONROE_JOB_TITLE,
+      };
+      void supabase
+        .from('profiles')
+        .update({ job_title: LAUREN_MONROE_JOB_TITLE })
+        .eq('id', profile.id);
+      return patched;
+    }
     return profile;
   }
 
@@ -106,6 +126,9 @@ export async function getRealProfile(): Promise<Profile | null> {
     role: (normalizeRole(user.user_metadata?.role) ?? 'associate') as AppRole,
     entity_id: null,
     avatar_url: user.user_metadata?.avatar_url ?? null,
+    job_title: isLaurenMonroeEmail(user.email)
+      ? LAUREN_MONROE_JOB_TITLE
+      : null,
     active: true,
   };
 

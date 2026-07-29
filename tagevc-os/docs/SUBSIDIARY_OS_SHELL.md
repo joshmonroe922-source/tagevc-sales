@@ -85,7 +85,41 @@ Create Ticket split uses Tage charcoal:
 | Instant NDA | portal.instantnda.us | `instantnda-portal` |
 | Signent HR | portal.signenthr.com | `signent-hr-portal` (local link often `signenthr-portal`) |
 
+## Cards | List (required on every card section)
+
+Every navigational or metric **card grid** on Tage and subsidiaries must ship a **Cards | List** toggle. Preference persists in `localStorage` (`tagevc.view.mode.v1.<surface>`).
+
+| Control | Behavior |
+| --- | --- |
+| **Toggle** | Accessible segmented control: Cards \| List |
+| **Persist** | Per-surface key via `viewModeStorageKey(surface)` |
+| **List mode** | Real table of the same rows — not a stub |
+| **Default** | Usually `cards` (see `VIEW_MODE_DEFAULTS`) |
+
+### Copy targets (scaffold)
+
+```
+src/lib/platform/view-mode/           # types, defaults, storage keys
+src/lib/view-mode.ts                  # thin re-export (compat)
+src/components/ui/view-mode-toggle.tsx # useViewMode · ViewModeToggle · ViewModeLayout
+src/components/platform/module-link-board.tsx  # link/module hubs
+src/components/platform/metric-card-board.tsx  # KPI / breakdown boards
+```
+
+Canonical imports: `@/lib/platform/view-mode`, `@/components/platform/module-link-board`.
+
+**Rule:** Do not ship new card-only grids for hubs, KPIs, Net Worth breakdowns, Personal Finance modules, or A&F module maps. Wrap with `ViewModeLayout`, `ModuleLinkBoard`, or `MetricCardBoard`.
+
+Smoke:
+
+```ts
+assert.match(viewMode, /VIEW_MODE_STORAGE_PREFIX/);
+assert.match(moduleLinkBoard, /ViewModeLayout/);
+assert.match(moduleLinkBoard, /<table/);
+```
+
 ## Traction EOS (required on every entity OS)
+
 
 Every subsidiary OS ships **Traction EOS** as a **standalone** left-nav item (HR-owned conceptually, not buried only under an HR accordion).
 
@@ -116,6 +150,18 @@ assert.ok(!MAIN_NAV.some((n) => n.href === '/help-desk'));
 ```
 
 ## A&F — Accounting & Finance (required on every entity OS)
+
+Canonical finance lives under **`{Entity} A&F`**, not a separate Shared Services → Finance item.
+
+| | |
+| --- | --- |
+| **Hub** | `/shared-services/af` |
+| **Sibling sections** | Accounting · Finance · Audit · Controls, Security & Governance |
+| **Routes** | `/shared-services/af/accounting` · `/finance` · `/audit` · `/controls` |
+
+**Do not** revive legacy `/shared-services/finance` in subsidiary nav. On Tage OS that path soft-redirects to A&F Finance.
+
+Shared Services nav labels (platform-standard): **Human Resources** (not HR), **Technology** (not IT). Keep URL paths `/shared-services/hr` and `/shared-services/it/*` stable.
 
 Every entity OS (Tage + current subsidiaries + **future clones**) ships the **Tage VC A&F** concept as a standardized spine — not Tage-only nav.
 

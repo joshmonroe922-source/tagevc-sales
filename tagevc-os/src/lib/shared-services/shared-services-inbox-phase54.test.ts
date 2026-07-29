@@ -129,7 +129,7 @@ describe('Phase 54 Shared Services Inbox Unification', () => {
     expect(report.todo.toLowerCase()).toContain('refresh');
     const finance = report.module_stubs.find((s) => s.service === 'Finance');
     expect(finance?.status).toBe('live');
-    expect(finance?.href).toBe('/shared-services/finance');
+    expect(finance?.href).toBe('/shared-services/af/finance');
     const hr = report.module_stubs.find((s) => s.service === 'HR');
     expect(hr?.status).toBe('live');
     expect(hr?.href).toBe('/shared-services/hr');
@@ -203,7 +203,7 @@ describe('Phase 54 Shared Services Inbox Unification', () => {
       service: 'Finance',
     });
     expect(financeOnly).toHaveLength(1);
-    expect(financeOnly[0]?.module_href).toBe('/shared-services/finance');
+    expect(financeOnly[0]?.module_href).toBe('/shared-services/af/finance');
     expect(financeOnly[0]?.module_todo).toBeNull();
 
     const related = buildRelatedLinks(
@@ -268,9 +268,10 @@ describe('Phase 54 Shared Services Inbox Unification', () => {
     expect(page).toContain('listScopedTickets');
     expect(page).toContain('shared-services-inbox-phase54-server');
 
-    expect(modules).toContain("id: 'finance'");
+    expect(modules).toContain("id: 'tage_vc_af'");
     expect(modules).toContain("id: 'hr'");
-    expect(modules).toContain('/shared-services/finance');
+    expect(modules).toContain('/shared-services/af');
+    expect(modules).not.toContain("href: '/shared-services/finance'");
     expect(modules).toContain("status: 'live'");
     expect(modules).toContain('getSsHubCardModules');
 

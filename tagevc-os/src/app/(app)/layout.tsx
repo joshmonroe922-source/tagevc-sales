@@ -40,6 +40,7 @@ export default async function AppShellLayout({
     realRole: session.realRole,
     fullName: session.profile.full_name,
     email: session.profile.email,
+    jobTitle: session.profile.job_title ?? null,
     impersonatingAs: session.impersonatingAs,
     impersonatableRoles: canImpersonate ? listRoleSwitcherRoles() : [],
     liveLookActive: session.liveLookActive,

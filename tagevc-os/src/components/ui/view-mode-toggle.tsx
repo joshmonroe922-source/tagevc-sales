@@ -6,7 +6,7 @@ import {
   parseViewMode,
   viewModeStorageKey,
   type ViewMode,
-} from '@/lib/view-mode';
+} from '@/lib/platform/view-mode';
 
 export function useViewMode(
   surface: string,

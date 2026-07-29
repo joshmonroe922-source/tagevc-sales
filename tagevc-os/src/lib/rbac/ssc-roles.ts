@@ -53,13 +53,13 @@ export const SSC_ROLE_PRIMARY_NAV_LABEL: Partial<
 };
 
 export const SSC_ROLE_LANDING: Partial<Record<AppRole, string>> = {
-  ssc_finance: '/shared-services/finance',
+  ssc_finance: '/shared-services/af/finance',
   ssc_hr: '/shared-services/hr',
   ssc_it: '/shared-services/it/assets',
   ssc_marketing: '/shared-services/marketing',
   ssc_legal: '/shared-services/legal',
   counsel_ops: '/shared-services/legal',
-  service_lead: '/shared-services/finance',
+  service_lead: '/shared-services/af/finance',
 };
 
 export function isSscOperatorRole(role: AppRole): boolean {

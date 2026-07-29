@@ -23,21 +23,12 @@ export const SS_FUNCTION_MODULES: SsHubModule[] = [
     title: 'Tage VC A&F',
     short: 'A&F',
     service: 'Finance',
-    status: 'foundation',
-    description:
-      'In-portal A&F scaffold (Accounting · Finance · Audit · Controls). Replacing / moving off IES for portal A&F.',
-  },
-  {
-    id: 'finance',
-    href: '/shared-services/finance',
-    title: 'Accounting & Finance',
-    short: 'Finance',
-    service: 'Finance',
     status: 'live',
     description:
-      'KPI pack · close checklists · exceptions · dual-approve write-backs (IES is system of record).',
-    docs: 'docs/OS_PHASE55.md',
+      'Accounting · Finance · Audit · Controls. Canonical A&F (replaces legacy Shared Services → Finance).',
+    docs: 'docs/TAGE_VC_AF.md',
   },
+  // Legacy `/shared-services/finance` removed from hub — redirects to A&F Finance.
   {
     id: 'hr',
     href: '/shared-services/hr',
@@ -52,8 +43,8 @@ export const SS_FUNCTION_MODULES: SsHubModule[] = [
   {
     id: 'it_assets',
     href: '/shared-services/it/assets',
-    title: 'Technology / IT',
-    short: 'IT',
+    title: 'Technology',
+    short: 'Technology',
     service: 'IT',
     status: 'live',
     description:

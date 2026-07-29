@@ -97,7 +97,7 @@ export type SharedServicesInboxPhase54Report = {
 const DEFAULT_MODULE_STUBS: SsInboxModuleStub[] = [
   {
     service: 'Finance',
-    href: '/shared-services/finance',
+    href: '/shared-services/af/finance',
     status: 'live',
     todo: null,
   },

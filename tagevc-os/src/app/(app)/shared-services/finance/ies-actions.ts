@@ -11,7 +11,7 @@ import {
 import { getSessionContext, guardPermission } from '@/lib/rbac/session';
 
 function revalidateIesSurfaces() {
-  revalidatePath('/shared-services/finance');
+  revalidatePath('/shared-services/af/finance');
   revalidatePath('/shared-services');
   revalidatePath('/dashboard');
   revalidatePath('/command-center');

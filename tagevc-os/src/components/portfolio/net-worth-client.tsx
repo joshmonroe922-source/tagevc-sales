@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import {
   Card,
@@ -9,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { MetricCardBoard } from '@/components/platform/metric-card-board';
 import { formatUsdK } from '@/lib/format';
 import type {
   FirmAumSnapshot,
@@ -24,37 +24,34 @@ export function NetWorthClient({
   breakdown,
   firmAum,
   error,
-  showCredit = true,
 }: {
   breakdown: NetWorthBreakdown;
   firmAum: FirmAumSnapshot;
   error?: string;
-  /** Credit Management chip + card — false for Think Tank. */
-  showCredit?: boolean;
 }) {
   const investmentsTotal =
     breakdown.investments + breakdown.crypto + breakdown.retirement;
 
-  const cards = [
+  const items = [
     {
-      key: 'business',
+      id: 'business',
       label: 'Businesses',
       value: breakdown.business,
       href: '/entities',
     },
     {
-      key: 'real_estate',
+      id: 'real_estate',
       label: 'Real Estate',
       value: breakdown.real_estate,
       href: '/portfolio/real-estate',
     },
     {
-      key: 'investments',
+      id: 'investments',
       label: 'Investments',
       value: investmentsTotal,
       href: '/portfolio/investments',
     },
-  ] as const;
+  ];
 
   return (
     <div className="space-y-6">
@@ -84,54 +81,14 @@ export function NetWorthClient({
           <Badge variant="secondary">Visionary-only</Badge>
           <Badge variant="outline">{firmAum.label}</Badge>
           <Badge variant="outline">Firm slice {money(firmAum.total)}</Badge>
-          {showCredit ? (
-            <Link
-              href="/portfolio/net-worth/credit"
-              className="underline-offset-4 hover:underline"
-            >
-              Credit Management
-            </Link>
-          ) : null}
         </CardContent>
       </Card>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        {cards.map((c) => (
-          <Link
-            key={c.key}
-            href={c.href}
-            className="rounded-lg border border-border bg-card px-4 py-3 transition-colors hover:border-[#3a414f]/35"
-          >
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">
-              {c.label}
-            </p>
-            <p className="mt-1 font-heading text-xl font-semibold tabular-nums">
-              {money(c.value)}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">Open →</p>
-          </Link>
-        ))}
-      </div>
-
-      {showCredit ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Credit management</CardTitle>
-            <CardDescription>
-              Personal and business bureau tracking stays on Net Worth — not under
-              Investments.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link
-              href="/portfolio/net-worth/credit"
-              className="text-sm font-medium underline-offset-4 hover:underline"
-            >
-              Open Credit Management →
-            </Link>
-          </CardContent>
-        </Card>
-      ) : null}
+      <MetricCardBoard
+        surface="net-worth-breakdown"
+        items={items}
+        columns={3}
+      />
     </div>
   );
 }

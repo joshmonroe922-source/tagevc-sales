@@ -169,9 +169,9 @@ describe('Phase 55 Finance Control Plane (IES orchestration)', () => {
     expect(server).toContain('createPersistClient');
     expect(server).toContain('ies_write_executed: false');
 
-    expect(page).toContain('FinanceControlPlaneClient');
-    expect(page).toContain('getFinanceControlPlanePhase55Report');
-    expect(page).toContain('read:shared_services');
+    expect(page).toContain('redirect');
+    expect(page).toContain('/shared-services/af/finance');
+    expect(page).toContain('LegacyFinanceSunsetRedirect');
 
     expect(actions).toContain('proposeFinanceWritebackPhase55Action');
     expect(actions).toContain('approveFinanceWritebackPhase55Action');
@@ -179,17 +179,14 @@ describe('Phase 55 Finance Control Plane (IES orchestration)', () => {
     expect(actions).toContain('money_auto_approve: false');
     expect(actions).toContain('ies_write_executed: false');
 
-    expect(ui).toContain('Finance & Accounting');
-    expect(ui).toContain('dual');
+    // Client retained for potential embed; nav/home sunset redirects to A&F.
+    expect(ui).toContain('FinanceControlPlaneClient');
     expect(ui).toContain('IES');
-    expect(ui).toContain('Month-end close');
-    expect(ui).toContain('Year-end close');
-    expect(ui).toContain('Recruit 619');
-    expect(ui).toContain('IES_BOUNDARY');
     expect(ui).toContain('portfolioBridge');
 
-    expect(modules).toContain("href: '/shared-services/finance'");
-    expect(modules).toContain("id: 'finance'");
-    expect(modules).toMatch(/id:\s*'finance'[\s\S]*?status:\s*'live'/);
+    expect(modules).toContain("href: '/shared-services/af'");
+    expect(modules).not.toContain("href: '/shared-services/finance'");
+    expect(modules).toContain("id: 'tage_vc_af'");
+    expect(modules).toMatch(/id:\s*'tage_vc_af'[\s\S]*?status:\s*'live'/);
   });
 });

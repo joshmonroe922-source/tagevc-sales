@@ -101,24 +101,32 @@ export function canViewBusinessCredit(role: AppRole): boolean {
 }
 
 /**
+ * Personal ▼ (Personal Finance + Credit Management + any Personal children).
+ * Josh / Visionary only — Think Tank (Lauren) and Live Look blocked.
+ * Uses effective `role` so Role Switcher as Think Tank also hides access.
+ */
+export function canAccessPersonalSection(input: {
+  role: AppRole;
+  realRole: AppRole;
+  liveLookActive?: boolean;
+}): boolean {
+  if (input.liveLookActive) return false;
+  if (input.role !== 'visionary' || input.realRole !== 'visionary') {
+    return false;
+  }
+  return true;
+}
+
+/**
  * Credit Management UI (personal + business credit hub).
- * Explicitly excluded for Think Tank (effective or real).
+ * Under Personal ▼ — Visionary-exclusive (same as Personal Finance).
  */
 export function canAccessCreditManagement(input: {
   role: AppRole;
   realRole: AppRole;
   liveLookActive?: boolean;
 }): boolean {
-  if (input.liveLookActive) return false;
-  if (input.role === 'think_tank' || input.realRole === 'think_tank') {
-    return false;
-  }
-  return (
-    canViewPersonalCredit({
-      realRole: input.realRole,
-      liveLookActive: false,
-    }) || canViewBusinessCredit(input.role)
-  );
+  return canAccessPersonalSection(input);
 }
 
 /**
