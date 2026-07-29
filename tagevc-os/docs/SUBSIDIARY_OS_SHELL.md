@@ -115,6 +115,38 @@ assert.ok(MAIN_NAV.some((n) => /Operating System$/.test(n.label)));
 assert.ok(!MAIN_NAV.some((n) => n.href === '/help-desk'));
 ```
 
+## A&F — Accounting & Finance (required on every entity OS)
+
+Every entity OS (Tage + current subsidiaries + **future clones**) ships the **Tage VC A&F** concept as a standardized spine — not Tage-only nav.
+
+| Control | Behavior |
+| --- | --- |
+| **Nav label** | `{Entity Name} A&F` (Tage: **Tage VC A&F** under Shared Services) |
+| **Hub** | `/shared-services/af` |
+| **Sibling sections** | Accounting · Finance · Audit · Controls, Security & Governance |
+| **Routes** | `/shared-services/af/accounting` · `/finance` · `/audit` · `/controls` |
+| **Status** | Scaffold / placeholders until full A&F instructions land |
+
+### Copy targets (scaffold)
+
+```
+src/lib/platform/af/                  # sections.ts + nav.ts (buildAfNavBranch / Flat)
+src/app/(app)/shared-services/af/     # hub + four section placeholders
+src/lib/nav.ts                        # wire "{Entity} A&F" (+ nested or flat children)
+```
+
+Portable twins live under Tage `src/lib/platform/af/` (same pattern as `platform/shell/` / AppTopBarShell). Copy into each subsidiary and future OS clone. Canonical product doc: `docs/TAGE_VC_AF.md`.
+
+Nav smoke:
+
+```ts
+assert.ok(
+  MAIN_NAV.some((n) => /A&F$/.test(n.label)) ||
+    NAV_SECTIONS?.some((s) => /A&F$/.test(s.label ?? '')),
+);
+assert.ok(AF_SECTIONS.map((s) => s.id).join() === 'accounting,finance,audit,controls');
+```
+
 ## Org Chart + hire impact + L10 (phase 85)
 
 Every subsidiary OS ships:

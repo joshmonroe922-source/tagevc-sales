@@ -5,6 +5,10 @@
  * Shell UX (AppTopBar Alerts + Create Ticket + phone Menu order): see `shell/`
  * and `docs/SUBSIDIARY_OS_SHELL.md`. Phone order: Create Ticket | Alerts | Menu.
  * Help Desk is Create Ticket dropdown only.
+ *
+ * A&F spine (Accounting · Finance · Audit · Controls): see `af/` and
+ * `docs/TAGE_VC_AF.md`. Future OS clones inherit the same four sections
+ * under `{Entity Name} A&F`.
  */
 export {
   DEFAULT_REPORTING_PERIODS,
@@ -23,3 +27,16 @@ export {
 } from '@/lib/platform/reporting-timeframes';
 
 export * from '@/lib/platform/email';
+
+export {
+  AF_HUB_PATH,
+  AF_SECTIONS,
+  afHubLabel,
+  buildAfNavBranch,
+  buildAfNavFlat,
+  buildAfNavSectionItems,
+  type AfNavBranch,
+  type AfNavLeaf,
+  type AfSection,
+  type AfSectionId,
+} from '@/lib/platform/af';

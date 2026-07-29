@@ -39,3 +39,5 @@ Idempotent. Migrates existing `r619_eos_*` rows into `os_eos_*` when present. Mi
 
 ## Future entity clones
 See `docs/SUBSIDIARY_OS_SHELL.md` — new OS shells must ship EOS nav label `{Entity Name} Operating System`, route `/eos`, and hard-scope inserts to their `entity_id`.
+
+Clones also inherit **A&F** (`{Entity Name} A&F` + Accounting · Finance · Audit · Controls). See `docs/TAGE_VC_AF.md` and `docs/SUBSIDIARY_OS_SHELL.md` § A&F.

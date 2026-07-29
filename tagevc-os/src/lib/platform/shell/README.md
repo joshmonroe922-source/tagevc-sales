@@ -6,6 +6,9 @@ entity-specific ticket create + alerts data sources.
 
 See `docs/SUBSIDIARY_OS_SHELL.md`.
 
+A&F spine (Accounting · Finance · Audit · Controls) is a sibling platform module —
+copy `src/lib/platform/af/` the same way. See `docs/TAGE_VC_AF.md`.
+
 | File | Portal destination |
 | --- | --- |
 | `create-ticket-split-button.tsx` | Merge into `components/help-desk/create-ticket-modal.tsx` as `GlobalCreateTicketButton` |

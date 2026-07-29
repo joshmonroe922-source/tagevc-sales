@@ -1,8 +1,13 @@
+import { buildAfNavBranch } from '@/lib/platform/af/nav';
 import {
   SSC_OPERATOR_ROLES,
   sscRolesHiddenFromFunction,
 } from '@/lib/rbac/ssc-roles';
 import type { AppRole, NavModule, Permission } from '@/lib/types/roles';
+
+/** Canonical A&F spine (Accounting · Finance · Audit · Controls). */
+const TAGE_VC_AF_NAV = buildAfNavBranch('Tage VC');
+
 
 export type NavItem = {
   module: NavModule;
@@ -302,55 +307,23 @@ export const MAIN_NAV: NavItem[] = [
     children: [
       {
         module: 'shared_services',
-        href: '/shared-services/af',
-        label: 'Tage VC A&F',
-        description: 'In-portal A&F · audit · controls (scaffold)',
+        href: TAGE_VC_AF_NAV.href,
+        label: TAGE_VC_AF_NAV.label,
+        description: TAGE_VC_AF_NAV.description,
         hiddenForRoles: [
           ...sscRolesHiddenFromFunction('Finance'),
           ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
         ],
-        children: [
-          {
-            module: 'shared_services',
-            href: '/shared-services/af/accounting',
-            label: 'Accounting',
-            description: 'Books · close · GL',
-            hiddenForRoles: [
-              ...sscRolesHiddenFromFunction('Finance'),
-              ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
-            ],
-          },
-          {
-            module: 'shared_services',
-            href: '/shared-services/af/finance',
-            label: 'Finance',
-            description: 'Cash · planning · KPIs',
-            hiddenForRoles: [
-              ...sscRolesHiddenFromFunction('Finance'),
-              ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
-            ],
-          },
-          {
-            module: 'shared_services',
-            href: '/shared-services/af/audit',
-            label: 'Audit',
-            description: 'Assurance · findings · remediation',
-            hiddenForRoles: [
-              ...sscRolesHiddenFromFunction('Finance'),
-              ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
-            ],
-          },
-          {
-            module: 'shared_services',
-            href: '/shared-services/af/controls',
-            label: 'Controls, Security & Governance',
-            description: 'Controls · security · governance',
-            hiddenForRoles: [
-              ...sscRolesHiddenFromFunction('Finance'),
-              ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
-            ],
-          },
-        ],
+        children: TAGE_VC_AF_NAV.children.map((child) => ({
+          module: 'shared_services' as const,
+          href: child.href,
+          label: child.label,
+          description: child.description,
+          hiddenForRoles: [
+            ...sscRolesHiddenFromFunction('Finance'),
+            ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
+          ],
+        })),
       },
       {
         module: 'shared_services',
