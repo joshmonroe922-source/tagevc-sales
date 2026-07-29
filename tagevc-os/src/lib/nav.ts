@@ -41,7 +41,7 @@ const HIDE_SSC_FUNCTIONS_FOR_ADMIN = HIDE_FOR_ADMIN;
  * Firm + Command Center are top-level (not nested under BD / C-Suite).
  * BD stays top-level (not under Assets) so associate / sourcer / sub_lead role transforms keep working.
  * To Do List aggregates SSC checklists + lead/deal follow-ups (not Help Desk tickets).
- * Shared Services holds function homes + Ticket Portal + Admin.
+ * Shared Services holds Tage VC A&F + function homes + Ticket Portal + Admin.
  * Help Desk lives on the Create Ticket split-button dropdown (not left nav).
  * Admin accordion nests Document Library + DocuSign (routes unchanged).
  * Think Tank lives on Home (no standalone nav item).
@@ -298,8 +298,40 @@ export const MAIN_NAV: NavItem[] = [
   {
     module: 'shared_services',
     label: 'Shared Services',
-    description: 'Finance · HR · IT · Marketing · Legal · Admin',
+    description: 'Tage VC A&F · Finance · HR · IT · Marketing · Legal · Admin',
     children: [
+      {
+        module: 'shared_services',
+        href: '/shared-services/af',
+        label: 'Tage VC A&F',
+        description: 'In-portal accounting · finance (scaffold)',
+        hiddenForRoles: [
+          ...sscRolesHiddenFromFunction('Finance'),
+          ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
+        ],
+        children: [
+          {
+            module: 'shared_services',
+            href: '/shared-services/af/accounting',
+            label: 'Accounting',
+            description: 'Books · close · GL',
+            hiddenForRoles: [
+              ...sscRolesHiddenFromFunction('Finance'),
+              ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
+            ],
+          },
+          {
+            module: 'shared_services',
+            href: '/shared-services/af/finance',
+            label: 'Finance',
+            description: 'Cash · planning · KPIs',
+            hiddenForRoles: [
+              ...sscRolesHiddenFromFunction('Finance'),
+              ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
+            ],
+          },
+        ],
+      },
       {
         module: 'shared_services',
         href: '/shared-services/finance',

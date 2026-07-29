@@ -18,6 +18,16 @@ export type SsHubModule = {
 /** Per-function operating homes (existing modules). */
 export const SS_FUNCTION_MODULES: SsHubModule[] = [
   {
+    id: 'tage_vc_af',
+    href: '/shared-services/af',
+    title: 'Tage VC A&F',
+    short: 'A&F',
+    service: 'Finance',
+    status: 'foundation',
+    description:
+      'In-portal accounting & finance scaffold (Accounting · Finance). Replacing / moving off IES for portal A&F.',
+  },
+  {
     id: 'finance',
     href: '/shared-services/finance',
     title: 'Accounting & Finance',

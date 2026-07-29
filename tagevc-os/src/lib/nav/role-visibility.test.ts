@@ -210,6 +210,43 @@ describe('Assets + COO / Subsidiary Leader nav gates', () => {
     );
   });
 
+  it('surfaces Tage VC A&F Accounting + Finance for Visionary and Finance SSC', () => {
+    const visionarySsc = filterNavForRole(MAIN_NAV, {
+      role: 'visionary',
+      realRole: 'visionary',
+      entityId: 'ENT-FIRM',
+    }).find((i) => i.label === 'Shared Services');
+    const af = visionarySsc?.children?.find((c) => c.label === 'Tage VC A&F');
+    expect(af?.href).toBe('/shared-services/af');
+    expect(af?.children?.map((c) => c.label)).toEqual([
+      'Accounting',
+      'Finance',
+    ]);
+    expect(af?.children?.map((c) => c.href)).toEqual([
+      '/shared-services/af/accounting',
+      '/shared-services/af/finance',
+    ]);
+
+    const financeSsc = filterNavForRole(MAIN_NAV, {
+      role: 'ssc_finance',
+      realRole: 'visionary',
+      entityId: 'ENT-FIRM',
+    }).find((i) => i.label === 'Shared Services');
+    expect(
+      financeSsc?.children?.some((c) => c.label === 'Tage VC A&F'),
+    ).toBe(true);
+    expect(financeSsc?.children?.some((c) => c.label === 'HR')).toBe(false);
+
+    const hrSsc = filterNavForRole(MAIN_NAV, {
+      role: 'ssc_hr',
+      realRole: 'visionary',
+      entityId: 'ENT-FIRM',
+    }).find((i) => i.label === 'Shared Services');
+    expect(hrSsc?.children?.some((c) => c.label === 'Tage VC A&F')).toBe(
+      false,
+    );
+  });
+
   it('hides firm IA for Admin and keeps ops tools + Dashboard', () => {
     const items = filterNavForRole(MAIN_NAV, {
       role: 'admin',
@@ -236,6 +273,8 @@ describe('Assets + COO / Subsidiary Leader nav gates', () => {
     const admin = ssc?.children?.find((c) => c.label === 'Admin');
     expect(admin?.href).toBe('/admin');
     expect(admin?.children?.map((c) => c.label)).toEqual([
+      'Org Chart',
+      'Hire impact',
       'Document Library',
       'DocuSign',
       'Email analytics',

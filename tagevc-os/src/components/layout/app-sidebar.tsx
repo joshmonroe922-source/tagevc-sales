@@ -156,6 +156,33 @@ function isNavActive(pathname: string, href: string): boolean {
   if (href === '/portfolio') {
     return pathname === '/portfolio' || pathname.startsWith('/portfolio/');
   }
+  if (href === '/shared-services/af/accounting') {
+    return (
+      pathname === '/shared-services/af/accounting' ||
+      pathname.startsWith('/shared-services/af/accounting/')
+    );
+  }
+  if (href === '/shared-services/af/finance') {
+    return (
+      pathname === '/shared-services/af/finance' ||
+      pathname.startsWith('/shared-services/af/finance/')
+    );
+  }
+  if (href === '/shared-services/af') {
+    // Nested Accounting / Finance light themselves — do not light A&F hub.
+    if (
+      pathname === '/shared-services/af/accounting' ||
+      pathname.startsWith('/shared-services/af/accounting/') ||
+      pathname === '/shared-services/af/finance' ||
+      pathname.startsWith('/shared-services/af/finance/')
+    ) {
+      return false;
+    }
+    return (
+      pathname === '/shared-services/af' ||
+      pathname.startsWith('/shared-services/af/')
+    );
+  }
   if (href === '/shared-services/finance') {
     return (
       pathname === '/shared-services/finance' ||

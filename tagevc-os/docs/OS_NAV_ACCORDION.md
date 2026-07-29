@@ -15,7 +15,8 @@ Tage OS sidebar (`app-sidebar.tsx`) treats parent nav items with `children` as a
 - **Assets** (renamed from Portfolio; under Home — not under Dashboard) → Net Worth, Businesses, Real Estate, Investments
   - **Net Worth** + **Investments**: Visionary-only + hidden during Live Look
   - **Businesses** + **Real Estate**: portfolio module; COO / subsidiary leaders only see entities they are assigned to lead (`coo_owner` / profile entity)
-- **Shared Services** → Finance, HR, IT, Marketing, Legal, Ticket Portal, Admin (direct function homes; hub at `/shared-services` remains optional; Ticket Portal keeps `/activity`)
+- **Shared Services** → **Tage VC A&F** (Accounting · Finance at `/shared-services/af/*` — in-portal A&F scaffold), Finance (IES desk), HR, IT, Marketing, Legal, Ticket Portal, Admin (direct function homes; hub at `/shared-services` remains optional; Ticket Portal keeps `/activity`)
+- **Tage VC A&F** (under Shared Services) → Accounting (`/shared-services/af/accounting`) + Finance (`/shared-services/af/finance`) — nested accordion; hub at `/shared-services/af`. Same Finance-function SSC gate as the IES Finance desk (`sscRolesHiddenFromFunction('Finance')`). Distinct from Shared Services → Finance (IES)
 - **Legal** → `/shared-services/legal` (matters · tasks · counsel ops). DocuSign is **not** Legal primary nav — under Admin
 - **HR** (under Shared Services) → Operating System (`/eos`) + Screening (`/shared-services/hr/screening`) — nested accordion; HR keeps its own home link. **Tage VC Operating System** is also a **standalone** top-level nav item (HR-owned Traction EOS with Consolidated rollup)
 - **IT / Technology** (under Shared Services) → Activity log (`/shared-services/it/activity`, `read:it_assets` / Technology) + Audit log (`/admin/audit`, Visionary-only) — nested accordion; IT keeps its own home link (`/shared-services/it/assets`)
