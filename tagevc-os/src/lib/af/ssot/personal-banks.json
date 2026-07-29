@@ -1,12 +1,12 @@
 [
   {
     "id": "PBA-OP",
-    "name": "Personal Operating Checking",
+    "name": "The Monroe Family Trust",
     "type": "Checking",
     "glAccount": "1000",
     "familyClass": "FAMILY",
     "feedEnabled": true,
-    "notes": "Personal Finance"
+    "notes": "Personal Finance — checking account for the trust"
   },
   {
     "id": "PBA-SV",

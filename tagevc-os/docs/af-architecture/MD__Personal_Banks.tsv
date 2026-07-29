@@ -1,7 +1,7 @@
 MASTER DATA — Personal Banks & Cards (feeds)							
 books_id=PERS | OP+SV+brokerage | Cards listed for feed map; UI under Personal Finance (not separate Credit Management menu)							
 Account ID	Name	Type	GL #	Family default	Feed	Module UI	Status
-PBA-OP	Personal Operating Checking	Checking	1000	FAMILY	Yes	Personal Finance	Template
+PBA-OP	The Monroe Family Trust	Checking	1000	FAMILY	Yes	Personal Finance	Template
 PBA-SV	Personal Savings	Savings	1010	FAMILY	Yes	Personal Finance	Template
 PBA-BRK	Brokerage Cash	Brokerage	1020	JOSH	Optional	Personal Finance	Template
 PCC-001	[Example Credit Card]	Credit Card	2000	FAMILY	Yes	Personal Finance	Template
