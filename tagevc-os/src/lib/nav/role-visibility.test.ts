@@ -210,7 +210,7 @@ describe('Assets + COO / Subsidiary Leader nav gates', () => {
     );
   });
 
-  it('surfaces Tage VC A&F Accounting + Finance for Visionary and Finance SSC', () => {
+  it('surfaces Tage VC A&F Accounting + Finance + Audit + Controls for Visionary and Finance SSC', () => {
     const visionarySsc = filterNavForRole(MAIN_NAV, {
       role: 'visionary',
       realRole: 'visionary',
@@ -221,10 +221,14 @@ describe('Assets + COO / Subsidiary Leader nav gates', () => {
     expect(af?.children?.map((c) => c.label)).toEqual([
       'Accounting',
       'Finance',
+      'Audit',
+      'Controls, Security & Governance',
     ]);
     expect(af?.children?.map((c) => c.href)).toEqual([
       '/shared-services/af/accounting',
       '/shared-services/af/finance',
+      '/shared-services/af/audit',
+      '/shared-services/af/controls',
     ]);
 
     const financeSsc = filterNavForRole(MAIN_NAV, {

@@ -32,7 +32,7 @@ export default async function TageVcAfHubPage({ searchParams }: Props) {
         eyebrow="Shared Services · Tage VC A&F"
         title="Tage VC A&F"
         context={entityId ? `Entity · ${entityId}` : firmWide ? 'Firm-wide' : undefined}
-        description="In-house accounting and finance for Tage VC — scaffold only. Modules land under Accounting and Finance."
+        description="In-house accounting, finance, audit, and controls for Tage VC — scaffold only. Modules land under the sections below."
       />
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -56,6 +56,28 @@ export default async function TageVcAfHubPage({ searchParams }: Props) {
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
             Cash · planning · KPIs · capital (coming soon).
+          </p>
+        </Link>
+        <Link
+          href={`/shared-services/af/audit${qs}`}
+          className="rounded-lg border border-border px-4 py-5 transition-colors hover:bg-muted/40"
+        >
+          <p className="font-heading text-lg font-semibold text-[#3a414f]">
+            Audit
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Assurance · findings · remediation (coming soon).
+          </p>
+        </Link>
+        <Link
+          href={`/shared-services/af/controls${qs}`}
+          className="rounded-lg border border-border px-4 py-5 transition-colors hover:bg-muted/40"
+        >
+          <p className="font-heading text-lg font-semibold text-[#3a414f]">
+            Controls, Security & Governance
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Controls · security · governance (coming soon).
           </p>
         </Link>
       </div>

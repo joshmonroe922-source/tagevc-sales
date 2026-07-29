@@ -25,7 +25,7 @@ export const SS_FUNCTION_MODULES: SsHubModule[] = [
     service: 'Finance',
     status: 'foundation',
     description:
-      'In-portal accounting & finance scaffold (Accounting · Finance). Replacing / moving off IES for portal A&F.',
+      'In-portal A&F scaffold (Accounting · Finance · Audit · Controls). Replacing / moving off IES for portal A&F.',
   },
   {
     id: 'finance',

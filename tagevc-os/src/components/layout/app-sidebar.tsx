@@ -168,13 +168,29 @@ function isNavActive(pathname: string, href: string): boolean {
       pathname.startsWith('/shared-services/af/finance/')
     );
   }
+  if (href === '/shared-services/af/audit') {
+    return (
+      pathname === '/shared-services/af/audit' ||
+      pathname.startsWith('/shared-services/af/audit/')
+    );
+  }
+  if (href === '/shared-services/af/controls') {
+    return (
+      pathname === '/shared-services/af/controls' ||
+      pathname.startsWith('/shared-services/af/controls/')
+    );
+  }
   if (href === '/shared-services/af') {
-    // Nested Accounting / Finance light themselves — do not light A&F hub.
+    // Nested A&F children light themselves — do not light A&F hub.
     if (
       pathname === '/shared-services/af/accounting' ||
       pathname.startsWith('/shared-services/af/accounting/') ||
       pathname === '/shared-services/af/finance' ||
-      pathname.startsWith('/shared-services/af/finance/')
+      pathname.startsWith('/shared-services/af/finance/') ||
+      pathname === '/shared-services/af/audit' ||
+      pathname.startsWith('/shared-services/af/audit/') ||
+      pathname === '/shared-services/af/controls' ||
+      pathname.startsWith('/shared-services/af/controls/')
     ) {
       return false;
     }

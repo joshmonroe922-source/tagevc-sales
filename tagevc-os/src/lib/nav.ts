@@ -304,7 +304,7 @@ export const MAIN_NAV: NavItem[] = [
         module: 'shared_services',
         href: '/shared-services/af',
         label: 'Tage VC A&F',
-        description: 'In-portal accounting · finance (scaffold)',
+        description: 'In-portal A&F · audit · controls (scaffold)',
         hiddenForRoles: [
           ...sscRolesHiddenFromFunction('Finance'),
           ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
@@ -325,6 +325,26 @@ export const MAIN_NAV: NavItem[] = [
             href: '/shared-services/af/finance',
             label: 'Finance',
             description: 'Cash · planning · KPIs',
+            hiddenForRoles: [
+              ...sscRolesHiddenFromFunction('Finance'),
+              ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
+            ],
+          },
+          {
+            module: 'shared_services',
+            href: '/shared-services/af/audit',
+            label: 'Audit',
+            description: 'Assurance · findings · remediation',
+            hiddenForRoles: [
+              ...sscRolesHiddenFromFunction('Finance'),
+              ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
+            ],
+          },
+          {
+            module: 'shared_services',
+            href: '/shared-services/af/controls',
+            label: 'Controls, Security & Governance',
+            description: 'Controls · security · governance',
             hiddenForRoles: [
               ...sscRolesHiddenFromFunction('Finance'),
               ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
