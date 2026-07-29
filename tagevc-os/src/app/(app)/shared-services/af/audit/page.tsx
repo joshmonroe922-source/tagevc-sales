@@ -1,49 +1,45 @@
 import Link from 'next/link';
-import { EmptyState } from '@/components/ui/empty-state';
 import { PageHeader } from '@/components/ui/page-header';
-import { isFirmWideAccess } from '@/lib/rbac/entity-scope';
-import { getSessionContext, requirePermission } from '@/lib/rbac/session';
+import { AfBackLink } from '@/components/af/af-ui';
+import { resolveAfEntityParam } from '@/lib/af/page-helpers';
+import { requirePermission } from '@/lib/rbac/session';
 
-type Props = {
-  searchParams?: Promise<{ entity?: string }>;
-};
+type Props = { searchParams?: Promise<{ entity?: string }> };
 
-/** Tage VC A&F → Audit placeholder. */
-export default async function TageVcAfAuditPage({ searchParams }: Props) {
+export default async function AuditPage({ searchParams }: Props) {
   await requirePermission('read:shared_services');
-
-  const params = (await searchParams) ?? {};
-  const entityParam = params.entity?.trim() ?? '';
-  const ctx = await getSessionContext();
-  const firmWide = ctx
-    ? isFirmWideAccess(ctx.profile.role, ctx.profile.entity_id)
-    : false;
-  const entityId = firmWide
-    ? entityParam || null
-    : (ctx?.profile.entity_id ?? (entityParam || null));
-  const qs = entityId ? `?entity=${encodeURIComponent(entityId)}` : '';
+  const { entityId, firmWide, qs } = await resolveAfEntityParam(searchParams);
 
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Shared Services · Tage VC A&F"
+        eyebrow="Tage VC A&F · Audit"
         title="Audit"
         context={entityId ? `Entity · ${entityId}` : firmWide ? 'Firm-wide' : undefined}
-        description="In-portal audit workspace. Placeholder — assurance and findings will land here."
-        secondaryActions={
-          <Link
-            href={`/shared-services/af${qs}`}
-            className="text-sm font-medium text-muted-foreground underline-offset-2 hover:underline"
-          >
-            ← Tage VC A&F
-          </Link>
-        }
+        description="Assurance workspace, PBC requests, and one-click auditor packages."
+        secondaryActions={<AfBackLink href={`/shared-services/af${qs}`} label="Tage VC A&F" />}
       />
-
-      <EmptyState
-        title="Audit coming soon"
-        description="Assurance workpapers, findings, and remediation tracking will live here as the in-house A&F system expands."
-      />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Link
+          href={`/shared-services/af/audit/workspace${qs}`}
+          className="rounded-xl border border-border px-4 py-5 hover:bg-muted/30"
+        >
+          <p className="font-heading text-lg font-semibold text-[#3a414f]">
+            Annual audit workspace
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Auditor view · snapshots · download package
+          </p>
+        </Link>
+        <div className="rounded-xl border border-border px-4 py-5">
+          <p className="font-heading text-lg font-semibold text-[#3a414f]">
+            PBC checklist
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Startup audit readiness — Spec - Audit & Controls depth next.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

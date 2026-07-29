@@ -1,0 +1,22 @@
+SPEC — Automation Rules & Integration Map					
+Event-driven | Bank + Credit Card feeds | OS sync | Webhooks | Loan + Commission + Forecast updates					
+1. KEY EVENTS → ACTIONS					
+Sale Created (OS) → Upsert Customer → Create Invoice draft → Link SKU/Person → Schedule send/reminders					
+Invoice Sent → Assemble PDF + entity defaults (Wire, I-9, …) + customer defaults + invoice extras → email/portal delivery → reminders					
+Invoice Paid → Cash 1000 → Commission 2250 → Revenue Split Waterfall (dept buckets) → Forecast/hiring envelopes → OS callback					
+Vendor Bill Submitted → approval → Scheduled					
+Bill Paid (portal) → Payment+JE Dr AP/Cr Cash → bill Paid → later bank.txn auto-match Payment → Reconciled (no double AP)					
+Bank/Card Txn In → if unmatched try open bills/payments → auto or exception queue → categorize					
+Loan Payment Due → Auto JE interest/principal → Update amortization → Cash Forecast					
+Extra Loan Payment Posted → Recalculate schedule → Show new payoff/interest					
+New Hire Planned → Hiring Estimator → Budget & cash impact					
+Month/Period Close → Continuous close tasks → Snapshot → IC eliminations refresh					
+2. INTEGRATIONS					
+Entity Operating Systems (Recruit 619, Signent, Instant NDA portals) ↔ bi-directional					
+Banks + Credit Card networks (feeds)					
+Payments (ACH/Stripe/etc.) | Email/SMS | Document storage | Payroll | Tax e-file | Auditor workspace					
+3. IDEMPOTENCY & RELIABILITY					
+All webhooks idempotent by event ID | Retry with backoff | Dead-letter queue | Full event log for audit					
+4. CURSOR BUILD ORDER SUGGESTION					
+1. Data model from MD_* + CoA  2. GL + JE engine  3. AR/Invoicing + Paid webhook  4. Commission protected buckets  5. AP + Vendor portal + Cards/Bank feeds  6. IC + Eliminations  7. Forecast/Loans/Cash  8. Reporting/KPIs  9. Audit workspace  10. Hardening & SOC2 controls					
+This workbook is the complete product & data specification for the fully automated multi-entity system.					

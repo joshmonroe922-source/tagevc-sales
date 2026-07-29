@@ -1,0 +1,41 @@
+SPEC — Personal Finance (Visionary-Only Books)			
+Piggyback corporate engine as isolated books | Family classes | Banks/cards | AR-lite | AP + pay | Recurring | P&L/BS/Cash/Budget | No Audit/Gov module			
+1. ARCHITECTURE RECOMMENDATION			
+YES piggyback — implement as books_type=personal, books_id=PERS (or HOUSEHOLD). Reuse: GL, CoA engine, bank/card feeds, vendors, bills, payments, recurring rules, reports time filters, budgets, simple forecast.			
+HARD SEPARATION: no shared cash with TVC/R619/SHR/INDA; no IC; no commission waterfall; no consolidated company reports include PERS; separate opening balances.			
+Family members SSOT: MD - Personal Family — The Monroe Family (Public), The Monroe Family Trust, Josh Monroe, Lauren Monroe, Clara Isaacs, Charlotte Isaacs, Lincoln Isaacs.			
+2. ACCESS			
+Role capability: visionary_personal_finance (Visionary only). Optional later: household_partner read/write. UI badge PRIVATE #9B1C1C.			
+Menu: Personal ▼ → Personal Finance only. Routes /personal/finance/*. Credit cards are a subsection (/personal/finance/cards), not a sibling Credit Management menu.			
+3. PERSONAL CHART OF ACCOUNTS (template)			
+Same 4-digit bands as company for engine reuse, different account list:			
+1000 Checking/Operating | 1010 Savings | 1020 Brokerage cash | 1100 Personal AR | 1200 Prepaids			
+1500 Taxable investments (securities FMV) | 1510 Retirement (401k/IRA/Roth FMV) | 1520 Crypto FMV | 1530 Business ownership (link Spec - Net Worth) | 1600 Home/vehicles/other assets			
+2000 Credit cards | 2100 Bills payable | 2500 Mortgages/loans | 3000 Net worth equity opening			
+Income 4xxx | Expenses 6xxx by lifestyle category — see prior list. Business distributions received 4100 (manual from company, not auto-mix cash).			
+Every posting: family_member class from MD - Personal Family. NW stack: Spec - Net Worth §5–6 (cash, investments, retirement, crypto, other assets, businesses, − liab).			
+4. BANKS & CARDS			
+Banks/investments/cards managed in Personal Finance. Net Worth page pulls GL liability totals only for NW math—does not display or manage card balances.			
+Auto-categorize with personal CoA rules; split transactions across family members when needed.			
+5. VENDORS, BILLS, RECURRING, PAY			
+Reuse AP-lite: personal vendors, bills (email forward/upload), due dates, recurring schedules (rent, utilities, subscriptions), approve & pay from personal portal via linked bank/card.			
+Same match logic: portal pay → JE Dr expense or AP / Cr cash → bill Paid → bank feed matches Payment (Spec - AP pay match).			
+No vendor portal for random third parties required in v1 — user can add vendors manually; optional email-in bills to personal+parse@…			
+6. INVOICES / INCOME BY EMAIL			
+Personal AR-lite: create invoice/payment request → email PDF to client/payer → reminders optional → mark paid → cash to personal Operating + income account. Attachments optional (wire instructions personal).			
+Not company invoice engine customers — separate customer list under personal books (can copy contact only).			
+7. REPORTING & FINANCE (no audit module)			
+P&L, Balance Sheet / Net worth, Cash flow, Budget vs Actual, simple forecast. Time filters same as company Spec - Reporting KPIs.			
+Filters: family member class, account, vendor, month/quarter/YTD/rolling. KPIs: burn, savings rate, debt payoff, net worth trend — personal not staffing/SaaS.			
+Budgets by category + by family member. Optional envelope view similar to waterfall but household categories.			
+8. GO-LIVE SETUP (personal)			
+Wizard: enable Personal Finance → load MD - Personal Family members → personal CoA → banks/cards + feeds → opening balances → budgets → test bill/income → Go Live.			
+Bake into Visionary onboarding; independent of company entity go-live checklist.			
+9. DATA MODEL			
+books(id, type=personal|company, name) | family_members(id, books_id, name, class_code) | all financial tables include books_id | company queries always books_id IN (TVC,R619,SHR,INDA) never PERS.			
+10. CURSOR BUILD			
+• Phase after company core OR parallel with shared kernel (ledger, feeds, bills, reports).			
+• Nav: Personal Finance only if visionary_personal_finance.			
+• Reuse components; swap CoA template + disable IC/commission/waterfall company profiles.			
+• Optional later: import distributions from company as income (manual link), never auto-drain company Operating.			
+Related: Personal Finance hub | Spec - AP/AR/Cash/GL/Go Live patterns | Spec - RBAC (add capability) | Spec - UI /personal/* routes			

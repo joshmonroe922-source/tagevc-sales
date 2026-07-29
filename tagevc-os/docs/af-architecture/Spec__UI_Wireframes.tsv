@@ -1,0 +1,47 @@
+SPEC — UI Wireframes (Screen Inventory)			
+Portal screens by hub | Cursor builds routes/components from this inventory | Not pixel mockups			
+Route / Screen	Hub	Primary components	Key actions
+/accounting	Accounting	Module cards, entity filter, close status	Navigate modules
+/accounting/gl	Accounting	TB, JE list, JE detail, dimensions	Post/reverse JE (RBAC)
+/accounting/invoices	Accounting	Invoice table, status chips, aging sidebar	Create/send/void; filters
+/accounting/invoices/:id	Accounting	Header, lines, activity, payments, Attachments panel	Upload extra; preview defaults
+/accounting/bills	Accounting	AP queue, approval rail	Approve/reject/schedule pay
+/accounting/banks	Accounting	Accounts from MD Bank, balances, feed status	Reconcile, sweep
+/accounting/banks/reconcile	Accounting	Matched vs exceptions, receipt match	Match, categorize, exclude
+/accounting/commissions	Accounting	Accruals, 2250 balance, payout runs	Run payout (SoD)
+/accounting/ic	Accounting	Due From/To grid, fee/SS runs	Generate recharge, settle
+/accounting/close	Accounting	Checklist, period lock	Complete tasks, lock
+/finance	Finance	KPI tiles, scenario selector	Open forecasts
+/finance/budgets	Finance	Version picker, grid by account	Edit, submit, variance
+/finance/forecasts	Finance	Horizon tabs 3m–10y, charts	Run AI refresh, snapshot
+/finance/cash	Finance	13-week grid, bank balances	Adjust assumptions
+/finance/loans	Finance	Loan list, amort schedule, extra pay simulator	Model extra payment
+/finance/hiring	Finance	Headcount vs dept waterfall buckets + affordability	Add hire; warn if over bucket
+/finance/reports	Finance	Report catalog + time filters	Run/export
+/audit	Audit	PBC list, progress %	Request docs
+/audit/workspace	Audit	Auditor view, snapshots	Download package
+/controls	Controls	Roles, approvals, policies	Edit roles (Admin)
+/portfolio	Portfolio	Entity cards health enums	Drill to entity filter in Accounting
+/vendor-portal/*	External	Submit bill, upload W-9, payment status	Vendor self-serve
+/finance/buckets	Finance	Actual vs forecast split DIR/SALES/MKT/GA/TECH/COMM/MGMT/PROFIT by dept	Scenario + entity filter
+/accounting/settings/invoice-attachments	Accounting	Entity default packet (Wire, I-9, …); sort; required flags	Upload/replace entity PDFs
+Global chrome: entity switcher | period | search | notifications. Invoice send shows attachment checklist before confirm.			
+/setup	Setup	Org + entity progress %; blocked steps	Resume wizard
+/setup/entities/:code	Setup	ENT-01…14 checklist	Complete step
+/setup/banks/connect	Setup	Bank/card OAuth feed wizard	Connect & test import
+PERSONAL NAV (Visionary-only)	Personal	Top menu: Personal ▼ → Personal Finance (single entry; no Credit Management menu)	
+/personal/finance	Personal Finance	Home: P&L, budgets, accounts, family, reports, credit cards, net worth	Open
+/personal/finance/accounts	Personal Finance	Banks/savings/brokerage + credit cards list/feeds	Add account/card
+/personal/finance/bills	Personal Finance	Vendors, bills, recurring, pay	Pay
+/personal/finance/invoices	Personal Finance	Income invoices email	Create/send
+/personal/finance/reports	Personal Finance	P&L BS by family class	Filter
+/personal/finance/family	Personal Finance	MD - Personal Family	Edit
+/personal/finance/setup	Personal Finance	Personal go-live wizard	Complete
+/personal/finance/net-worth	Personal Finance	Full NW stack incl card liabilities	View
+/personal/finance/net-worth	Personal Finance	NW asset stack + total liabilities figure only (no card list)	View NW
+/personal/finance/cards	Personal Finance	Card balances, feeds, pay, utilization	Manage cards here
+/personal/finance/coa	Personal Finance	CoA - Personal	View
+/personal/finance/cards	Personal Finance	Card balances, feeds, pay card, utilization (under Finance — not separate menu)	Manage cards
+/finance/net-worth	Finance (company)	Entity + Consolidated NW + company cash	As-of
+/visionary/net-worth	Visionary	Company | Personal NW panels	Toggle
+NAV: Personal ▼ → Personal Finance only. Credit card features live under Personal Finance (accounts/cards), not a separate Credit Management menu. Company cards stay in Accounting.			

@@ -1,0 +1,81 @@
+FULLY AUTOMATED MULTI-ENTITY ACCOUNTING + FINANCE SYSTEM BLUEPRINT						
+Tage Venture Capital (Parent) | Recruit 619 | Signent HR | Instant NDA						
+Goal: Maximum Automation • Near-Zero Human Touch • Real-Time • Audit-Ready • Cursor-AI Ready						
+Includes: Bank + Credit Card Feeds | Loan Amortization + Extra Payment Modeling | Protected Commission Buckets | Full AR/AP | AI Forecasting 3m-10y | Continuous Close						
+1. ACCOUNTING vs FINANCE SPLIT						
+ACCOUNTING (System of Record)	FINANCE (Planning, Analysis & Strategy)					
+General Ledger, Journals, Trial Balance, Close	Budgets (Annual + Rolling) linked to Scenarios					
+AR / Invoicing / Collections / Revenue Recognition (ASC 606)	AI-Powered Forecasting (3m, 6m, 12m, 24m, 3y, 5y, 10y)					
+AP / Vendor Portal / Approvals / Payments	Cash Flow Forecasting (13-week + 12-month)					
+Bank Feeds + Credit Card Feeds + Auto-Reconciliation	Expense Forecasting from Third-Party Contracts					
+Intercompany Hub + Automatic Eliminations	Hiring Estimator + Fully-Loaded Burden Cost Models					
+Commission Engine with Protected Liability Buckets	Loan Management + Amortization Schedules + Extra Payment Impact					
+Payroll Interface + 1099/W-9/I-9 Tracking	KPI Dashboards & Management Reporting					
+Fixed Assets & Software Capitalization	Capital Allocation & Bank for Acquisitions Strategy					
+Continuous / Soft Close + Audit Trail	What-if Sandboxes & Driver-Based Models					
+Statutory Reporting & One-Click Auditor Packages	Scenario Planning (Cons / Base / Agg)					
+2. CORE AUTOMATION PRINCIPLES (No-Human-Touch Goals)						
+• Event-driven architecture using webhooks and real-time bi-directional sync with operating systems						
+• Zero manual journal entries for recurring, rule-based, or IC transactions						
+• Protected Commission Liability buckets — money is automatically moved on invoice payment and cannot be spent from operating cash						
+• Bank Feeds + Credit Card Feeds with AI categorization, receipt matching, and exception-only review						
+• Automatic customer/invoice creation + de-dupe when sales occur in entity portals						
+• Paid status callback instantly updates AR, commissions, cash forecast, and dashboards						
+• Continuous close (daily/weekly automated) instead of traditional month-end						
+• Full data lineage and immutable audit trail on every number						
+• Vendor self-service portal for invoice submission + automated I-9/W-9/1099 collection						
+• Loan amortization engine that automatically posts interest/principal and models extra payments live						
+3. LOAN MANAGEMENT MODULE (New Requirement)						
+Supported Loan Types: Term Loans, Lines of Credit, Equipment Financing, Convertible Notes, Related-Party Loans, Shareholder Loans, SBA, etc.						
+Core Features:						
+  - Full amortization schedule generation (monthly/quarterly)						
+  - Interactive extra/additional payment simulator — instantly shows impact on remaining balance, total interest, and payoff date						
+  - Automatic journal entries for interest expense and principal reduction						
+  - Multiple loans per entity with consolidated view						
+  - Integration into Cash Flow Forecast and Liability section of Balance Sheet						
+  - Alerts for upcoming payments, covenants, maturity						
+  - What-if scenarios for refinancing or accelerated payoff						
+4. MAJOR MODULES (Full List for Cursor)						
+MASTER DATA: Entities | Customers | Vendors | Employees/Contractors | Products/Services/SKUs | Dimensions | CoA Master						
+ACCOUNTING MODULES:						
+• General Ledger & Automated Journal Engine						
+• AR + Invoicing + Revenue Recognition (ASC 606) + Reminders + Paid Webhooks						
+• AP + Vendor Portal + Approval Workflows + Payment Execution						
+• Bank Feeds + Credit Card Feeds (auto-import, rules engine, receipt matching, employee cards, reconciliation)						
+• Cash Management, Concentration & Inter-Entity Sweeps						
+• Intercompany Hub + Automatic Eliminations						
+• Commission Engine + Protected Commission Liability Buckets + Clawbacks						
+• Payroll Interface + 1099 / W-9 / I-9 Automation						
+• Fixed Assets + Software Capitalization (especially Instant NDA)						
+FINANCE MODULES:						
+• Budgeting Framework (Annual + Rolling) linked to existing Cons/Base/Agg scenarios						
+• Driver-Based + AI Forecasting (3 months, 6m, 12m, 24m, 3 years, 5 years, 10 years)						
+• 13-Week + 12-Month Cash Flow Forecasting						
+• Third-Party Contract Repository feeding Expense Forecast + Burden Cost						
+• Hiring Estimator (next 12 months budget impact using fully-loaded costs)						
+• Loan Management: Multiple loan types, full amortization schedules, interactive extra-payment impact modeling (balance, interest, term)						
+• Scenario Planning & What-If Sandbox						
+REPORTING & ANALYTICS:						
+• All requested time filters: Current/Last Month, Current Year, each month this/last year, Current/Last/Every Quarter, 90/180/12-mo Rolling, custom, comparisons						
+• Entity + Consolidated P&L, BS, CF, Trial Balance, AR/AP Aging, etc.						
+• Industry KPIs: Staffing (Recruit 619), HR Services (Signent), SaaS (Instant NDA), VC (Tage VC)						
+COMPLIANCE, AUDIT & GOVERNANCE:						
+• Startup Audit Readiness Checklist & Package						
+• Annual Audit Workspace (in-portal)						
+• Controls, Security, Segregation of Duties, Access Matrix						
+• Full Audit Trail + Document Management linked to transactions						
+• One-click Auditor / Investor / Tax export packages						
+5. CREDIT CARD FEEDS (Fully Included alongside Bank Feeds)						
+• Real-time/daily import from major card networks						
+• AI + rules-based auto-categorization to correct CoA accounts						
+• Receipt capture, OCR, and automatic matching						
+• Employee/department card controls and limits						
+• Feeds Expense Forecasting, P&L, Cash Flow, and Burden calculations						
+This System Blueprint + upcoming detailed tabs = complete source of truth for Cursor AI to build the production system.						
+Next: Master Data tabs, then AR/Invoicing/Commission, AP + Credit Cards, Loans, Forecasts, Reports, Audit, Automation Rules.						
+6. PORTAL TOP-LEVEL NAV (Cursor-built hubs)						
+Accounting | Finance | Audit | Controls, Security and Governance | Portfolio & Shared Services (optional)						
+These four tabs are landing hubs. Detailed SSOT remains in MD - *, CoA - *, Spec - *, Brand Guidelines. Cursor must not duplicate specs inside the hubs—only map and instruct.						
+Restructure rule: If Cursor adds UI pages, keep this four-way split. Add sub-nav from each hub’s module map. Do not merge Accounting and Finance.						
+ADD-ONS: MD - Bank Accounts (all entity banks + feed flags + deposit routing) | Portfolio & Shared Services hub (sage domain)						
+BANK POLICY (final): Per entity Operating 1000 (+ sub Savings 1040; parent Investments 1010). Revenue types in accounting only. See MD - Bank Accounts + Spec - Cash Routing.						

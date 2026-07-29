@@ -1,0 +1,27 @@
+FINANCE — Planning, Analysis & Strategy		
+Budgets · AI forecasts 3m–10y · Cash · Loans · Hiring · KPIs · Bank for Investments | Does not replace Accounting system of record		
+1. PURPOSE		
+Finance hub for decision support. All actuals flow from Accounting. Scenarios link to Scenario Inputs (Cons/Base/Agg). Cursor builds planning engines from Spec tabs below.		
+2. MODULE MAP		
+Module	SSOT Tab(s)	Notes
+Scenarios	Scenario Inputs | entity P&Ls	Subs D2 = Base source; Cons/Agg % factors; Selected drives model
+Budgets	Spec - Forecast & Loans	Annual + rolling; entity/dept/account; vs Actual
+AI / Driver Forecast	Spec - Forecast & Loans	3m, 6m, 12m, 24m, 3y, 5y, 10y entity + consolidated
+Cash Flow Forecast	Spec - Forecast & Loans | MD - Bank Accounts	13-week + 12-month; all 1000–1040 + feeds
+Expense Forecast	MD - Vendors | Spec - Forecast & Loans	Recurring contracts → P&L and cash phasing
+Hiring Estimator	MD - Employees | Spec - Revenue Split Waterfall	Forecast revenue → dept buckets → hire affordability
+Loan Management	Spec - Forecast & Loans | CoA 2500	Amortization + extra payment impact on balance/interest/term
+Reporting & KPIs	Spec - Reporting KPIs | TAGE VC Dashboard	All time filters; industry KPIs per entity
+Capital / Bank for Investments	CoA 1010 | model 90/10 allocation	Tage VC savings for acquisitions & startups
+Revenue Split / Buckets	Spec - Revenue Split Waterfall	Actual on paid + forecast envelopes by dept
+Net Worth		
+Current/Last Month · YTD · Each month this/last year · Current/Last/Every Quarter · 90/180/12-mo rolling · vs Budget/Forecast/Prior/Scenario		
+4. CURSOR INSTRUCTIONS — FINANCE		
+• Finance reads actuals from Accounting; never maintain a second books.		
+• Free cash = operating cash after Protected Commission Liability (2250) and committed sweeps.		
+• Loan extra-payment simulator must recalculate schedule live and feed cash forecast.		
+• Forecasts versioned/snapshotable; AI overlay on drivers + history.		
+• KPI health: On Track | Watch | At Risk | Critical only.		
+• Brand Guidelines on all dashboards and exports.		
+5. RELATED TABS		
+Accounting | System Blueprint | Spec - Forecast & Loans | Spec - Reporting KPIs | Scenario Inputs | Consolidated | TAGE VC Dashboard		

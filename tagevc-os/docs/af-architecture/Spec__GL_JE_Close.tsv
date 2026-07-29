@@ -1,0 +1,23 @@
+SPEC — General Ledger, Journal Entries & Close			
+Multi-entity GL | Automated JEs | Continuous/soft close | Period lock | Ties to all CoA			
+1. GL DESIGN			
+• Separate ledger per entity (TVC, R619, SHR, INDA) + consolidation ledger/workspace			
+• Every JE: entity, date, period, source module, source id, balanced debits=credits, dimensions optional			
+• Account validation against that entity’s CoA only			
+2. JOURNAL SOURCES (auto)			
+AR invoice issue / payment | AP bill / payment | Bank/card match | Payroll import | Commission accrual/payout | Mgmt fee + SS recharge | IC Due To/From | Loan interest/principal | Deferred rev release | Depreciation | Manual adjusting (approval required)			
+3. STANDARD JE TEMPLATES (implement as code templates)			
+INV-ISSUE: Dr AR 1100 / Cr Revenue 42xx–44xx (+ tax if any)			
+INV-PAID: Dr Cash 1000 Operating (or 1090 then 1000) / Cr AR 1100; commission JE; revenue already on issue via 4xxx — NOT separate revenue banks			
+BILL: Dr Expense 6xxx / Cr AP 2000			
+BILL-PAY: Dr AP 2000 / Cr Cash 1000 (or card liab). Portal pay posts JE+closes bill immediately; bank feed auto-matches Payment (reconcile only). Feed-first path: match open bill then post same JE.			
+MGMT-FEE: Sub Dr 6950 / Cr 2450; Parent Dr 141x / Cr 4000			
+SS-RECHARGE: Sub Dr 61xx–68xx / Cr 2450; Parent Dr 141x / Cr 4100			
+COMM-ACCRUE: Dr Comm exp / Cr 2250; COMM-PAY: Dr 2250 / Cr Cash			
+LOAN-PMT: Dr Interest exp + Dr 2500 principal / Cr Cash			
+DEF-REV: Dr Deferred 2300 / Cr Revenue (schedule)			
+4. CLOSE CHECKLIST (continuous + period end)			
+Bank/card rec complete | AR/AP age reviewed | IC balances agree parent↔sub | Revenue cut-off | Deferred rev rollforward | Accruals | Payroll | Commissions true-up | Loans schedule | Eliminations draft | TB balance | Snapshot + lock period			
+5. PERIOD LOCK			
+Soft close (warn) → Hard lock (block posting) per entity/period; reopen requires Controls role + audit log			
+Cursor: No unbalanced JE; idempotent posting from events; full reversal support.			

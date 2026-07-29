@@ -1,0 +1,133 @@
+{
+  "org": [
+    {
+      "id": "ORG-01",
+      "action": "Confirm legal entities list & codes (TVC, R619, SHR, INDA)",
+      "required": true,
+      "ssot": "MD - Entities"
+    },
+    {
+      "id": "ORG-02",
+      "action": "Create Admin + Controller users; enable MFA",
+      "required": true,
+      "ssot": "Spec - RBAC Matrix"
+    },
+    {
+      "id": "ORG-03",
+      "action": "Review CoA loaded for each entity (common #s)",
+      "required": true,
+      "ssot": "CoA - *"
+    },
+    {
+      "id": "ORG-04",
+      "action": "Set fiscal calendar / periods; open first period",
+      "required": true,
+      "ssot": "Spec - GL JE Close"
+    },
+    {
+      "id": "ORG-05",
+      "action": "Configure allocation profiles (waterfall %) from financial model",
+      "required": true,
+      "ssot": "Spec - Revenue Split Waterfall"
+    },
+    {
+      "id": "ORG-06",
+      "action": "Connect IdP / SSO (if used); email/SMS providers for invoices & reminders",
+      "required": true,
+      "ssot": "Spec - API Webhooks"
+    },
+    {
+      "id": "ORG-07",
+      "action": "Set Scenario Inputs Base links; confirm Cons/Agg factors",
+      "required": false,
+      "ssot": "Scenario Inputs"
+    }
+  ],
+  "entity": [
+    {
+      "id": "ENT-01",
+      "action": "Confirm entity legal name, EIN/tax ID, FYE, currency",
+      "required": true,
+      "ssot": "MD - Entities"
+    },
+    {
+      "id": "ENT-02",
+      "action": "Create/verify bank rows: Operating 1000 (+ Savings 1040; parent + Investments 1010)",
+      "required": true,
+      "ssot": "MD - Bank Accounts"
+    },
+    {
+      "id": "ENT-03",
+      "action": "BANK FEED SETUP WIZARD: select institution \u2192 OAuth/connect \u2192 map feed to bank_account_id \u2192 test import",
+      "required": true,
+      "ssot": "MD - Bank Accounts"
+    },
+    {
+      "id": "ENT-04",
+      "action": "CREDIT CARD FEED SETUP (if any)",
+      "required": false,
+      "ssot": "Spec - AP Vendor Portal & Cards"
+    },
+    {
+      "id": "ENT-05",
+      "action": "Enter opening balances (Operating, Savings/Investments, AR/AP if cutting over)",
+      "required": true,
+      "ssot": "GL opening JEs"
+    },
+    {
+      "id": "ENT-06",
+      "action": "Upload invoice default PDFs: Wiring Instructions + I-9 (Required)",
+      "required": true,
+      "ssot": "MD - Invoice Attachments"
+    },
+    {
+      "id": "ENT-07",
+      "action": "Confirm SKUs / services & revenue accounts",
+      "required": true,
+      "ssot": "MD - Services & Products"
+    },
+    {
+      "id": "ENT-08",
+      "action": "Connect operating system webhook + test sale\u2192invoice dry run",
+      "required": true,
+      "ssot": "Spec - API Webhooks"
+    },
+    {
+      "id": "ENT-09",
+      "action": "Add key vendors; request W-9 where 1099",
+      "required": false,
+      "ssot": "MD - Vendors"
+    },
+    {
+      "id": "ENT-10",
+      "action": "Add employees/contractors + commission plans + burden %",
+      "required": false,
+      "ssot": "MD - Employees"
+    },
+    {
+      "id": "ENT-11",
+      "action": "IC setup: parent Due From 14xx \u2194 sub Due To 2450; test mgmt fee JE",
+      "required": true,
+      "ssot": "Spec - IC Journals",
+      "subsOnly": true
+    },
+    {
+      "id": "ENT-12",
+      "action": "Assign entity users/roles",
+      "required": true,
+      "ssot": "Spec - RBAC Matrix"
+    },
+    {
+      "id": "ENT-13",
+      "action": "Go-live test checklist: invoice, payment, bill, bank match, waterfall",
+      "required": true,
+      "ssot": "Seeds T1\u2013T6"
+    },
+    {
+      "id": "ENT-14",
+      "action": "Mark entity Go-Live Complete \u2192 enable production sends/payments",
+      "required": true,
+      "ssot": "Setup status flag"
+    }
+  ]
+}

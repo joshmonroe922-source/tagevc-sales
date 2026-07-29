@@ -1,0 +1,24 @@
+MASTER DATA — Invoice Attachments								
+Entity defaults auto-attach on every send | Customer extras | Per-invoice extras | Wiring instructions + tax/compliance packets								
+1. ENTITY DEFAULT PACKET (auto-add on every invoice send)								
+Attach ID	Entity Code	Document Type	Display Name	File / Doc Store Ref	Required on Send	Sort Order	Status	Notes
+ATT-TVC-WIRE	TVC	Wiring Instructions	Tage VC Wire Instructions	docs/tvc/wire.pdf	Yes	10	Active	Auto on every TVC invoice
+ATT-TVC-I9	TVC	I-9 Packet	I-9 / Compliance Attachment	docs/tvc/i9-packet.pdf	Yes	20	Active	Per policy; confirm legal use on client invoices
+ATT-R619-WIRE	R619	Wiring Instructions	Recruit 619 Wire Instructions	docs/r619/wire.pdf	Yes	10	Active	Operating account wires
+ATT-R619-I9	R619	I-9 Packet	I-9 / Compliance Attachment	docs/r619/i9-packet.pdf	Yes	20	Active	
+ATT-SHR-WIRE	SHR	Wiring Instructions	Signent HR Wire Instructions	docs/shr/wire.pdf	Yes	10	Active	
+ATT-SHR-I9	SHR	I-9 Packet	I-9 / Compliance Attachment	docs/shr/i9-packet.pdf	Yes	20	Active	
+ATT-INDA-WIRE	INDA	Wiring Instructions	Instant NDA Wire Instructions	docs/inda/wire.pdf	Yes	10	Active	
+ATT-INDA-I9	INDA	I-9 Packet	I-9 / Compliance Attachment	docs/inda/i9-packet.pdf	Yes	20	Active	
+2. OPTIONAL STANDARD TYPES (add rows as needed)								
+W-9 | ACH Authorization | MSA Cover | Remittance Advice | Insurance COI | Custom PDF — set Required on Send = Yes to auto-include for that entity.								
+3. CUSTOMER-LEVEL DEFAULTS (extra every invoice to that client)								
+Customer ID	Document Type	Display Name	File Ref	Active				
+CUST-001	Client-Specific	Client billing addendum	docs/clients/cust-001/addendum.pdf	Yes				
+4. PER-INVOICE EXTRAS								
+Stored on invoice_attachments table: invoice_id, file_ref, name, uploaded_by, uploaded_at. Merged at send with entity defaults + customer defaults (dedupe by file hash/name).								
+5. SEND ASSEMBLY ORDER								
+1) Invoice PDF  2) Entity defaults by Sort Order (Wire, I-9, …)  3) Customer defaults  4) Per-invoice extras. Block send if Required on Send doc missing/inactive.								
+6. FUTURE ENTITIES								
+On entity create: clone Wire + I-9 (and any org standards) rows with Required=Yes; upload entity-specific PDFs before go-live.								
+Note: I-9 is typically employment eligibility (US). If you meant W-9 for client tax docs, add W-9 as entity default type the same way. System supports both.								

@@ -1,0 +1,24 @@
+SPEC — API & Webhook Contracts (OpenAPI-oriented)		
+Idempotent events | JSON envelopes | Cursor implements as OpenAPI 3 + async consumers		
+1. STANDARD ENVELOPE		
+{ "event_id": "uuid", "event_type": "string", "occurred_at": "ISO8601", "entity_code": "TVC|R619|SHR|INDA", "source_system": "string", "payload": {} }		
+Idempotency-Key header = event_id. Retries safe. Unknown events → dead-letter + alert.		
+2. INBOUND EVENTS (OS → Accounting)		
+Event	Payload (min)	Handler
+sale.created	customer{}, lines[{sku,qty,rate,person_id,placement_id}], source_id	Upsert customer; draft invoice
+sale.updated	source_id, changed fields	Update draft only if not sent
+customer.upsert	name, email, terms, tax_status, source_id	MD Customers de-dupe
+placement.created	placement_id, person_id, customer_id, type DH|CT	Dimension + commission link
+3. INTERNAL / PAYMENT EVENTS		
+invoice.sent | invoice.viewed | invoice.partial_paid | invoice.paid | invoice.void		
+invoice.paid payload: invoice_id, amount_paid, currency, paid_at, payment_ref, deposit_bank_account_id		
+invoice.paid → AR clear + cash 1000 + commission.calculate + waterfall.allocate + forecast.touch + OS commission.updated		
+payment.failed | bill.submitted | bill.approved | bill.paid | bank.txn.imported | card.txn.imported		
+4. OUTBOUND (Accounting → OS)		
+invoice.status_changed | commission.accrued | commission.paid | waterfall.allocated | ar.balance_updated | customer.sync_ack		
+5. REST RESOURCES (CRUD sketch)		
+/entities /customers /vendors /invoices /bills /payments /journals /accounts /bank-accounts /commissions /loans /budgets /forecasts /reports/*		
+Auth: Bearer JWT + entity scopes. Pagination cursor. Filter entity_code, date_from, date_to.		
+6. ERROR CONTRACT		
+{ "error": { "code": "STRING", "message": "human", "details": [] } }  Codes: VALIDATION, NOT_FOUND, CONFLICT, PERIOD_LOCKED, SOD_VIOLATION, INSUFFICIENT_CASH		
+Cursor: Generate OpenAPI 3 from this sheet; all money fields integer cents + currency.		

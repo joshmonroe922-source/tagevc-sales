@@ -180,6 +180,12 @@ function isNavActive(pathname: string, href: string): boolean {
       pathname.startsWith('/shared-services/af/controls/')
     );
   }
+  if (href === '/personal/finance') {
+    return (
+      pathname === '/personal/finance' ||
+      pathname.startsWith('/personal/finance/')
+    );
+  }
   if (href === '/shared-services/af') {
     // Nested A&F children light themselves — do not light A&F hub.
     if (
@@ -190,7 +196,9 @@ function isNavActive(pathname: string, href: string): boolean {
       pathname === '/shared-services/af/audit' ||
       pathname.startsWith('/shared-services/af/audit/') ||
       pathname === '/shared-services/af/controls' ||
-      pathname.startsWith('/shared-services/af/controls/')
+      pathname.startsWith('/shared-services/af/controls/') ||
+      pathname === '/shared-services/af/setup' ||
+      pathname.startsWith('/shared-services/af/setup/')
     ) {
       return false;
     }

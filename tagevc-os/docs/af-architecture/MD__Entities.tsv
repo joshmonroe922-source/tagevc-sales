@@ -1,0 +1,13 @@
+MASTER DATA — Entities											
+Tage VC Parent + Portfolio Subsidiaries | Single source of truth for multi-entity setup, consolidation, IC, and reporting											
+Entity Code	Legal Name	Type	Industry / Model	Ownership %	Consolidation Method	Functional Currency	Fiscal Year End	Tax ID / EIN	Bank Accounts (standard)	Status	Notes / CoA Tab
+TVC	Tage Venture Capital	Parent / Holding	Venture Capital / Bank for Acquisitions	1	Full Consolidation	USD	12/31		1000 Operating | 1010 Bank for Investments	Active	CoA - Tage VC | Parent IC Due Froms
+R619	Recruit 619	Subsidiary	Recruiting / Staffing (Direct Hire + Contract)	1	Full Consolidation	USD	12/31		1000 Operating | 1040 Savings	Active	CoA - Recruit 619 | Due To Parent 2450
+SHR	Signent HR	Subsidiary	Fractional & Outsourced HR	1	Full Consolidation	USD	12/31		1000 Operating | 1040 Savings	Active	CoA - Signent HR | Due To Parent 2450
+INDA	Instant NDA	Subsidiary	SaaS / Software	1	Full Consolidation	USD	12/31		1000 Operating | 1040 Savings	Active	CoA - Instant NDA | Due To Parent 2450 | High GM SaaS
+Notes											
+• Blue cells = inputs (edit here). All other modules reference this tab for entity list, ownership, and consolidation method.											
+• Status values: Active | Inactive | Dissolved. Health later: On Track | Watch | At Risk | Critical.											
+• Add new subsidiaries as new rows; CoA and IC Due To/From must be extended accordingly.											
+FUTURE ENTITY TEMPLATE (bake-in)											
+1) Add row here  2) Clone CoA (1000+1040+2450+6950+commons)  3) Bank OP+SV  4) Parent Due From  5) SKUs  6) MD - Invoice Attachments: Wire + I-9 Required=Yes  7) No per-revenue banks.											

@@ -1,0 +1,57 @@
+Consolidated Chart of Accounts Mapping & Intercompany Guide						
+Tage Venture Capital (Parent) + Recruit 619 + Signent HR + Instant NDA | Multi-Entity Reporting Ready						
+Purpose: Common account numbers, IC Due To/From pairs, elimination rules for consolidated financials. Prevents double-counting.						
+Account #	Account Name	Type	Used By	Parent Mapping	Sub Mapping / IC Pair	Elimination Rule / Notes
+KEY INTERCOMPANY ACCOUNTS (Eliminated in Consolidation)						
+1400	Due From Affiliates - Control	Asset	All	Parent Due From Subs	Subs may have reverse	Eliminate against Due To
+1410	Due From Recruit 619	Asset	Parent	Parent 1410	Recruit 2450 Due To Parent	Full elimination of IC balance
+1420	Due From Signent HR	Asset	Parent	Parent 1420	Signent 2450 Due To Parent	Full elimination
+1430	Due From Instant NDA	Asset	Parent	Parent 1430	Instant 2450 Due To Parent	Full elimination
+2450	Due To Tage VC (Parent)	Liability	All Subs	N/A on Parent	Each Sub 2450	Eliminate vs Parent Due From
+4000	Management Fee Income	Revenue	Parent	Parent 4000	Subs 6950 Mgmt Fee Expense	Eliminate Income vs Expense
+4100	Shared Services Income / Recharges	Revenue	Parent	Parent 4100	Subs 6100-6800 (portions)	Eliminate recharges
+6950	Management Fee Expense (to Tage VC)	Expense	All Subs	N/A	Each Sub 6950	Eliminate vs Parent 4000
+COMMON ACCOUNTS (Identical # across all 4 entities)						
+1000	Cash - Operating	Asset	All	Same	Same	Aggregate
+1100	Accounts Receivable	Asset	All	Same	Same	Aggregate (external only)
+1200	Prepaid Expenses	Asset	All	Same	Same	Aggregate
+1600	Property, Plant & Equipment	Asset	All	Same	Same	Aggregate
+1650	Accumulated Depreciation	Asset	All	Same	Same	Aggregate
+1700	Intangible Assets / Software	Asset	All	Same	Same	Aggregate
+2000	Accounts Payable	Liability	All	Same	Same	Aggregate
+2100	Accrued Expenses	Liability	All	Same	Same	Aggregate
+2200	Payroll Liabilities	Liability	All	Same	Same	Aggregate
+2300	Deferred Revenue	Liability	All	Same	Same	Aggregate (esp SaaS)
+3000	Common Stock / Member Capital	Equity	All	Same	Same	Aggregate + IC equity if any
+3200	Retained Earnings	Equity	All	Same	Same	Aggregate
+3300	Owner Distributions / Dividends	Equity	All	Same	Same	Aggregate
+4900	Other Income	Revenue	All	Same	Same	Aggregate
+6000	Sales & Business Development	Expense	All	Same	Same	Aggregate
+6100	Marketing & Advertising	Expense	All	Same	Same	Aggregate (after IC elim)
+6200	Accounting & Finance (AF)	Expense	All	Same	Same	Aggregate after elim
+6300	Human Resources	Expense	All	Same	Same	Aggregate after elim
+6400	Legal & Professional Fees	Expense	All	Same	Same	Aggregate after elim
+6500	Technology & Software	Expense	All	Same	Same	Aggregate
+6600	Office Space & Facilities	Expense	All	Same	Same	Aggregate after elim
+6700	Business Insurance	Expense	All	Same	Same	Aggregate after elim
+6800	Charitable Contributions	Expense	All	Same	Same	Aggregate after elim
+6900	Other Operating Expenses / Contingency	Expense	All	Same	Same	Aggregate
+7000	Interest Income	Other Income	All	Same	Same	Aggregate
+7100	Interest Expense	Other Expense	All	Same	Same	Aggregate
+8000	Income Tax Expense	Expense	All	Same	Same	Aggregate
+ENTITY-SPECIFIC REVENUE HIGHLIGHTS						
+4000	Management Fee Income	Revenue	Parent only	Parent	N/A	Elim vs 6950
+4100	Shared Services Income	Revenue	Parent only	Parent	N/A	Elim vs sub OpEx recharges
+4210	Direct Hire Placement Revenue	Revenue	Recruit 619	N/A	Recruit	External - keep
+4220	Contract / Temporary Staffing Revenue	Revenue	Recruit 619	N/A	Recruit	External - keep
+4310	Fractional HR Services Revenue	Revenue	Signent HR	N/A	Signent	External - keep
+4320	Outsourced HR - Monthly Plans	Revenue	Signent HR	N/A	Signent	External - keep
+4410	Subscription Revenue - SaaS	Revenue	Instant NDA	N/A	Instant	External - keep
+HOW TO USE FOR REPORTING						
+1. Each entity books transactions to its own CoA using the numbers above.						
+2. Parent records Due From Sub + Management Fee Income / Shared Services Income.						
+3. Each Sub records Due To Parent + Management Fee Expense 6950 + shared OpEx.						
+4. At consolidation: Eliminate all IC Due To/From balances (should net to zero). Eliminate Mgmt Fee Income vs Expense. Eliminate Shared Services Income vs the corresponding expense portions on subs.						
+5. External revenue (placements, HR services, SaaS subs) and external costs remain.						
+6. This structure supports the existing financial model (shared services, 5% fee, 90% bank savings, contingency).						
+7. Future: Add dimensions or sub-accounts if more granularity needed (e.g. by department or project).						

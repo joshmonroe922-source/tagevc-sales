@@ -1,0 +1,44 @@
+SPEC — Revenue / Cash Split Waterfall (Model-Driven Buckets)					
+On invoice PAID: auto-allocate cash economics by entity model % → GL buckets + planning buckets | Same engine drives AI forecast hire budgets by department					
+1. POLICY (FROM DAY ONE)					
+YES — every invoice.paid runs the Waterfall Engine. Physical bank = Operating 1000 (simplified). Economic split = virtual + GL allocations so Finance can see bucket balances for hiring/ops without separate revenue banks.					
+Two layers: (A) Accounting postings required for books  (B) Planning buckets for forecast/budget/hiring (may mirror % even when cash still sits in Operating).					
+2. TRIGGER					
+Event: invoice.paid (full or final). Inputs: entity_code, amount_paid, SKU mix, person_id/placement, active Allocation Profile version.					
+Also on forecast: projected collections × same profile → Forecast Bucket Balances by month/dept.					
+3. ALLOCATION PROFILE (per entity — versioned, effective-dated)					
+Bucket Code	Name	% of Paid Revenue (example R619-like)	Dept (hiring)	Accounting treatment	Notes
+DIR	Direct / Delivery / COGS	Entity model (e.g. 30% R619 ops / 12.5% SHR / 10% INDA)	Delivery	Already in P&L via costs; planning reserve for producer/contractor capacity	From entity financial model Direct %
+SALES	Sales / BD	Model Sales %	Sales	OpEx planning; commission is SEPARATE (see COMM)	6000
+MKT	Marketing (incl SS share)	Model Mkt %	Marketing	6100 + SS	
+GA	G&A pool (AF+HR+Legal+Office+Ins+Other)	Sum of model G&A %	G&A	6200–6900 excl sales/mkt	Can sub-split later
+TECH	Technology / Product	Model Tech %	Product	6500	Critical for INDA hiring
+COMM	Commissions (protected)	From Commission Plan on paid (not fixed % only)	Sales	Dr exp / Cr 2250 Protected Liability — MANDATORY	Spec - Commission Engine
+MGMT	Management fee to parent	5% (model)	G&A / SS	Dr 6950 / Cr 2450; parent income 4000	IC
+SS	Shared services recharges	Per model SS lines	G&A / SS	Dr SS exp / Cr 2450; parent 4100	IC
+CONT	Contingency / buffer	Model contingency %	G&A	Planning bucket + optional reserve JE	Model addl margin
+PROFIT	Residual net profit	Plug so sum = 100% after above	Leadership	Split per policy below	Must balance
+4. PROFIT SUB-SPLIT (group policy)					
+Of PROFIT bucket (and/or consolidated available): 90% → Bank for Investments planning + sweep eligibility to TVC 1010 | 10% → Owner distributions planning | remainder/retained per model.					
+Entity-level PROFIT stays on sub books until dividend/IC transfer; planning buckets show 'allocatable' for group capital and hiring headroom.					
+5. ACCOUNTING vs PLANNING BUCKETS					
+Layer	What posts to GL on paid	What planning ledger stores			
+Cash	Dr 1000 / Cr AR (always)	Cash in Operating			
+Commission	Cr 2250 always if commissionable	COMM bucket = liability balance			
+Mgmt/SS	IC JEs when fee/recharge run (may be monthly batch or on-paid)	MGMT + SS buckets			
+DIR/SALES/MKT/GA/TECH/CONT	Optional monthly accrual JEs; or planning-only until bills/payroll hit	Department funding envelopes for hiring & spend			
+PROFIT	Implied in equity/RE; sweep JE when capital policy runs	PROFIT + 90/10 capital view			
+6. FORECAST + HIRING LINK (required)					
+AI/driver revenue forecast by entity/SKU → apply same Allocation Profile → monthly Forecast Bucket $ by Dept.					
+Hiring Estimator: proposed hires consume Delivery/Sales/Product/G&A envelopes (fully loaded cost from MD - Employees). Flag if hire > available bucket + buffer.					
+UI: Finance → Forecast buckets by dept | Hiring impact overlay | Scenario Cons/Base/Agg uses profile × scenario revenue.					
+7. PROFILE SOURCE OF TRUTH					
+Versioned table allocation_profiles (entity, effective_from, bucket, pct, dept, gl_hint). Seed from current entity model % (Recruit 619, Signent HR, Instant NDA sheets + Scenario Inputs).					
+SKU overrides allowed (e.g. Contract vs DH different DIR%). Sum of non-plug buckets + COMM actual + residual PROFIT = 100% of paid.					
+8. CURSOR IMPLEMENTATION					
+• On invoice.paid: (1) cash route (2) commission engine (3) waterfall service writes allocation_ledger rows (4) enqueue IC fee if configured on-paid or batch.					
+• allocation_ledger: id, entity, invoice_id, paid_at, bucket, dept, amount, profile_version, scenario_id null for actuals.					
+• Forecast job: same service with source=forecast_line, scenario_id set.					
+• Reports: Bucket balances actual vs forecast vs budget by dept; hire-affordability.					
+• Do NOT create bank accounts per bucket. Buckets are subledger/planning (+ select GL liabilities).					
+Related: Spec - Cash Routing | Commission Engine | Forecast & Loans | MD - Employees | MD - Dimensions | entity model % tabs | Scenario Inputs					

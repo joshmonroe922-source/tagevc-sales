@@ -1,0 +1,370 @@
+[
+  {
+    "number": "1000",
+    "name": "Cash - Operating Account (Checking)",
+    "type": "Asset",
+    "category": "Cash & Banks",
+    "notes": "Collections + spend. Not split by revenue type.",
+    "common": "Yes"
+  },
+  {
+    "number": "1040",
+    "name": "Cash - Recruit 619 Savings",
+    "type": "Asset",
+    "category": "Cash & Banks",
+    "notes": "Entity reserve",
+    "common": "Yes \u2014 sub"
+  },
+  {
+    "number": "1090",
+    "name": "Cash - Undeposited Funds / Clearing",
+    "type": "Asset",
+    "category": "Cash & Banks",
+    "notes": "Optional",
+    "common": "Yes \u2014 optional"
+  },
+  {
+    "number": "1100",
+    "name": "Accounts Receivable",
+    "type": "Asset",
+    "category": "Current Assets",
+    "notes": "",
+    "common": "Yes"
+  },
+  {
+    "number": "1200",
+    "name": "Prepaid Expenses",
+    "type": "Asset",
+    "category": "Current Assets",
+    "notes": "",
+    "common": "Yes"
+  },
+  {
+    "number": "1400",
+    "name": "Due From Affiliates - Control",
+    "type": "Asset",
+    "category": "Intercompany",
+    "notes": "",
+    "common": "Yes - IC"
+  },
+  {
+    "number": "1600",
+    "name": "Property, Plant & Equipment",
+    "type": "Asset",
+    "category": "Fixed Assets",
+    "notes": "",
+    "common": "Yes"
+  },
+  {
+    "number": "1650",
+    "name": "Accumulated Depreciation",
+    "type": "Asset",
+    "category": "Fixed Assets",
+    "notes": "",
+    "common": "Yes"
+  },
+  {
+    "number": "1700",
+    "name": "Intangible Assets / Software",
+    "type": "Asset",
+    "category": "Intangibles",
+    "notes": "",
+    "common": "Yes"
+  },
+  {
+    "number": "2000",
+    "name": "Accounts Payable",
+    "type": "Liability",
+    "category": "Current Liabilities",
+    "notes": "",
+    "common": "Yes"
+  },
+  {
+    "number": "2100",
+    "name": "Accrued Expenses",
+    "type": "Liability",
+    "category": "Current Liabilities",
+    "notes": "",
+    "common": "Yes"
+  },
+  {
+    "number": "2200",
+    "name": "Payroll Liabilities",
+    "type": "Liability",
+    "category": "Current Liabilities",
+    "notes": "",
+    "common": "Yes"
+  },
+  {
+    "number": "2250",
+    "name": "Commission Payable / Protected Commission Liability",
+    "type": "Liability",
+    "category": "Current Liabilities",
+    "notes": "Protected bucket",
+    "common": "Yes"
+  },
+  {
+    "number": "2300",
+    "name": "Deferred Revenue",
+    "type": "Liability",
+    "category": "Current Liabilities",
+    "notes": "",
+    "common": "Yes"
+  },
+  {
+    "number": "2400",
+    "name": "Due To Affiliates - Control",
+    "type": "Liability",
+    "category": "Intercompany",
+    "notes": "",
+    "common": "Yes - IC"
+  },
+  {
+    "number": "2450",
+    "name": "Due To Tage VC (Parent)",
+    "type": "Liability",
+    "category": "Intercompany",
+    "notes": "Mgmt fee + SS",
+    "common": "Sub IC"
+  },
+  {
+    "number": "2500",
+    "name": "Notes Payable / Debt / Loans",
+    "type": "Liability",
+    "category": "Long-term Liabilities",
+    "notes": "",
+    "common": "Yes"
+  },
+  {
+    "number": "3000",
+    "name": "Common Stock / Member Capital",
+    "type": "Equity",
+    "category": "Equity",
+    "notes": "",
+    "common": "Yes"
+  },
+  {
+    "number": "3100",
+    "name": "Additional Paid-in Capital",
+    "type": "Equity",
+    "category": "Equity",
+    "notes": "",
+    "common": "Yes"
+  },
+  {
+    "number": "3200",
+    "name": "Retained Earnings",
+    "type": "Equity",
+    "category": "Equity",
+    "notes": "",
+    "common": "Yes"
+  },
+  {
+    "number": "3300",
+    "name": "Owner Distributions / Dividends",
+    "type": "Equity",
+    "category": "Equity",
+    "notes": "",
+    "common": "Yes"
+  },
+  {
+    "number": "3400",
+    "name": "Current Year Net Income",
+    "type": "Equity",
+    "category": "Equity",
+    "notes": "",
+    "common": "Yes"
+  },
+  {
+    "number": "4210",
+    "name": "Direct Hire Placement Revenue",
+    "type": "Revenue",
+    "category": "Service Revenue",
+    "notes": "Track type here \u2014 not bank",
+    "common": "R619"
+  },
+  {
+    "number": "4220",
+    "name": "Contract / Temporary Staffing Revenue",
+    "type": "Revenue",
+    "category": "Service Revenue",
+    "notes": "",
+    "common": "R619"
+  },
+  {
+    "number": "4290",
+    "name": "Other Recruiting Revenue",
+    "type": "Revenue",
+    "category": "Service Revenue",
+    "notes": "",
+    "common": "R619"
+  },
+  {
+    "number": "4900",
+    "name": "Other Income",
+    "type": "Revenue",
+    "category": "Other Income",
+    "notes": "",
+    "common": "Yes"
+  },
+  {
+    "number": "5100",
+    "name": "Direct Producer / Recruiter Costs",
+    "type": "Expense",
+    "category": "Direct Costs",
+    "notes": "",
+    "common": "R619"
+  },
+  {
+    "number": "5200",
+    "name": "Contract Labor / Contractor Costs",
+    "type": "Expense",
+    "category": "Direct Costs",
+    "notes": "",
+    "common": "R619"
+  },
+  {
+    "number": "5300",
+    "name": "Other Direct Costs of Placements",
+    "type": "Expense",
+    "category": "Direct Costs",
+    "notes": "",
+    "common": "R619"
+  },
+  {
+    "number": "6000",
+    "name": "Sales & Business Development",
+    "type": "Expense",
+    "category": "OpEx",
+    "notes": "",
+    "common": "Yes"
+  },
+  {
+    "number": "6100",
+    "name": "Marketing & Advertising",
+    "type": "Expense",
+    "category": "OpEx - Shared",
+    "notes": "",
+    "common": "Yes"
+  },
+  {
+    "number": "6200",
+    "name": "Accounting & Finance (AF)",
+    "type": "Expense",
+    "category": "OpEx - Shared",
+    "notes": "",
+    "common": "Yes"
+  },
+  {
+    "number": "6300",
+    "name": "Human Resources",
+    "type": "Expense",
+    "category": "OpEx - Shared",
+    "notes": "",
+    "common": "Yes"
+  },
+  {
+    "number": "6400",
+    "name": "Legal & Professional Fees",
+    "type": "Expense",
+    "category": "OpEx - Shared",
+    "notes": "",
+    "common": "Yes"
+  },
+  {
+    "number": "6500",
+    "name": "Technology & Software",
+    "type": "Expense",
+    "category": "OpEx",
+    "notes": "",
+    "common": "Yes"
+  },
+  {
+    "number": "6600",
+    "name": "Office Space & Facilities",
+    "type": "Expense",
+    "category": "OpEx - Shared",
+    "notes": "",
+    "common": "Yes"
+  },
+  {
+    "number": "6700",
+    "name": "Business Insurance",
+    "type": "Expense",
+    "category": "OpEx - Shared",
+    "notes": "",
+    "common": "Yes"
+  },
+  {
+    "number": "6800",
+    "name": "Charitable Contributions",
+    "type": "Expense",
+    "category": "OpEx - Shared",
+    "notes": "",
+    "common": "Yes"
+  },
+  {
+    "number": "6900",
+    "name": "Other Operating Expenses / Contingency",
+    "type": "Expense",
+    "category": "OpEx",
+    "notes": "",
+    "common": "Yes"
+  },
+  {
+    "number": "6950",
+    "name": "Management Fee Expense (to Tage VC)",
+    "type": "Expense",
+    "category": "OpEx - IC",
+    "notes": "5%; elim vs 4000",
+    "common": "Sub IC"
+  },
+  {
+    "number": "7000",
+    "name": "Interest Income",
+    "type": "Other Income",
+    "category": "Other",
+    "notes": "",
+    "common": "Yes"
+  },
+  {
+    "number": "7100",
+    "name": "Interest Expense",
+    "type": "Other Expense",
+    "category": "Other",
+    "notes": "",
+    "common": "Yes"
+  },
+  {
+    "number": "8000",
+    "name": "Income Tax Expense",
+    "type": "Expense",
+    "category": "Tax",
+    "notes": "",
+    "common": "Yes"
+  },
+  {
+    "number": "1.",
+    "name": "",
+    "type": "",
+    "category": "",
+    "notes": "",
+    "common": ""
+  },
+  {
+    "number": "2.",
+    "name": "",
+    "type": "",
+    "category": "",
+    "notes": "",
+    "common": ""
+  },
+  {
+    "number": "3.",
+    "name": "",
+    "type": "",
+    "category": "",
+    "notes": "",
+    "common": ""
+  }
+]

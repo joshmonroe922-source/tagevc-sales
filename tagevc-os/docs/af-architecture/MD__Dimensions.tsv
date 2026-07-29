@@ -1,0 +1,10 @@
+MASTER DATA — Dimensions			
+Optional tags on every JE/invoice/bill for reporting & profitability | Entity is mandatory separate field, not only a dimension			
+Dimension	Required?	Example Values	Used By
+Department	Optional	Sales, Delivery, G&A, Product, SS	P&L, budgets, burden
+Project / Placement	When applicable	Placement ID, Project ID, Sprint	R619, SHR profitability, commissions
+Customer	AR/revenue lines	MD - Customers ID	AR, revenue, CRM sync
+Person / Recruiter	Commissionable lines	MD - Employees ID	Commission engine
+Location	Optional	HQ, Remote, Market	Reporting
+Campaign / Channel	Optional	Paid, Organic, Partner	Marketing ROI
+Cursor: Entity is a first-class field on every transaction; dimensions are additional analytic axes.			

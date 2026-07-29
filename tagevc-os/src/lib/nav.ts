@@ -301,6 +301,31 @@ export const MAIN_NAV: NavItem[] = [
     ],
   },
   {
+    module: 'portfolio',
+    label: 'Personal',
+    description: 'Personal Finance (Visionary)',
+    visionaryOnly: true,
+    hideDuringLiveLook: true,
+    hiddenForRoles: [
+      'associate',
+      'ma_associate',
+      're_sourcer',
+      'sub_lead',
+      ...HIDE_FOR_ADMIN,
+      ...HIDE_FOR_SSC,
+    ],
+    children: [
+      {
+        module: 'portfolio',
+        href: '/personal/finance',
+        label: 'Personal Finance',
+        description: 'Books · cards · family · net worth',
+        visionaryOnly: true,
+        hideDuringLiveLook: true,
+      },
+    ],
+  },
+  {
     module: 'shared_services',
     label: 'Shared Services',
     description: 'Tage VC A&F · Finance · HR · IT · Marketing · Legal · Admin',

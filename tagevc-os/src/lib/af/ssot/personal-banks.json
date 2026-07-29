@@ -1,0 +1,29 @@
+[
+  {
+    "id": "PBA-OP",
+    "name": "Personal Operating Checking",
+    "type": "Checking",
+    "glAccount": "1000",
+    "familyClass": "FAMILY",
+    "feedEnabled": true,
+    "notes": "Personal Finance"
+  },
+  {
+    "id": "PBA-SV",
+    "name": "Personal Savings",
+    "type": "Savings",
+    "glAccount": "1010",
+    "familyClass": "FAMILY",
+    "feedEnabled": true,
+    "notes": "Personal Finance"
+  },
+  {
+    "id": "PBA-BRK",
+    "name": "Brokerage Cash",
+    "type": "Brokerage",
+    "glAccount": "1020",
+    "familyClass": "JOSH",
+    "feedEnabled": false,
+    "notes": "Personal Finance"
+  }
+]

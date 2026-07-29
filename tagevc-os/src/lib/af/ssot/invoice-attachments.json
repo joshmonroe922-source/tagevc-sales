@@ -1,0 +1,90 @@
+[
+  {
+    "id": "ATT-TVC-WIRE",
+    "entityCode": "TVC",
+    "documentType": "Wiring Instructions",
+    "displayName": "Tage VC Wire Instructions",
+    "fileRef": "docs/tvc/wire.pdf",
+    "requiredOnSend": true,
+    "sortOrder": 10,
+    "status": "Active",
+    "notes": "Auto on every TVC invoice"
+  },
+  {
+    "id": "ATT-TVC-I9",
+    "entityCode": "TVC",
+    "documentType": "I-9 Packet",
+    "displayName": "I-9 / Compliance Attachment",
+    "fileRef": "docs/tvc/i9-packet.pdf",
+    "requiredOnSend": true,
+    "sortOrder": 20,
+    "status": "Active",
+    "notes": "Per policy; confirm legal use on client invoices"
+  },
+  {
+    "id": "ATT-R619-WIRE",
+    "entityCode": "R619",
+    "documentType": "Wiring Instructions",
+    "displayName": "Recruit 619 Wire Instructions",
+    "fileRef": "docs/r619/wire.pdf",
+    "requiredOnSend": true,
+    "sortOrder": 10,
+    "status": "Active",
+    "notes": "Operating account wires"
+  },
+  {
+    "id": "ATT-R619-I9",
+    "entityCode": "R619",
+    "documentType": "I-9 Packet",
+    "displayName": "I-9 / Compliance Attachment",
+    "fileRef": "docs/r619/i9-packet.pdf",
+    "requiredOnSend": true,
+    "sortOrder": 20,
+    "status": "Active",
+    "notes": ""
+  },
+  {
+    "id": "ATT-SHR-WIRE",
+    "entityCode": "SHR",
+    "documentType": "Wiring Instructions",
+    "displayName": "Signent HR Wire Instructions",
+    "fileRef": "docs/shr/wire.pdf",
+    "requiredOnSend": true,
+    "sortOrder": 10,
+    "status": "Active",
+    "notes": ""
+  },
+  {
+    "id": "ATT-SHR-I9",
+    "entityCode": "SHR",
+    "documentType": "I-9 Packet",
+    "displayName": "I-9 / Compliance Attachment",
+    "fileRef": "docs/shr/i9-packet.pdf",
+    "requiredOnSend": true,
+    "sortOrder": 20,
+    "status": "Active",
+    "notes": ""
+  },
+  {
+    "id": "ATT-INDA-WIRE",
+    "entityCode": "INDA",
+    "documentType": "Wiring Instructions",
+    "displayName": "Instant NDA Wire Instructions",
+    "fileRef": "docs/inda/wire.pdf",
+    "requiredOnSend": true,
+    "sortOrder": 10,
+    "status": "Active",
+    "notes": ""
+  },
+  {
+    "id": "ATT-INDA-I9",
+    "entityCode": "INDA",
+    "documentType": "I-9 Packet",
+    "displayName": "I-9 / Compliance Attachment",
+    "fileRef": "docs/inda/i9-packet.pdf",
+    "requiredOnSend": true,
+    "sortOrder": 20,
+    "status": "Active",
+    "notes": ""
+  }
+]

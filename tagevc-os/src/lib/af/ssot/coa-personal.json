@@ -1,0 +1,298 @@
+[
+  {
+    "number": "1000",
+    "name": "Cash - Operating / Checking",
+    "type": "Asset",
+    "category": "Cash",
+    "notes": "Primary spending + deposits",
+    "common": "Cash & banking"
+  },
+  {
+    "number": "1010",
+    "name": "Cash - Savings",
+    "type": "Asset",
+    "category": "Cash",
+    "notes": "High-yield / savings",
+    "common": "Cash & banking"
+  },
+  {
+    "number": "1020",
+    "name": "Cash - Brokerage (settlement)",
+    "type": "Asset",
+    "category": "Cash",
+    "notes": "Brokerage cash sleeve",
+    "common": "Taxable investments"
+  },
+  {
+    "number": "1090",
+    "name": "Cash - Clearing",
+    "type": "Asset",
+    "category": "Cash",
+    "notes": "Optional undeposited",
+    "common": "Cash & banking"
+  },
+  {
+    "number": "1100",
+    "name": "Accounts Receivable - Personal",
+    "type": "Asset",
+    "category": "AR",
+    "notes": "If sending personal invoices",
+    "common": "Other assets"
+  },
+  {
+    "number": "1200",
+    "name": "Prepaid / Deposits",
+    "type": "Asset",
+    "category": "Other",
+    "notes": "",
+    "common": "Other personal assets"
+  },
+  {
+    "number": "1500",
+    "name": "Investments - Taxable Brokerage (FMV)",
+    "type": "Asset",
+    "category": "Investments",
+    "notes": "Securities mark-to-market",
+    "common": "Taxable investments"
+  },
+  {
+    "number": "1510",
+    "name": "Investments - Retirement (FMV)",
+    "type": "Asset",
+    "category": "Investments",
+    "notes": "401k IRA Roth etc.",
+    "common": "Retirement"
+  },
+  {
+    "number": "1520",
+    "name": "Investments - Crypto (FMV)",
+    "type": "Asset",
+    "category": "Investments",
+    "notes": "Exchange/wallet FMV",
+    "common": "Crypto"
+  },
+  {
+    "number": "1530",
+    "name": "Business Ownership (valuation link)",
+    "type": "Asset",
+    "category": "Investments",
+    "notes": "Link Spec - Net Worth method A\u2013D",
+    "common": "Business ownership"
+  },
+  {
+    "number": "1600",
+    "name": "Real Estate / Home (asset)",
+    "type": "Asset",
+    "category": "Fixed",
+    "notes": "FMV or cost basis policy",
+    "common": "Other personal assets"
+  },
+  {
+    "number": "1610",
+    "name": "Vehicles & Personal Property",
+    "type": "Asset",
+    "category": "Fixed",
+    "notes": "Optional FMV",
+    "common": "Other personal assets"
+  },
+  {
+    "number": "1650",
+    "name": "Accumulated Depreciation (if used)",
+    "type": "Asset",
+    "category": "Fixed",
+    "notes": "Contra",
+    "common": "Other personal assets"
+  },
+  {
+    "number": "2000",
+    "name": "Credit Cards",
+    "type": "Liability",
+    "category": "Current",
+    "notes": "Managed in Credit Management UI",
+    "common": "Liabilities"
+  },
+  {
+    "number": "2100",
+    "name": "Bills Payable / Accrued",
+    "type": "Liability",
+    "category": "Current",
+    "notes": "AP-lite",
+    "common": "Liabilities"
+  },
+  {
+    "number": "2500",
+    "name": "Mortgages",
+    "type": "Liability",
+    "category": "Long-term",
+    "notes": "MD - Personal Loans",
+    "common": "Liabilities"
+  },
+  {
+    "number": "2510",
+    "name": "Auto / Personal Loans",
+    "type": "Liability",
+    "category": "Long-term",
+    "notes": "MD - Personal Loans",
+    "common": "Liabilities"
+  },
+  {
+    "number": "2520",
+    "name": "Student Loans",
+    "type": "Liability",
+    "category": "Long-term",
+    "notes": "",
+    "common": "Liabilities"
+  },
+  {
+    "number": "2530",
+    "name": "Other Notes Payable",
+    "type": "Liability",
+    "category": "Long-term",
+    "notes": "",
+    "common": "Liabilities"
+  },
+  {
+    "number": "3000",
+    "name": "Opening Net Worth / Equity",
+    "type": "Equity",
+    "category": "Equity",
+    "notes": "",
+    "common": "Equity"
+  },
+  {
+    "number": "3200",
+    "name": "Retained / Cumulative Earnings",
+    "type": "Equity",
+    "category": "Equity",
+    "notes": "",
+    "common": "Equity"
+  },
+  {
+    "number": "3400",
+    "name": "Current Year Surplus/(Deficit)",
+    "type": "Equity",
+    "category": "Equity",
+    "notes": "",
+    "common": "Equity"
+  },
+  {
+    "number": "4000",
+    "name": "Wages / Salary",
+    "type": "Revenue",
+    "category": "Income",
+    "notes": "",
+    "common": "P&L"
+  },
+  {
+    "number": "4100",
+    "name": "Business Distributions Received",
+    "type": "Revenue",
+    "category": "Income",
+    "notes": "Manual from company \u2014 not auto cash mix",
+    "common": "P&L"
+  },
+  {
+    "number": "4200",
+    "name": "Investment / Dividend / Interest Income",
+    "type": "Revenue",
+    "category": "Income",
+    "notes": "",
+    "common": "P&L"
+  },
+  {
+    "number": "4300",
+    "name": "Other Personal Income / Invoices",
+    "type": "Revenue",
+    "category": "Income",
+    "notes": "Personal AR invoices",
+    "common": "P&L"
+  },
+  {
+    "number": "6000",
+    "name": "Housing",
+    "type": "Expense",
+    "category": "Expense",
+    "notes": "",
+    "common": "P&L"
+  },
+  {
+    "number": "6100",
+    "name": "Transportation",
+    "type": "Expense",
+    "category": "Expense",
+    "notes": "",
+    "common": "P&L"
+  },
+  {
+    "number": "6200",
+    "name": "Food & Groceries",
+    "type": "Expense",
+    "category": "Expense",
+    "notes": "",
+    "common": "P&L"
+  },
+  {
+    "number": "6300",
+    "name": "Healthcare",
+    "type": "Expense",
+    "category": "Expense",
+    "notes": "",
+    "common": "P&L"
+  },
+  {
+    "number": "6400",
+    "name": "Childcare & Education",
+    "type": "Expense",
+    "category": "Expense",
+    "notes": "",
+    "common": "P&L"
+  },
+  {
+    "number": "6500",
+    "name": "Personal & Lifestyle",
+    "type": "Expense",
+    "category": "Expense",
+    "notes": "",
+    "common": "P&L"
+  },
+  {
+    "number": "6600",
+    "name": "Insurance",
+    "type": "Expense",
+    "category": "Expense",
+    "notes": "",
+    "common": "P&L"
+  },
+  {
+    "number": "6700",
+    "name": "Debt Interest",
+    "type": "Expense",
+    "category": "Expense",
+    "notes": "",
+    "common": "P&L"
+  },
+  {
+    "number": "6800",
+    "name": "Giving / Charity",
+    "type": "Expense",
+    "category": "Expense",
+    "notes": "",
+    "common": "P&L"
+  },
+  {
+    "number": "6900",
+    "name": "Miscellaneous",
+    "type": "Expense",
+    "category": "Expense",
+    "notes": "",
+    "common": "P&L"
+  },
+  {
+    "number": "8000",
+    "name": "Tax Payments",
+    "type": "Expense",
+    "category": "Tax",
+    "notes": "",
+    "common": "P&L"
+  }
+]

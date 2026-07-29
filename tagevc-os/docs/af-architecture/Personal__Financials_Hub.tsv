@@ -1,0 +1,18 @@
+PERSONAL FINANCIALS — One-click structure (like company entities)			
+Under Personal ▼ → Personal Finance only | Cards under Personal Finance (not separate Credit Management menu)			
+ONE-CLICK PROVISION (Cursor)			
+On Enable Personal Finance: create books PERS → load CoA - Personal → seed MD - Personal Family → MD - Personal Banks (OP+SV) → MD - Personal Investments (templates + 4 business ownership rows) → MD - Personal Loans (templates) → open setup wizard.			
+TAB / MODULE	SSOT Sheet	UI route	Notes
+Chart of Accounts	CoA - Personal	/personal/finance/coa	Full personal CoA + NW categories
+Family / classes	MD - Personal Family	/personal/finance/family	Monroe Family, Trust, Josh, Lauren, Clara, Charlotte, Lincoln
+Banking	MD - Personal Banks	/personal/finance/accounts	Checking, savings, brokerage cash + feeds
+Credit cards	MD - Personal Banks (type card) | Spec - Personal Finance	/personal/finance/cards	Inside Personal Finance — not separate menu
+Investments	MD - Personal Investments	/personal/finance/investments	Brokerage, retirement, crypto, businesses
+Business ownership	MD - Personal Investments PINV-BIZ-* | Spec - Net Worth	/personal/finance/investments + NW	Book equity × % default
+Loans	MD - Personal Loans | Model - Loan Amortization	/personal/finance/loans	Amort + extra payment
+Vendors / Bills / Pay	Spec - Personal Finance (AP-lite)	/personal/finance/bills	Recurring + portal pay
+Income invoices	Spec - Personal Finance AR-lite	/personal/finance/invoices	Email send
+Net Worth	Spec - Net Worth	/personal/finance/net-worth	Assets stack − total liabilities only; cards managed under accounts/cards
+Reports / Budget	Spec - Personal Finance | Reporting filters	/personal/finance/reports	P&L BS by class
+Setup wizard	Spec - Go Live Setup (personal section) | Spec - Personal Finance §8	/personal/finance/setup	Walk all ENT personal steps
+Same idea as company: CoA + MD banks/loans/investments + one-click provision. Isolated books_id=PERS.			

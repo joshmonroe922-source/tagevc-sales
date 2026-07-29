@@ -1,0 +1,21 @@
+PERSONAL FINANCE — VISIONARY ONLY			
+Left menu: Personal ▼ → Personal Finance (single). Cards/banks/loans/investments/NW inside this module. No separate Credit Management menu.			
+1. DOES THIS MAKE SENSE?			
+YES — with hard walls. Reuse GL, AR/AP-lite, banks/cards, recurring, P&L, cash forecast, budgets. Do NOT mix with Tage VC / sub ledgers, IC, commissions, or portfolio.			
+Treat Personal as its own entity/books_id (e.g. PERS or HOUSEHOLD). Same software modules; different data partition + Visionary-only RBAC.			
+2. MENU STRUCTURE			
+Personal ▼ → Personal Finance (/personal/finance)			
+   Includes: accounts (banks+cards), bills, invoices, family, loans, investments, reports, net worth, setup			
+   Credit card management is a subsection of Personal Finance — not its own top dropdown item.			
+SSOT: Spec - Personal Finance | Spec - Net Worth | MD - Personal Family/Banks/Loans/Investments | CoA - Personal | Personal - Financials Hub			
+• Family members (MD - Personal Family): Monroe Family (Public), Monroe Family Trust, Josh, Lauren, Clara, Charlotte, Lincoln			
+• Vendors, bills, recurring bills, pay from portal			
+• Income invoices / requests (email) if you bill personally			
+• Net Worth by family member + household (Spec - Net Worth | MD - Personal Family)			
+• All personal accounts/banks auto-roll into personal NW			
+4. OUT OF SCOPE			
+Audit workspace · SOC2 company controls · IC · commissions · portfolio · mgmt fees · company waterfall hiring			
+5. SSOT			
+Spec - Personal Finance | MD - Personal Family			
+6. CURSOR			
+Add nav item only if role has visionary_personal_finance. Separate DB schema partition or books_id. No FK to corporate invoices.			

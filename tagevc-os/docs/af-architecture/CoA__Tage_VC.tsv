@@ -1,0 +1,59 @@
+Chart of Accounts — Tage Venture Capital (Parent)					
+Parent | Simplified banks | IC Due From | Common #s					
+Simplified banks: 1000 Operating (+ 1040 Savings sub / 1010 Investments parent). Revenue types = 4xxx + SKUs. Common account #s identical across entities.					
+Account #	Account Name	Type	Category	Description / Notes	Common?
+ASSETS					
+1000	Cash - Operating Account (Checking)	Asset	Cash & Banks	Collections + spend. Not split by revenue type.	Yes
+1010	Cash - Bank for Investments (Savings)	Asset	Cash & Banks	Strategic reserve (acquisitions/startups). Not free ops cash.	Parent only
+1090	Cash - Undeposited Funds / Clearing	Asset	Cash & Banks	Optional batch clearing	Yes — optional
+1100	Accounts Receivable	Asset	Current Assets	Revenue source = 4xxx/SKU	Yes
+1200	Prepaid Expenses	Asset	Current Assets		Yes
+1400	Due From Affiliates - Control	Asset	Intercompany		Yes - IC
+1410	Due From Recruit 619	Asset	Intercompany		Parent IC
+1420	Due From Signent HR	Asset	Intercompany		Parent IC
+1430	Due From Instant NDA	Asset	Intercompany		Parent IC
+1500	Investments - Portfolio Companies	Asset	Investments		Parent only
+1600	Property, Plant & Equipment	Asset	Fixed Assets		Yes
+1650	Accumulated Depreciation	Asset	Fixed Assets		Yes
+1700	Intangible Assets / Software	Asset	Intangibles		Yes
+LIABILITIES					
+2000	Accounts Payable	Liability	Current Liabilities		Yes
+2100	Accrued Expenses	Liability	Current Liabilities		Yes
+2200	Payroll Liabilities	Liability	Current Liabilities		Yes
+2250	Commission Payable / Protected Commission Liability	Liability	Current Liabilities	Protected bucket	Yes
+2300	Deferred Revenue	Liability	Current Liabilities		Yes
+2400	Due To Affiliates - Control	Liability	Intercompany		Yes - IC
+2500	Notes Payable / Debt / Loans	Liability	Long-term Liabilities		Yes
+EQUITY					
+3000	Common Stock / Member Capital	Equity	Equity		Yes
+3100	Additional Paid-in Capital	Equity	Equity		Yes
+3200	Retained Earnings	Equity	Equity		Yes
+3300	Owner Distributions / Dividends	Equity	Equity	10% group policy planning	Yes
+3400	Current Year Net Income	Equity	Equity		Yes
+REVENUE					
+4000	Management Fee Income	Revenue	Service Revenue	5% from subs — eliminated	Parent
+4100	Shared Services Income / Recharges	Revenue	Service Revenue	Eliminated vs sub SS exp	Parent
+4200	Other Service Revenue	Revenue	Service Revenue		Parent
+4900	Other Income	Revenue	Other Income		Yes
+COST OF SERVICES / DIRECT COSTS					
+5000	Cost of Services - Direct	Expense	Direct Costs		Yes
+OPERATING EXPENSES					
+6000	Sales & Business Development	Expense	OpEx		Yes
+6100	Marketing & Advertising	Expense	OpEx - Shared		Yes
+6200	Accounting & Finance (AF)	Expense	OpEx - Shared		Yes
+6300	Human Resources	Expense	OpEx - Shared		Yes
+6400	Legal & Professional Fees	Expense	OpEx - Shared		Yes
+6500	Technology & Software	Expense	OpEx		Yes
+6600	Office Space & Facilities	Expense	OpEx - Shared		Yes
+6700	Business Insurance	Expense	OpEx - Shared		Yes
+6800	Charitable Contributions	Expense	OpEx - Shared		Yes
+6900	Other Operating Expenses / Contingency	Expense	OpEx		Yes
+6950	Parent Operating Expenses (VC Specific)	Expense	OpEx	VC-specific ops	Parent
+OTHER / TAX					
+7000	Interest Income	Other Income	Other		Yes
+7100	Interest Expense	Other Expense	Other		Yes
+8000	Income Tax Expense	Expense	Tax		Yes
+NOTES					
+1. Common account numbers identical across entities. Banks: 1000 Operating + 1010 Investments only (no revenue banks).					
+2. IC: 141x Due From ↔ sub 2450; elim 4000↔6950 and 4100↔SS. Commission 2250 protected.					
+3. Future parent accounts: extend 14xx when new sub added. See Spec - Go Live Setup.					

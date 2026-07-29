@@ -1,0 +1,82 @@
+[
+  {
+    "id": "BA-TVC-OP",
+    "entityCode": "TVC",
+    "name": "Operating Account",
+    "type": "Checking",
+    "glAccount": "1000",
+    "purpose": "Ops spend + default collections",
+    "feedEnabled": true,
+    "institution": ""
+  },
+  {
+    "id": "BA-TVC-INV",
+    "entityCode": "TVC",
+    "name": "Bank for Investments",
+    "type": "Savings",
+    "glAccount": "1010",
+    "purpose": "Acquisitions/startups reserve; not free ops cash",
+    "feedEnabled": true,
+    "institution": ""
+  },
+  {
+    "id": "BA-R619-OP",
+    "entityCode": "R619",
+    "name": "Operating Account",
+    "type": "Checking",
+    "glAccount": "1000",
+    "purpose": "Ops + ALL Recruit collections (DH & Contract via SKU)",
+    "feedEnabled": true,
+    "institution": ""
+  },
+  {
+    "id": "BA-R619-SV",
+    "entityCode": "R619",
+    "name": "Recruit 619 Savings",
+    "type": "Savings",
+    "glAccount": "1040",
+    "purpose": "Entity reserve",
+    "feedEnabled": true,
+    "institution": ""
+  },
+  {
+    "id": "BA-SHR-OP",
+    "entityCode": "SHR",
+    "name": "Operating Account",
+    "type": "Checking",
+    "glAccount": "1000",
+    "purpose": "Ops + ALL HR collections",
+    "feedEnabled": true,
+    "institution": ""
+  },
+  {
+    "id": "BA-SHR-SV",
+    "entityCode": "SHR",
+    "name": "Signent HR Savings",
+    "type": "Savings",
+    "glAccount": "1040",
+    "purpose": "Entity reserve",
+    "feedEnabled": true,
+    "institution": ""
+  },
+  {
+    "id": "BA-INDA-OP",
+    "entityCode": "INDA",
+    "name": "Operating Account",
+    "type": "Checking",
+    "glAccount": "1000",
+    "purpose": "Ops + ALL SaaS collections",
+    "feedEnabled": true,
+    "institution": ""
+  },
+  {
+    "id": "BA-INDA-SV",
+    "entityCode": "INDA",
+    "name": "Instant NDA Savings",
+    "type": "Savings",
+    "glAccount": "1040",
+    "purpose": "Entity reserve",
+    "feedEnabled": true,
+    "institution": ""
+  }
+]

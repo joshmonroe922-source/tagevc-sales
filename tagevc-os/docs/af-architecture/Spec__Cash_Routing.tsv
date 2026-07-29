@@ -1,0 +1,23 @@
+SPEC — Cash Routing, Deposits & Sweeps (Simplified Banks)				
+Policy: One Operating checking per entity for collections & spend. Savings/Investments for reserves only. Revenue type = accounting, not bank.				
+1. DEPOSIT ROUTING (invoice paid) — ALL ENTITIES				
+Entity	SKU / Revenue type	Deposit bank GL	Bank Account ID	Revenue recognized to
+R619	R619-DH Direct Hire	1000	BA-R619-OP	4210
+R619	R619-CT Contract	1000	BA-R619-OP	4220
+R619	Other	1000	BA-R619-OP	per SKU
+SHR	All HR SKUs	1000	BA-SHR-OP	4310/4320/4330
+INDA	SaaS / other	1000	BA-INDA-OP	4410+
+TVC	Mgmt fee / SS cash in	1000	BA-TVC-OP	4000/4100
+Optional: Dr 1090 Undeposited on payment batch → Cr 1090 / Dr 1000 when bank deposit clears.				
+2. SWEEP RULES				
+• Operating 1000 → Entity Savings 1040: policy % or manual (sub working capital).				
+• Group profits → TVC 1010 Bank for Investments: Finance-approved (e.g. 90% model).				
+• Each sweep = JE between cash GLs + audit log. Never auto-spend from 1010/1040 without policy.				
+3. FREE CASH (ops)				
+Free cash ≈ Operating 1000 − due AP − payroll due − 2250 commission liability − approved pending sweeps.				
+Savings 1040 and Investments 1010 are NOT free ops cash by default.				
+4. FUTURE ENTITIES				
+Always provision BA-{CODE}-OP (1000) + BA-{CODE}-SV (1040). No revenue-type banks. Report revenue by SKU/CoA 4xxx.				
+5. FEEDS				
+Feed Enabled on Operating + Savings (+ parent Investments). Cards as separate Type=Credit Card rows in MD - Bank Accounts.				
+Cursor: Routing table is data-driven; default deposit_gl=1000 for all invoice.paid events.				

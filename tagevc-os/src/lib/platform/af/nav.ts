@@ -25,7 +25,7 @@ export function buildAfNavBranch(entityDisplayName: string): AfNavBranch {
   return {
     href: AF_HUB_PATH,
     label: afHubLabel(entityDisplayName),
-    description: 'In-portal A&F · audit · controls (scaffold)',
+    description: 'Accounting · Finance · Audit · Controls',
     children: AF_SECTIONS.map((s) => ({
       href: s.path,
       label: s.label,

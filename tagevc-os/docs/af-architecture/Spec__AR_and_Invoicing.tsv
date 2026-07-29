@@ -1,0 +1,33 @@
+SPEC — AR, Invoicing, Collections & Revenue Recognition						
+All entities | Auto-create from OS sales | Reminders | Paid webhook → Commission + Cash Forecast | ASC 606						
+1. INVOICE LIFECYCLE						
+Draft → Approved → Sent → Viewed → Partial → Paid → Overdue / Void / Written Off						
+Trigger: Sale created → upsert Customer → invoice lines → due date → attach packet (entity defaults: Wire + I-9 + any Required docs; + customer defaults) → send + reminders.						
+2. CORE FIELDS (Invoice Header)						
+Invoice # | Entity | Customer ID | Invoice Date | Due Date | Currency | Status | Subtotal | Tax | Total | Amount Paid | Balance | Source System ID | Placement/Subscription Ref						
+3. LINE ITEMS						
+SKU | Description | Qty | Rate | Amount | Revenue Account | Rev Rec Method | Commissionable flag | Linked Person/Placement						
+4. REMINDERS & COLLECTIONS						
+• Configurable cadence: e.g. -3 days, Due date, +7, +14, +30 (email/SMS)						
+• Escalation rules and collections queue						
+• AR Aging buckets: Current | 1-30 | 31-60 | 61-90 | 90+						
+5. PAID WEBHOOK / CALLBACK (Critical)						
+When status = Paid (full or final partial):						
+1. Update AR and Cash (Operating 1000 via Cash Routing)						
+2. Fire Commission Engine → Cr 2250 Protected Commission Liability						
+3. Fire Revenue Split Waterfall → allocation_ledger buckets by dept (DIR/SALES/MKT/GA/TECH/CONT/MGMT/SS/PROFIT) for actuals + hiring envelopes						
+4. Update Cash Forecast + Forecast bucket actuals + OS commission callback						
+5. Release deferred revenue per Rev Rec schedule (SaaS)						
+6. REVENUE RECOGNITION						
+Point in Time (Direct Hire) | Over Time (Contract, Fractional, Monthly HR) | Deferred/Subscription (Instant NDA SaaS) — ASC 606 compliant schedules						
+7. REPORTING HOOKS						
+AR Aging by entity/customer | Invoice register | Collections performance | Deferred revenue rollforward | Paid vs Open						
+Cursor implementation notes: Event-driven; idempotent webhooks; full audit trail on status changes; template per entity/revenue type.						
+8. INVOICE ATTACHMENTS (auto + optional)						
+SSOT: MD - Invoice Attachments. Every entity has Required defaults: Wiring Instructions + I-9 Packet (and any other Required=Yes rows).						
+On Send assembly: (1) Invoice PDF (2) Entity defaults by Sort Order (3) Customer-level defaults (4) Per-invoice extra uploads. Dedupe by hash. Block send if Required doc missing/inactive.						
+Per-invoice extras: user/API can attach additional files for that invoice only (SOW page, timesheet, PO copy, etc.).						
+Customer extras: files that go on every invoice to that client (billing addendum, special remit).						
+Future entities: auto-create Wire + I-9 default rows; ops uploads PDFs before first send.						
+Cursor: document store refs; preview attachments on invoice detail; email/PDF zip or multi-attach send. See MD - Invoice Attachments.						
+Cursor: Event-driven; idempotent webhooks; full audit trail; template per entity; attachments always assembled on send.						

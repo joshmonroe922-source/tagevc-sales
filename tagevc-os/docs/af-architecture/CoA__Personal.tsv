@@ -1,0 +1,49 @@
+Chart of Accounts — Personal (Visionary books_id=PERS)							
+Family classes on every posting | Simplified banking | Investments/retirement/crypto/business ownership							
+Template loaded at Personal Finance go-live. Common structure for Cursor seed.							
+Account #	Account Name	Type	Category	Description	NW Category		
+ASSETS							
+1000	Cash - Operating / Checking	Asset	Cash	Primary spending + deposits	Cash & banking		
+1010	Cash - Savings	Asset	Cash	High-yield / savings	Cash & banking		
+1020	Cash - Brokerage (settlement)	Asset	Cash	Brokerage cash sleeve	Taxable investments		
+1090	Cash - Clearing	Asset	Cash	Optional undeposited	Cash & banking		
+1100	Accounts Receivable - Personal	Asset	AR	If sending personal invoices	Other assets		
+1200	Prepaid / Deposits	Asset	Other		Other personal assets		
+1500	Investments - Taxable Brokerage (FMV)	Asset	Investments	Securities mark-to-market	Taxable investments		
+1510	Investments - Retirement (FMV)	Asset	Investments	401k IRA Roth etc.	Retirement		
+1520	Investments - Crypto (FMV)	Asset	Investments	Exchange/wallet FMV	Crypto		
+1530	Business Ownership (valuation link)	Asset	Investments	Link Spec - Net Worth method A–D	Business ownership		
+1600	Real Estate / Home (asset)	Asset	Fixed	FMV or cost basis policy	Other personal assets		
+1610	Vehicles & Personal Property	Asset	Fixed	Optional FMV	Other personal assets		
+1650	Accumulated Depreciation (if used)	Asset	Fixed	Contra	Other personal assets		
+LIABILITIES							
+2000	Credit Cards	Liability	Current	Managed in Credit Management UI	Liabilities		
+2100	Bills Payable / Accrued	Liability	Current	AP-lite	Liabilities		
+2500	Mortgages	Liability	Long-term	MD - Personal Loans	Liabilities		
+2510	Auto / Personal Loans	Liability	Long-term	MD - Personal Loans	Liabilities		
+2520	Student Loans	Liability	Long-term		Liabilities		
+2530	Other Notes Payable	Liability	Long-term		Liabilities		
+EQUITY							
+3000	Opening Net Worth / Equity	Equity	Equity		Equity		
+3200	Retained / Cumulative Earnings	Equity	Equity		Equity		
+3400	Current Year Surplus/(Deficit)	Equity	Equity		Equity		
+INCOME							
+4000	Wages / Salary	Revenue	Income		P&L		
+4100	Business Distributions Received	Revenue	Income	Manual from company — not auto cash mix	P&L		
+4200	Investment / Dividend / Interest Income	Revenue	Income		P&L		
+4300	Other Personal Income / Invoices	Revenue	Income	Personal AR invoices	P&L		
+EXPENSES							
+6000	Housing	Expense	Expense		P&L		
+6100	Transportation	Expense	Expense		P&L		
+6200	Food & Groceries	Expense	Expense		P&L		
+6300	Healthcare	Expense	Expense		P&L		
+6400	Childcare & Education	Expense	Expense		P&L		
+6500	Personal & Lifestyle	Expense	Expense		P&L		
+6600	Insurance	Expense	Expense		P&L		
+6700	Debt Interest	Expense	Expense		P&L		
+6800	Giving / Charity	Expense	Expense		P&L		
+6900	Miscellaneous	Expense	Expense		P&L		
+8000	Tax Payments	Expense	Tax		P&L		
+NOTES							
+Every posting requires family_member class (MD - Personal Family). NW categories drive Spec - Net Worth stack.							
+Credit card OPS in /personal/credit; balances on 2000 feed NW liabilities.							

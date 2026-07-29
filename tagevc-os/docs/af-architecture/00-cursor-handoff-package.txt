@@ -1,0 +1,45 @@
+CURSOR HANDOFF PACKAGE — 100% COMPLETE	
+Copy the HANDOFF COMMAND below into Cursor. This workbook is the single source of truth (SSOT).	
+HANDOFF COMMAND (copy everything in A5)	
+Build the full multi-entity Accounting + Finance portal from this Excel workbook as the single source of truth (SSOT). START by reading the sheet "Cursor Handoff Package", then "System Blueprint", then implement in the mandatory build order on that sheet. RULES: (1) Do not invent parallel CoA, master data, or modules—extend only MD - *, CoA - *, and Spec - * tabs. (2) Portal top nav: Accounting | Finance | Audit | Controls, Security and Governance | Portfolio & Shared Services (optional) | Personal ▼ → Personal Finance only. (3) Company entities: Tage VC (TVC), Recruit 619 (R619), Signent HR (SHR), Instant NDA (INDA)—canonical names only (never "619 Recruiting"). (4) Banks simplified: each entity Operating GL 1000; subs Savings 1040; TVC Bank for Investments 1010; no per-revenue-type bank accounts—revenue types via CoA 4xxx + SKUs + dimensions. (5) invoice.paid chain: deposit Operating 1000 → Commission Engine credits protected liability 2250 → Revenue Split Waterfall writes allocation_ledger by dept for hiring envelopes → forecast touch → OS callback. (6) AP portal pay: post Dr AP/Cr Cash, bill Paid, then bank/card feed auto-matches Payment without double-clearing AP. (7) Every invoice send assembles PDF + entity default attachments (Wiring Instructions + I-9 Required) + customer defaults + per-invoice extras (MD - Invoice Attachments). (8) Net Worth: company by entity + consolidated (all entity cash; IC elim; exclude personal); personal full stack (cash, investments, retirement, crypto, other assets, business ownership) minus total liabilities as one GL total—no card UI on Net Worth; cards under Personal Finance. (9) Businesses in personal NW default to ownership% × entity book NW; never double-count business cash/equity in Combined view. (10) Personal books_id=PERS isolated; family classes from MD - Personal Family (Monroe Family Public, Trust, Josh, Lauren, Clara, Charlotte, Lincoln); one-click provision via Personal - Financials Hub / CoA - Personal / MD - Personal Banks|Loans|Investments. (11) Go-live: Spec - Go Live Setup wizard gates production (bank/card feed walkthrough, uploads, tests) for all entities and future entity auto-provision. (12) Health enums only: On Track | Watch | At Risk | Critical. Implement OpenAPI from Spec - API Webhooks, routes from Spec - UI Wireframes, seeds from Spec - Seed Fixtures, controls from Spec - SOC2 Controls and Spec - RBAC Matrix. Prefer event-driven, idempotent webhooks, continuous close, and near-zero human touch.	
+Company + Personal (▼ Personal Finance) + Net Worth (assets − liability totals; no card UI) + Go-Live wizard + waterfall + AP pay match + invoice attachments.	
+SHORT COMMAND (if context limits)	
+Read sheet "Cursor Handoff Package" first, then build the portal in its build order. Treat every MD - *, CoA - *, and Spec - * tab as binding SSOT. Do not invent parallel masters. Nav, banks, paid waterfall, AP match, invoice attachments, Net Worth, Personal Finance, and Go-Live Setup rules on that sheet are mandatory.	
+ENTRY ORDER AFTER COMMAND	
+1) Cursor Handoff Package  2) System Blueprint  3) Spec - Go Live Setup  4) Spec - Automation Map  5) Spec - UI Wireframes  6) Spec - API Webhooks  7) MD - * + CoA - *  8) remaining Spec - *  9) Scenario Inputs + entity model sheets as reference calcs	
+Hub sheets map modules → SSOT tabs. Specs live in Spec - * and MD - *. Hubs do not duplicate logic.	
+STATUS: 100% HANDOFF READY	
+3. BUILD ORDER (mandatory)	
+0. Setup coach (Spec - Go Live Setup) gates production until ORG+ENT required steps Done	
+2. GL + JE engine + close checklist (Spec - GL JE Close)	
+3. Cash routing + bank/card feeds (Spec - Cash Routing | MD - Bank Accounts | Spec - AP Vendor Portal & Cards)	
+4. AR + invoicing + reminders + Paid webhook (Spec - AR & Invoicing)	
+5. Commission 2250 + Revenue Split Waterfall (Spec - Revenue Split Waterfall) — dept envelopes	
+6. AP + vendor portal + 1099/I-9 (Spec - AP Vendor Portal & Cards | MD - Vendors)	
+7. IC hub + eliminations (Spec - IC Journals | CoA - Consolidated Mapping)	
+8. Finance: budget, AI forecast 3m–10y, cash forecast, loans amort+extra pay, hiring (Spec - Forecast & Loans)	
+9. Reporting + KPIs + all time filters (Spec - Reporting KPIs)	
+10. Audit workspace + RBAC/controls (Spec - Audit & Controls | Spec - RBAC Matrix | Audit | Controls & Governance)	
+11. OS bi-directional sync + event bus (Spec - Automation Map)	
+12. Hardening: continuous close, snapshots, SOC2-oriented controls	
+4. SSOT TAB INDEX	
+Category	Tabs
+Hubs	Accounting | Finance | Audit | Controls & Governance | Portfolio & Shared Services
+Master data	Entities | Customers | Vendors | Services | Employees | Bank Accounts | Dimensions | Invoice Attachments
+CoA	CoA - Tage VC | Recruit 619 | Signent HR | Instant NDA | Consolidated Mapping
+Module specs	… + Go Live Setup | Revenue Split Waterfall | all prior specs
+Meta + models	System Blueprint | Cursor Handoff Package | Scenario Inputs | Model - Loan Amortization | entity FY models
+Ops models (reference)	Tage VC | Recruit 619 | Signent HR | Instant NDA | Consolidated | TAGE VC Dashboard
+5. NON-NEGOTIABLES	
+• Identical CoA numbers for common accounts across entities	
+• Sub D2 = Base revenue source of truth; scenarios via Scenario Inputs	
+• Paid invoice → commission 2250 + model waterfall buckets (not free cash; not per-revenue banks)	
+• Bank policy: deposit to Operating 1000; reserves 1040/1010; never per-revenue banks (Spec - Cash Routing | MD - Bank Accounts)	
+• IC Due From parent 141x ↔ Due To Parent 2450; elim 4000↔6950 and SS recharges	
+• Health enums only: On Track | Watch | At Risk | Critical	
+• Canonical names: Tage VC, Recruit 619 (never 619 Recruiting)	
+6. OUT OF SCOPE FOR V1 (defer unless requested)	
+Multi-currency FX reval | Full payroll calculation engine (interface only) | Inventory | Complex transfer pricing beyond mgmt fee/SS | Mobile native apps	
+STATUS: 100% HANDOFF READY. No further spreadsheet architecture required.	
+Personal ▼ → Personal Finance only (includes cards, banks, loans, investments, NW). No separate Credit Management menu. Spec - Personal Finance | CoA - Personal | MD - Personal * | Spec - Net Worth.	
+STATUS: Company package 100%. Personal Finance specified as additive Visionary module.	

@@ -1,0 +1,22 @@
+SPEC — Seed Fixtures & Test Data	
+Minimal seed for dev/QA | Mirror MD + CoA | Cursor exports to JSON/SQL seeds	
+1. ENTITIES (required)	
+TVC, R619, SHR, INDA — copy from MD - Entities (100% owned, USD, FYE 12/31, Active)	
+2. BANK ACCOUNTS	
+Banks from MD - Bank Accounts (8 accounts): Op+Sav per sub; TVC Op+Investments. Opening: each Operating 5000000 cents; TVC 1010 10000000 cents; Savings 0.	
+3. SAMPLE CUSTOMERS	
+CUST-R619-001 Acme Corp → R619 Net30 | CUST-SHR-001 Beta LLC → SHR Net15 | CUST-INDA-001 Gamma Inc → INDA Net30 card	
+4. SAMPLE SKUs	
+From MD - Services: R619-DH, R619-CT, SHR-FRAC, SHR-MON, INDA-SUB (commissionable Y)	
+5. SAMPLE PEOPLE	
+EMP-R619-001 Recruiter base 80000 burden 25% plan Tiered Placement | EMP-SHR-001 Consultant | USER roles: admin@tage.vc, controller@tage.vc, recruiter@r619.test	
+6. SAMPLE TRANSACTIONS (happy path test)	
+T1 R619-DH $25k paid → OP 1000 + 4210 rev + COMM 2250 + waterfall rows (DIR/SALES/…/PROFIT) per R619 profile	
+T2 INDA-SUB annual $2,400 → deferred rev 2300 monthly release $200	
+T3 vendor bill $500 tech to R619 → approve → pay from BA-R619-OP	
+T4 mgmt fee 5% on R619 revenue → IC pair parent/sub	
+T5 loan TVC $100k 6% 36mo → schedule + one extra payment $5k simulation	
+T6 forecast month revenue × profiles → bucket forecast table; hire EMP test against Delivery bucket	
+7. FIXTURE FILES CURSOR SHOULD EMIT	
+seeds/entities.json | coa/{entity}.json | bank_accounts.json | customers.json | skus.json | users_roles.json | demo_events/*.json	
+Money in seeds as integer cents. Dates ISO. event_id stable for idempotent replay tests.	

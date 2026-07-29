@@ -1,0 +1,63 @@
+SPEC — Net Worth (Company + Personal)			
+Full owner NW stack: Personal (cash, assets, retirement, brokerage, crypto) + Businesses (by method) | Entity + Consolidated cash | Family classes | Cursor must implement all layers			
+1. PORTAL PLACEMENT			
+Top-level or Finance sub-nav: Net Worth. Company users: entity + consolidated only. Visionary: toggle Company | Personal | Side-by-side (explicit, not one blended total unless user opts in).			
+Routes: /finance/net-worth | /personal/net-worth | optional /visionary/net-worth (both books labeled).			
+2. DEFINITION			
+Net Worth = Total Assets − Total Liabilities. Multiple asset categories required (see §5–§6). Always show category breakdown, not a single opaque number.			
+Cash is shown as an asset subtotal. Liabilities enter NW only as aggregate totals from GL (including credit card liability balances if any)—no card list, utilization, or credit UI on Net Worth.			
+3. COMPANY NET WORTH — BY ENTITY			
+Entity	Cash included (GL)	NW formula	
+TVC	1000 Operating + 1010 Bank for Investments + 1090 clearing	Σ Assets − Σ Liabilities (entity ledger)	
+R619	1000 Operating + 1040 Savings + 1090	Same	
+SHR	1000 + 1040 + 1090	Same	
+INDA	1000 + 1040 + 1090	Same	
+Cash panel per entity from MD - Bank Accounts (asset cash only). Do not show credit card management or per-card balances on NW.			
+Total Liabilities = sum of liability GL (AP, loans, deferred, commissions 2250 on company, etc.). NW math uses these totals only.			
+4. COMPANY CONSOLIDATED NET WORTH			
+Sum entity assets/liab AFTER IC eliminations (Due From/To cancel; do not double-count).			
+Consolidated Cash = sum of all entity cash GLs (1000/1010/1040/1090) — IC cash settlements already in history; no double cash.			
+Display: Consolidated NW | Cash by entity stacked | Non-cash assets | Liabilities | Bridge from prior period.			
+Exclude books_id=PERS always from company consolidated NW.			
+5. PERSONAL NET WORTH — FULL ASSET STACK (Visionary)			
+books_id=PERS. Assets stack (cash, investments, retirement, crypto, other, business ownership) − Total Liabilities (single number from GL).			
+Category	Examples / CoA hints	Valuation source	Family class
+Cash & banking	Checking, savings, money market (1000–1040 band)	Bank feed balance	Per MD - Personal Family
+Other personal assets	Vehicles, home equity asset, personal property (optional 16xx)	Manual FMV or cost; user-maintained	Tag member/Joint/Trust
+Taxable investments	Brokerage cash + securities (15xx / 1020 brokerage cash)	Feed/API FMV or manual position value	Tag class
+Retirement	401k, IRA, Roth, solo-401k, pension FMV (15xx retirement)	Feed or manual FMV (pre-tax noted in UI)	Usually individual
+Crypto	Exchange/wallet holdings (15xx crypto or 1520)	Exchange API or manual FMV; mark-to-market	Tag class
+Business ownership	See §6 — NOT double-count inside company consol	Selected valuation method	Usually Josh/Lauren/Trust/FAMILY
+Liabilities (−)	One total from personal liability accounts (2000–25xx). Includes card GL if posted—no per-card breakdown on this page.	GL sum only	N/A on NW UI
+Personal NW = sum(all personal asset categories) − sum(personal liabilities). New accounts of these types auto-roll into NW.			
+Family filters: FAMILY | TRUST | JOSH | LAUREN | CLARA | CHARLOTTE | LINCOLN (MD - Personal Family).			
+7. DATA / API			
+6. HOW TO CALCULATE BUSINESSES IN NET WORTH			
+Businesses appear on Visionary / Personal NW as ownership assets — not by dumping company GL into personal books line-by-line.			
+Method	Calculation	When to use	Cursor default
+A. Book equity (ownership %)	Entity Net Worth (Assets−Liab after IC for that entity) × ownership_pct from MD - Entities	Conservative, auditable, always available from GL	DEFAULT for v1
+B. Adjusted book / cash equity	Book equity − intangible fluff + excess cash policy; or equity + off-balance adjustments user enters	When book understates cash or needs haircuts	Optional override
+C. Fair value / multiple	User or rule: e.g. ARR × multiple (INDA), revenue × multiple (staffing/HR), or last 409A/raise valuation × %	Owner wealth view; mark-to-model	Optional; store method+inputs+as_of
+/personal/finance/net-worth — asset categories + total liabilities + NW; no cards UI	Manual FMV entered with date and note	Trust/estate planning	Manual
+CRITICAL — no double count: Company consolidated NW is the business itself. Personal NW includes Business ownership lines (A/B/C/D). Visionary Combined = Personal NW (incl. business ownership values) + any non-business personal assets ONLY if business lines use method C/D; if using method A, Combined = Personal ex-business + Company consol NW (or Personal with A and Combined without adding company again).			
+Cursor Combined rules: (1) Stack view always shows Company consol NW and Personal NW separately. (2) If Personal includes business ownership @ book equity (A), Combined must NOT add Company consol again. (3) Prefer Combined = Personal_total where Personal already embeds business ownership assets; Company panel still shown for ops. Document formula in UI tooltip.			
+Per-business rows on Personal NW: Recruit 619 | Signent HR | Instant NDA | Tage VC (holding) — each with method, ownership %, value, as_of, link to entity NW drill.			
+Cash inside businesses is already inside entity NW / ownership value — do not add entity bank cash again on personal side.			
+• Company consol excludes PERS. Personal excludes company entities.			
+6b. VISIONARY / PERSONAL NW DISPLAY			
+1) Cash & banking  2) Taxable investments  3) Retirement  4) Crypto  5) Other personal assets  6) Business ownership  7) − Total liabilities (one line)  = NW			
+Company panel: Cash by entity | NW by entity | Consolidated. Card/credit operations live only under Personal Finance (/personal/finance/accounts or /cards)—NW only pulls liability totals for the formula.			
+Related: MD - Bank Accounts | MD - Personal Family | Spec - Personal Finance | CoA - * | Spec - Reporting KPIs | Spec - IC Journals			
+7. DATA / API (expanded)			
+GET /net-worth?scope=entity|consolidated|personal|visionary&as_of=&class_code=&business_method=book|fmv			
+Include: categories[], cash_by_entity[], business_holdings[{entity_code, method, ownership_pct, value}], family_member breakdown, liabilities[].			
+8. UI			
+/finance/net-worth company | /personal/finance/net-worth | /visionary/net-worth			
+9. CURSOR MUST			
+• Personal/Visionary NW assets: cash, savings, retirement, brokerage, crypto, other assets, business ownership. Liabilities: GL total only—no card management or card-level UI on Net Worth.			
+• Company: all entity cash (Op+Sav+Investments) in cash panels; full entity/consol NW from GL.			
+• Default business value = ownership % × entity book NW; allow FMV/multiple overrides with audit of inputs.			
+• Never double-count business cash or equity in Combined view.			
+• Seed personal CoA with retirement/brokerage/crypto account types (Spec - Personal Finance expand).			
+Related: MD - Personal Family | MD - Bank Accounts | MD - Entities ownership % | Spec - Personal Finance | CoA - *			
+Card balances: maintained and displayed in Personal Finance. Net Worth reads the liability account total(s) solely to compute Assets − Liabilities.			

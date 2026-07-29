@@ -1,0 +1,16 @@
+MASTER DATA — Bank Accounts											
+SSOT simplified banks: Operating + Savings (+ parent Investments). Revenue types tracked in GL 4xxx/SKUs — NOT separate revenue banks.											
+Bank Account ID	Entity Code	Account Name	Type	GL Account #	Purpose / Routing	Feed Enabled	Institution	Last 4	Currency	Status	Notes
+BA-TVC-OP	TVC	Operating Account	Checking	1000	Ops spend + default collections	Yes			USD	Active	Standard
+BA-TVC-INV	TVC	Bank for Investments	Savings	1010	Acquisitions/startups reserve; not free ops cash	Yes			USD	Active	Parent reserve
+BA-R619-OP	R619	Operating Account	Checking	1000	Ops + ALL Recruit collections (DH & Contract via SKU)	Yes			USD	Active	Standard
+BA-R619-SV	R619	Recruit 619 Savings	Savings	1040	Entity reserve	Yes			USD	Active	Standard sub
+BA-SHR-OP	SHR	Operating Account	Checking	1000	Ops + ALL HR collections	Yes			USD	Active	Standard
+BA-SHR-SV	SHR	Signent HR Savings	Savings	1040	Entity reserve	Yes			USD	Active	Standard sub
+BA-INDA-OP	INDA	Operating Account	Checking	1000	Ops + ALL SaaS collections	Yes			USD	Active	Standard
+BA-INDA-SV	INDA	Instant NDA Savings	Savings	1040	Entity reserve	Yes			USD	Active	Standard sub
+FUTURE ENTITIES — bake-in standard											
+Every new subsidiary gets exactly: (1) BA-{CODE}-OP → GL 1000 Operating Checking Feed=Yes (2) BA-{CODE}-SV → GL 1040 Savings Feed=Yes. Parent keeps 1010 Investments. Do NOT create per-revenue-type bank accounts.											
+Deprecated: 1005 Revenue checking, 1020 DH Revenue bank, 1030 Contract Revenue bank. Use revenue accounts 4210/4220/4310/4410 + SKUs + dimensions instead.											
+Credit cards: add rows Type=Credit Card, GL=card liability/clearing per policy, Feed=Yes — still not revenue banks.											
+CURSOR: Deposit all invoice payments to entity Operating (1000) unless undeposited 1090 used transiently. Sweep Operating→Savings/Investments via Spec - Cash Routing.											

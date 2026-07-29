@@ -1,0 +1,36 @@
+SPEC — AP, Vendor Portal, Payments, 1099/I-9 & Credit Card Feeds					
+Vendor self-service | Approval | Payment from bank/cards | Tax forms | Full card + bank feed automation					
+1. VENDOR PORTAL					
+• Vendor registers / is invited → submits invoices (PDF/email/API) → attaches PO if required					
+• Auto-capture W-9; request I-9 when applicable; 1099 eligibility from MD - Vendors					
+• Status: Submitted → In Approval → Approved → Scheduled → Paid → Rejected					
+2. APPROVAL WORKFLOW					
+• Rules by amount, entity, department, vendor risk					
+• Multi-level approval; SoD enforced					
+• Three-way match (PO / Receipt / Invoice) where applicable; auto-approve low-risk					
+3. PAYMENT EXECUTION + AUTO MATCH / CLOSE AP					
+YES — paying a bill in the AP portal must clear AP and tie to the cash/journal movement. Two paths:					
+PATH A — Pay inside portal (preferred, fully automated):					
+1) User schedules/approves pay from entity Operating bank (1000) or card					
+2) System creates Payment record linked to bill_id(s) + payment_ref					
+3) GL posts immediately: Dr AP 2000 / Cr Cash 1000 (or Cr Card liability) — bill status → Paid (or Partial)					
+4) When bank/card feed txn arrives: auto-match to Payment by amount+date+account+ref (ACH id/check #); mark feed txn Reconciled; no second AP entry					
+5) If feed never matches (timing/fee): exception queue — match manually or adjust fees; AP already closed from step 3					
+PATH B — Paid outside portal (wire/ACH manual) then feed hits:					
+1) Bank/card txn imports uncategorized					
+2) Matcher suggests open bills (vendor name, amount, due date)					
+3) On confirm (or high-confidence auto-match rules): post Dr AP 2000 / Cr Cash 1000, link bill+txn, status → Paid, feed Reconciled					
+MATCH RULES (configurable): exact amount; ±1 day (or ±3); same bank_account_id; vendor name/fuzzy; payment_ref contains invoice #; confidence score; auto-match above threshold, else suggest					
+PARTIAL PAYMENTS: allow multiple payments per bill; remaining balance stays Open; aging uses balance					
+BATCH PAY: one bank debit may match many bills; split application lines required					
+FEES: bank fee as separate expense line; net match still closes AP at invoice amount					
+4. BANK FEEDS + CREDIT CARD FEEDS					
+• Real-time or daily import (banks + Visa/Amex/MC)					
+• AI + rules categorization; receipt OCR for cards					
+• Reconciliation: Matched (to Payment/Bill/JE) vs Exceptions only					
+• Never double-post AP: if Payment already closed bill, feed only reconciles cash leg					
+5. 1099 / W-9 / I-9					
+• Auto-request/store forms; 1099 YTD; block pay if 1099 vendor missing W-9 (policy)					
+6. GL & REPORTING					
+AP Aging (unpaid only) | Payment register | Bill↔Payment↔BankTxn links | Unreconciled feed items | Vendor spend					
+Cursor: payment_id on JE + bank_txn; idempotent pay; full drill bill→payment→txn→JE. Spec - GL JE Close BILL-PAY.					

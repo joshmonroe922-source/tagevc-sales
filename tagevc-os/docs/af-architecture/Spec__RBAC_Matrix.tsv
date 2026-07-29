@@ -1,0 +1,18 @@
+SPEC — RBAC Matrix							
+Roles × capabilities | Entity-scoped | SoD enforced in workflow engine							
+Capability	Entity User	Entity Mgr	Accountant	Controller	Finance	Admin	Auditor
+View own entity ops	Y	Y	Y	Y	Y	Y	Y
+Create invoice draft	Y	Y	Y	Y	N	Y	N
+Approve / send invoice	N	Y	Y	Y	N	Y	N
+Post AP / pay bills	N	N	Prepare	Approve+Pay*	N	Y	N
+Manual JE	N	N	Prepare	Approve	N	Y	N
+Period lock / reopen	N	N	N	Y	N	Y	N
+Budgets / forecasts	View	Edit entity	View	Y	Y	Y	View
+Commission payout run	N	N	Prepare	Approve	N	Y	N
+MD / CoA config	N	N	N	Y	N	Y	N
+Audit workspace	N	N	N	Y	Y	Y	Y read-only
+Consolidated all entities	N	N	Y	Y	Y	Y	Y
+Personal Finance (Visionary)	N	N	N	N	N	Y*	N
+*SoD: same user cannot Prepare and Approve+Pay the same payment batch.							
+Entity scope: Entity User/Mgr limited to assigned entity codes from MD - Entities.							
+*Visionary / visionary_personal_finance only — not general Admin unless same person. Personal books never in company consol.							

@@ -1,0 +1,54 @@
+[
+  {
+    "code": "TVC",
+    "legalName": "Tage Venture Capital",
+    "type": "Parent / Holding",
+    "industry": "Venture Capital / Bank for Acquisitions",
+    "ownershipPct": 1.0,
+    "consolidationMethod": "Full Consolidation",
+    "currency": "USD",
+    "fiscalYearEnd": "12/31",
+    "banks": "1000 Operating | 1010 Bank for Investments",
+    "status": "Active",
+    "notes": "CoA - Tage VC | Parent IC Due Froms"
+  },
+  {
+    "code": "R619",
+    "legalName": "Recruit 619",
+    "type": "Subsidiary",
+    "industry": "Recruiting / Staffing (Direct Hire + Contract)",
+    "ownershipPct": 1.0,
+    "consolidationMethod": "Full Consolidation",
+    "currency": "USD",
+    "fiscalYearEnd": "12/31",
+    "banks": "1000 Operating | 1040 Savings",
+    "status": "Active",
+    "notes": "CoA - Recruit 619 | Due To Parent 2450"
+  },
+  {
+    "code": "SHR",
+    "legalName": "Signent HR",
+    "type": "Subsidiary",
+    "industry": "Fractional & Outsourced HR",
+    "ownershipPct": 1.0,
+    "consolidationMethod": "Full Consolidation",
+    "currency": "USD",
+    "fiscalYearEnd": "12/31",
+    "banks": "1000 Operating | 1040 Savings",
+    "status": "Active",
+    "notes": "CoA - Signent HR | Due To Parent 2450"
+  },
+  {
+    "code": "INDA",
+    "legalName": "Instant NDA",
+    "type": "Subsidiary",
+    "industry": "SaaS / Software",
+    "ownershipPct": 1.0,
+    "consolidationMethod": "Full Consolidation",
+    "currency": "USD",
+    "fiscalYearEnd": "12/31",
+    "banks": "1000 Operating | 1040 Savings",
+    "status": "Active",
+    "notes": "CoA - Instant NDA | Due To Parent 2450 | High GM SaaS"
+  }
+]

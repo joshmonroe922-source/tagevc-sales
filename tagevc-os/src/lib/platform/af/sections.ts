@@ -35,25 +35,25 @@ export const AF_SECTIONS: readonly AfSection[] = [
     id: 'accounting',
     label: 'Accounting',
     path: `${AF_HUB_PATH}/accounting`,
-    description: 'Books · close · GL · subsidiary ledgers',
+    description: 'GL · AR/AP · banks · commissions · close',
   },
   {
     id: 'finance',
     label: 'Finance',
     path: `${AF_HUB_PATH}/finance`,
-    description: 'Cash · planning · KPIs · capital',
+    description: 'Forecast · buckets · loans · company NW',
   },
   {
     id: 'audit',
     label: 'Audit',
     path: `${AF_HUB_PATH}/audit`,
-    description: 'Assurance · findings · remediation',
+    description: 'Assurance · PBC · auditor packages',
   },
   {
     id: 'controls',
     label: 'Controls, Security & Governance',
     path: `${AF_HUB_PATH}/controls`,
-    description: 'Controls · security · governance',
+    description: 'RBAC · SoD · policies · SOC2',
   },
 ] as const;
 

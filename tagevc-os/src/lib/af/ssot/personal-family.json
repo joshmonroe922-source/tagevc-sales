@@ -1,0 +1,72 @@
+[
+  {
+    "id": "PF-FAM",
+    "name": "The Monroe Family",
+    "type": "Family unit",
+    "classCode": "FAMILY",
+    "visibility": "Public",
+    "active": true,
+    "sort": 10,
+    "notes": "Household / joint default class; labeled Public per owner"
+  },
+  {
+    "id": "PF-TRUST",
+    "name": "The Monroe Family Trust",
+    "type": "Trust",
+    "classCode": "TRUST",
+    "visibility": "Private",
+    "active": true,
+    "sort": 20,
+    "notes": "Separate class for trust activity"
+  },
+  {
+    "id": "PF-JOSH",
+    "name": "Josh Monroe",
+    "type": "Individual",
+    "classCode": "JOSH",
+    "visibility": "Private",
+    "active": true,
+    "sort": 30,
+    "notes": ""
+  },
+  {
+    "id": "PF-LAUREN",
+    "name": "Lauren Monroe",
+    "type": "Individual",
+    "classCode": "LAUREN",
+    "visibility": "Private",
+    "active": true,
+    "sort": 40,
+    "notes": ""
+  },
+  {
+    "id": "PF-CLARA",
+    "name": "Clara Isaacs",
+    "type": "Individual",
+    "classCode": "CLARA",
+    "visibility": "Private",
+    "active": true,
+    "sort": 50,
+    "notes": ""
+  },
+  {
+    "id": "PF-CHARLOTTE",
+    "name": "Charlotte Isaacs",
+    "type": "Individual",
+    "classCode": "CHARLOTTE",
+    "visibility": "Private",
+    "active": true,
+    "sort": 60,
+    "notes": ""
+  },
+  {
+    "id": "PF-LINCOLN",
+    "name": "Lincoln Isaacs",
+    "type": "Individual",
+    "classCode": "LINCOLN",
+    "visibility": "Private",
+    "active": true,
+    "sort": 70,
+    "notes": ""
+  }
+]

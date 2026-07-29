@@ -1,0 +1,15 @@
+MASTER DATA — Personal Family (Visionary Books)							
+Classes for Personal Finance P&L splits | books_id=PERS | Not company entities | Visionary only							
+Member ID	Name	Type	Class Code	Visibility	Active	Sort	Notes
+PF-FAM	The Monroe Family	Family unit	FAMILY	Public	Yes	10	Household / joint default class; labeled Public per owner
+PF-TRUST	The Monroe Family Trust	Trust	TRUST	Private	Yes	20	Separate class for trust activity
+PF-JOSH	Josh Monroe	Individual	JOSH	Private	Yes	30	
+PF-LAUREN	Lauren Monroe	Individual	LAUREN	Private	Yes	40	
+PF-CLARA	Clara Isaacs	Individual	CLARA	Private	Yes	50	
+PF-CHARLOTTE	Charlotte Isaacs	Individual	CHARLOTTE	Private	Yes	60	
+PF-LINCOLN	Lincoln Isaacs	Individual	LINCOLN	Private	Yes	70	
+USAGE							
+• Class Code is the dimension on every personal JE / bill / income line (or split lines across members).							
+• Visibility Public on The Monroe Family = allowed on household-summary views; individuals/trust default Private within Visionary books.							
+• books_id = PERS (or HOUSEHOLD). Never appears in company consolidation.							
+• Cursor seeds family_members from this sheet. Spec - Personal Finance.							

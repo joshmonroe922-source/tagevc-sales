@@ -1,0 +1,298 @@
+{
+  "R619": [
+    {
+      "bucket": "DIR",
+      "name": "Direct / Delivery",
+      "pct": 0.3,
+      "dept": "Delivery",
+      "glHint": "5000"
+    },
+    {
+      "bucket": "SALES",
+      "name": "Sales / BD",
+      "pct": 0.08,
+      "dept": "Sales",
+      "glHint": "6000"
+    },
+    {
+      "bucket": "MKT",
+      "name": "Marketing",
+      "pct": 0.05,
+      "dept": "Marketing",
+      "glHint": "6100"
+    },
+    {
+      "bucket": "GA",
+      "name": "G&A",
+      "pct": 0.12,
+      "dept": "G&A",
+      "glHint": "6200"
+    },
+    {
+      "bucket": "TECH",
+      "name": "Technology",
+      "pct": 0.03,
+      "dept": "Product",
+      "glHint": "6500"
+    },
+    {
+      "bucket": "COMM",
+      "name": "Commissions",
+      "pct": 0.0,
+      "dept": "Sales",
+      "glHint": "2250",
+      "dynamic": true
+    },
+    {
+      "bucket": "MGMT",
+      "name": "Management fee",
+      "pct": 0.05,
+      "dept": "G&A",
+      "glHint": "6950"
+    },
+    {
+      "bucket": "SS",
+      "name": "Shared services",
+      "pct": 0.04,
+      "dept": "G&A",
+      "glHint": "6100"
+    },
+    {
+      "bucket": "CONT",
+      "name": "Contingency",
+      "pct": 0.02,
+      "dept": "G&A",
+      "glHint": "6900"
+    },
+    {
+      "bucket": "PROFIT",
+      "name": "Residual profit",
+      "pct": null,
+      "dept": "Leadership",
+      "glHint": "3200",
+      "plug": true
+    }
+  ],
+  "SHR": [
+    {
+      "bucket": "DIR",
+      "name": "Direct / Delivery",
+      "pct": 0.125,
+      "dept": "Delivery",
+      "glHint": "5000"
+    },
+    {
+      "bucket": "SALES",
+      "name": "Sales / BD",
+      "pct": 0.08,
+      "dept": "Sales",
+      "glHint": "6000"
+    },
+    {
+      "bucket": "MKT",
+      "name": "Marketing",
+      "pct": 0.06,
+      "dept": "Marketing",
+      "glHint": "6100"
+    },
+    {
+      "bucket": "GA",
+      "name": "G&A",
+      "pct": 0.15,
+      "dept": "G&A",
+      "glHint": "6200"
+    },
+    {
+      "bucket": "TECH",
+      "name": "Technology",
+      "pct": 0.04,
+      "dept": "Product",
+      "glHint": "6500"
+    },
+    {
+      "bucket": "COMM",
+      "name": "Commissions",
+      "pct": 0.0,
+      "dept": "Sales",
+      "glHint": "2250",
+      "dynamic": true
+    },
+    {
+      "bucket": "MGMT",
+      "name": "Management fee",
+      "pct": 0.05,
+      "dept": "G&A",
+      "glHint": "6950"
+    },
+    {
+      "bucket": "SS",
+      "name": "Shared services",
+      "pct": 0.05,
+      "dept": "G&A",
+      "glHint": "6100"
+    },
+    {
+      "bucket": "CONT",
+      "name": "Contingency",
+      "pct": 0.02,
+      "dept": "G&A",
+      "glHint": "6900"
+    },
+    {
+      "bucket": "PROFIT",
+      "name": "Residual profit",
+      "pct": null,
+      "dept": "Leadership",
+      "glHint": "3200",
+      "plug": true
+    }
+  ],
+  "INDA": [
+    {
+      "bucket": "DIR",
+      "name": "Direct / Delivery",
+      "pct": 0.1,
+      "dept": "Delivery",
+      "glHint": "5000"
+    },
+    {
+      "bucket": "SALES",
+      "name": "Sales / BD",
+      "pct": 0.1,
+      "dept": "Sales",
+      "glHint": "6000"
+    },
+    {
+      "bucket": "MKT",
+      "name": "Marketing",
+      "pct": 0.12,
+      "dept": "Marketing",
+      "glHint": "6100"
+    },
+    {
+      "bucket": "GA",
+      "name": "G&A",
+      "pct": 0.1,
+      "dept": "G&A",
+      "glHint": "6200"
+    },
+    {
+      "bucket": "TECH",
+      "name": "Technology",
+      "pct": 0.25,
+      "dept": "Product",
+      "glHint": "6500"
+    },
+    {
+      "bucket": "COMM",
+      "name": "Commissions",
+      "pct": 0.0,
+      "dept": "Sales",
+      "glHint": "2250",
+      "dynamic": true
+    },
+    {
+      "bucket": "MGMT",
+      "name": "Management fee",
+      "pct": 0.05,
+      "dept": "G&A",
+      "glHint": "6950"
+    },
+    {
+      "bucket": "SS",
+      "name": "Shared services",
+      "pct": 0.04,
+      "dept": "G&A",
+      "glHint": "6100"
+    },
+    {
+      "bucket": "CONT",
+      "name": "Contingency",
+      "pct": 0.02,
+      "dept": "G&A",
+      "glHint": "6900"
+    },
+    {
+      "bucket": "PROFIT",
+      "name": "Residual profit",
+      "pct": null,
+      "dept": "Leadership",
+      "glHint": "3200",
+      "plug": true
+    }
+  ],
+  "TVC": [
+    {
+      "bucket": "DIR",
+      "name": "Direct / Delivery",
+      "pct": 0.05,
+      "dept": "Delivery",
+      "glHint": "5000"
+    },
+    {
+      "bucket": "SALES",
+      "name": "Sales / BD",
+      "pct": 0.05,
+      "dept": "Sales",
+      "glHint": "6000"
+    },
+    {
+      "bucket": "MKT",
+      "name": "Marketing",
+      "pct": 0.05,
+      "dept": "Marketing",
+      "glHint": "6100"
+    },
+    {
+      "bucket": "GA",
+      "name": "G&A",
+      "pct": 0.25,
+      "dept": "G&A",
+      "glHint": "6200"
+    },
+    {
+      "bucket": "TECH",
+      "name": "Technology",
+      "pct": 0.05,
+      "dept": "Product",
+      "glHint": "6500"
+    },
+    {
+      "bucket": "COMM",
+      "name": "Commissions",
+      "pct": 0.0,
+      "dept": "Sales",
+      "glHint": "2250",
+      "dynamic": true
+    },
+    {
+      "bucket": "MGMT",
+      "name": "Management fee",
+      "pct": 0.0,
+      "dept": "G&A",
+      "glHint": "6950"
+    },
+    {
+      "bucket": "SS",
+      "name": "Shared services",
+      "pct": 0.0,
+      "dept": "G&A",
+      "glHint": "6100"
+    },
+    {
+      "bucket": "CONT",
+      "name": "Contingency",
+      "pct": 0.05,
+      "dept": "G&A",
+      "glHint": "6900"
+    },
+    {
+      "bucket": "PROFIT",
+      "name": "Residual profit",
+      "pct": null,
+      "dept": "Leadership",
+      "glHint": "3200",
+      "plug": true
+    }
+  ]
+}

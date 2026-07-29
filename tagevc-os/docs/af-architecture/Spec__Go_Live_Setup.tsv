@@ -1,0 +1,45 @@
+SPEC — Go-Live Setup Wizard (All Entities + Future Entities)			
+Guided checklist the system walks users through | Progress % per entity and org | Blocks go-live until required steps complete | Same wizard for new subsidiaries			
+1. WIZARD PRINCIPLES			
+• Single Setup Coach UI: Org-level steps once, then per-entity loop (TVC → R619 → SHR → INDA → any new).			
+• Each step: status Not started | In progress | Blocked | Done | Skipped (allowed only if not required).			
+• Required docs/uploads stored in doc store; Required flags block Send Invoice / Pay Bill / Enable Feed until Done.			
+• Future entity: starting Setup clones this checklist + creates MD/CoA/Bank/Attachment stubs automatically.			
+2. ORG-LEVEL STEPS (once)			
+Step	Action	Required	SSOT / Module
+ORG-01	Confirm legal entities list & codes (TVC, R619, SHR, INDA)	Yes	MD - Entities
+ORG-02	Create Admin + Controller users; enable MFA	Yes	Spec - RBAC Matrix
+ORG-03	Review CoA loaded for each entity (common #s)	Yes	CoA - *
+ORG-04	Set fiscal calendar / periods; open first period	Yes	Spec - GL JE Close
+ORG-05	Configure allocation profiles (waterfall %) from financial model	Yes	Spec - Revenue Split Waterfall
+ORG-06	Connect IdP / SSO (if used); email/SMS providers for invoices & reminders	Yes	Spec - API Webhooks
+ORG-07	Set Scenario Inputs Base links; confirm Cons/Agg factors	Recommended	Scenario Inputs
+3. PER-ENTITY STEPS (repeat for each entity)			
+Step	Action	Required	SSOT
+ENT-01	Confirm entity legal name, EIN/tax ID, FYE, currency	Yes	MD - Entities
+ENT-02	Create/verify bank rows: Operating 1000 (+ Savings 1040; parent + Investments 1010)	Yes	MD - Bank Accounts
+ENT-03	BANK FEED SETUP WIZARD: select institution → OAuth/connect → map feed to bank_account_id → test import	Yes	MD - Bank Accounts Feed Enabled
+ENT-04	CREDIT CARD FEED SETUP (if any): connect network → map to card account/clearing → test import + receipt rules	If cards used	Spec - AP Vendor Portal & Cards
+ENT-05	Enter opening balances (Operating, Savings/Investments, AR/AP if cutting over)	Yes	GL opening JEs
+ENT-06	Upload invoice default PDFs: Wiring Instructions + I-9 (Required); optional W-9/ACH/MSA	Yes (Wire+I-9)	MD - Invoice Attachments
+ENT-07	Confirm SKUs / services & revenue accounts	Yes	MD - Services & Products
+ENT-08	Connect operating system webhook (sale.created, etc.) + test sale→invoice dry run	Yes	Spec - API Webhooks
+ENT-09	Add key vendors; request W-9 where 1099; set recurring contracts for forecast	Recommended	MD - Vendors
+ENT-10	Add employees/contractors + commission plans + burden %	If paying people	MD - Employees | Commission
+ENT-11	IC setup: parent Due From 14xx ↔ sub Due To 2450; test mgmt fee JE	Yes for subs	Spec - IC Journals
+ENT-12	Assign entity users/roles (Entity User, Mgr, Accountant)	Yes	Spec - RBAC Matrix
+ENT-13	Go-live test checklist: send test invoice w/ attachments; receive test payment; pay test bill; match bank feed; run waterfall	Yes	Seeds T1–T6
+ENT-14	Mark entity Go-Live Complete → enable production sends/payments	Yes	Setup status flag
+4. BANK & CARD FEED SUB-WIZARD (detail for ENT-03/04)			
+1) Choose bank account from MD - Bank Accounts  2) Connect provider (Plaid/MX/unit/etc.)  3) Select account last4  4) Map to GL 1000/1040/1010  5) Set start date for import  6) Pull 30–90 days history  7) Rules: ignore transfers between own accounts; suggest AP match on debits; categorize  8) Mark Feed Enabled=Yes  9) Schedule daily sync  10) Show success + link to reconcile workspace			
+Cards: same flow; map to card liability or clearing; enable receipt capture; employee card assignment optional.			
+5. FUTURE ENTITY AUTO-PROVISION			
+On Add Entity: create MD Entities row → clone sub CoA template (1000,1040,2450,6950,commons) → BA-{CODE}-OP + BA-{CODE}-SV → parent 14xx Due From → Invoice Attachments Wire+I-9 stubs → empty SKUs → allocation profile copy → setup checklist instance with ENT-01…14 Not started → open wizard.			
+6. UI			
+/setup — org progress | /setup/entities/:code — per-entity wizard | /setup/banks/connect — feed OAuth | Cannot hide required steps. Resume anytime.			
+7. CURSOR			
+Implement setup_checklist table (org_id, entity_code, step_id, status, completed_at, completed_by, evidence_url). Gate production features on ENT-14 + ORG required steps Done.			
+Related: MD - Bank Accounts | Invoice Attachments | Entities | RBAC | API | Seeds | Cash Routing | Accounting hub			
+8. PERSONAL FINANCE ONE-CLICK (Visionary)			
+Enable Personal → books PERS + CoA - Personal + MD Family/Banks/Loans/Investments + card accounts under Personal Finance + setup wizard (feeds, FMV, business rows, tests, NW).			
+SSOT map: Personal - Financials Hub			

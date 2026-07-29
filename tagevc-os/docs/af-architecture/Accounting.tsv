@@ -1,0 +1,34 @@
+ACCOUNTING — System of Record		
+Tage VC multi-entity hub | Transactions, GL, AR/AP, IC, close, audit trail | Near-zero human touch		
+Brand: Calibri · Inputs #0000FF on #E6F0FA · Headers #7C7871 · See Brand Guidelines tab		
+1. PURPOSE		
+This is the landing page for the Accounting domain. Finance planning lives on the Finance tab. Specs and master data are linked below — Cursor should implement modules from these SSOT tabs, not invent parallel structures.		
+2. MODULE MAP (implement in this order)		
+Module	SSOT Tab(s)	Notes
+Entities & CoA	MD - Entities | CoA - * | CoA - Consolidated Mapping	Identical common account #s; bank accounts per entity
+Customers / Services / Attachments	MD - Customers | Services | Invoice Attachments	Entity Wire+I-9 auto; client & per-invoice extras
+General Ledger	System Blueprint | CoA - *	JE engine; continuous/soft close; no manual recurring JEs
+AR / Invoicing	Spec - AR & Invoicing	Lifecycle, reminders, Paid webhook, ASC 606
+Commissions + Waterfall	Spec - Commission Engine | Spec - Revenue Split Waterfall	2250 protected + dept buckets on paid
+AP / Vendors / Pay match	Spec - AP Vendor Portal & Cards | MD - Vendors	Portal pay→JE→close AP; feed matches Payment
+Bank + Credit Card Feeds	Spec - AP Vendor Portal & Cards | CoA cash 1000–1090	Auto-categorize, receipt match, reconcile exceptions only
+Intercompany	CoA - Consolidated Mapping | CoA Due From/To	141x Due From | 2450 Due To Parent | elim mgmt fee 4000↔6950
+Cash / Bank Accounts	MD - Bank Accounts | CoA 1000–1090	SSOT for feeds, deposit routing, sweeps
+3. BANK ACCOUNTS (SIMPLIFIED — SSOT MD - Bank Accounts)		
+Policy: One Operating checking per entity for collections AND spend. Savings/Investments = reserves only. Revenue types = CoA 4xxx + SKUs (not banks).		
+Tage VC: 1000 Operating | 1010 Bank for Investments (Savings)		
+Each sub (R619, SHR, INDA): 1000 Operating | 1040 Savings		
+Optional 1090 clearing | 2250 Commission liability (GL not bank) | 2500 Loans		
+DEPRECATED: separate Revenue / Direct Hire / Contract bank accounts — do not create for future entities.		
+4. CURSOR INSTRUCTIONS — ACCOUNTING		
+• Do NOT create a second CoA or parallel master data. Extend MD - * and CoA - * only.		
+• Every transaction posts to entity CoA numbers; common accounts share identical numbers across entities.		
+• Event-driven: Sale→Invoice; Paid→AR+Commission bucket+OS callback; Card/Bank txn→categorize+reconcile.		
+• Invoice payments deposit to entity Operating 1000 (see Spec - Cash Routing). Sweeps to Savings/Investments are explicit.		
+• Apply Brand Guidelines on all UI and exports. Health enums: On Track | Watch | At Risk | Critical.		
+• Build order: Data model → GL → AR+Paid webhook → Commission 2250 → AP+Cards/Bank → IC elim → Close.		
+5. RELATED TABS		
+System Blueprint | Brand Guidelines | Spec - Automation Map | Spec - Audit & Controls | Finance (planning) | Audit | Controls & Governance		
+Also: MD - Bank Accounts | Portfolio & Shared Services (optional 5th nav)		
+Start Cursor at: Cursor Handoff Package tab. Also: Spec - GL JE Close | Spec - Cash Routing | Spec - IC Journals | Spec - RBAC Matrix | MD - Dimensions | MD - Bank Accounts.		
+Go-live: Spec - Go Live Setup — guided bank/card feeds, attachments, opening balances, tests for all entities + future entity auto-provision.		
