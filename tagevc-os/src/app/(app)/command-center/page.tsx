@@ -17,6 +17,11 @@ import {
 } from '@/lib/data/repositories';
 import { getFirmOpsCommandPhase61Report } from '@/lib/firm-ops/firm-ops-command-phase61-server';
 import { formatUsdK } from '@/lib/format';
+import { getIesFinanceReport } from '@/lib/ies/report';
+import {
+  canManageIesConnections,
+  canRefreshIesSnapshots,
+} from '@/lib/ies/ux';
 import { getSessionContext } from '@/lib/rbac/session';
 import { roleHasPermission } from '@/lib/types/roles';
 import { APP_ROLE_LABELS } from '@/lib/types';
@@ -49,17 +54,25 @@ export default async function CommandCenterPage() {
     redirect('/dashboard');
   }
 
-  const [snap, companies, activityResult, firmOps] = await Promise.all([
-    getCommandCenterSnapshot(),
-    listActivePortfolioCompanies(),
-    listRecentActivity(8),
-    getFirmOpsCommandPhase61Report(),
-  ]);
+  const [snap, companies, activityResult, firmOps, iesReport] =
+    await Promise.all([
+      getCommandCenterSnapshot(),
+      listActivePortfolioCompanies(),
+      listRecentActivity(8),
+      getFirmOpsCommandPhase61Report(),
+      getIesFinanceReport().catch(() => null),
+    ]);
   const profile = session?.profile ?? null;
   const activity = activityResult.events;
   const canWriteFirmOps = Boolean(
     session &&
       roleHasPermission(session.profile.role, 'write:shared_services'),
+  );
+  const canConnectIes = Boolean(
+    session && canManageIesConnections(session.profile.role),
+  );
+  const canRefreshIes = Boolean(
+    session && canRefreshIesSnapshots(session.profile.role),
   );
 
   return (
@@ -123,7 +136,18 @@ export default async function CommandCenterPage() {
         </div>
       </section>
 
-      <CommandCenterBoardsClient snap={snap} />
+      <CommandCenterBoardsClient
+        snap={snap}
+        canConnectIes={canConnectIes}
+        canRefreshIes={canRefreshIes}
+        iesConfigured={iesReport?.configured ?? false}
+        iesSyncEnabled={iesReport?.sync_enabled ?? false}
+        iesLastSyncedAt={
+          iesReport?.last_sync?.finished_at ??
+          iesReport?.last_sync?.started_at ??
+          null
+        }
+      />
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-4">

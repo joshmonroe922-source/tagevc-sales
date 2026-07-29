@@ -33,6 +33,7 @@ export const BREAK_GLASS_MESSAGE =
  */
 export const ROLE_SWITCHER_ORDER: readonly AppRole[] = [
   'visionary',
+  'think_tank',
   'partner',
   'coo',
   'sub_lead',

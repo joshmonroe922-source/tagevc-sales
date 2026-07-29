@@ -4,6 +4,7 @@
 
 export const APP_ROLES = [
   'visionary',
+  'think_tank',
   'partner',
   'associate',
   're_sourcer',
@@ -24,6 +25,7 @@ export type AppRole = (typeof APP_ROLES)[number];
 
 export const APP_ROLE_LABELS: Record<AppRole, string> = {
   visionary: 'Visionary',
+  think_tank: 'Think Tank',
   partner: 'Partner',
   associate: 'Associate / VC Sourcer',
   re_sourcer: 'Sourcer',
@@ -39,6 +41,16 @@ export const APP_ROLE_LABELS: Record<AppRole, string> = {
   ssc_marketing: 'Marketing',
   admin: 'Admin',
 };
+
+/**
+ * Visionary-breadth firm IA (C-Suite, Net Worth nav, Investments, audit).
+ * Think Tank matches Visionary nav except Credit Management (gated separately).
+ */
+export function isVisionaryBreadthRole(
+  role: AppRole | string | null | undefined,
+): boolean {
+  return role === 'visionary' || role === 'think_tank';
+}
 
 /** Navigation module keys (Platform Spec M0–M8). */
 export const NAV_MODULES = [
@@ -113,32 +125,37 @@ const SSC_BASE: Permission[] = [
 ];
 
 /** Role → permission map (high-level Phase 0; refine per workflow). */
+/** Visionary permission set — Think Tank reuses (credit UI gated separately). */
+const VISIONARY_PERMS: Permission[] = [
+  ...ALL_READ,
+  'write:messages',
+  'write:vc_pipeline',
+  'write:ma_pipeline',
+  'write:re_pipeline',
+  'write:shared_services',
+  'write:documents',
+  'read:it_assets',
+  'write:it_assets',
+  'read:marketing',
+  'write:marketing',
+  'write:capital',
+  'write:portfolio_health',
+  'action:ic_vote',
+  'action:wire',
+  'action:docusign_capital',
+  'action:docusign_manual_review',
+  'action:docusign_reconcile',
+  'action:intune_retire',
+  'action:intune_manual_review',
+  'action:snapshot_rollback_attest',
+  'admin:users',
+  'admin:enums',
+];
+
 export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
-  visionary: [
-    ...ALL_READ,
-    'write:messages',
-    'write:vc_pipeline',
-    'write:ma_pipeline',
-    'write:re_pipeline',
-    'write:shared_services',
-    'write:documents',
-    'read:it_assets',
-    'write:it_assets',
-    'read:marketing',
-    'write:marketing',
-    'write:capital',
-    'write:portfolio_health',
-    'action:ic_vote',
-    'action:wire',
-    'action:docusign_capital',
-    'action:docusign_manual_review',
-    'action:docusign_reconcile',
-    'action:intune_retire',
-    'action:intune_manual_review',
-    'action:snapshot_rollback_attest',
-    'admin:users',
-    'admin:enums',
-  ],
+  visionary: [...VISIONARY_PERMS],
+  /** VP Think Tank / Strategic Thinking — Visionary breadth minus Credit Management UI. */
+  think_tank: [...VISIONARY_PERMS],
   partner: [
     ...ALL_READ,
     'write:messages',

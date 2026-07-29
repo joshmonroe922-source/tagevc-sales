@@ -82,6 +82,8 @@ export function sscRolesHiddenFromFunction(
 
 /** Non-SSC landings (Role Switcher / first paint). */
 const DESK_ROLE_LANDING: Partial<Record<AppRole, string>> = {
+  /** Think Tank — Tage Venture Capital home (firm-wide). */
+  think_tank: '/home',
   /** Associate / VC Sourcer — BD sourcing, not portfolio companies. */
   associate: '/deal-flow/vc',
   ma_associate: '/deal-flow/ma',

@@ -24,6 +24,7 @@ import type { AppRole } from '@/lib/types/roles';
 /** Roles that may open the live P&L panel at all. */
 export const PNL_VIEW_ROLES: readonly AppRole[] = [
   'visionary',
+  'think_tank',
   'partner',
   'ssc_finance',
   'coo',
@@ -33,6 +34,7 @@ export const PNL_VIEW_ROLES: readonly AppRole[] = [
 /** Full firm P&L: consolidated + every IES operating company. */
 export const PNL_FULL_FIRM_ROLES: readonly AppRole[] = [
   'visionary',
+  'think_tank',
   'ssc_finance',
 ] as const;
 

@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { IesSyncControls } from '@/components/ies/ies-sync-controls';
 import { Badge } from '@/components/ui/badge';
 import {
   Card,
@@ -20,8 +23,16 @@ import { cn } from '@/lib/utils';
  */
 export function TageVcFirmPerformancePanel({
   view,
+  canConnect = false,
+  canRefresh = false,
+  configured = true,
+  syncEnabled = true,
 }: {
   view: FirmPerformanceView;
+  canConnect?: boolean;
+  canRefresh?: boolean;
+  configured?: boolean;
+  syncEnabled?: boolean;
 }) {
   const kpis = [
     { label: 'Revenue (MTD)', value: formatPnlMetric(view.revenue) },
@@ -63,17 +74,23 @@ export function TageVcFirmPerformancePanel({
       </CardHeader>
       <CardContent className="space-y-3">
         {view.state === 'not_connected' ? (
-          <p className="rounded-md border border-dashed border-border bg-muted/30 px-3 py-4 text-sm text-muted-foreground">
-            Not Connected — Tage Venture Capital parent books have no live IES
-            snapshot yet. Connect the parent company and Pull latest in{' '}
-            <Link
-              href={view.finance_href}
-              className="font-medium underline-offset-2 hover:underline"
-            >
-              Finance
-            </Link>
-            .
-          </p>
+          <div className="space-y-3 rounded-md border border-dashed border-border bg-muted/30 px-3 py-4">
+            <p className="text-sm text-muted-foreground">
+              Not Connected — Tage Venture Capital parent books have no live
+              IES snapshot yet. Connect the parent company and Refresh all
+              connected books.
+            </p>
+            <IesSyncControls
+              entityId="ENT-FIRM"
+              canConnect={canConnect}
+              canRefresh={canRefresh}
+              showConnect={canConnect}
+              showOpenInIes
+              lastSyncedAt={view.last_synced_at}
+              configured={configured}
+              syncEnabled={syncEnabled}
+            />
+          </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             {kpis.map((m) => (
@@ -91,6 +108,18 @@ export function TageVcFirmPerformancePanel({
             ))}
           </div>
         )}
+        {view.state !== 'not_connected' ? (
+          <IesSyncControls
+            entityId="ENT-FIRM"
+            canConnect={canConnect}
+            canRefresh={canRefresh}
+            showConnect={false}
+            showOpenInIes
+            lastSyncedAt={view.last_synced_at}
+            configured={configured}
+            syncEnabled={syncEnabled}
+          />
+        ) : null}
         <p className="text-xs text-muted-foreground">{view.note}</p>
         <div className="flex flex-wrap gap-3 text-xs">
           <Link

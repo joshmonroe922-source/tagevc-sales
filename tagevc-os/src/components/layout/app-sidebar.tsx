@@ -509,6 +509,8 @@ function NavLink({
   );
 }
 
+type SidebarVariant = 'desktop' | 'panel';
+
 export function AppSidebar({
   role,
   realRole,
@@ -518,7 +520,8 @@ export function AppSidebar({
   impersonatableRoles,
   liveLookActive = false,
   entityId = null,
-}: Props) {
+  variant = 'desktop',
+}: Props & { variant?: SidebarVariant }) {
   const pathname = usePathname();
   const router = useRouter();
   const items = useMemo(
@@ -593,15 +596,17 @@ export function AppSidebar({
     router.refresh();
   }
 
+  const shellClass =
+    variant === 'panel'
+      ? 'flex h-full w-full flex-col overflow-hidden bg-sidebar text-sidebar-foreground'
+      : cn(
+          // Desktop only: pin to viewport. Phone uses MobileNavDrawer in AppTopBar.
+          'sticky top-0 z-20 hidden h-dvh max-h-dvh w-64 shrink-0 flex-col self-start md:flex',
+          'overflow-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground',
+        );
+
   return (
-    <aside
-      className={cn(
-        // Pin to viewport: sticky + self-start so flex stretch cannot grow the
-        // aside with main content; shell overflow-hidden keeps document still.
-        'sticky top-0 z-20 flex h-dvh max-h-dvh w-64 shrink-0 flex-col self-start',
-        'overflow-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground',
-      )}
-    >
+    <aside className={shellClass}>
       <div className="shrink-0 px-5 py-6">
         <SidebarAvailabilityControl />
         <p className="text-xs font-medium tracking-[0.18em] text-sidebar-foreground/60 uppercase">

@@ -89,11 +89,11 @@ describe('AI C-Suite role config', () => {
 });
 
 describe('C-Suite nav Visionary-only', () => {
-  it('places C-Suite after Assets (under Home) and before Dashboard with children', () => {
+  it('places C-Suite after Assets (under Home/Dashboard) with children', () => {
     const labels = MAIN_NAV.map((n) => n.label);
-    expect(labels.indexOf('Assets')).toBe(labels.indexOf('Home') + 1);
+    expect(labels.indexOf('Dashboard')).toBe(labels.indexOf('Home') + 1);
+    expect(labels.indexOf('Assets')).toBe(labels.indexOf('Dashboard') + 1);
     expect(labels.indexOf('C-Suite')).toBe(labels.indexOf('Assets') + 1);
-    expect(labels.indexOf('Dashboard')).toBe(labels.indexOf('C-Suite') + 1);
     const cs = MAIN_NAV.find((n) => n.label === 'C-Suite');
     expect(cs?.visionaryOnly).toBe(true);
     expect(cs?.hideDuringLiveLook).toBe(true);

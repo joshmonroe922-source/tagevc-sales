@@ -7,13 +7,16 @@
  *   labeled with their led entity (e.g. "Recruit 619") → company overview.
  *   C-Suite + Command Center stay hidden. Assignment lists stay single-company.
  * - Associate / VC Sourcer: C-Suite + Command Center + Firm + Assets hidden;
- *   BD keeps accordion with VC Sourcing (`/deal-flow/vc`) + M&A Sourcing
- *   (`/deal-flow/ma`). Lands on VC sourcing (not portfolio companies).
- * - M&A Associate: C-Suite + Command Center + Firm hidden; BD collapses to
+ *   BD accordion injected with VC Sourcing (`/deal-flow/vc`) + M&A Sourcing
+ *   (`/deal-flow/ma`) — not in default MAIN_NAV BD children. Lands on VC
+ *   sourcing (not portfolio companies).
+ * - M&A Associate: C-Suite + Command Center + Firm hidden; BD replaced with
  *   top-level "M&A Activities" → `/deal-flow/ma` (owner-assigned targets).
- * - Sourcer (re_sourcer): C-Suite + Command Center + Firm hidden; BD
- *   collapses to top-level "Sourcing Platform" → `/deal-flow/re`
- *   (sourcer-assigned RE leads through completion/handoff).
+ * - Sourcer (re_sourcer): C-Suite + Command Center + Firm hidden; BD replaced
+ *   with top-level "Sourcing Platform" → `/deal-flow/re` (sourcer-assigned
+ *   RE leads through completion/handoff).
+ * - Visionary / Think Tank / Partner: BD default children are Lead Intake +
+ *   Deal Flow only (sourcing tracks via Deal Flow hub).
  * - SSC operators: MAIN_NAV `hiddenForRoles` hides C-Suite / BD / Command
  *   Center / Assets / Firm; function children scoped (Counsel/Ops → Legal;
  *   Service Lead → led desk only, Finance default; ssc_* → own home).
@@ -24,8 +27,10 @@
  *   (`/to-do`) is left-nav for operator work (not tickets). Lands on `/dashboard`.
  * - `visionaryOnly` follows the *effective* role so Role Switcher hides
  *   C-Suite / Investments / Net Worth when viewing as COO, SSC, or sub_lead.
- * - IA note: Assets stays under Home (not under Dashboard). BD stays top-level
- *   (not under Assets) so associate / sourcer transforms keep working.
+ *   Think Tank keeps Visionary-breadth IA (minus Credit Management UI).
+ * - IA note: order is Home → Dashboard → Assets (Assets not nested under
+ *   Dashboard). BD stays top-level (not under Assets) so associate / sourcer
+ *   transforms keep working.
  */
 
 import {
@@ -34,6 +39,7 @@ import {
 import { entityDisplayName } from '@/lib/entities/display-name';
 import type { NavItem } from '@/lib/nav';
 import {
+  isVisionaryBreadthRole,
   roleCanAccessModule,
   roleHasPermission,
   type AppRole,
@@ -55,7 +61,8 @@ export function filterNavForRole(
   const out: NavItem[] = [];
   for (const item of items) {
     // Effective role so Role Switcher / Live Look match annotated persona view.
-    if (item.visionaryOnly && role !== 'visionary') continue;
+    // Think Tank shares Visionary-breadth surfaces (credit gated elsewhere).
+    if (item.visionaryOnly && !isVisionaryBreadthRole(role)) continue;
     if (item.hideDuringLiveLook && liveLookActive) continue;
     if (item.hiddenForRoles?.includes(role)) continue;
 
@@ -107,6 +114,27 @@ export function isMultiCompanyAssetsNavItem(item: NavItem): boolean {
   );
 }
 
+/** Insert/replace a BD-shaped item after Firm / To Do when BD was filtered out. */
+function upsertBdNavItem(items: NavItem[], replacement: NavItem): NavItem[] {
+  let found = false;
+  const mapped = items.map((item) => {
+    if (item.label !== 'Business Development') return item;
+    found = true;
+    return replacement;
+  });
+  if (found) return mapped;
+
+  const insertAt = mapped.findIndex((i) =>
+    ['Command Center', 'Shared Services', 'Message Center'].includes(i.label),
+  );
+  if (insertAt === -1) return [...mapped, replacement];
+  return [
+    ...mapped.slice(0, insertAt),
+    replacement,
+    ...mapped.slice(insertAt),
+  ];
+}
+
 /** Role-specific nav shape transforms (sub_lead, associate, ma_associate, re_sourcer). */
 export function applyRoleNavTransforms(
   items: NavItem[],
@@ -127,51 +155,44 @@ export function applyRoleNavTransforms(
   }
 
   if (ctx.role === 'associate') {
-    return items.map((item) => {
-      if (item.label !== 'Business Development') return item;
-      return {
-        module: 'deal_flow_vc',
-        label: 'Business Development',
-        description: 'VC and M&A deal sourcing',
-        children: [
-          {
-            module: 'deal_flow_vc',
-            href: '/deal-flow/vc',
-            label: 'VC Sourcing',
-            description: 'Venture pipeline and lead sourcing',
-          },
-          {
-            module: 'deal_flow_ma',
-            href: '/deal-flow/ma',
-            label: 'M&A Sourcing',
-            description: 'M&A targets and deal pipeline',
-          },
-        ],
-      };
+    // MAIN_NAV BD only has Lead Intake + Deal Flow (hidden for associate), so
+    // BD is dropped before transforms — inject sourcing accordion here.
+    return upsertBdNavItem(items, {
+      module: 'deal_flow_vc',
+      label: 'Business Development',
+      description: 'VC and M&A deal sourcing',
+      children: [
+        {
+          module: 'deal_flow_vc',
+          href: '/deal-flow/vc',
+          label: 'VC Sourcing',
+          description: 'Venture pipeline and lead sourcing',
+        },
+        {
+          module: 'deal_flow_ma',
+          href: '/deal-flow/ma',
+          label: 'M&A Sourcing',
+          description: 'M&A targets and deal pipeline',
+        },
+      ],
     });
   }
 
   if (ctx.role === 'ma_associate') {
-    return items.map((item) => {
-      if (item.label !== 'Business Development') return item;
-      return {
-        module: 'deal_flow_ma',
-        href: '/deal-flow/ma',
-        label: 'M&A Activities',
-        description: 'Pipeline projects assigned to you',
-      };
+    return upsertBdNavItem(items, {
+      module: 'deal_flow_ma',
+      href: '/deal-flow/ma',
+      label: 'M&A Activities',
+      description: 'Pipeline projects assigned to you',
     });
   }
 
   if (ctx.role === 're_sourcer') {
-    return items.map((item) => {
-      if (item.label !== 'Business Development') return item;
-      return {
-        module: 'deal_flow_re',
-        href: '/deal-flow/re',
-        label: 'Sourcing Platform',
-        description: 'RE leads assigned to you through handoff',
-      };
+    return upsertBdNavItem(items, {
+      module: 'deal_flow_re',
+      href: '/deal-flow/re',
+      label: 'Sourcing Platform',
+      description: 'RE leads assigned to you through handoff',
     });
   }
 

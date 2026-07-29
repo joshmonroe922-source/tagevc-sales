@@ -8,6 +8,7 @@ import {
   listCsuiteMessages,
 } from '@/lib/ai-csuite/service';
 import { getSessionContext } from '@/lib/rbac/session';
+import { isVisionaryBreadthRole } from '@/lib/types/roles';
 import {
   CONSOLIDATED_SELECT_VALUE,
   ENTITY_SELECT_LABELS,
@@ -21,7 +22,7 @@ type Props = {
 
 export default async function CsuiteRolePage({ params, searchParams }: Props) {
   const ctx = await getSessionContext();
-  if (!ctx || ctx.realRole !== 'visionary') redirect('/home');
+  if (!ctx || !isVisionaryBreadthRole(ctx.profile.role)) redirect('/home');
   if (ctx.liveLookActive) redirect('/home');
 
   const { role: raw } = await params;

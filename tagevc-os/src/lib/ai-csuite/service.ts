@@ -24,6 +24,7 @@ import {
   type AiCsuiteRole,
 } from '@/lib/ai-csuite/roles';
 import { createClient } from '@/lib/supabase/server';
+import { isVisionaryBreadthRole } from '@/lib/types/roles';
 
 export type CsuiteMessageDto = {
   id: string;
@@ -45,8 +46,8 @@ async function requireVisionaryId(): Promise<string> {
     .select('id, role')
     .eq('id', user.id)
     .maybeSingle();
-  if (!profile || profile.role !== 'visionary') {
-    throw new Error('C-Suite is Visionary-only');
+  if (!profile || !isVisionaryBreadthRole(profile.role as string)) {
+    throw new Error('C-Suite is Visionary / Think Tank only');
   }
   return profile.id as string;
 }

@@ -10,11 +10,12 @@ import {
 import type { AiCsuiteNavRole } from '@/lib/ai-csuite/roles';
 import type { CsuiteActionStatus, CsuiteActionType } from '@/lib/ai-csuite/actions';
 import { getSessionContext } from '@/lib/rbac/session';
+import { isVisionaryBreadthRole } from '@/lib/types/roles';
 
-async function assertVisionary() {
+async function assertVisionaryBreadth() {
   const ctx = await getSessionContext();
-  if (!ctx || ctx.realRole !== 'visionary') {
-    throw new Error('C-Suite is Visionary-only');
+  if (!ctx || !isVisionaryBreadthRole(ctx.profile.role)) {
+    throw new Error('C-Suite is Visionary / Think Tank only');
   }
   if (ctx.liveLookActive) {
     throw new Error('C-Suite is hidden during Live Look');
@@ -23,7 +24,7 @@ async function assertVisionary() {
 }
 
 export async function sendCsuiteMessageAction(formData: FormData) {
-  await assertVisionary();
+  await assertVisionaryBreadth();
   const role = String(formData.get('role') ?? 'hq') as AiCsuiteNavRole;
   const content = String(formData.get('content') ?? '').trim();
   if (!content) return { error: 'Message required' };
@@ -38,7 +39,7 @@ export async function sendCsuiteMessageAction(formData: FormData) {
 }
 
 export async function proposeCsuiteActionAction(formData: FormData) {
-  await assertVisionary();
+  await assertVisionaryBreadth();
   const role = String(formData.get('role') ?? 'hq') as AiCsuiteNavRole;
   const actionType = String(
     formData.get('action_type') ?? 'ticket',
@@ -61,7 +62,7 @@ export async function proposeCsuiteActionAction(formData: FormData) {
 }
 
 export async function transitionCsuiteActionAction(formData: FormData) {
-  await assertVisionary();
+  await assertVisionaryBreadth();
   const actionId = String(formData.get('action_id') ?? '');
   const to = String(formData.get('to') ?? '') as CsuiteActionStatus;
   try {
@@ -74,7 +75,7 @@ export async function transitionCsuiteActionAction(formData: FormData) {
 }
 
 export async function refreshCsuiteBriefingAction(role: AiCsuiteNavRole) {
-  await assertVisionary();
+  await assertVisionaryBreadth();
   try {
     const briefing = await generateCsuiteBriefing({
       role,

@@ -7,7 +7,7 @@ import {
   getFirmAumSnapshot,
   listInvestorAssets,
 } from '@/lib/net-worth/assets';
-import { canAccessNetWorthPage } from '@/lib/net-worth/visibility';
+import { canAccessCreditManagement, canAccessNetWorthPage } from '@/lib/net-worth/visibility';
 import { getSessionContext } from '@/lib/rbac/session';
 
 export default async function NetWorthPage() {
@@ -34,6 +34,11 @@ export default async function NetWorthPage() {
     getFirmAumSnapshot(),
   ]);
   const breakdown = computeNetWorthBreakdown(rows);
+  const showCredit = canAccessCreditManagement({
+    role: ctx.profile.role,
+    realRole: ctx.realRole,
+    liveLookActive: ctx.liveLookActive,
+  });
 
   return (
     <div className="space-y-6">
@@ -51,19 +56,22 @@ export default async function NetWorthPage() {
           >
             Investments
           </Link>
-          <Link
-            href="/portfolio/net-worth/credit"
-            className="font-medium underline-offset-4 hover:underline"
-          >
-            Credit Management →
-          </Link>
+          {showCredit ? (
+            <Link
+              href="/portfolio/net-worth/credit"
+              className="font-medium underline-offset-4 hover:underline"
+            >
+              Credit Management →
+            </Link>
+          ) : null}
         </div>
         <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#3a414f]">
           Net Worth
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
           Visionary roll-up of Businesses, Real Estate, and Investments. Manage
-          private holdings under Investments; credit stays here.
+          private holdings under Investments
+          {showCredit ? '; credit stays here.' : '.'}
         </p>
       </header>
 
@@ -71,6 +79,7 @@ export default async function NetWorthPage() {
         breakdown={breakdown}
         firmAum={firmAum}
         error={error}
+        showCredit={showCredit}
       />
     </div>
   );

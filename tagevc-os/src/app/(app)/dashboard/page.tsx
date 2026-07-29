@@ -42,6 +42,10 @@ import { getIesFinanceReport } from '@/lib/ies/report';
 import { getPortfolioOperatingCadencePhase60Report } from '@/lib/portfolio/operating-cadence-phase60-server';
 import { normalizeEntityId } from '@/lib/entities/display-name';
 import { toVisibleCompanySelectOptions } from '@/lib/entities/registry-visibility';
+import {
+  canManageIesConnections,
+  canRefreshIesSnapshots,
+} from '@/lib/ies/ux';
 import { getSessionContext } from '@/lib/rbac/session';
 import { roleHasPermission, type AppRole } from '@/lib/types/roles';
 
@@ -146,6 +150,11 @@ export default async function DashboardPage({
     pnlAccess,
   );
 
+  const canConnectIes = canManageIesConnections(viewAsRole);
+  const canRefreshIes = canRefreshIesSnapshots(viewAsRole);
+  const iesConfigured = iesReportRaw?.configured ?? false;
+  const iesSyncEnabled = iesReportRaw?.sync_enabled ?? false;
+
   return (
     <div className="space-y-8">
       <header className="space-y-2">
@@ -182,7 +191,13 @@ export default async function DashboardPage({
       </Suspense>
 
       {showFirmPerformance && firmPerformance ? (
-        <TageVcFirmPerformancePanel view={firmPerformance} />
+        <TageVcFirmPerformancePanel
+          view={firmPerformance}
+          canConnect={canConnectIes}
+          canRefresh={canRefreshIes}
+          configured={iesConfigured}
+          syncEnabled={iesSyncEnabled}
+        />
       ) : null}
 
       {showLivePnl && pnlView ? (
@@ -191,6 +206,10 @@ export default async function DashboardPage({
             view={pnlView}
             companies={companyOptions}
             canViewConsolidated={pnlAccess.canViewConsolidated}
+            canConnect={canConnectIes}
+            canRefresh={canRefreshIes}
+            configured={iesConfigured}
+            syncEnabled={iesSyncEnabled}
           />
         </Suspense>
       ) : null}

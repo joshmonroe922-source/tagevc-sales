@@ -1,6 +1,7 @@
 'use client';
 
 import { DashboardMetricBoard } from '@/components/dashboard/dashboard-metric-board';
+import { IesSyncControls } from '@/components/ies/ies-sync-controls';
 import { HealthBadge } from '@/components/portfolio/health-badge';
 import {
   Card,
@@ -21,10 +22,26 @@ import { VIEW_MODE_DEFAULTS } from '@/lib/view-mode';
 
 type Props = {
   snap: CommandCenterSnapshot;
+  canConnectIes?: boolean;
+  canRefreshIes?: boolean;
+  iesConfigured?: boolean;
+  iesSyncEnabled?: boolean;
+  iesLastSyncedAt?: string | null;
 };
 
 /** Funnel, capital pulse, and portfolio health with Cards | List. */
-export function CommandCenterBoardsClient({ snap }: Props) {
+export function CommandCenterBoardsClient({
+  snap,
+  canConnectIes = false,
+  canRefreshIes = false,
+  iesConfigured = true,
+  iesSyncEnabled = true,
+  iesLastSyncedAt = null,
+}: Props) {
+  const capitalDisconnected =
+    snap.capital.firm_cash_k == null &&
+    snap.capital.consolidated_cash_k == null;
+
   const funnelItems = [
     {
       id: 'active_leads',
@@ -191,13 +208,24 @@ export function CommandCenterBoardsClient({ snap }: Props) {
             <CardTitle className="text-base">Capital pulse</CardTitle>
             <CardDescription>
               Portfolio totals with firm cash kept separate, then combined.
+              Live IES only — Refresh syncs all connected companies.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
             <DashboardMetricBoard
               surface="command-center-capital"
               items={capitalItems}
               columns={2}
+            />
+            <IesSyncControls
+              entityId="ENT-FIRM"
+              canConnect={canConnectIes}
+              canRefresh={canRefreshIes}
+              showConnect={capitalDisconnected && canConnectIes}
+              showOpenInIes
+              lastSyncedAt={iesLastSyncedAt}
+              configured={iesConfigured}
+              syncEnabled={iesSyncEnabled}
             />
           </CardContent>
         </Card>

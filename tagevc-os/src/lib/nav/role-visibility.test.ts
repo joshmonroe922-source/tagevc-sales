@@ -99,6 +99,28 @@ describe('Assets + COO / Subsidiary Leader nav gates', () => {
     ).toEqual(before);
   });
 
+  it('Visionary / Think Tank / Partner BD children are Lead Intake + Deal Flow only', () => {
+    for (const role of ['visionary', 'think_tank', 'partner'] as const) {
+      const items = filterNavForRole(MAIN_NAV, {
+        role,
+        realRole: 'visionary',
+        entityId: 'ENT-FIRM',
+      });
+      const bd = items.find((i) => i.label === 'Business Development');
+      expect(bd?.children?.map((c) => c.label)).toEqual([
+        'Lead Intake',
+        'Deal Flow',
+      ]);
+      const flat = items.flatMap((i) => [
+        i.label,
+        ...(i.children?.map((c) => c.label) ?? []),
+      ]);
+      expect(flat).not.toContain('VC Sourcing');
+      expect(flat).not.toContain('M&A Sourcing');
+      expect(flat).not.toContain('Sourcing Platform');
+    }
+  });
+
   it('hides C-Suite / Command Center / Assets and keeps BD VC+M&A for associate', () => {
     const items = filterNavForRole(MAIN_NAV, {
       role: 'associate',

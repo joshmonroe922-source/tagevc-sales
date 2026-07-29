@@ -68,6 +68,12 @@ export default async function HrOperationsPage({ searchParams }: Props) {
           </h2>
           <div className="flex flex-wrap gap-3 text-sm">
             <Link
+              href="/eos"
+              className="underline-offset-4 hover:underline"
+            >
+              Operating System →
+            </Link>
+            <Link
               href="/shared-services/hr/employees"
               className="underline-offset-4 hover:underline"
             >

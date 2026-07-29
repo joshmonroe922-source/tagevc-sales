@@ -31,6 +31,7 @@ export type RoleDashboardCard = RoleDashboardKpiDef & {
 /** Matches Visionary Role Switcher order (View as on Dashboard). */
 export const DASHBOARD_VIEW_ROLES: AppRole[] = [
   'visionary',
+  'think_tank',
   'partner',
   'coo',
   'sub_lead',
@@ -51,19 +52,22 @@ export function dashboardRoleLabel(role: AppRole): string {
   return APP_ROLE_LABELS[role] ?? role;
 }
 
+const VISIONARY_DASHBOARD_KPIS: RoleDashboardKpiDef[] = [
+  { kpi_id: 'aum_dry_powder', label: 'AUM & dry powder', description: 'Capital available to deploy', kind: 'lagging' },
+  { kpi_id: 'fund_returns', label: 'Fund returns by vintage', description: 'IRR · TVPI · DPI · MOIC · RVPI', kind: 'lagging' },
+  { kpi_id: 'portfolio_health', label: 'Portfolio health', description: 'Overall value creation', kind: 'health' },
+  { kpi_id: 'capital_raised', label: 'Capital raised vs target', description: 'LP commitment pipeline', kind: 'lagging' },
+  { kpi_id: 'strategic_initiatives', label: 'Strategic initiatives', description: 'Progress against firm priorities', kind: 'leading' },
+  { kpi_id: 'pipeline_quality', label: 'Pipeline quality', description: 'VC + RE + M&A conversion (top level)', kind: 'leading' },
+  { kpi_id: 'risk_concentration', label: 'Risk / concentration', description: 'Exposure across thesis', kind: 'health' },
+  { kpi_id: 'org_capacity', label: 'Org health / capacity', description: 'Bandwidth and coverage', kind: 'health' },
+  { kpi_id: 'macro_signals', label: 'Macro / market signals', description: 'Thesis-relevant environment', kind: 'leading' },
+  { kpi_id: 'brand_network', label: 'Brand / network strength', description: 'Reputation indicators', kind: 'leading' },
+];
+
 const CATALOG: Record<AppRole, RoleDashboardKpiDef[]> = {
-  visionary: [
-    { kpi_id: 'aum_dry_powder', label: 'AUM & dry powder', description: 'Capital available to deploy', kind: 'lagging' },
-    { kpi_id: 'fund_returns', label: 'Fund returns by vintage', description: 'IRR · TVPI · DPI · MOIC · RVPI', kind: 'lagging' },
-    { kpi_id: 'portfolio_health', label: 'Portfolio health', description: 'Overall value creation', kind: 'health' },
-    { kpi_id: 'capital_raised', label: 'Capital raised vs target', description: 'LP commitment pipeline', kind: 'lagging' },
-    { kpi_id: 'strategic_initiatives', label: 'Strategic initiatives', description: 'Progress against firm priorities', kind: 'leading' },
-    { kpi_id: 'pipeline_quality', label: 'Pipeline quality', description: 'VC + RE + M&A conversion (top level)', kind: 'leading' },
-    { kpi_id: 'risk_concentration', label: 'Risk / concentration', description: 'Exposure across thesis', kind: 'health' },
-    { kpi_id: 'org_capacity', label: 'Org health / capacity', description: 'Bandwidth and coverage', kind: 'health' },
-    { kpi_id: 'macro_signals', label: 'Macro / market signals', description: 'Thesis-relevant environment', kind: 'leading' },
-    { kpi_id: 'brand_network', label: 'Brand / network strength', description: 'Reputation indicators', kind: 'leading' },
-  ],
+  visionary: VISIONARY_DASHBOARD_KPIS,
+  think_tank: VISIONARY_DASHBOARD_KPIS,
   partner: [
     { kpi_id: 'deal_pipeline', label: 'Deal pipeline', description: 'Stage + conversion', kind: 'leading' },
     { kpi_id: 'attributable_returns', label: 'Attributable fund returns', description: 'Investments under coverage', kind: 'lagging' },

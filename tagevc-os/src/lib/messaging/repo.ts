@@ -48,22 +48,39 @@ export async function listDirectoryProfiles(
     const supabase = await createClient();
     let q = supabase
       .from('profiles')
-      .select('id, email, full_name, avatar_url, role, active, entity_id')
+      .select(
+        'id, email, full_name, avatar_url, role, active, entity_id, job_title, manager_profile_id',
+      )
       .eq('active', true)
       .order('full_name', { ascending: true });
     if (excludeUserId) q = q.neq('id', excludeUserId);
     const { data, error } = await q;
     if (error) {
-      // Fallback without entity_id column on older schemas
-      if (error.message.includes('entity_id')) {
+      // Fallback without org columns on older schemas
+      if (
+        /entity_id|job_title|manager_profile_id/i.test(error.message)
+      ) {
         let q2 = supabase
           .from('profiles')
-          .select('id, email, full_name, avatar_url, role, active')
+          .select('id, email, full_name, avatar_url, role, active, entity_id')
           .eq('active', true)
           .order('full_name', { ascending: true });
         if (excludeUserId) q2 = q2.neq('id', excludeUserId);
         const retry = await q2;
-        if (retry.error) return { ok: false, error: retry.error.message };
+        if (retry.error) {
+          let q3 = supabase
+            .from('profiles')
+            .select('id, email, full_name, avatar_url, role, active')
+            .eq('active', true)
+            .order('full_name', { ascending: true });
+          if (excludeUserId) q3 = q3.neq('id', excludeUserId);
+          const retry2 = await q3;
+          if (retry2.error) return { ok: false, error: retry2.error.message };
+          return {
+            ok: true,
+            profiles: (retry2.data ?? []) as DirectoryProfile[],
+          };
+        }
         return {
           ok: true,
           profiles: (retry.data ?? []) as DirectoryProfile[],

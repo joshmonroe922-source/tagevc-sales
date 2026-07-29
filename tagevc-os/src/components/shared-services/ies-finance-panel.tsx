@@ -3,10 +3,8 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
-import {
-  mapIesEntityAction,
-  runIesSyncAction,
-} from '@/app/(app)/shared-services/finance/ies-actions';
+import { mapIesEntityAction } from '@/app/(app)/shared-services/finance/ies-actions';
+import { IesSyncControls } from '@/components/ies/ies-sync-controls';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -29,15 +27,20 @@ import { labelFinanceFeedStatus } from '@/lib/shared-services/finance-ops-phase6
 import type { IesFinanceReport } from '@/lib/ies/report';
 import { entityDisplayName } from '@/lib/entities/display-name';
 import { iesCompanySelectOrder } from '@/lib/ies/company-map';
+import { iesConnectHref, iesOpenInBooksHref, IES_EMBED_POLICY } from '@/lib/ies/ux';
 import { CompanySelect } from '@/components/shared/company-select';
 
 export function IesFinancePanel({
   report,
   canWrite,
+  canRefresh = canWrite,
   entityId,
 }: {
   report: IesFinanceReport;
+  /** Manage IES OAuth / map (write:shared_services). */
   canWrite: boolean;
+  /** Global Refresh — finance readers / P&L roles. */
+  canRefresh?: boolean;
   entityId: string;
 }) {
   const router = useRouter();
@@ -45,12 +48,14 @@ export function IesFinancePanel({
   const [message, setMessage] = useState<string | null>(null);
   const [mapEntityId, setMapEntityId] = useState(entityId || 'ENT-FIRM');
 
-  const connectHref = entityId
-    ? `/api/finance/ies/oauth?entity=${encodeURIComponent(entityId)}`
-    : '/api/finance/ies/oauth';
   const selectedCompany = entityId
     ? report.companies.find((company) => company.entity_id === entityId) ?? null
     : null;
+  const lastSyncedAt =
+    report.last_sync?.finished_at ??
+    report.last_sync?.started_at ??
+    selectedCompany?.last_sync_at ??
+    null;
   const scopeMetrics = selectedCompany
     ? {
         cash_on_hand: selectedCompany.cash_on_hand,
@@ -68,6 +73,11 @@ export function IesFinancePanel({
         expenses: report.consolidated.expenses,
         net_income: report.consolidated.net_income,
       };
+  const scopeNotConnected =
+    scopeMetrics.revenue == null &&
+    scopeMetrics.expenses == null &&
+    scopeMetrics.net_income == null &&
+    scopeMetrics.cash_on_hand == null;
 
   return (
     <section className="scroll-mt-20 space-y-4" id="ies-books">
@@ -78,7 +88,7 @@ export function IesFinancePanel({
         <p className="text-sm text-muted-foreground">
           IES is the system of record. Tage pulls COA, balances, and invoice
           signals for consolidated and by-company visibility — no autonomous
-          write-backs.
+          write-backs. {IES_EMBED_POLICY}
         </p>
       </div>
 
@@ -87,7 +97,8 @@ export function IesFinancePanel({
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Connection</CardTitle>
             <CardDescription>
-              OAuth to Intuit / QBO Accounting API for IES companies.
+              OAuth to Intuit / QBO Accounting API for IES companies. Refresh
+              syncs all connected companies.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
@@ -111,46 +122,32 @@ export function IesFinancePanel({
                 Fail-soft until configured.
               </p>
             ) : null}
-            {report.last_sync ? (
-              <p className="text-xs text-muted-foreground">
-                Last sync · {report.last_sync.status} ·{' '}
-                {new Date(report.last_sync.started_at).toLocaleString()}
-              </p>
-            ) : (
-              <p className="text-xs text-muted-foreground">No sync runs yet.</p>
-            )}
-            {canWrite ? (
-              <div className="flex flex-wrap gap-2">
-                {report.configured ? (
-                  <Button size="sm" render={<a href={connectHref} />}>
-                    Connect IES company
-                  </Button>
-                ) : (
-                  <Button size="sm" disabled>
-                    Connect IES company
-                  </Button>
-                )}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={pending || !report.configured || !report.sync_enabled}
-                  onClick={() =>
-                    start(async () => {
-                      const res = await runIesSyncAction({
-                        entityId: entityId || null,
-                      });
-                      if ('message' in res) {
-                        setMessage(res.message);
-                      } else {
-                        setMessage(res.error ?? 'Sync failed');
-                      }
-                      router.refresh();
-                    })
-                  }
-                >
-                  Pull latest
-                </Button>
-              </div>
+            <IesSyncControls
+              entityId={entityId || null}
+              canConnect={canWrite}
+              canRefresh={canRefresh}
+              showConnect={canWrite && (scopeNotConnected || report.connections.length === 0)}
+              showOpenInIes
+              lastSyncedAt={lastSyncedAt}
+              configured={report.configured}
+              syncEnabled={report.sync_enabled}
+            />
+            {canWrite && !scopeNotConnected && report.connections.length > 0 ? (
+              <Button
+                size="sm"
+                variant="outline"
+                render={
+                  <a
+                    href={
+                      entityId
+                        ? iesConnectHref(entityId)
+                        : iesConnectHref(null)
+                    }
+                  />
+                }
+              >
+                Connect another company
+              </Button>
             ) : null}
             {message ? (
               <p className="text-xs text-muted-foreground">{message}</p>
@@ -172,6 +169,24 @@ export function IesFinancePanel({
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {scopeNotConnected ? (
+              <div className="mb-3 space-y-2 rounded-md border border-dashed border-border bg-muted/30 px-3 py-3">
+                <p className="text-sm text-muted-foreground">
+                  Not Connected — no live IES snapshot for this scope.
+                </p>
+                <IesSyncControls
+                  entityId={entityId || null}
+                  canConnect={canWrite}
+                  canRefresh={canRefresh}
+                  showConnect={canWrite}
+                  showOpenInIes
+                  lastSyncedAt={lastSyncedAt}
+                  configured={report.configured}
+                  syncEnabled={report.sync_enabled}
+                  compact
+                />
+              </div>
+            ) : null}
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
               {[
                 {
@@ -239,6 +254,16 @@ export function IesFinancePanel({
               {!selectedCompany && report.consolidated.management_consolidation ? (
                 <Badge variant="outline">Management consolidation</Badge>
               ) : null}
+              {selectedCompany ? (
+                <a
+                  href={iesOpenInBooksHref(selectedCompany.entity_id) ?? '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-muted-foreground underline-offset-2 hover:underline"
+                >
+                  Open in IES
+                </a>
+              ) : null}
               <Link
                 href={report.month_end_checklist_href}
                 className="text-muted-foreground underline-offset-2 hover:underline"
@@ -258,12 +283,28 @@ export function IesFinancePanel({
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">By company</CardTitle>
-          <CardDescription>
-            Parent and stand-alone operating entities in the shared IES tenant.
-            Operating revenue stays in each subsidiary; parent books hold
-            capital, SSC, and intercompany activity.
-          </CardDescription>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-1">
+              <CardTitle className="text-base">By company</CardTitle>
+              <CardDescription>
+                Parent and stand-alone operating entities in the shared IES tenant.
+                Operating revenue stays in each subsidiary; parent books hold
+                capital, SSC, and intercompany activity. Refresh pulls all
+                connected companies.
+              </CardDescription>
+            </div>
+            <IesSyncControls
+              entityId={entityId || null}
+              canConnect={false}
+              canRefresh={canRefresh}
+              showConnect={false}
+              showOpenInIes={false}
+              lastSyncedAt={lastSyncedAt}
+              configured={report.configured}
+              syncEnabled={report.sync_enabled}
+              compact
+            />
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <Table>
@@ -276,66 +317,102 @@ export function IesFinancePanel({
                 <TableHead>Invoices</TableHead>
                 <TableHead>COA</TableHead>
                 <TableHead>Feed</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {report.companies.map((c) => (
-                <TableRow key={c.entity_id}>
-                  <TableCell>
-                    <div className="font-medium">
-                      {entityDisplayName({
-                        name: c.company_name,
-                        entity_id: c.entity_id,
-                      })}
-                    </div>
-                    {c.ies_company_name &&
-                    c.ies_company_name !==
-                      entityDisplayName({
-                        name: c.company_name,
-                        entity_id: c.entity_id,
-                      }) ? (
-                      <div className="text-xs text-muted-foreground">
-                        Books · {c.ies_company_name}
+              {report.companies.map((c) => {
+                const rowDisconnected =
+                  c.feed_status === 'missing' ||
+                  (c.cash_on_hand == null &&
+                    c.revenue == null &&
+                    c.net_income == null);
+                return (
+                  <TableRow key={c.entity_id}>
+                    <TableCell>
+                      <div className="font-medium">
+                        {entityDisplayName({
+                          name: c.company_name,
+                          entity_id: c.entity_id,
+                        })}
                       </div>
-                    ) : null}
-                  </TableCell>
-                  <TableCell className="tabular-nums">
-                    {formatFinanceMetric(c.cash_on_hand)}
-                  </TableCell>
-                  <TableCell className="tabular-nums text-xs">
-                    Rev {formatFinanceMetric(c.revenue)} · Net{' '}
-                    {formatFinanceMetric(c.net_income)}
-                  </TableCell>
-                  <TableCell className="tabular-nums text-xs">
-                    {formatFinanceMetric(c.ar_balance)} /{' '}
-                    {formatFinanceMetric(c.ap_balance)}
-                  </TableCell>
-                  <TableCell className="text-xs tabular-nums">
-                    {c.open_invoices == null
-                      ? '—'
-                      : `${c.open_invoices} open`}
-                    {c.overdue_invoices
-                      ? ` · ${c.overdue_invoices} overdue`
-                      : ''}
-                  </TableCell>
-                  <TableCell className="tabular-nums text-xs">
-                    {c.coa_account_count ?? '—'}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">
-                      {labelFinanceFeedStatus(c.feed_status)}
-                    </Badge>
-                    {c.stale ? (
-                      <p className="mt-1 text-xs text-amber-800">Stale</p>
-                    ) : null}
-                    {c.todo ? (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {c.todo}
-                      </p>
-                    ) : null}
-                  </TableCell>
-                </TableRow>
-              ))}
+                      {c.ies_company_name &&
+                      c.ies_company_name !==
+                        entityDisplayName({
+                          name: c.company_name,
+                          entity_id: c.entity_id,
+                        }) ? (
+                        <div className="text-xs text-muted-foreground">
+                          Books · {c.ies_company_name}
+                        </div>
+                      ) : null}
+                    </TableCell>
+                    <TableCell className="tabular-nums">
+                      {formatFinanceMetric(c.cash_on_hand)}
+                    </TableCell>
+                    <TableCell className="tabular-nums text-xs">
+                      Rev {formatFinanceMetric(c.revenue)} · Net{' '}
+                      {formatFinanceMetric(c.net_income)}
+                    </TableCell>
+                    <TableCell className="tabular-nums text-xs">
+                      {formatFinanceMetric(c.ar_balance)} /{' '}
+                      {formatFinanceMetric(c.ap_balance)}
+                    </TableCell>
+                    <TableCell className="text-xs tabular-nums">
+                      {c.open_invoices == null
+                        ? '—'
+                        : `${c.open_invoices} open`}
+                      {c.overdue_invoices
+                        ? ` · ${c.overdue_invoices} overdue`
+                        : ''}
+                    </TableCell>
+                    <TableCell className="tabular-nums text-xs">
+                      {c.coa_account_count ?? '—'}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">
+                        {labelFinanceFeedStatus(c.feed_status)}
+                      </Badge>
+                      {c.stale ? (
+                        <p className="mt-1 text-xs text-amber-800">Stale</p>
+                      ) : null}
+                      {c.todo ? (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {c.todo}
+                        </p>
+                      ) : null}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        {canWrite && rowDisconnected ? (
+                          report.configured ? (
+                            <Button
+                              size="xs"
+                              render={
+                                <a href={iesConnectHref(c.entity_id)} />
+                              }
+                            >
+                              Connect
+                            </Button>
+                          ) : (
+                            <Button size="xs" disabled>
+                              Connect
+                            </Button>
+                          )
+                        ) : null}
+                        <a
+                          href={iesOpenInBooksHref(c.entity_id) ?? '#'}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs font-medium underline-offset-2 hover:underline"
+                        >
+                          Open in IES
+                        </a>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
 

@@ -16,11 +16,11 @@ import {
   LIVE_LOOK_BLOCK_MESSAGE,
   type LiveLookTarget,
 } from '@/lib/live-look/cookie';
+import { applyLiveLookToProfile } from '@/lib/live-look/server';
 import {
-  applyLiveLookToProfile,
-  loadLiveLookTarget,
-} from '@/lib/live-look/server';
-import { isLiveLookOperator } from '@/lib/live-look/access';
+  isJoshMonroeLiveLookEmail,
+  liveLookViewerMode,
+} from '@/lib/live-look/access';
 import { resolveSubsidiaryLeaderEntityId } from '@/lib/entities/assignment-lead';
 
 const DEV_PROFILE: Profile = {
@@ -42,7 +42,7 @@ export type SessionContext = {
   realRole: AppRole;
   /** Active impersonation target, or null. */
   impersonatingAs: AppRole | null;
-  /** Active Live Look target (Visionary observation). Null when not observing. */
+  /** Active Live Look target. Null when not observing. */
   liveLookTarget: LiveLookTarget | null;
   /** True when Live Look is active — all writes must be denied. */
   liveLookActive: boolean;
@@ -130,8 +130,10 @@ export async function getRealProfile(): Promise<Profile | null> {
 
 /**
  * Session with optional Visionary role impersonation or Live Look applied.
- * Cookies are ignored unless the real role is Visionary (security boundary).
- * Live Look and role impersonation are mutually exclusive: Live Look wins if both set.
+ * Role Switcher cookies are only honored for real Visionary.
+ * Live Look: Visionary Josh (full tenant) or Think Tank (excludes Josh).
+ * Live Look and Role Switcher may coexist for Think Tank preview; Live Look
+ * wins for the effective profile.
  */
 export async function getSessionContext(): Promise<SessionContext | null> {
   const real = await getRealProfile();
@@ -142,35 +144,52 @@ export async function getSessionContext(): Promise<SessionContext | null> {
   let liveLookTarget: LiveLookTarget | null = null;
 
   if (realRole === 'visionary') {
-    // Live Look cookie only applies for the locked operator email.
-    if (isLiveLookOperator({ email: real.email, realRole })) {
-      const liveId = await readLiveLookCookie();
-      if (liveId) {
-        liveLookTarget = await loadLiveLookTarget(liveId);
-        if (!liveLookTarget) {
-          // Stale cookie
-          try {
-            const { clearLiveLookCookie } = await import('@/lib/live-look/cookie');
-            await clearLiveLookCookie();
-          } catch {
-            /* ignore */
-          }
-        }
-      }
-    } else {
-      // Non-operator Visionary must not retain a Live Look cookie.
-      try {
-        const liveId = await readLiveLookCookie();
-        if (liveId) {
+    impersonatingAs = await readImpersonationCookie();
+  }
+
+  const operatorMode = liveLookViewerMode({
+    email: real.email,
+    realRole,
+    // While holding a Live Look cookie, effective role is the target — use
+    // impersonation / real role to decide operator eligibility.
+    effectiveRole: impersonatingAs ?? realRole,
+    impersonatingAs,
+  });
+
+  if (operatorMode) {
+    const liveId = await readLiveLookCookie();
+    if (liveId) {
+      const { loadLiveLookTarget } = await import('@/lib/live-look/server');
+      liveLookTarget = await loadLiveLookTarget(liveId, operatorMode);
+      if (!liveLookTarget) {
+        try {
           const { clearLiveLookCookie } = await import('@/lib/live-look/cookie');
           await clearLiveLookCookie();
+        } catch {
+          /* ignore */
         }
-      } catch {
-        /* ignore */
+      } else if (
+        operatorMode === 'think_tank_scoped' &&
+        isJoshMonroeLiveLookEmail(liveLookTarget.email)
+      ) {
+        liveLookTarget = null;
+        try {
+          const { clearLiveLookCookie } = await import('@/lib/live-look/cookie');
+          await clearLiveLookCookie();
+        } catch {
+          /* ignore */
+        }
       }
     }
-    if (!liveLookTarget) {
-      impersonatingAs = await readImpersonationCookie();
+  } else {
+    try {
+      const liveId = await readLiveLookCookie();
+      if (liveId) {
+        const { clearLiveLookCookie } = await import('@/lib/live-look/cookie');
+        await clearLiveLookCookie();
+      }
+    } catch {
+      /* ignore */
     }
   }
 
@@ -182,8 +201,6 @@ export async function getSessionContext(): Promise<SessionContext | null> {
       ? { ...real, role: impersonatingAs }
       : real;
 
-  // Subsidiary Leader always carries a concrete led entity (impersonation from
-  // ENT-FIRM Visionary defaults to Recruit 619).
   if (profile.role === 'sub_lead') {
     profile = {
       ...profile,
@@ -226,6 +243,9 @@ export function normalizeRole(value: unknown): AppRole | null {
     technology: 'ssc_it',
     technology_it: 'ssc_it',
     marketing: 'ssc_marketing',
+    think_tank: 'think_tank',
+    strategic_thinking: 'think_tank',
+    vp_think_tank: 'think_tank',
   };
   return aliases[v] ?? null;
 }

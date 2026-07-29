@@ -23,6 +23,26 @@ export default async function AdminPage() {
       </header>
 
       <div className="grid gap-4 sm:grid-cols-2">
+        <Link href="/admin/org-chart">
+          <Card className="h-full transition-colors hover:border-[#3a414f]/35">
+            <CardHeader>
+              <CardTitle className="text-base">Org Chart</CardTitle>
+              <CardDescription>
+                Reports-to · titles · Consolidated + per entity.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        </Link>
+        <Link href="/admin/hire-impact">
+          <Card className="h-full transition-colors hover:border-[#3a414f]/35">
+            <CardHeader>
+              <CardTitle className="text-base">Hire financial impact</CardTitle>
+              <CardDescription>
+                Role cost templates · monthly budget curve.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        </Link>
         <Link href="/documents">
           <Card className="h-full transition-colors hover:border-[#3a414f]/35">
             <CardHeader>

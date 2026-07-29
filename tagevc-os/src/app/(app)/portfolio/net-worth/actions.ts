@@ -15,6 +15,7 @@ import {
   upsertBusinessCreditProfile,
 } from '@/lib/net-worth/credit';
 import {
+  canAccessCreditManagement,
   canAccessNetWorthPage,
   canViewBusinessCredit,
   canViewPersonalCredit,
@@ -48,6 +49,26 @@ async function requireVisionaryNetWorth(): Promise<
     return { ok: false, error: 'Visionary-only · blocked during Live Look' };
   }
   return { ok: true, profileId: ctx.profile.id };
+}
+
+async function requireCreditManagement(): Promise<
+  { ok: true } | { ok: false; error: string }
+> {
+  const ctx = await getSessionContext();
+  if (!ctx) return { ok: false, error: 'Not signed in' };
+  if (
+    !canAccessCreditManagement({
+      role: ctx.profile.role,
+      realRole: ctx.realRole,
+      liveLookActive: ctx.liveLookActive,
+    })
+  ) {
+    return {
+      ok: false,
+      error: 'Credit Management is not available for Think Tank',
+    };
+  }
+  return { ok: true };
 }
 
 export async function createNetWorthAssetAction(
@@ -134,6 +155,8 @@ export async function updateNetWorthAssetBalanceAction(input: {
 export async function updatePersonalCreditAction(
   formData: FormData,
 ): Promise<NwActionResult> {
+  const creditGate = await requireCreditManagement();
+  if (!creditGate.ok) return creditGate;
   const ctx = await getSessionContext();
   if (
     !ctx ||
@@ -165,6 +188,8 @@ export async function updatePersonalCreditAction(
 export async function addPersonalCreditItemAction(
   formData: FormData,
 ): Promise<NwActionResult> {
+  const creditGate = await requireCreditManagement();
+  if (!creditGate.ok) return creditGate;
   const ctx = await getSessionContext();
   if (
     !ctx ||
@@ -201,6 +226,8 @@ export async function setPersonalActionStatusAction(input: {
   actionId: string;
   status: 'todo' | 'doing' | 'done' | 'skipped';
 }): Promise<NwActionResult> {
+  const creditGate = await requireCreditManagement();
+  if (!creditGate.ok) return creditGate;
   const ctx = await getSessionContext();
   if (
     !ctx ||
@@ -220,6 +247,8 @@ export async function setPersonalActionStatusAction(input: {
 export async function upsertBusinessCreditAction(
   formData: FormData,
 ): Promise<NwActionResult> {
+  const creditGate = await requireCreditManagement();
+  if (!creditGate.ok) return creditGate;
   const ctx = await getSessionContext();
   if (!ctx || !canViewBusinessCredit(ctx.profile.role)) {
     return { ok: false, error: 'Business credit requires finance/SSC/Visionary' };
@@ -260,6 +289,8 @@ export async function upsertBusinessCreditAction(
 async function requireBusinessCredit(): Promise<
   { ok: true; profileId: string } | { ok: false; error: string }
 > {
+  const creditGate = await requireCreditManagement();
+  if (!creditGate.ok) return creditGate;
   const ctx = await getSessionContext();
   if (!ctx || !canViewBusinessCredit(ctx.profile.role)) {
     return { ok: false, error: 'Business credit requires finance/SSC/Visionary' };
@@ -377,6 +408,8 @@ export async function importPersonalCreditReportAction(input: {
     }
   | { ok: false; error: string }
 > {
+  const creditGate = await requireCreditManagement();
+  if (!creditGate.ok) return creditGate;
   const ctx = await getSessionContext();
   if (
     !ctx ||
@@ -419,6 +452,8 @@ export async function sendCreditGrokAction(
   | { ok: true; reply: string }
   | { ok: false; error: string }
 > {
+  const creditGate = await requireCreditManagement();
+  if (!creditGate.ok) return creditGate;
   const ctx = await getSessionContext();
   if (
     !ctx ||

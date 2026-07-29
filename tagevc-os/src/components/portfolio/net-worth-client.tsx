@@ -24,10 +24,13 @@ export function NetWorthClient({
   breakdown,
   firmAum,
   error,
+  showCredit = true,
 }: {
   breakdown: NetWorthBreakdown;
   firmAum: FirmAumSnapshot;
   error?: string;
+  /** Credit Management chip + card — false for Think Tank. */
+  showCredit?: boolean;
 }) {
   const investmentsTotal =
     breakdown.investments + breakdown.crypto + breakdown.retirement;
@@ -81,12 +84,14 @@ export function NetWorthClient({
           <Badge variant="secondary">Visionary-only</Badge>
           <Badge variant="outline">{firmAum.label}</Badge>
           <Badge variant="outline">Firm slice {money(firmAum.total)}</Badge>
-          <Link
-            href="/portfolio/net-worth/credit"
-            className="underline-offset-4 hover:underline"
-          >
-            Credit Management
-          </Link>
+          {showCredit ? (
+            <Link
+              href="/portfolio/net-worth/credit"
+              className="underline-offset-4 hover:underline"
+            >
+              Credit Management
+            </Link>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -108,23 +113,25 @@ export function NetWorthClient({
         ))}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Credit management</CardTitle>
-          <CardDescription>
-            Personal and business bureau tracking stays on Net Worth — not under
-            Investments.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Link
-            href="/portfolio/net-worth/credit"
-            className="text-sm font-medium underline-offset-4 hover:underline"
-          >
-            Open Credit Management →
-          </Link>
-        </CardContent>
-      </Card>
+      {showCredit ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Credit management</CardTitle>
+            <CardDescription>
+              Personal and business bureau tracking stays on Net Worth — not under
+              Investments.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link
+              href="/portfolio/net-worth/credit"
+              className="text-sm font-medium underline-offset-4 hover:underline"
+            >
+              Open Credit Management →
+            </Link>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }

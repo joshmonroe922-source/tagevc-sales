@@ -1,13 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import {
+  canLiveLookTarget,
   canUseLiveLook,
+  isJoshMonroeLiveLookEmail,
   isLiveLookOperator,
+  LIVE_LOOK_EXCLUDED_EMAIL,
   LIVE_LOOK_OPERATOR_EMAIL,
+  liveLookViewerMode,
 } from '@/lib/live-look/access';
 import { LIVE_LOOK_BLOCK_MESSAGE, LIVE_LOOK_COOKIE } from '@/lib/live-look/cookie';
 import { VISIONARY_MAILBOX_STEP_KEY } from '@/lib/hris/visionary-mailbox';
 import { flattenNavItems, MAIN_NAV } from '@/lib/nav';
 import { applyLiveLookToProfile } from '@/lib/live-look/server';
+import { listRoleSwitcherRoles } from '@/lib/rbac/impersonation';
+import { APP_ROLE_LABELS } from '@/lib/types/roles';
+import { filterNavForRole } from '@/lib/nav/role-visibility';
+import {
+  canAccessCreditManagement,
+  canAccessNetWorthPage,
+  canViewBusinessCredit,
+  canViewPersonalCredit,
+} from '@/lib/net-worth/visibility';
 import type { Profile } from '@/lib/types';
 
 describe('phase71 live look + nav + mailbox', () => {
@@ -16,8 +29,17 @@ describe('phase71 live look + nav + mailbox', () => {
     expect(LIVE_LOOK_BLOCK_MESSAGE).toMatch(/read-only/i);
   });
 
-  it('gates Live Look to joshmonroe@tagevc.com Visionary only', () => {
+  it('keeps Visionary Josh Live Look for full tenant', () => {
     expect(LIVE_LOOK_OPERATOR_EMAIL).toBe('joshmonroe@tagevc.com');
+    expect(LIVE_LOOK_EXCLUDED_EMAIL).toBe('joshmonroe@tagevc.com');
+
+    expect(
+      liveLookViewerMode({
+        email: 'joshmonroe@tagevc.com',
+        realRole: 'visionary',
+        effectiveRole: 'visionary',
+      }),
+    ).toBe('visionary_full');
     expect(
       canUseLiveLook({
         email: 'joshmonroe@tagevc.com',
@@ -26,10 +48,9 @@ describe('phase71 live look + nav + mailbox', () => {
       }),
     ).toBe(true);
     expect(
-      canUseLiveLook({
-        email: 'JoshMonroe@TageVC.com',
+      isLiveLookOperator({
+        email: 'joshmonroe@tagevc.com',
         realRole: 'visionary',
-        effectiveRole: 'visionary',
       }),
     ).toBe(true);
     // Other Visionary accounts denied
@@ -40,7 +61,35 @@ describe('phase71 live look + nav + mailbox', () => {
         effectiveRole: 'visionary',
       }),
     ).toBe(false);
-    // Role Switcher impersonation denied
+    expect(
+      canLiveLookTarget('dennis@recruit619.com', 'visionary_full'),
+    ).toBe(true);
+  });
+
+  it('Think Tank Live Look excludes Josh Monroe', () => {
+    expect(
+      liveLookViewerMode({
+        email: 'joshmonroe@tagevc.com',
+        realRole: 'visionary',
+        effectiveRole: 'think_tank',
+        impersonatingAs: 'think_tank',
+      }),
+    ).toBe('think_tank_scoped');
+    expect(
+      canUseLiveLook({
+        email: 'lauren@tagevc.com',
+        realRole: 'think_tank',
+        effectiveRole: 'think_tank',
+      }),
+    ).toBe(true);
+    expect(isJoshMonroeLiveLookEmail('joshmonroe@tagevc.com')).toBe(true);
+    expect(
+      canLiveLookTarget('joshmonroe@tagevc.com', 'think_tank_scoped'),
+    ).toBe(false);
+    expect(
+      canLiveLookTarget('dennis@recruit619.com', 'think_tank_scoped'),
+    ).toBe(true);
+    // Other Role Switcher personas denied
     expect(
       canUseLiveLook({
         email: 'joshmonroe@tagevc.com',
@@ -49,18 +98,61 @@ describe('phase71 live look + nav + mailbox', () => {
         impersonatingAs: 'ssc_legal',
       }),
     ).toBe(false);
+  });
+
+  it('lists Think Tank in Role Switcher with clean label', () => {
+    const roles = listRoleSwitcherRoles();
+    expect(roles).toContain('think_tank');
+    expect(roles.indexOf('think_tank')).toBeGreaterThan(
+      roles.indexOf('visionary'),
+    );
+    expect(APP_ROLE_LABELS.think_tank).toBe('Think Tank');
+  });
+
+  it('Think Tank keeps Visionary-breadth nav minus credit access', () => {
+    const items = filterNavForRole(MAIN_NAV, {
+      role: 'think_tank',
+      realRole: 'visionary',
+      entityId: 'ENT-FIRM',
+    });
+    const labels = items.map((i) => i.label);
+    expect(labels).toContain('C-Suite');
+    expect(labels).toContain('Assets');
+    expect(labels).toContain('Firm');
+    expect(labels).toContain('Business Development');
+    const bd = items.find((i) => i.label === 'Business Development');
+    expect(bd?.children?.map((c) => c.label)).toEqual([
+      'Lead Intake',
+      'Deal Flow',
+    ]);
+    const assets = items.find((i) => i.label === 'Assets');
+    expect(assets?.children?.map((c) => c.label)).toEqual([
+      'Net Worth',
+      'Businesses',
+      'Real Estate',
+      'Investments',
+    ]);
     expect(
-      isLiveLookOperator({
-        email: 'joshmonroe@tagevc.com',
-        realRole: 'visionary',
-      }),
+      canAccessNetWorthPage({ realRole: 'think_tank', liveLookActive: false }),
     ).toBe(true);
     expect(
-      isLiveLookOperator({
-        email: 'other@tagevc.com',
+      canViewPersonalCredit({ realRole: 'think_tank', liveLookActive: false }),
+    ).toBe(false);
+    expect(canViewBusinessCredit('think_tank')).toBe(false);
+    expect(
+      canAccessCreditManagement({
+        role: 'think_tank',
         realRole: 'visionary',
+        liveLookActive: false,
       }),
     ).toBe(false);
+    expect(
+      canAccessCreditManagement({
+        role: 'visionary',
+        realRole: 'visionary',
+        liveLookActive: false,
+      }),
+    ).toBe(true);
   });
 
   it('renames Portfolio to Assets and removes Instant NDA SaaS nav', () => {

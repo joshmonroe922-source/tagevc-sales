@@ -3,6 +3,7 @@ import { Suspense } from 'react';
 import { AppSidebar } from '@/components/layout/app-sidebar';
 import { ImpersonationBanner } from '@/components/layout/impersonation-banner';
 import { LiveLookBanner } from '@/components/layout/live-look-banner';
+import { MobileNavDrawer } from '@/components/layout/mobile-nav-drawer';
 import { TimezoneBootstrap } from '@/components/layout/timezone-bootstrap';
 import { HelpDeskShell, AppTopBar } from '@/components/help-desk/help-desk-shell';
 import { AppShellScrollLock } from '@/components/layout/app-shell-scroll-lock';
@@ -34,30 +35,38 @@ export default async function AppShellLayout({
     getDesktopPrefsAction(),
   ]);
 
+  const sidebarProps = {
+    role: session.profile.role,
+    realRole: session.realRole,
+    fullName: session.profile.full_name,
+    email: session.profile.email,
+    impersonatingAs: session.impersonatingAs,
+    impersonatableRoles: canImpersonate ? listRoleSwitcherRoles() : [],
+    liveLookActive: session.liveLookActive,
+    entityId: session.profile.entity_id,
+  };
+
   return (
     <HelpDeskShell>
       {/*
-        Viewport-locked shell: sidebar stays pinned; only <main> scrolls.
+        Viewport-locked shell: sidebar stays pinned on md+; only <main> scrolls.
+        Below md the sidebar collapses into AppTopBar MobileNavDrawer.
         max-h + overflow-hidden prevent document scroll on long SSC lists.
       */}
       <div className="flex h-dvh max-h-dvh min-h-0 overflow-hidden bg-background">
         <AppShellScrollLock />
         <TimezoneBootstrap />
-        <AppSidebar
-          role={session.profile.role}
-          realRole={session.realRole}
-          fullName={session.profile.full_name}
-          email={session.profile.email}
-          impersonatingAs={session.impersonatingAs}
-          impersonatableRoles={canImpersonate ? listRoleSwitcherRoles() : []}
-          liveLookActive={session.liveLookActive}
-          entityId={session.profile.entity_id}
-        />
+        <AppSidebar {...sidebarProps} />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <AppTopBar
             unreadCount={unread}
             desktopEnabled={desktopPrefs.desktopEnabled}
             soundEnabled={desktopPrefs.soundEnabled}
+            mobileNav={
+              <MobileNavDrawer>
+                <AppSidebar {...sidebarProps} variant="panel" />
+              </MobileNavDrawer>
+            }
           />
           {session.liveLookTarget ? (
             <LiveLookBanner

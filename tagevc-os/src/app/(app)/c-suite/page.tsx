@@ -13,10 +13,11 @@ import {
   weeklyEmailResidualNote,
 } from '@/lib/ai-csuite/service';
 import { getSessionContext } from '@/lib/rbac/session';
+import { isVisionaryBreadthRole } from '@/lib/types/roles';
 
 export default async function CsuiteHqPage() {
   const ctx = await getSessionContext();
-  if (!ctx || ctx.realRole !== 'visionary') redirect('/home');
+  if (!ctx || !isVisionaryBreadthRole(ctx.profile.role)) redirect('/home');
   if (ctx.liveLookActive) redirect('/home');
 
   let messages: Awaited<ReturnType<typeof listCsuiteMessages>> = [];

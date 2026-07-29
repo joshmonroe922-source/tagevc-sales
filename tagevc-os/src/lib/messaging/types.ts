@@ -11,6 +11,10 @@ export type DirectoryProfile = {
   entity_id?: string | null;
   /** Display badge for multi-sub directory (P3). */
   entity_badge?: string | null;
+  /** Org spine title. */
+  job_title?: string | null;
+  /** Reports-to for org directory / message manager. */
+  manager_profile_id?: string | null;
 };
 
 export type ConversationMember = {

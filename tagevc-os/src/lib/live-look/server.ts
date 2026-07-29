@@ -10,7 +10,14 @@ import {
   setLiveLookCookie,
   type LiveLookTarget,
 } from '@/lib/live-look/cookie';
-import { canUseLiveLook, isLiveLookOperator } from '@/lib/live-look/access';
+import {
+  canLiveLookTarget,
+  canUseLiveLook,
+  isLiveLookOperator,
+  isJoshMonroeLiveLookEmail,
+  liveLookViewerMode,
+  type LiveLookViewerMode,
+} from '@/lib/live-look/access';
 import { entityDisplayName } from '@/lib/entities/display-name';
 import type { Profile } from '@/lib/types';
 import { APP_ROLES, type AppRole } from '@/lib/types/roles';
@@ -28,6 +35,7 @@ export type LiveLookUserRow = {
 export async function searchProfilesForLiveLook(
   query: string,
   limit = 25,
+  mode: LiveLookViewerMode | null = 'visionary_full',
 ): Promise<LiveLookUserRow[]> {
   try {
     const sb = await createPersistClient();
@@ -37,12 +45,10 @@ export async function searchProfilesForLiveLook(
       .select('id, email, full_name, role, entity_id, active')
       .eq('active', true)
       .order('full_name', { ascending: true })
-      .limit(limit);
+      .limit(Math.max(limit * 2, 40));
 
     if (q) {
-      req = req.or(
-        `email.ilike.%${q}%,full_name.ilike.%${q}%`,
-      );
+      req = req.or(`email.ilike.%${q}%,full_name.ilike.%${q}%`);
     }
 
     const { data, error } = await req;
@@ -50,15 +56,18 @@ export async function searchProfilesForLiveLook(
       console.error('searchProfilesForLiveLook', error.message);
       return [];
     }
-    return (data ?? []).map((p) => ({
-      id: String(p.id),
-      email: String(p.email ?? ''),
-      full_name: (p.full_name as string) ?? null,
-      role: String(p.role ?? 'associate'),
-      entity_id: (p.entity_id as string) ?? null,
-      company_name: entityDisplayName(p.entity_id as string | null),
-      active: p.active !== false,
-    }));
+    return (data ?? [])
+      .map((p) => ({
+        id: String(p.id),
+        email: String(p.email ?? ''),
+        full_name: (p.full_name as string) ?? null,
+        role: String(p.role ?? 'associate'),
+        entity_id: (p.entity_id as string) ?? null,
+        company_name: entityDisplayName(p.entity_id as string | null),
+        active: p.active !== false,
+      }))
+      .filter((p) => canLiveLookTarget(p.email, mode))
+      .slice(0, limit);
   } catch {
     return [];
   }
@@ -66,6 +75,7 @@ export async function searchProfilesForLiveLook(
 
 export async function loadLiveLookTarget(
   profileId: string,
+  mode: LiveLookViewerMode | null = 'visionary_full',
 ): Promise<LiveLookTarget | null> {
   try {
     const sb = await createClient();
@@ -75,9 +85,11 @@ export async function loadLiveLookTarget(
       .eq('id', profileId)
       .maybeSingle();
     if (!data || data.active === false) return null;
+    const email = String(data.email ?? '');
+    if (!canLiveLookTarget(email, mode)) return null;
     return {
       profileId: String(data.id),
-      email: String(data.email ?? ''),
+      email,
       fullName: (data.full_name as string) ?? null,
       role: String(data.role ?? 'associate'),
       entityId: (data.entity_id as string) ?? null,
@@ -90,28 +102,43 @@ export async function loadLiveLookTarget(
 export async function startLiveLookSession(input: {
   viewer: Profile;
   targetProfileId: string;
+  effectiveRole?: AppRole | string | null;
+  impersonatingAs?: AppRole | string | null;
 }): Promise<{ ok: true; target: LiveLookTarget } | { ok: false; error: string }> {
+  const mode = liveLookViewerMode({
+    email: input.viewer.email,
+    realRole: input.viewer.role,
+    effectiveRole: input.effectiveRole,
+    impersonatingAs: input.impersonatingAs,
+  });
   if (
+    !mode ||
     !canUseLiveLook({
       email: input.viewer.email,
       realRole: input.viewer.role,
-      effectiveRole: input.viewer.role,
+      effectiveRole: input.effectiveRole,
+      impersonatingAs: input.impersonatingAs,
     })
   ) {
     return {
       ok: false,
-      error: 'Live Look is restricted to the Visionary operator',
+      error: 'Live Look is restricted to Visionary Josh or Think Tank',
     };
   }
-  const target = await loadLiveLookTarget(input.targetProfileId);
+  const target = await loadLiveLookTarget(input.targetProfileId, mode);
   if (!target) return { ok: false, error: 'User not found or inactive' };
   if (target.profileId === input.viewer.id) {
     return { ok: false, error: 'Cannot Live Look yourself' };
   }
+  if (
+    mode === 'think_tank_scoped' &&
+    isJoshMonroeLiveLookEmail(target.email)
+  ) {
+    return { ok: false, error: 'Cannot Live Look this user' };
+  }
 
   try {
     const sb = await createPersistClient();
-    // End any open session for this viewer
     await sb
       .from('os_live_look_sessions')
       .update({
@@ -128,7 +155,11 @@ export async function startLiveLookSession(input: {
       target_email: target.email,
       target_name: target.fullName,
       target_entity_id: target.entityId,
-      detail: { read_only: true, notified_target: false },
+      detail: {
+        read_only: true,
+        notified_target: false,
+        viewer_mode: mode,
+      },
     });
   } catch (e) {
     console.error('startLiveLookSession persist', e);
@@ -147,6 +178,7 @@ export async function startLiveLookSession(input: {
       target_role: target.role,
       notified_target: false,
       read_only: true,
+      viewer_mode: mode,
     },
     mirrorActivity: { module: 'system', action: 'live_look_start' },
   });
@@ -157,16 +189,18 @@ export async function startLiveLookSession(input: {
 export async function stopLiveLookSession(input: {
   viewer: Profile;
   reason?: 'exit' | 'sign_out' | 'expire';
+  impersonatingAs?: AppRole | string | null;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   if (
     !isLiveLookOperator({
       email: input.viewer.email,
       realRole: input.viewer.role,
+      impersonatingAs: input.impersonatingAs,
     })
   ) {
     return {
       ok: false,
-      error: 'Live Look is restricted to the Visionary operator',
+      error: 'Live Look is restricted to Visionary Josh or Think Tank',
     };
   }
   let targetEmail: string | null = null;
@@ -229,7 +263,6 @@ export function applyLiveLookToProfile(
   ) as AppRole;
   return {
     ...real,
-    // Keep viewer's id for audit of who is looking; display uses liveLookTarget.
     role,
     entity_id: target.entityId,
   };

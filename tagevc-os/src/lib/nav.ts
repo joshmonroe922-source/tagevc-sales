@@ -11,11 +11,11 @@ export type NavItem = {
   description?: string;
   children?: NavItem[];
   /**
-   * When true, only shown when *effective* role is Visionary
+   * When true, only shown when *effective* role is Visionary or Think Tank
    * (Role Switcher / Live Look hide these for other personas).
    */
   visionaryOnly?: boolean;
-  /** Hide while Visionary Live Look is active (private capital / personal credit). */
+  /** Hide while Live Look is active (private capital / personal credit). */
   hideDuringLiveLook?: boolean;
   /** Extra permission gate beyond module access (e.g. IT / Marketing). */
   requiredPermission?: Permission;
@@ -36,7 +36,7 @@ const HIDE_FOR_ADMIN = ['admin'] as const satisfies readonly AppRole[];
 const HIDE_SSC_FUNCTIONS_FOR_ADMIN = HIDE_FOR_ADMIN;
 
 /**
- * Home → Assets → C-Suite → Dashboard → To Do List → Firm → BD → Command Center → modules.
+ * Home → Dashboard → Assets → C-Suite → To Do List → Firm → BD → Command Center → modules.
  * Assets stays under Home (not under Dashboard) — Portfolio→Assets rename + later IA.
  * Firm + Command Center are top-level (not nested under BD / C-Suite).
  * BD stays top-level (not under Assets) so associate / sourcer / sub_lead role transforms keep working.
@@ -52,6 +52,14 @@ export const MAIN_NAV: NavItem[] = [
     href: '/home',
     label: 'Home',
     description: 'AI briefing + Think Tank',
+  },
+  {
+    module: 'portfolio',
+    href: '/dashboard',
+    label: 'Dashboard',
+    description: 'Your KPIs at a glance',
+    /** SSC operators skip Dashboard; Admin lands here for ops KPIs. */
+    hiddenForRoles: HIDE_FOR_SSC,
   },
   {
     module: 'portfolio',
@@ -210,14 +218,6 @@ export const MAIN_NAV: NavItem[] = [
     ],
   },
   {
-    module: 'portfolio',
-    href: '/dashboard',
-    label: 'Dashboard',
-    description: 'Your KPIs at a glance',
-    /** SSC operators skip Dashboard; Admin lands here for ops KPIs. */
-    hiddenForRoles: HIDE_FOR_SSC,
-  },
-  {
     module: 'command_center',
     href: '/to-do',
     label: 'To Do List',
@@ -272,59 +272,12 @@ export const MAIN_NAV: NavItem[] = [
           ...HIDE_FOR_SSC,
         ],
       },
-      {
-        module: 'deal_flow_vc',
-        href: '/deal-flow/vc',
-        label: 'VC Sourcing',
-        description: 'Venture pipeline and lead sourcing',
-        /** Surfaced under BD for Associate / VC Sourcer via transform. */
-        hiddenForRoles: [
-          'visionary',
-          'partner',
-          'ma_associate',
-          're_sourcer',
-          'coo',
-          'sub_lead',
-          'admin',
-          ...HIDE_FOR_SSC,
-        ],
-      },
-      {
-        module: 'deal_flow_ma',
-        href: '/deal-flow/ma',
-        label: 'M&A Sourcing',
-        description: 'M&A targets and deal pipeline',
-        /**
-         * Associate / VC Sourcer: under BD. M&A Associate: top-level
-         * "M&A Activities" via transform (label override).
-         */
-        hiddenForRoles: [
-          'visionary',
-          'partner',
-          're_sourcer',
-          'coo',
-          'sub_lead',
-          'admin',
-          ...HIDE_FOR_SSC,
-        ],
-      },
-      {
-        module: 'deal_flow_re',
-        href: '/deal-flow/re',
-        label: 'Sourcing Platform',
-        description: 'RE leads assigned to you through handoff',
-        /** Surfaced as top-level "Sourcing Platform" for re_sourcer via transform. */
-        hiddenForRoles: [
-          'visionary',
-          'partner',
-          'associate',
-          'ma_associate',
-          'coo',
-          'sub_lead',
-          'admin',
-          ...HIDE_FOR_SSC,
-        ],
-      },
+      /**
+       * VC / M&A / RE sourcing links are not default BD children (Visionary /
+       * Think Tank / Partner see Lead Intake + Deal Flow only). Associate,
+       * M&A Associate, and Sourcer get those surfaces via role transforms in
+       * `applyRoleNavTransforms`.
+       */
     ],
   },
   {
@@ -367,6 +320,16 @@ export const MAIN_NAV: NavItem[] = [
           ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
         ],
         children: [
+          {
+            module: 'shared_services',
+            href: '/eos',
+            label: 'Operating System',
+            description: 'Traction EOS · rocks · scorecard · IDS · L10',
+            hiddenForRoles: [
+              ...sscRolesHiddenFromFunction('HR'),
+              ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
+            ],
+          },
           {
             module: 'shared_services',
             href: '/shared-services/hr/screening',
@@ -440,6 +403,18 @@ export const MAIN_NAV: NavItem[] = [
         description: 'Users · docs · DocuSign · email · settings',
         children: [
           {
+            module: 'admin',
+            href: '/admin/org-chart',
+            label: 'Org Chart',
+            description: 'Reports-to · titles · zoom subtree',
+          },
+          {
+            module: 'admin',
+            href: '/admin/hire-impact',
+            label: 'Hire impact',
+            description: 'Fully loaded cost · budget curve',
+          },
+          {
             module: 'documents',
             href: '/documents',
             label: 'Document Library',
@@ -468,6 +443,17 @@ export const MAIN_NAV: NavItem[] = [
     href: '/messages',
     label: 'Message Center',
     description: 'Direct messages · groups',
+  },
+  {
+    /** HR-owned Traction EOS — also nested under Shared Services → HR. */
+    module: 'shared_services',
+    href: '/eos',
+    label: 'Tage VC Operating System',
+    description: 'Rocks · scorecard · IDS · L10 · V/TO · rollup',
+    hiddenForRoles: [
+      ...sscRolesHiddenFromFunction('HR'),
+      ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
+    ],
   },
 ];
 

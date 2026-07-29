@@ -1,11 +1,13 @@
 /**
  * Dashboard live P&L view from IES sync snapshots.
- * Native OS display — never iframe/embed Intuit; never invent sample numbers.
+ * Native OS display is primary — Intuit does not reliably iframe-embed P&L;
+ * use Open in IES deep links. Never invent sample numbers.
  */
 
 import { entityDisplayName } from '@/lib/entities/display-name';
 import type { IesEntityFinanceRow, IesFinanceReport } from '@/lib/ies/report';
 import type { DashboardScopeMode } from '@/lib/dashboard/role-dashboard-catalog';
+import { iesOpenInBooksHref, IES_EMBED_POLICY } from '@/lib/ies/ux';
 import type { AppRole } from '@/lib/types/roles';
 
 export type DashboardPnlMetricState = 'live' | 'partial' | 'not_connected';
@@ -31,6 +33,11 @@ export type DashboardPnlView = {
   /** Always ies_sync — UI never embeds Intuit. */
   display_mode: 'native_ies_sync';
   finance_href: string;
+  /** Best-effort QBO/IES P&L deep link (not an embed). */
+  open_in_ies_href: string | null;
+  /** Last sync run or company as_of for Refresh stamp. */
+  last_synced_at: string | null;
+  embed_policy: typeof IES_EMBED_POLICY;
 };
 
 export type FirmPerformanceView = DashboardPnlView & {
@@ -38,7 +45,11 @@ export type FirmPerformanceView = DashboardPnlView & {
   is_parent: true;
 };
 
-const FIRM_PERF_ROLES: readonly AppRole[] = ['visionary', 'ssc_finance'];
+const FIRM_PERF_ROLES: readonly AppRole[] = [
+  'visionary',
+  'think_tank',
+  'ssc_finance',
+];
 
 export function canViewTageVcFirmPerformance(role: AppRole): boolean {
   return FIRM_PERF_ROLES.includes(role);
@@ -75,6 +86,7 @@ function emptyView(args: {
   title: string;
   note: string;
   finance_href: string;
+  last_synced_at?: string | null;
 }): DashboardPnlView {
   return {
     scope: args.scope,
@@ -95,6 +107,9 @@ function emptyView(args: {
     data_gaps: ['No IES P&L snapshot synced'],
     display_mode: 'native_ies_sync',
     finance_href: args.finance_href,
+    open_in_ies_href: iesOpenInBooksHref(args.entity_id),
+    last_synced_at: args.last_synced_at ?? null,
+    embed_policy: IES_EMBED_POLICY,
   };
 }
 
@@ -112,6 +127,11 @@ export function buildDashboardPnlView(opts: {
     opts.scope === 'company' && opts.entityId?.trim()
       ? opts.entityId.trim()
       : null;
+
+  const lastSyncAt =
+    report?.last_sync?.finished_at ??
+    report?.last_sync?.started_at ??
+    null;
 
   if (!report) {
     return emptyView({
@@ -131,6 +151,7 @@ export function buildDashboardPnlView(opts: {
     const row =
       report.companies.find((c) => c.entity_id === entityId) ?? null;
     const href = `/shared-services/finance?entity=${encodeURIComponent(entityId)}`;
+    const companySynced = row?.last_sync_at ?? lastSyncAt;
     if (!row || !hasAnyPnl(row)) {
       return {
         ...emptyView({
@@ -139,8 +160,9 @@ export function buildDashboardPnlView(opts: {
           title: `${entityDisplayName(entityId)} P&L`,
           note:
             row?.todo ??
-            'Not Connected — connect IES for this company and Pull latest.',
+            'Not Connected — connect IES for this company and Refresh.',
           finance_href: href,
+          last_synced_at: companySynced,
         }),
         stale: row?.stale ?? true,
         data_gaps: row?.data_gaps?.length
@@ -176,10 +198,13 @@ export function buildDashboardPnlView(opts: {
       note:
         entityId === 'ENT-FIRM'
           ? 'Parent books — capital, SSC/holdco, and intercompany (operating revenue stays in subsidiaries).'
-          : 'Company P&L from IES sync. Tage does not embed Intuit.',
+          : `Company P&L from IES sync. ${IES_EMBED_POLICY}`,
       data_gaps: row.data_gaps,
       display_mode: 'native_ies_sync',
       finance_href: href,
+      open_in_ies_href: iesOpenInBooksHref(entityId),
+      last_synced_at: companySynced,
+      embed_policy: IES_EMBED_POLICY,
     };
   }
 
@@ -208,10 +233,13 @@ export function buildDashboardPnlView(opts: {
     ar_balance: c.ar_balance,
     ap_balance: c.ap_balance,
     feed_status: c.feed_status,
-    note: c.note,
+    note: `${c.note} ${IES_EMBED_POLICY}`,
     data_gaps: c.data_gaps.slice(0, 6),
     display_mode: 'native_ies_sync',
     finance_href: '/shared-services/finance',
+    open_in_ies_href: iesOpenInBooksHref(null),
+    last_synced_at: lastSyncAt,
+    embed_policy: IES_EMBED_POLICY,
   };
 }
 

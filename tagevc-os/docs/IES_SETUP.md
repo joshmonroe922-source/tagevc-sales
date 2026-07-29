@@ -40,12 +40,20 @@ Also ensure cron auth uses existing `CRON_SECRET` or `DIGEST_SECRET` for `/api/f
 ## Operator flow
 
 1. Open `/shared-services/finance`.
-2. Optionally select company, then **Connect IES company**.
+2. Optionally select company, then **Connect** (entity-scoped OAuth).
 3. Complete Intuit consent (returns `realmId`).
-4. If entity was not in the OAuth start URL, use **Map realm** (`ENT-*` → realmId).
-5. **Pull latest** (or wait for daily cron `0 6 * * *`).
-6. Use month-end close + SSC finance checklists for cadence — completing items does **not** post to IES.
-7. Write-back proposals still require dual human approval; operator executes in IES.
+4. If entity was not in the OAuth start URL, use **Map company** (`ENT-*` → locked IES company).
+5. **Refresh** (or wait for daily cron `0 6 * * *`) — Refresh always syncs **all** connected companies (one global pull to limit spam).
+6. Dashboard / Command Center / Finance show last-synced timestamps. **Open in IES** opens QuickBooks P&L for the mapped company (best-effort deep link).
+7. Use month-end close + SSC finance checklists for cadence — completing items does **not** post to IES.
+8. Write-back proposals still require dual human approval; operator executes in IES.
+
+## Live P&L in OS (product)
+
+- **Primary:** native OS P&L metrics from IES sync snapshots (Dashboard, firm strip, Finance).
+- **Not embedded:** Intuit does not reliably allow full iframe embed of P&L reports; Tage does not iframe QBO/IES.
+- **Deep link:** **Open in IES** → QBO Profit & Loss for the mapped company when possible.
+- **Assignment / RBAC:** reuse P&L visibility (Visionary + Finance full; Partner subsidiaries+consol; COO assignment-to-lead; SubLead led entity). Connect requires `write:shared_services`; Refresh requires live P&L or `read:shared_services`.
 
 ## SQL
 
@@ -57,6 +65,7 @@ Apply (idempotent):
 ## Subsidiary portals
 
 - Recruit 619 / Instant NDA show lightweight finance visibility + handoff links into Tage Finance.
+- When the IES strip is not connected, portals link **Connect in Tage** (entity OAuth) and **Tage finance** (Refresh lives in OS).
 - They are not a second ledger. Placement/subscription signals may inform requests; books remain in IES.
 - Signent HR: marketing site only — strip scaffold doc, no portal UI.
 

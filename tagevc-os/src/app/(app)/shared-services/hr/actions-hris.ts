@@ -76,6 +76,13 @@ export async function createHrisEmployeeAction(
     auto_start_onboarding: true,
   };
 
+  if (!input.manager_profile_id) {
+    return { ok: false, error: 'Reports to is required for hire / onboarding.' };
+  }
+  if (!input.role_title?.trim()) {
+    return { ok: false, error: 'Title is required for hire / onboarding.' };
+  }
+
   if (input.manager_profile_id && !input.manager_name) {
     const mgr = await getActiveManagerProfile(input.manager_profile_id);
     if (mgr) input.manager_name = mgr.full_name || mgr.email;

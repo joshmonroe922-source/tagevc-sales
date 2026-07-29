@@ -14,6 +14,7 @@ import {
 import { listCreditGrokMessages } from '@/lib/net-worth/credit-grok';
 import { loadDualPersonCreditBundle } from '@/lib/net-worth/personal-credit';
 import {
+  canAccessCreditManagement,
   canAccessNetWorthPage,
   canViewBusinessCredit,
   canViewPersonalCredit,
@@ -29,13 +30,22 @@ export default async function CreditManagementPage({
   const sp = (await searchParams) ?? {};
   const entityFilter = sp.entity?.trim() || null;
 
-  const canPersonal =
-    !!ctx &&
-    canViewPersonalCredit({
+  if (
+    !ctx ||
+    !canAccessCreditManagement({
+      role: ctx.profile.role,
       realRole: ctx.realRole,
       liveLookActive: ctx.liveLookActive,
-    });
-  const canBiz = !!ctx && canViewBusinessCredit(ctx.profile.role);
+    })
+  ) {
+    redirect('/entities');
+  }
+
+  const canPersonal = canViewPersonalCredit({
+    realRole: ctx.realRole,
+    liveLookActive: ctx.liveLookActive,
+  });
+  const canBiz = canViewBusinessCredit(ctx.profile.role);
 
   if (!canPersonal && !canBiz) {
     redirect('/entities');

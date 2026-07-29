@@ -200,8 +200,8 @@ export function HrisDirectoryClient({
                 <Input id="full_name" name="full_name" required minLength={2} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="role_title">Title</Label>
-                <Input id="role_title" name="role_title" />
+                <Label htmlFor="role_title">Title *</Label>
+                <Input id="role_title" name="role_title" required minLength={2} />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="entity_id">Company *</Label>
@@ -222,7 +222,17 @@ export function HrisDirectoryClient({
                 <Input id="start_date" name="start_date" type="date" />
               </div>
               <div className="space-y-1.5 sm:col-span-2">
-                <PeoplePicker name="manager_profile_id" label="Manager" />
+                <PeoplePicker
+                  name="manager_profile_id"
+                  label="Reports to *"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Required for org chart + JML. Opens hire cost model under{' '}
+                  <a href="/admin/hire-impact?from=hire" className="underline">
+                    Admin → Hire impact
+                  </a>
+                  .
+                </p>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="department">Department</Label>

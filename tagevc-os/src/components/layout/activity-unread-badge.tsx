@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { getUnreadNotificationsCountAction } from '@/app/(app)/activity/actions';
 import { Badge } from '@/components/ui/badge';
 
 export function ActivityUnreadBadge() {
   const [count, setCount] = useState(0);
+  const instanceId = useId().replace(/:/g, '');
 
   useEffect(() => {
     let cancelled = false;
@@ -18,8 +19,10 @@ export function ActivityUnreadBadge() {
 
     void refresh();
     const supabase = createClient();
+    // Unique topic per mount — desktop + phone Menu drawer both render AppSidebar.
+    // Reusing a subscribed channel and calling .on() again throws and crashes the app.
     const channel = supabase
-      .channel('activity-notif-badge')
+      .channel(`activity-notif-badge-${instanceId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'app_notifications' },
@@ -34,7 +37,7 @@ export function ActivityUnreadBadge() {
       window.removeEventListener('focus', onFocus);
       void supabase.removeChannel(channel);
     };
-  }, []);
+  }, [instanceId]);
 
   if (count <= 0) return null;
   return (

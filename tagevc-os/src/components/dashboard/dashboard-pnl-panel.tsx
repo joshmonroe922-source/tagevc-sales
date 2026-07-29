@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTransition } from 'react';
+import { IesSyncControls } from '@/components/ies/ies-sync-controls';
 import { Badge } from '@/components/ui/badge';
 import {
   Card,
@@ -44,12 +45,20 @@ export function DashboardPnlPanel({
   view,
   companies,
   canViewConsolidated = true,
+  canConnect = false,
+  canRefresh = false,
+  configured = true,
+  syncEnabled = true,
 }: {
   view: DashboardPnlView;
   /** Role-scoped real entities only (no samples). */
   companies: CompanyOption[];
   /** When false, Consolidated is hidden (COO / Subsidiary Leader). */
   canViewConsolidated?: boolean;
+  canConnect?: boolean;
+  canRefresh?: boolean;
+  configured?: boolean;
+  syncEnabled?: boolean;
 }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -140,17 +149,23 @@ export function DashboardPnlPanel({
       </CardHeader>
       <CardContent className="space-y-3">
         {view.state === 'not_connected' ? (
-          <p className="rounded-md border border-dashed border-border bg-muted/30 px-3 py-4 text-sm text-muted-foreground">
-            Not Connected — no live IES P&amp;L for this scope. Connect and
-            Pull latest in{' '}
-            <Link
-              href={view.finance_href}
-              className="font-medium underline-offset-2 hover:underline"
-            >
-              Shared Services → Finance
-            </Link>
-            . Numbers are never invented.
-          </p>
+          <div className="space-y-3 rounded-md border border-dashed border-border bg-muted/30 px-3 py-4">
+            <p className="text-sm text-muted-foreground">
+              Not Connected — no live IES P&amp;L for this scope. Connect this
+              company (if you manage IES) or Refresh all connected books.
+              Numbers are never invented.
+            </p>
+            <IesSyncControls
+              entityId={view.entity_id}
+              canConnect={canConnect}
+              canRefresh={canRefresh}
+              showConnect={canConnect}
+              showOpenInIes={Boolean(view.open_in_ies_href)}
+              lastSyncedAt={view.last_synced_at}
+              configured={configured}
+              syncEnabled={syncEnabled}
+            />
+          </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             {metrics.map((m) => (
@@ -168,6 +183,18 @@ export function DashboardPnlPanel({
             ))}
           </div>
         )}
+        {view.state !== 'not_connected' ? (
+          <IesSyncControls
+            entityId={view.entity_id}
+            canConnect={canConnect}
+            canRefresh={canRefresh}
+            showConnect={false}
+            showOpenInIes
+            lastSyncedAt={view.last_synced_at}
+            configured={configured}
+            syncEnabled={syncEnabled}
+          />
+        ) : null}
         <p className="text-xs text-muted-foreground">{view.note}</p>
         {view.data_gaps.length > 0 && view.state !== 'live' ? (
           <ul className="list-inside list-disc text-xs text-muted-foreground">

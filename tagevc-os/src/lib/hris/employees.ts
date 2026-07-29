@@ -272,6 +272,15 @@ export async function createEmployee(
       actor_id: input.created_by,
     });
 
+    if (employee.profile_id || input.profile_id) {
+      const { syncProfileFromHire } = await import('@/lib/org/repo');
+      await syncProfileFromHire({
+        profileId: employee.profile_id || input.profile_id,
+        managerProfileId: managerProfileId,
+        jobTitle: employee.role_title,
+      });
+    }
+
     let onboarding_run_id: string | undefined;
     const shouldStart =
       input.auto_start_onboarding !== false &&

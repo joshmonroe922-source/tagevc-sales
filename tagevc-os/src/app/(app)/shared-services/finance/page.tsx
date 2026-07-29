@@ -10,11 +10,18 @@ import {
 import { listEntities } from '@/lib/data/repositories';
 import { normalizeEntityId } from '@/lib/entities/display-name';
 import { getIesFinanceReport } from '@/lib/ies/report';
-import { canViewBusinessCredit } from '@/lib/net-worth/visibility';
+import {
+  canAccessCreditManagement,
+  canViewBusinessCredit,
+} from '@/lib/net-worth/visibility';
 import { getFinanceControlPlanePhase55Report } from '@/lib/shared-services/finance-control-plane-phase55-server';
 import { listPortfolioFinanceBridgePhase62 } from '@/lib/shared-services/finance-ops-phase62-server';
 import { isFirmWideAccess } from '@/lib/rbac/entity-scope';
 import { getSessionContext, requirePermission } from '@/lib/rbac/session';
+import {
+  canManageIesConnections,
+  canRefreshIesSnapshots,
+} from '@/lib/ies/ux';
 import { roleHasPermission } from '@/lib/types/roles';
 
 type Props = {
@@ -67,13 +74,22 @@ export default async function FinanceControlPlanePage({ searchParams }: Props) {
       ? filterIesReportForPnlAccess(iesReportRaw, pnlAccess)
       : iesReportRaw;
   const canWrite = ctx
-    ? roleHasPermission(ctx.profile.role, 'write:shared_services')
+    ? canManageIesConnections(ctx.profile.role)
     : false;
-  const showBizCredit = ctx ? canViewBusinessCredit(ctx.profile.role) : false;
+  const canRefresh = ctx
+    ? canRefreshIesSnapshots(ctx.profile.role)
+    : false;
+  const showBizCredit = ctx
+    ? canAccessCreditManagement({
+        role: ctx.profile.role,
+        realRole: ctx.realRole,
+        liveLookActive: ctx.liveLookActive,
+      }) && canViewBusinessCredit(ctx.profile.role)
+    : false;
 
   const iesBanner =
     params.ies === 'connected'
-      ? 'IES company connected. Map company if needed, then Pull latest.'
+      ? 'IES company connected. Map company if needed, then Refresh.'
       : params.ies === 'error'
         ? `IES connect failed${params.reason ? `: ${params.reason}` : ''}.`
         : null;
@@ -104,11 +120,12 @@ export default async function FinanceControlPlanePage({ searchParams }: Props) {
       <IesFinancePanel
         report={iesReport}
         canWrite={canWrite}
+        canRefresh={canRefresh}
         entityId={entityId ?? ''}
       />
       <FinanceControlPlaneClient
         report={report}
-        canWrite={canWrite}
+        canWrite={canWrite || Boolean(ctx && roleHasPermission(ctx.profile.role, 'write:shared_services'))}
         initialEntityId={entityId ?? ''}
         portfolioBridge={portfolioBridge}
       />

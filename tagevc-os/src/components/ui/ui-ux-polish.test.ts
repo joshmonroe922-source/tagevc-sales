@@ -83,6 +83,7 @@ describe('UI/UX polish primitives', () => {
     assert.match(sidebar, /h-dvh/);
     assert.match(sidebar, /self-start/);
     assert.match(sidebar, /overflow-y-auto/);
+    assert.match(sidebar, /hidden.*md:flex|md:flex/);
 
     const layout = readFileSync(
       join(process.cwd(), 'src/app/(app)/layout.tsx'),
@@ -91,6 +92,34 @@ describe('UI/UX polish primitives', () => {
     assert.match(layout, /h-dvh max-h-dvh/);
     assert.match(layout, /overflow-y-auto/);
     assert.match(layout, /overflow-hidden/);
+    assert.match(layout, /MobileNavDrawer/);
+  });
+
+  it('ships phone Menu drawer in AppTopBar below md', () => {
+    const drawer = readFileSync(
+      join(process.cwd(), 'src/components/layout/mobile-nav-drawer.tsx'),
+      'utf8',
+    );
+    assert.match(drawer, /md:hidden/);
+    assert.match(drawer, /Open navigation menu/);
+    assert.match(drawer, /SheetContent/);
+    // Dual-sidebar crash fix: mount panel only while drawer is open.
+    assert.match(drawer, /open \? children : null/);
+
+    const topBar = readFileSync(
+      join(process.cwd(), 'src/components/help-desk/help-desk-shell.tsx'),
+      'utf8',
+    );
+    assert.match(topBar, /mobileNav/);
+    assert.match(topBar, /AppTopBarShell/);
+
+    // Mobile visual order lives in shared AppTopBarShell (Create Ticket | Alerts | Menu).
+    const shell = readFileSync(
+      join(process.cwd(), 'src/lib/platform/shell/app-top-bar.tsx'),
+      'utf8',
+    );
+    assert.match(shell, /order-3 md:order-1/);
+    assert.match(shell, /order-1 md:order-3/);
   });
 
   it('ships Cards | List on Dashboard and Command Center boards', () => {

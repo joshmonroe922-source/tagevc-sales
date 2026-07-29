@@ -66,6 +66,10 @@ export type Profile = {
   entity_id: string | null;
   avatar_url: string | null;
   active: boolean;
+  /** Reports-to (org spine). */
+  manager_profile_id?: string | null;
+  /** Job title on profile (org chart / directory). */
+  job_title?: string | null;
   created_at: string;
   updated_at: string;
 };

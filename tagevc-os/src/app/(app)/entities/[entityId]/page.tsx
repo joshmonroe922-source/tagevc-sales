@@ -4,7 +4,10 @@ import { EntityOperatingViewPanel } from '@/components/entity-os/entity-operatin
 import { Badge } from '@/components/ui/badge';
 import { getEntityOperatingView } from '@/lib/data/entity-os';
 import { listBusinessCreditProfiles } from '@/lib/net-worth/credit';
-import { canViewBusinessCredit } from '@/lib/net-worth/visibility';
+import {
+  canAccessCreditManagement,
+  canViewBusinessCredit,
+} from '@/lib/net-worth/visibility';
 import { getSessionContext } from '@/lib/rbac/session';
 import { onCompanyOnboardedToSsc } from '@/lib/shared-services/ssc-checklist/engine';
 
@@ -24,7 +27,15 @@ export default async function EntityOsPage({ params }: Props) {
 
   const ctx = await getSessionContext();
   let creditChip: { status: string; href: string } | null = null;
-  if (ctx && canViewBusinessCredit(ctx.profile.role)) {
+  if (
+    ctx &&
+    canAccessCreditManagement({
+      role: ctx.profile.role,
+      realRole: ctx.realRole,
+      liveLookActive: ctx.liveLookActive,
+    }) &&
+    canViewBusinessCredit(ctx.profile.role)
+  ) {
     const { rows } = await listBusinessCreditProfiles({
       entityId,
       auditAccess: false,

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { AuditLogClient } from '@/components/admin/audit-log-client';
 import { listAuditEvents } from '@/lib/audit/write';
 import { getSessionContext } from '@/lib/rbac/session';
+import { isVisionaryBreadthRole } from '@/lib/types/roles';
 import { redirect } from 'next/navigation';
 
 export default async function AuditLogPage({
@@ -10,7 +11,7 @@ export default async function AuditLogPage({
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const session = await getSessionContext();
-  if (!session || session.realRole !== 'visionary') {
+  if (!session || !isVisionaryBreadthRole(session.profile.role)) {
     redirect('/home');
   }
 

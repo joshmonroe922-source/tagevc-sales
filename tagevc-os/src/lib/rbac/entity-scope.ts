@@ -2,6 +2,7 @@ import type { AppRole } from '@/lib/types/roles';
 
 const FIRM_WIDE_ROLES: readonly AppRole[] = [
   'visionary',
+  'think_tank',
   'admin',
   'partner',
   'associate',

@@ -731,7 +731,10 @@ export function MessagesShell({ initial }: Props) {
     if (!q) return true;
     return (
       p.full_name?.toLowerCase().includes(q) ||
-      p.email.toLowerCase().includes(q)
+      p.email.toLowerCase().includes(q) ||
+      p.job_title?.toLowerCase().includes(q) ||
+      p.entity_badge?.toLowerCase().includes(q) ||
+      p.entity_id?.toLowerCase().includes(q)
     );
   });
 
@@ -1319,7 +1322,7 @@ export function MessagesShell({ initial }: Props) {
             <Search className="pointer-events-none absolute top-2.5 left-6 size-4 text-muted-foreground" />
             <Input
               className="pl-8"
-              placeholder="Search people"
+              placeholder="Search name, title, or entity"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
@@ -1329,6 +1332,13 @@ export function MessagesShell({ initial }: Props) {
               const name = displayName(p);
               const checked = picked.includes(p.id);
               const online = onlineIds.has(p.id);
+              const subtitle = [
+                p.job_title,
+                p.entity_badge,
+                p.email,
+              ]
+                .filter(Boolean)
+                .join(' · ');
               return (
                 <button
                   key={p.id}
@@ -1361,7 +1371,7 @@ export function MessagesShell({ initial }: Props) {
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium">{name}</span>
                     <span className="block truncate text-xs text-muted-foreground">
-                      {p.email}
+                      {subtitle}
                     </span>
                   </span>
                   {(newMode === 'group' || newMode === 'channel') && checked ? (

@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { getUnreadTotalAction } from '@/app/(app)/messages/actions';
 import { Badge } from '@/components/ui/badge';
 
 export function MessagesUnreadBadge() {
   const [count, setCount] = useState(0);
+  const instanceId = useId().replace(/:/g, '');
 
   useEffect(() => {
     let cancelled = false;
@@ -19,8 +20,10 @@ export function MessagesUnreadBadge() {
     void refresh();
 
     const supabase = createClient();
+    // Unique topic per mount — desktop + phone Menu drawer both render AppSidebar.
+    // Reusing a subscribed channel and calling .on() again throws and crashes the app.
     const channel = supabase
-      .channel('os-messaging-unread-badge')
+      .channel(`os-messaging-unread-badge-${instanceId}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'os_messages' },
@@ -49,7 +52,7 @@ export function MessagesUnreadBadge() {
       window.removeEventListener('focus', onFocus);
       void supabase.removeChannel(channel);
     };
-  }, []);
+  }, [instanceId]);
 
   if (count <= 0) return null;
 
