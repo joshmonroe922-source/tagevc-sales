@@ -1,246 +1,238 @@
 /**
- * Partner spine persistence — fail-soft when phase89 SQL not applied.
+ * Partner spine repository — fail-soft when phase89 tables are not applied yet.
  */
 
-import { PARTNER_CATALOG } from '@/lib/partners/catalog';
-import { listPartnerRuntimeStatuses } from '@/lib/partners/env';
-import {
-  buildPartnerSpineProvisionPlan,
-  provisionPlanRows,
-} from '@/lib/partners/provision';
+import { createPersistClient } from '@/lib/supabase/persist-client';
+import { PARTNER_CATALOG, type PartnerKey } from '@/lib/partners/catalog';
+import { entityCreatePartnerPlan } from '@/lib/partners/registry';
 import type {
+  CommissionPayrollStub,
   MarketingPresenceProperty,
-  PartnerBiInsight,
-  PartnerContract,
-  PartnerEntityEnablement,
-  PartnerKey,
+  PartnerBiSignal,
+  PartnerEntityBinding,
+  PartnerEvent,
+  PartnerVendorContract,
+  PartnerVendorPayment,
 } from '@/lib/partners/types';
-import { createClient } from '@/lib/supabase/server';
 
-function emptyEnablements(entityId?: string | null): PartnerEntityEnablement[] {
-  const entities = entityId
-    ? [entityId]
-    : ['ENT-FIRM', 'ENT-R619', 'ENT-SIGNENT', 'ENT-INDA'];
-  const now = new Date().toISOString();
-  return entities.flatMap((eid) =>
-    PARTNER_CATALOG.map((p) => ({
-      id: `local:${p.key}:${eid}`,
-      partner_key: p.key,
-      entity_id: eid,
-      enabled: true,
-      status: 'scaffold' as const,
-      external_account_ref: null,
-      config_meta: {},
-      notes: null,
-      last_synced_at: null,
-      updated_at: now,
-    })),
-  );
+export async function listPartnerBindings(
+  entityId?: string | null,
+): Promise<PartnerEntityBinding[]> {
+  try {
+    const sb = await createPersistClient();
+    let q = sb.from('os_partner_entity_bindings').select('*').order('partner_key');
+    if (entityId) q = q.eq('entity_id', entityId);
+    const { data, error } = await q;
+    if (error) return [];
+    return (data ?? []) as PartnerEntityBinding[];
+  } catch {
+    return [];
+  }
 }
 
-export async function listPartnerEnablements(opts?: {
-  entityId?: string | null;
-}): Promise<{ rows: PartnerEntityEnablement[]; error: string | null }> {
+export async function ensureEntityPartnerBindings(
+  entityId: string,
+): Promise<{ created: number; plan: ReturnType<typeof entityCreatePartnerPlan> }> {
+  const plan = entityCreatePartnerPlan(entityId);
   try {
-    const sb = await createClient();
-    let q = sb.from('os_partner_entity_enablements').select('*').limit(500);
+    const sb = await createPersistClient();
+    const rows = plan.map((p) => ({
+      partner_key: p.partner_key,
+      entity_id: entityId,
+      enabled: p.enabled,
+      status: p.status,
+      config: p.lifecycle_hook
+        ? { entity_create_hook: p.lifecycle_hook }
+        : {},
+    }));
+    const { data, error } = await sb
+      .from('os_partner_entity_bindings')
+      .upsert(rows, { onConflict: 'partner_key,entity_id' })
+      .select('id');
+    if (error) return { created: 0, plan };
+    return { created: data?.length ?? 0, plan };
+  } catch {
+    return { created: 0, plan };
+  }
+}
+
+export async function listVendorContracts(
+  entityId?: string | null,
+): Promise<PartnerVendorContract[]> {
+  try {
+    const sb = await createPersistClient();
+    let q = sb
+      .from('os_partner_vendor_contracts')
+      .select('*')
+      .order('ends_on', { ascending: true, nullsFirst: false });
+    if (entityId) q = q.or(`entity_id.eq.${entityId},entity_id.is.null`);
+    const { data, error } = await q;
+    if (error) return [];
+    return (data ?? []) as PartnerVendorContract[];
+  } catch {
+    return [];
+  }
+}
+
+export async function listVendorPayments(
+  contractId?: string | null,
+): Promise<PartnerVendorPayment[]> {
+  try {
+    const sb = await createPersistClient();
+    let q = sb
+      .from('os_partner_vendor_payments')
+      .select('*')
+      .order('paid_on', { ascending: false });
+    if (contractId) q = q.eq('contract_id', contractId);
+    const { data, error } = await q;
+    if (error) return [];
+    return (data ?? []) as PartnerVendorPayment[];
+  } catch {
+    return [];
+  }
+}
+
+export async function listMarketingPresence(
+  entityId?: string | null,
+): Promise<MarketingPresenceProperty[]> {
+  try {
+    const sb = await createPersistClient();
+    let q = sb
+      .from('os_marketing_presence_properties')
+      .select('*')
+      .order('kind');
+    if (entityId) q = q.eq('entity_id', entityId);
+    const { data, error } = await q;
+    if (error) return [];
+    return (data ?? []) as MarketingPresenceProperty[];
+  } catch {
+    return [];
+  }
+}
+
+export async function ensureMarketingPresenceSlots(
+  entityId: string,
+  entityLabel: string,
+): Promise<number> {
+  const kinds = [
+    'google_business',
+    'google_analytics',
+    'linkedin_company',
+  ] as const;
+  try {
+    const sb = await createPersistClient();
+    const rows = kinds.map((kind) => ({
+      kind,
+      entity_id: entityId,
+      label: `${entityLabel} · ${kind.replace(/_/g, ' ')}`,
+      status: 'scaffolded',
+      config: {},
+    }));
+    const { data, error } = await sb
+      .from('os_marketing_presence_properties')
+      .upsert(rows, { onConflict: 'kind,entity_id' })
+      .select('id');
+    if (error) return 0;
+    return data?.length ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+export async function recordPartnerEvent(input: {
+  partner_key: PartnerKey;
+  entity_id?: string | null;
+  kind: PartnerEvent['kind'];
+  status?: PartnerEvent['status'];
+  external_id?: string | null;
+  payload?: Record<string, unknown>;
+}): Promise<void> {
+  try {
+    const sb = await createPersistClient();
+    await sb.from('os_partner_events').insert({
+      partner_key: input.partner_key,
+      entity_id: input.entity_id ?? null,
+      kind: input.kind,
+      status: input.status ?? 'received',
+      external_id: input.external_id ?? null,
+      payload: input.payload ?? {},
+    });
+  } catch {
+    /* fail-soft */
+  }
+}
+
+export async function listBiSignals(opts?: {
+  limit?: number;
+  entityId?: string | null;
+}): Promise<PartnerBiSignal[]> {
+  try {
+    const sb = await createPersistClient();
+    let q = sb
+      .from('os_partner_bi_signals')
+      .select('*')
+      .order('observed_at', { ascending: false })
+      .limit(opts?.limit ?? 100);
     if (opts?.entityId) q = q.eq('entity_id', opts.entityId);
     const { data, error } = await q;
-    if (error) {
-      return { rows: emptyEnablements(opts?.entityId), error: error.message };
-    }
-    if (!data?.length) {
-      return { rows: emptyEnablements(opts?.entityId), error: null };
-    }
-    return {
-      rows: data.map((r) => ({
-        id: String(r.id),
-        partner_key: r.partner_key as PartnerKey,
-        entity_id: String(r.entity_id),
-        enabled: Boolean(r.enabled),
-        status: r.status,
-        external_account_ref: r.external_account_ref ?? null,
-        config_meta: (r.config_meta as Record<string, unknown>) ?? {},
-        notes: r.notes ?? null,
-        last_synced_at: r.last_synced_at ?? null,
-        updated_at: r.updated_at,
-      })),
-      error: null,
-    };
-  } catch (e) {
-    return {
-      rows: emptyEnablements(opts?.entityId),
-      error: e instanceof Error ? e.message : 'enablements unavailable',
-    };
+    if (error) return [];
+    return (data ?? []) as PartnerBiSignal[];
+  } catch {
+    return [];
   }
 }
 
-export async function listPartnerContracts(): Promise<{
-  rows: PartnerContract[];
-  error: string | null;
-}> {
+export async function listCommissionStubs(
+  entityId?: string | null,
+): Promise<CommissionPayrollStub[]> {
   try {
-    const sb = await createClient();
-    const { data, error } = await sb
-      .from('os_partner_contracts')
+    const sb = await createPersistClient();
+    let q = sb
+      .from('os_gusto_commission_stubs')
       .select('*')
-      .order('ends_on', { ascending: true, nullsFirst: false })
-      .limit(200);
-    if (error) return { rows: [], error: error.message };
-    return {
-      rows: (data ?? []).map((r) => ({
-        id: String(r.id),
-        partner_key: r.partner_key as PartnerKey,
-        entity_id: r.entity_id ?? null,
-        vendor_name: String(r.vendor_name),
-        contract_title: String(r.contract_title),
-        status: r.status,
-        starts_on: r.starts_on ?? null,
-        ends_on: r.ends_on ?? null,
-        renewal_on: r.renewal_on ?? null,
-        payment_cadence: r.payment_cadence ?? null,
-        payment_amount:
-          r.payment_amount == null ? null : Number(r.payment_amount),
-        payment_currency: String(r.payment_currency ?? 'USD'),
-        storage_path: r.storage_path ?? null,
-        notes: r.notes ?? null,
-        created_at: r.created_at,
-        updated_at: r.updated_at,
-      })),
-      error: null,
-    };
-  } catch (e) {
-    return {
-      rows: [],
-      error: e instanceof Error ? e.message : 'contracts unavailable',
-    };
+      .order('created_at', { ascending: false })
+      .limit(100);
+    if (entityId) q = q.eq('entity_id', entityId);
+    const { data, error } = await q;
+    if (error) return [];
+    return (data ?? []) as CommissionPayrollStub[];
+  } catch {
+    return [];
   }
 }
 
-export async function listMarketingPresence(opts?: {
-  entityId?: string | null;
-}): Promise<{ rows: MarketingPresenceProperty[]; error: string | null }> {
-  try {
-    const sb = await createClient();
-    let q = sb.from('os_marketing_presence_properties').select('*').limit(200);
-    if (opts?.entityId) q = q.eq('entity_id', opts.entityId);
-    const { data, error } = await q.order('entity_id');
-    if (error) return { rows: [], error: error.message };
-    return {
-      rows: (data ?? []).map((r) => ({
-        id: String(r.id),
-        entity_id: String(r.entity_id),
-        kind: r.kind,
-        display_name: String(r.display_name),
-        external_id: r.external_id ?? null,
-        property_url: r.property_url ?? null,
-        status: r.status,
-        config_meta: (r.config_meta as Record<string, unknown>) ?? {},
-        last_imported_at: r.last_imported_at ?? null,
-        updated_at: r.updated_at,
-      })),
-      error: null,
-    };
-  } catch (e) {
-    return {
-      rows: [],
-      error: e instanceof Error ? e.message : 'presence unavailable',
-    };
-  }
+/** Alias for Technology UI (parallel consumers). */
+export async function listPartnerContracts(entityId?: string | null) {
+  const rows = await listVendorContracts(entityId);
+  return { rows, error: null as string | null };
 }
 
-export async function provisionPartnerSpineForEntity(input: {
-  entityId: string;
-  displayName?: string;
-}): Promise<{ ok: true; planned: number } | { ok: false; error: string }> {
-  const plan = buildPartnerSpineProvisionPlan(
-    input.entityId,
-    input.displayName,
-  );
-  const rows = provisionPlanRows(plan);
-  try {
-    const sb = await createClient();
-    const { error: e1 } = await sb
-      .from('os_partner_entity_enablements')
-      .upsert(rows.enablements, {
-        onConflict: 'partner_key,entity_id',
-      });
-    if (e1) return { ok: false, error: e1.message };
-    const { error: e2 } = await sb
-      .from('os_marketing_presence_properties')
-      .upsert(rows.presence, {
-        onConflict: 'entity_id,kind',
-      });
-    if (e2) return { ok: false, error: e2.message };
-    return {
-      ok: true,
-      planned: rows.enablements.length + rows.presence.length,
-    };
-  } catch (e) {
-    return {
-      ok: false,
-      error: e instanceof Error ? e.message : 'provision failed',
-    };
-  }
+/** Alias for Technology UI (parallel consumers). */
+export async function listPartnerEnablements(entityId?: string | null) {
+  const rows = await listPartnerBindings(entityId);
+  return { rows, error: null as string | null };
 }
 
-export function buildPartnerBiInsights(input: {
-  contracts: PartnerContract[];
-  presence: MarketingPresenceProperty[];
-}): PartnerBiInsight[] {
-  const runtime = listPartnerRuntimeStatuses();
-  const insights: PartnerBiInsight[] = [];
-
-  for (const r of runtime) {
-    if (r.status === 'scaffold' || r.status === 'not_configured') {
-      insights.push({
-        partner_key: r.key,
-        title: `${r.name} not connected`,
-        severity: 'watch',
-        detail: r.setupNote,
-        href: r.manageHref,
-      });
-    }
-  }
-
-  const soon = Date.now() + 60 * 24 * 60 * 60 * 1000;
-  for (const c of input.contracts) {
-    if (c.ends_on) {
-      const end = Date.parse(c.ends_on);
-      if (!Number.isNaN(end) && end < soon) {
-        insights.push({
-          partner_key: c.partner_key,
-          title: `Contract expiring: ${c.contract_title}`,
-          severity: end < Date.now() ? 'action' : 'watch',
-          detail: `Ends ${c.ends_on}${c.payment_amount != null ? ` · ${c.payment_currency} ${c.payment_amount}` : ''}`,
-          href: '/shared-services/it/technology',
-        });
-      }
-    }
-  }
-
-  const missingPresence = input.presence.filter(
-    (p) => p.status === 'scaffold' || !p.external_id,
-  );
-  if (missingPresence.length) {
-    insights.push({
-      partner_key: 'cross_cutting',
-      title: `${missingPresence.length} Marketing presence slot(s) need connection`,
-      severity: 'info',
-      detail:
-        'Google Business · GA4 · LinkedIn Company Pages — connect under Marketing Shared Services.',
-      href: '/shared-services/marketing/presence',
-    });
-  }
-
-  insights.push({
-    partner_key: 'cross_cutting',
-    title: 'Unified partner event bus ready',
-    severity: 'info',
-    detail:
-      'os_partner_events accepts webhook/import rows for AI BI once LIVE adapters emit.',
-    href: '/shared-services/bi',
+/** Catalog-backed technology stack rows for admin UI (contracts overlay when present). */
+export async function getTechnologyStackView(entityId?: string | null) {
+  const [bindings, contracts] = await Promise.all([
+    listPartnerBindings(entityId),
+    listVendorContracts(entityId),
+  ]);
+  const byKey = new Map(bindings.map((b) => [b.partner_key, b]));
+  return PARTNER_CATALOG.map((def) => {
+    const binding = byKey.get(def.key) ?? null;
+    const partnerContracts = contracts.filter((c) => c.partner_key === def.key);
+    const soonestEnd =
+      partnerContracts
+        .map((c) => c.ends_on)
+        .filter(Boolean)
+        .sort()[0] ?? null;
+    return {
+      def,
+      binding,
+      contracts: partnerContracts,
+      nextExpiration: soonestEnd,
+    };
   });
-
-  return insights;
 }

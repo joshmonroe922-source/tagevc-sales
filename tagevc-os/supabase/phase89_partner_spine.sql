@@ -1,323 +1,291 @@
--- Phase 89: Partner platform spine (registry · per-entity enablement ·
--- Technology contracts · Marketing presence · event bus · commission stubs).
--- Additive. Safe to re-run. Does NOT touch os_store_snapshots.
--- New entities inherit via provision_partner_spine_for_entity().
-
-create schema if not exists extensions;
-create extension if not exists pgcrypto with schema extensions;
+-- Phase 89: Partner platform spine — registry, per-entity bindings, vendor
+-- contracts/payments, marketing presence (GBP / GA4 / LinkedIn Company),
+-- event bus, BI signals, Gusto commission stubs.
+-- Safe to re-run. Does not invent credentials.
 
 -- ---------------------------------------------------------------------------
--- Catalog (firm-wide definitions; UI also seeds from TypeScript catalog)
+-- Catalog (code is source of truth; table mirrors for admin/SQL joins)
 -- ---------------------------------------------------------------------------
 create table if not exists public.os_partner_catalog (
-  partner_key text primary key
-    check (partner_key ~ '^[a-z][a-z0-9_]{1,63}$'),
-  name text not null,
-  category text not null,
-  owner_function text not null
-    check (owner_function in (
-      'IT', 'HR', 'Finance', 'Marketing', 'Legal', 'Recruiting', 'Shared'
-    )),
+  partner_key text primary key,
+  label text not null,
+  owner_ss text not null,
+  scope text not null,
+  status text not null default 'scaffolded'
+    check (status in ('live', 'scaffolded', 'planned')),
   summary text not null default '',
-  manage_href text not null default '/shared-services/it/technology',
-  docs_path text not null default 'docs/PARTNER_SPINE.md',
-  scope_mode text not null default 'all_entities',
-  supports_import boolean not null default false,
-  supports_webhook boolean not null default false,
-  supports_auto_provision boolean not null default false,
-  bi_signals jsonb not null default '[]'::jsonb,
-  active boolean not null default true,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
-insert into public.os_partner_catalog (
-  partner_key, name, category, owner_function, summary, manage_href, docs_path,
-  scope_mode, supports_import, supports_webhook, supports_auto_provision, bi_signals
-) values
-  ('dialpad', 'Dialpad', 'communications', 'IT',
-   'Phone + SMS + AI', '/shared-services/it/technology#dialpad', 'docs/PARTNER_SPINE.md#dialpad',
-   'all_entities', true, true, true, '["call_volume","sms_volume"]'::jsonb),
-  ('verified_first', 'Verified First', 'screening', 'HR',
-   'BG + drug screens', '/shared-services/hr/screening', 'docs/VERIFIED_FIRST_SCREENING_SPINE.md',
-   'all_entities', false, true, false, '["orders_pending","orders_clear"]'::jsonb),
-  ('mybasepay', 'MyBasePay', 'eor', 'HR',
-   'Employer of Record — R619 first', '/shared-services/it/technology#mybasepay', 'docs/PARTNER_SPINE.md#mybasepay',
-   'recruit_first', true, true, true, '["active_eor_workers"]'::jsonb),
-  ('apollo', 'Apollo', 'data', 'Shared',
-   'Contact/company DB', '/shared-services/it/technology#apollo', 'docs/PARTNER_SPINE.md#apollo',
-   'all_entities', true, false, false, '["contacts_imported"]'::jsonb),
-  ('gusto', 'Gusto', 'payroll', 'Finance',
-   'Payroll + commissions', '/shared-services/af', 'docs/PARTNER_SPINE.md#gusto',
-   'all_entities', true, true, true, '["payroll_runs","commission_queued"]'::jsonb),
-  ('docusign', 'DocuSign', 'esignature', 'Legal',
-   'Org e-sign', '/shared-services/legal/docusign', 'docs/PARTNER_SPINE.md#docusign',
-   'all_entities', true, true, false, '["envelopes_completed"]'::jsonb),
-  ('linkedin_recruiter', 'LinkedIn Recruiter', 'recruiting', 'Recruiting',
-   'Two-way sync scaffold', '/shared-services/it/technology#linkedin_recruiter', 'docs/PARTNER_SPINE.md#linkedin-recruiter',
-   'all_entities', true, false, false, '["candidates_synced"]'::jsonb),
-  ('appcast', 'Appcast', 'job_publish', 'Recruiting',
-   'Job publishing', '/shared-services/it/technology#appcast', 'docs/PARTNER_SPINE.md#appcast',
-   'all_entities', true, true, false, '["jobs_published","applies_inbound"]'::jsonb),
-  ('google_business', 'Google Business Profile', 'marketing_presence', 'Marketing',
-   'Per-entity GBP', '/shared-services/marketing/presence#google_business', 'docs/PARTNER_SPINE.md#google-business-analytics-linkedin',
-   'marketing_all_entities', true, false, true, '["reviews","insights_views"]'::jsonb),
-  ('google_analytics', 'Google Analytics (GA4)', 'analytics', 'Marketing',
-   'Per-entity GA4', '/shared-services/marketing/presence#google_analytics', 'docs/PARTNER_SPINE.md#google-business-analytics-linkedin',
-   'marketing_all_entities', true, false, true, '["sessions","conversions"]'::jsonb),
-  ('linkedin_company_pages', 'LinkedIn Company Pages', 'marketing_presence', 'Marketing',
-   'Per-entity LinkedIn Business pages', '/shared-services/marketing/presence#linkedin_company_pages', 'docs/PARTNER_SPINE.md#google-business-analytics-linkedin',
-   'marketing_all_entities', true, false, true, '["followers","engagement"]'::jsonb)
-on conflict (partner_key) do update set
-  name = excluded.name,
-  category = excluded.category,
-  owner_function = excluded.owner_function,
-  summary = excluded.summary,
-  manage_href = excluded.manage_href,
-  docs_path = excluded.docs_path,
-  scope_mode = excluded.scope_mode,
-  supports_import = excluded.supports_import,
-  supports_webhook = excluded.supports_webhook,
-  supports_auto_provision = excluded.supports_auto_provision,
-  bi_signals = excluded.bi_signals,
-  updated_at = now();
-
--- ---------------------------------------------------------------------------
--- Per-entity enablement
--- ---------------------------------------------------------------------------
-create table if not exists public.os_partner_entity_enablements (
-  id uuid primary key default gen_random_uuid(),
-  partner_key text not null references public.os_partner_catalog(partner_key),
-  entity_id text not null references public.entities(entity_id),
-  enabled boolean not null default true,
-  status text not null default 'scaffold'
-    check (status in (
-      'not_configured', 'scaffold', 'configured', 'live', 'degraded', 'disabled'
-    )),
-  external_account_ref text,
-  config_meta jsonb not null default '{}'::jsonb,
-  notes text,
-  last_synced_at timestamptz,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  unique (partner_key, entity_id)
-);
-
-create index if not exists os_partner_enable_entity_idx
-  on public.os_partner_entity_enablements (entity_id, partner_key);
-
--- ---------------------------------------------------------------------------
--- Technology contracts / payments / expirations
--- ---------------------------------------------------------------------------
-create table if not exists public.os_partner_contracts (
-  id uuid primary key default gen_random_uuid(),
-  partner_key text not null references public.os_partner_catalog(partner_key),
-  entity_id text references public.entities(entity_id),
-  vendor_name text not null,
-  contract_title text not null,
-  status text not null default 'draft'
-    check (status in ('draft', 'active', 'expiring', 'expired', 'cancelled')),
-  starts_on date,
-  ends_on date,
-  renewal_on date,
-  payment_cadence text,
-  payment_amount numeric,
-  payment_currency text not null default 'USD',
-  storage_path text,
-  notes text,
-  created_by uuid,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
-create index if not exists os_partner_contracts_ends_idx
-  on public.os_partner_contracts (ends_on)
-  where status in ('active', 'expiring');
-
--- ---------------------------------------------------------------------------
--- Marketing presence (GBP · GA4 · LinkedIn Company) — Marketing-owned
--- ---------------------------------------------------------------------------
-create table if not exists public.os_marketing_presence_properties (
-  id uuid primary key default gen_random_uuid(),
-  entity_id text not null references public.entities(entity_id),
-  kind text not null
-    check (kind in (
-      'google_business', 'google_analytics', 'linkedin_company_pages'
-    )),
-  display_name text not null,
-  external_id text,
-  property_url text,
-  status text not null default 'scaffold'
-    check (status in (
-      'not_configured', 'scaffold', 'configured', 'live', 'degraded', 'disabled'
-    )),
-  config_meta jsonb not null default '{}'::jsonb,
-  last_imported_at timestamptz,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  unique (entity_id, kind)
-);
-
-create index if not exists os_mkt_presence_entity_idx
-  on public.os_marketing_presence_properties (entity_id, kind);
-
--- ---------------------------------------------------------------------------
--- Event bus for BI / webhooks / imports
--- ---------------------------------------------------------------------------
-create table if not exists public.os_partner_events (
-  id uuid primary key default gen_random_uuid(),
-  partner_key text not null references public.os_partner_catalog(partner_key),
-  entity_id text references public.entities(entity_id),
-  event_type text not null,
-  external_id text,
-  direction text not null default 'inbound'
-    check (direction in ('inbound', 'outbound', 'internal')),
-  payload jsonb not null default '{}'::jsonb,
-  bi_relevant boolean not null default true,
-  created_at timestamptz not null default now()
-);
-
-create index if not exists os_partner_events_partner_idx
-  on public.os_partner_events (partner_key, created_at desc);
-create index if not exists os_partner_events_bi_idx
-  on public.os_partner_events (bi_relevant, created_at desc)
-  where bi_relevant = true;
-
--- ---------------------------------------------------------------------------
--- Gusto commission queue stubs
--- ---------------------------------------------------------------------------
-create table if not exists public.os_partner_commission_queue (
-  id uuid primary key default gen_random_uuid(),
-  entity_id text not null references public.entities(entity_id),
-  invoice_id text not null,
-  user_profile_id uuid,
-  user_external_id text,
-  amount_cents integer not null check (amount_cents >= 0),
-  currency text not null default 'USD',
-  status text not null default 'queued'
-    check (status in ('queued', 'pushed_stub', 'failed', 'cancelled')),
-  source text not null default 'invoice_paid',
+  docs_path text,
+  bi_feed boolean not null default true,
+  import_supported boolean not null default false,
   meta jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
-create index if not exists os_partner_commission_status_idx
-  on public.os_partner_commission_queue (status, created_at desc);
+insert into public.os_partner_catalog
+  (partner_key, label, owner_ss, scope, status, summary, docs_path, bi_feed, import_supported)
+values
+  ('dialpad', 'Dialpad', 'IT', 'all_entities', 'scaffolded',
+   'Phone + SMS + AI', 'docs/PARTNER_SPINE.md#dialpad', true, true),
+  ('verified_first', 'Verified First', 'HR', 'all_entities', 'live',
+   'Background + drug screens', 'docs/VERIFIED_FIRST_SCREENING_SPINE.md', true, false),
+  ('mybasepay', 'MyBasePay', 'HR', 'contractor_placements', 'scaffolded',
+   'Employer of Record', 'docs/PARTNER_SPINE.md#mybasepay', true, true),
+  ('apollo', 'Apollo', 'Marketing', 'all_entities', 'scaffolded',
+   'Contact/company database', 'docs/PARTNER_SPINE.md#apollo', true, true),
+  ('gusto', 'Gusto', 'Finance', 'internal_employees', 'scaffolded',
+   'Payroll + commissions', 'docs/PARTNER_SPINE.md#gusto', true, true),
+  ('docusign', 'DocuSign', 'Legal', 'all_entities', 'live',
+   'E-signature org accounts', 'docs/PARTNER_SPINE.md#docusign', true, true),
+  ('linkedin_recruiter', 'LinkedIn Recruiter', 'Recruiting', 'recruit_primary', 'scaffolded',
+   'Two-way recruiter sync', 'docs/PARTNER_SPINE.md#linkedin-recruiter', true, true),
+  ('appcast', 'Appcast', 'Recruiting', 'all_entities', 'live',
+   'Job publishing', 'docs/PARTNER_SPINE.md#appcast', true, true),
+  ('google_business', 'Google Business Profile', 'Marketing', 'all_entities', 'scaffolded',
+   'Local presence pages', 'docs/PARTNER_SPINE.md#google-business', true, true),
+  ('google_analytics', 'Google Analytics (GA4)', 'Marketing', 'all_entities', 'scaffolded',
+   'GA4 properties', 'docs/PARTNER_SPINE.md#google-analytics', true, true),
+  ('linkedin_company', 'LinkedIn Company Pages', 'Marketing', 'all_entities', 'scaffolded',
+   'Company page presence', 'docs/PARTNER_SPINE.md#linkedin-company', true, true)
+on conflict (partner_key) do update set
+  label = excluded.label,
+  owner_ss = excluded.owner_ss,
+  scope = excluded.scope,
+  status = excluded.status,
+  summary = excluded.summary,
+  docs_path = excluded.docs_path,
+  bi_feed = excluded.bi_feed,
+  import_supported = excluded.import_supported,
+  updated_at = now();
 
 -- ---------------------------------------------------------------------------
--- Provision helper — call when creating a new OS entity
+-- Per-entity enablement (new entities inherit via ensureEntityPartnerBindings)
 -- ---------------------------------------------------------------------------
-create or replace function public.provision_partner_spine_for_entity(
-  p_entity_id text,
-  p_display_name text default null
-)
-returns integer
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_count integer := 0;
-  v_label text := coalesce(nullif(trim(p_display_name), ''), p_entity_id);
-  r record;
-begin
-  for r in select partner_key from public.os_partner_catalog where active loop
-    insert into public.os_partner_entity_enablements (
-      partner_key, entity_id, enabled, status, config_meta
-    ) values (
-      r.partner_key,
-      p_entity_id,
-      case
-        when r.partner_key = 'mybasepay' then (p_entity_id = 'ENT-R619')
-        else true
-      end,
-      'scaffold',
-      jsonb_build_object('provisioned_by', 'partner-spine-v1')
-    )
-    on conflict (partner_key, entity_id) do nothing;
-    v_count := v_count + 1;
-  end loop;
+create table if not exists public.os_partner_entity_bindings (
+  id uuid primary key default gen_random_uuid(),
+  partner_key text not null
+    references public.os_partner_catalog(partner_key) on delete cascade,
+  entity_id text not null references public.entities(entity_id),
+  enabled boolean not null default true,
+  status text not null default 'scaffolded'
+    check (status in ('not_configured', 'scaffolded', 'configured', 'live', 'error', 'disabled')),
+  external_account_id text,
+  config jsonb not null default '{}'::jsonb,
+  last_sync_at timestamptz,
+  last_error text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (partner_key, entity_id)
+);
 
-  insert into public.os_marketing_presence_properties (
-    entity_id, kind, display_name, status, config_meta
-  ) values
-    (p_entity_id, 'google_business', v_label || ' — Google Business Profile', 'scaffold',
-      jsonb_build_object('provisioned_by', 'partner-spine-v1')),
-    (p_entity_id, 'google_analytics', v_label || ' — GA4 property', 'scaffold',
-      jsonb_build_object('provisioned_by', 'partner-spine-v1')),
-    (p_entity_id, 'linkedin_company_pages', v_label || ' — LinkedIn Company Page', 'scaffold',
-      jsonb_build_object('provisioned_by', 'partner-spine-v1'))
-  on conflict (entity_id, kind) do nothing;
+create index if not exists os_partner_bindings_entity_idx
+  on public.os_partner_entity_bindings (entity_id, partner_key);
 
-  return v_count;
-end;
-$$;
+-- Seed firm + known subsidiaries with scaffolded bindings
+insert into public.os_partner_entity_bindings (partner_key, entity_id, enabled, status)
+select c.partner_key, e.entity_id, true, 'scaffolded'
+from public.os_partner_catalog c
+cross join (
+  select unnest(array['ENT-FIRM', 'ENT-R619', 'ENT-SIGNENT', 'ENT-INDA']) as entity_id
+) e
+where exists (select 1 from public.entities ent where ent.entity_id = e.entity_id)
+on conflict (partner_key, entity_id) do nothing;
 
-grant execute on function public.provision_partner_spine_for_entity(text, text)
-  to authenticated, service_role;
+-- MyBasePay: implement at Recruit 619 first — keep others enabled=false scaffold
+update public.os_partner_entity_bindings
+set enabled = false, updated_at = now()
+where partner_key = 'mybasepay'
+  and entity_id <> 'ENT-R619';
 
--- Seed enablements + presence for known operating entities
-do $$
-declare
-  e text;
-  names text[] := array['ENT-FIRM', 'ENT-R619', 'ENT-SIGNENT', 'ENT-INDA'];
-  labels text[] := array[
-    'Tage Venture Capital', 'Recruit 619', 'Signent HR', 'Instant NDA'
-  ];
-  i int;
-begin
-  for i in 1 .. array_length(names, 1) loop
-    begin
-      perform public.provision_partner_spine_for_entity(names[i], labels[i]);
-    exception when foreign_key_violation then
-      -- entity row may not exist yet in some envs
-      null;
-    when others then
-      null;
-    end;
-  end loop;
-end $$;
+-- ---------------------------------------------------------------------------
+-- Technology: vendor contracts + payments
+-- ---------------------------------------------------------------------------
+create table if not exists public.os_partner_vendor_contracts (
+  id uuid primary key default gen_random_uuid(),
+  partner_key text not null
+    references public.os_partner_catalog(partner_key) on delete cascade,
+  entity_id text references public.entities(entity_id),
+  vendor_name text not null,
+  contract_title text not null,
+  status text not null default 'draft'
+    check (status in ('draft', 'active', 'expired', 'cancelled', 'renewal_due')),
+  starts_on date,
+  ends_on date,
+  amount_cents bigint,
+  currency text not null default 'USD',
+  payment_cadence text,
+  document_path text,
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists os_partner_contracts_expiry_idx
+  on public.os_partner_vendor_contracts (ends_on)
+  where ends_on is not null;
+
+create table if not exists public.os_partner_vendor_payments (
+  id uuid primary key default gen_random_uuid(),
+  contract_id uuid not null
+    references public.os_partner_vendor_contracts(id) on delete cascade,
+  paid_on date not null,
+  amount_cents bigint not null,
+  currency text not null default 'USD',
+  reference text,
+  notes text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists os_partner_payments_contract_idx
+  on public.os_partner_vendor_payments (contract_id, paid_on desc);
+
+-- ---------------------------------------------------------------------------
+-- Marketing presence: GBP / GA4 / LinkedIn Company Pages (all entities)
+-- ---------------------------------------------------------------------------
+create table if not exists public.os_marketing_presence_properties (
+  id uuid primary key default gen_random_uuid(),
+  kind text not null
+    check (kind in ('google_business', 'google_analytics', 'linkedin_company')),
+  entity_id text not null references public.entities(entity_id),
+  label text not null,
+  external_id text,
+  status text not null default 'scaffolded'
+    check (status in ('not_configured', 'scaffolded', 'configured', 'live', 'error', 'disabled')),
+  config jsonb not null default '{}'::jsonb,
+  last_import_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (kind, entity_id)
+);
+
+insert into public.os_marketing_presence_properties (kind, entity_id, label, status)
+select k.kind, e.entity_id,
+  e.entity_id || ' · ' || replace(k.kind, '_', ' '),
+  'scaffolded'
+from (
+  select unnest(array['google_business', 'google_analytics', 'linkedin_company']) as kind
+) k
+cross join (
+  select unnest(array['ENT-FIRM', 'ENT-R619', 'ENT-SIGNENT', 'ENT-INDA']) as entity_id
+) e
+where exists (select 1 from public.entities ent where ent.entity_id = e.entity_id)
+on conflict (kind, entity_id) do nothing;
+
+-- ---------------------------------------------------------------------------
+-- Event bus + BI signals
+-- ---------------------------------------------------------------------------
+create table if not exists public.os_partner_events (
+  id uuid primary key default gen_random_uuid(),
+  partner_key text not null
+    references public.os_partner_catalog(partner_key) on delete cascade,
+  entity_id text references public.entities(entity_id),
+  kind text not null
+    check (kind in ('webhook', 'import', 'provision', 'revoke', 'commission_push', 'sync', 'bi_signal')),
+  status text not null default 'received'
+    check (status in ('received', 'processed', 'failed', 'ignored')),
+  external_id text,
+  payload jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists os_partner_events_partner_idx
+  on public.os_partner_events (partner_key, created_at desc);
+
+create table if not exists public.os_partner_bi_signals (
+  id uuid primary key default gen_random_uuid(),
+  partner_key text not null
+    references public.os_partner_catalog(partner_key) on delete cascade,
+  entity_id text references public.entities(entity_id),
+  metric_key text not null,
+  metric_label text not null,
+  value_num numeric,
+  value_text text,
+  observed_at timestamptz not null default now(),
+  meta jsonb not null default '{}'::jsonb
+);
+
+create index if not exists os_partner_bi_signals_obs_idx
+  on public.os_partner_bi_signals (observed_at desc);
+
+-- ---------------------------------------------------------------------------
+-- Gusto commission stubs (invoice paid → payroll)
+-- ---------------------------------------------------------------------------
+create table if not exists public.os_gusto_commission_stubs (
+  id uuid primary key default gen_random_uuid(),
+  entity_id text not null references public.entities(entity_id),
+  user_id uuid,
+  invoice_id text,
+  commission_cents bigint not null,
+  currency text not null default 'USD',
+  status text not null default 'calculated'
+    check (status in ('calculated', 'pending_push', 'pushed', 'failed', 'waived')),
+  gusto_ref text,
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists os_gusto_comm_entity_idx
+  on public.os_gusto_commission_stubs (entity_id, status, created_at desc);
 
 -- ---------------------------------------------------------------------------
 -- RLS
 -- ---------------------------------------------------------------------------
 alter table public.os_partner_catalog enable row level security;
-alter table public.os_partner_entity_enablements enable row level security;
-alter table public.os_partner_contracts enable row level security;
+alter table public.os_partner_entity_bindings enable row level security;
+alter table public.os_partner_vendor_contracts enable row level security;
+alter table public.os_partner_vendor_payments enable row level security;
 alter table public.os_marketing_presence_properties enable row level security;
 alter table public.os_partner_events enable row level security;
-alter table public.os_partner_commission_queue enable row level security;
+alter table public.os_partner_bi_signals enable row level security;
+alter table public.os_gusto_commission_stubs enable row level security;
 
 drop policy if exists "os_partner_catalog_select" on public.os_partner_catalog;
 create policy "os_partner_catalog_select"
   on public.os_partner_catalog for select to authenticated
   using (true);
 
-drop policy if exists "os_partner_enable_select" on public.os_partner_entity_enablements;
-drop policy if exists "os_partner_enable_write" on public.os_partner_entity_enablements;
-create policy "os_partner_enable_select"
-  on public.os_partner_entity_enablements for select to authenticated
+drop policy if exists "os_partner_bindings_select" on public.os_partner_entity_bindings;
+drop policy if exists "os_partner_bindings_write" on public.os_partner_entity_bindings;
+create policy "os_partner_bindings_select"
+  on public.os_partner_entity_bindings for select to authenticated
   using (
     public.is_firm_wide_access()
     or public.can_access_entity(entity_id)
   );
-create policy "os_partner_enable_write"
-  on public.os_partner_entity_enablements for all to authenticated
+create policy "os_partner_bindings_write"
+  on public.os_partner_entity_bindings for all to authenticated
   using (public.is_firm_wide_access())
   with check (public.is_firm_wide_access());
 
-drop policy if exists "os_partner_contracts_select" on public.os_partner_contracts;
-drop policy if exists "os_partner_contracts_write" on public.os_partner_contracts;
+drop policy if exists "os_partner_contracts_select" on public.os_partner_vendor_contracts;
+drop policy if exists "os_partner_contracts_write" on public.os_partner_vendor_contracts;
 create policy "os_partner_contracts_select"
-  on public.os_partner_contracts for select to authenticated
+  on public.os_partner_vendor_contracts for select to authenticated
   using (
     public.is_firm_wide_access()
     or entity_id is null
     or public.can_access_entity(entity_id)
   );
 create policy "os_partner_contracts_write"
-  on public.os_partner_contracts for all to authenticated
+  on public.os_partner_vendor_contracts for all to authenticated
+  using (public.is_firm_wide_access())
+  with check (public.is_firm_wide_access());
+
+drop policy if exists "os_partner_payments_select" on public.os_partner_vendor_payments;
+drop policy if exists "os_partner_payments_write" on public.os_partner_vendor_payments;
+create policy "os_partner_payments_select"
+  on public.os_partner_vendor_payments for select to authenticated
+  using (
+    public.is_firm_wide_access()
+    or exists (
+      select 1 from public.os_partner_vendor_contracts c
+      where c.id = contract_id
+        and (c.entity_id is null or public.can_access_entity(c.entity_id))
+    )
+  );
+create policy "os_partner_payments_write"
+  on public.os_partner_vendor_payments for all to authenticated
   using (public.is_firm_wide_access())
   with check (public.is_firm_wide_access());
 
@@ -331,8 +299,8 @@ create policy "os_mkt_presence_select"
   );
 create policy "os_mkt_presence_write"
   on public.os_marketing_presence_properties for all to authenticated
-  using (public.is_firm_wide_access())
-  with check (public.is_firm_wide_access());
+  using (public.is_firm_wide_access() or public.can_access_entity(entity_id))
+  with check (public.is_firm_wide_access() or public.can_access_entity(entity_id));
 
 drop policy if exists "os_partner_events_select" on public.os_partner_events;
 create policy "os_partner_events_select"
@@ -343,29 +311,38 @@ create policy "os_partner_events_select"
     or public.can_access_entity(entity_id)
   );
 
-drop policy if exists "os_partner_commission_select" on public.os_partner_commission_queue;
-create policy "os_partner_commission_select"
-  on public.os_partner_commission_queue for select to authenticated
+drop policy if exists "os_partner_bi_select" on public.os_partner_bi_signals;
+create policy "os_partner_bi_select"
+  on public.os_partner_bi_signals for select to authenticated
+  using (
+    public.is_firm_wide_access()
+    or entity_id is null
+    or public.can_access_entity(entity_id)
+  );
+
+drop policy if exists "os_gusto_comm_select" on public.os_gusto_commission_stubs;
+drop policy if exists "os_gusto_comm_write" on public.os_gusto_commission_stubs;
+create policy "os_gusto_comm_select"
+  on public.os_gusto_commission_stubs for select to authenticated
   using (
     public.is_firm_wide_access()
     or public.can_access_entity(entity_id)
   );
+create policy "os_gusto_comm_write"
+  on public.os_gusto_commission_stubs for all to authenticated
+  using (public.is_firm_wide_access())
+  with check (public.is_firm_wide_access());
 
 grant select on public.os_partner_catalog to authenticated;
-grant select, insert, update on public.os_partner_entity_enablements to authenticated;
-grant select, insert, update on public.os_partner_contracts to authenticated;
+grant select, insert, update on public.os_partner_entity_bindings to authenticated;
+grant select, insert, update on public.os_partner_vendor_contracts to authenticated;
+grant select, insert on public.os_partner_vendor_payments to authenticated;
 grant select, insert, update on public.os_marketing_presence_properties to authenticated;
-grant select, insert on public.os_partner_events to authenticated;
-grant select, insert, update on public.os_partner_commission_queue to authenticated;
-
-grant select, insert, update, delete on public.os_partner_catalog to service_role;
-grant all on public.os_partner_entity_enablements to service_role;
-grant all on public.os_partner_contracts to service_role;
-grant all on public.os_marketing_presence_properties to service_role;
-grant all on public.os_partner_events to service_role;
-grant all on public.os_partner_commission_queue to service_role;
+grant select on public.os_partner_events to authenticated;
+grant select on public.os_partner_bi_signals to authenticated;
+grant select, insert, update on public.os_gusto_commission_stubs to authenticated;
 
 comment on table public.os_partner_catalog is
-  'Phase 89 partner spine catalog — inherited by every OS entity.';
-comment on function public.provision_partner_spine_for_entity(text, text) is
-  'Seeds partner enablements + Marketing presence slots for a new entity.';
+  'Phase 89 partner spine catalog — code catalog.ts is canonical; SQL mirror for joins.';
+comment on table public.os_marketing_presence_properties is
+  'Marketing Shared Services: Google Business, GA4, LinkedIn Company Pages per entity.';

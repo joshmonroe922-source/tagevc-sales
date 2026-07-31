@@ -1,117 +1,216 @@
 /**
- * Canonical partner catalog — inherited by every entity on provision.
- * Connection secrets stay in env / vault; this is the product spine map.
+ * Partner platform spine catalog — inherited by every OS entity.
+ * Secrets stay in env / vault; this registry is capability + ownership metadata.
  */
 
-import type { PartnerCatalogEntry, PartnerKey } from '@/lib/partners/types';
-import { PARTNER_SPINE_CONTRACT_VERSION } from '@/lib/partners/types';
+export type PartnerKey =
+  | 'dialpad'
+  | 'verified_first'
+  | 'mybasepay'
+  | 'apollo'
+  | 'gusto'
+  | 'docusign'
+  | 'linkedin_recruiter'
+  | 'appcast'
+  | 'google_business'
+  | 'google_analytics'
+  | 'linkedin_company';
 
-export { PARTNER_SPINE_CONTRACT_VERSION };
+export type PartnerOwnerSs =
+  | 'IT'
+  | 'HR'
+  | 'Finance'
+  | 'Legal'
+  | 'Marketing'
+  | 'Recruiting';
 
-export const PARTNER_CATALOG: readonly PartnerCatalogEntry[] = [
+export type PartnerScope =
+  | 'all_entities'
+  | 'recruit_primary'
+  | 'internal_employees'
+  | 'contractor_placements';
+
+export type PartnerCapability =
+  | 'phone_sms_ai'
+  | 'background_drug'
+  | 'eor'
+  | 'contacts_db'
+  | 'payroll'
+  | 'esignature'
+  | 'recruiter_crm'
+  | 'job_publish'
+  | 'local_presence'
+  | 'web_analytics'
+  | 'company_page';
+
+export type PartnerDefinition = {
+  key: PartnerKey;
+  label: string;
+  summary: string;
+  ownerSs: PartnerOwnerSs;
+  /** Secondary owners (ops surfaces that also manage / consume). */
+  coOwners?: PartnerOwnerSs[];
+  scope: PartnerScope;
+  capabilities: PartnerCapability[];
+  /** Env vars Josh must set — never invent values. */
+  envKeys: string[];
+  /** Fail-closed live switch when present. */
+  liveFlag?: string;
+  webhookPath?: string;
+  docsPath: string;
+  /** Auto-provision / revoke hooks in JML when product allows. */
+  lifecycleHooks: {
+    joiner?: string;
+    leaver?: string;
+    entityCreate?: string;
+  };
+  /** Where implement-now vs scaffold-only applies. */
+  implementNow: Array<'ENT-FIRM' | 'ENT-R619' | 'ENT-SIGNENT' | 'ENT-INDA' | 'all'>;
+  biFeed: boolean;
+  importSupported: boolean;
+  status: 'live' | 'scaffolded' | 'planned';
+};
+
+export const PARTNER_SPINE_VERSION = 'partner-spine-v1' as const;
+/** @deprecated alias — prefer PARTNER_SPINE_VERSION */
+export const PARTNER_SPINE_CONTRACT_VERSION = PARTNER_SPINE_VERSION;
+
+export const PARTNER_CATALOG: PartnerDefinition[] = [
   {
     key: 'dialpad',
-    name: 'Dialpad',
-    category: 'communications',
-    ownerFunction: 'IT',
-    summary: 'Phone + SMS + AI voice across entities; replace/augment RingCentral paths.',
-    manageHref: '/shared-services/it/technology#dialpad',
+    label: 'Dialpad',
+    summary: 'Phone + SMS + AI communications for all entities.',
+    ownerSs: 'IT',
+    coOwners: ['Marketing'],
+    scope: 'all_entities',
+    capabilities: ['phone_sms_ai'],
+    envKeys: [
+      'DIALPAD_API_KEY',
+      'DIALPAD_WEBHOOK_SECRET',
+      'DIALPAD_LIVE',
+    ],
+    liveFlag: 'DIALPAD_LIVE',
+    webhookPath: '/api/partners/dialpad/webhook',
     docsPath: 'docs/PARTNER_SPINE.md#dialpad',
-    scopeMode: 'all_entities',
-    envKeys: ['DIALPAD_API_KEY', 'DIALPAD_WEBHOOK_SECRET'],
-    liveEnvKey: 'DIALPAD_LIVE',
-    supportsImport: true,
-    supportsWebhook: true,
-    supportsAutoProvision: true,
-    biSignals: ['call_volume', 'sms_volume', 'ai_assist_usage'],
+    lifecycleHooks: {
+      joiner: 'provision_dialpad_user',
+      leaver: 'revoke_dialpad_user',
+      entityCreate: 'ensure_dialpad_office',
+    },
     implementNow: ['all'],
+    biFeed: true,
+    importSupported: true,
+    status: 'scaffolded',
   },
   {
     key: 'verified_first',
-    name: 'Verified First',
-    category: 'screening',
-    ownerFunction: 'HR',
+    label: 'Verified First',
     summary:
-      'Background checks + drug screens. Spine live for HRIS + Recruit; Signent scaffold.',
-    manageHref: '/shared-services/hr/screening',
-    docsPath: 'docs/VERIFIED_FIRST_SCREENING_SPINE.md',
-    scopeMode: 'all_entities',
+      'Background checks + drug screens — Tage HR, Recruit 619 placements, Signent HR.',
+    ownerSs: 'HR',
+    coOwners: ['Recruiting'],
+    scope: 'all_entities',
+    capabilities: ['background_drug'],
     envKeys: [
       'VERIFIED_FIRST_API_KEY',
       'VERIFIED_FIRST_WEBHOOK_SECRET',
+      'VERIFIED_FIRST_LIVE',
       'VERIFIED_FIRST_API_BASE',
     ],
-    liveEnvKey: 'VERIFIED_FIRST_LIVE',
-    supportsImport: false,
-    supportsWebhook: true,
-    supportsAutoProvision: false,
-    biSignals: ['orders_pending', 'orders_clear', 'orders_review'],
+    liveFlag: 'VERIFIED_FIRST_LIVE',
+    webhookPath: '/api/screening/verified-first/webhook',
+    docsPath: 'docs/VERIFIED_FIRST_SCREENING_SPINE.md',
+    lifecycleHooks: {
+      joiner: 'pending_verified_first_if_required',
+      entityCreate: 'seed_screening_entity_defaults',
+    },
     implementNow: ['ENT-FIRM', 'ENT-R619', 'ENT-SIGNENT'],
+    biFeed: true,
+    importSupported: false,
+    status: 'live',
   },
   {
     key: 'mybasepay',
-    name: 'MyBasePay',
-    category: 'eor',
-    ownerFunction: 'HR',
+    label: 'MyBasePay',
     summary:
-      'Employer of Record. Architected firm-wide; implement Recruit 619 contractor placements first.',
-    manageHref: '/shared-services/it/technology#mybasepay',
+      'Employer of Record for contractor placements. Spine-wide; implement at Recruit 619 first.',
+    ownerSs: 'HR',
+    coOwners: ['Finance', 'Recruiting'],
+    scope: 'contractor_placements',
+    capabilities: ['eor'],
+    envKeys: [
+      'MYBASEPAY_API_KEY',
+      'MYBASEPAY_WEBHOOK_SECRET',
+      'MYBASEPAY_LIVE',
+      'MYBASEPAY_API_BASE',
+    ],
+    liveFlag: 'MYBASEPAY_LIVE',
+    webhookPath: '/api/partners/mybasepay/webhook',
     docsPath: 'docs/PARTNER_SPINE.md#mybasepay',
-    scopeMode: 'recruit_first',
-    envKeys: ['MYBASEPAY_API_KEY', 'MYBASEPAY_WEBHOOK_SECRET'],
-    liveEnvKey: 'MYBASEPAY_LIVE',
-    supportsImport: true,
-    supportsWebhook: true,
-    supportsAutoProvision: true,
-    biSignals: ['active_eor_workers', 'placement_eor_pending'],
+    lifecycleHooks: {
+      entityCreate: 'enable_mybasepay_if_recruiting',
+    },
     implementNow: ['ENT-R619'],
+    biFeed: true,
+    importSupported: true,
+    status: 'scaffolded',
   },
   {
     key: 'apollo',
-    name: 'Apollo',
-    category: 'data',
-    ownerFunction: 'Shared',
+    label: 'Apollo',
     summary:
-      'Contact/company database into Tage portal + unified DB for all entities.',
-    manageHref: '/shared-services/it/technology#apollo',
+      'Contact/company database into Tage portal + unified layered DB for all entities.',
+    ownerSs: 'Marketing',
+    coOwners: ['Recruiting'],
+    scope: 'all_entities',
+    capabilities: ['contacts_db'],
+    envKeys: ['APOLLO_API_KEY', 'APOLLO_LIVE'],
+    liveFlag: 'APOLLO_LIVE',
     docsPath: 'docs/PARTNER_SPINE.md#apollo',
-    scopeMode: 'all_entities',
-    envKeys: ['APOLLO_API_KEY'],
-    liveEnvKey: 'APOLLO_LIVE',
-    supportsImport: true,
-    supportsWebhook: false,
-    supportsAutoProvision: false,
-    biSignals: ['contacts_imported', 'companies_enriched'],
+    lifecycleHooks: {
+      entityCreate: 'ensure_apollo_workspace_binding',
+    },
     implementNow: ['all'],
+    biFeed: true,
+    importSupported: true,
+    status: 'scaffolded',
   },
   {
     key: 'gusto',
-    name: 'Gusto',
-    category: 'payroll',
-    ownerFunction: 'Finance',
+    label: 'Gusto',
     summary:
-      'Payroll for internal employees. Invoice-paid → commission calc → payroll push stubs.',
-    manageHref: '/shared-services/af',
+      'Payroll for internal employees at all entities + commission push from paid invoices.',
+    ownerSs: 'Finance',
+    coOwners: ['HR'],
+    scope: 'internal_employees',
+    capabilities: ['payroll'],
+    envKeys: [
+      'GUSTO_API_TOKEN',
+      'GUSTO_COMPANY_UUID',
+      'GUSTO_WEBHOOK_SECRET',
+      'GUSTO_LIVE',
+    ],
+    liveFlag: 'GUSTO_LIVE',
+    webhookPath: '/api/partners/gusto/webhook',
     docsPath: 'docs/PARTNER_SPINE.md#gusto',
-    scopeMode: 'all_entities',
-    envKeys: ['GUSTO_API_TOKEN', 'GUSTO_COMPANY_UUID'],
-    liveEnvKey: 'GUSTO_LIVE',
-    supportsImport: true,
-    supportsWebhook: true,
-    supportsAutoProvision: true,
-    biSignals: ['payroll_runs', 'commission_queued', 'commission_pushed'],
+    lifecycleHooks: {
+      joiner: 'provision_gusto_employee',
+      leaver: 'terminate_gusto_employee',
+      entityCreate: 'ensure_gusto_company_binding',
+    },
     implementNow: ['all'],
+    biFeed: true,
+    importSupported: true,
+    status: 'scaffolded',
   },
   {
     key: 'docusign',
-    name: 'DocuSign',
-    category: 'esignature',
-    ownerFunction: 'Legal',
+    label: 'DocuSign',
     summary:
-      'Org account Tage VC + per-subsidiary enablement. Existing JWT/Connect spine.',
-    manageHref: '/shared-services/legal/docusign',
-    docsPath: 'docs/PARTNER_SPINE.md#docusign',
-    scopeMode: 'all_entities',
+      'Org account with Tage Venture Capital + each subsidiary for e-signature.',
+    ownerSs: 'Legal',
+    scope: 'all_entities',
+    capabilities: ['esignature'],
     envKeys: [
       'DOCUSIGN_INTEGRATION_KEY',
       'DOCUSIGN_USER_ID',
@@ -120,151 +219,227 @@ export const PARTNER_CATALOG: readonly PartnerCatalogEntry[] = [
       'DOCUSIGN_WEBHOOK_SECRET',
       'DOCUSIGN_CONNECT_HMAC_SECRET',
     ],
-    supportsImport: true,
-    supportsWebhook: true,
-    supportsAutoProvision: false,
-    biSignals: ['envelopes_sent', 'envelopes_completed', 'archive_health'],
+    webhookPath: '/api/docusign/connect',
+    docsPath: 'docs/PARTNER_SPINE.md#docusign',
+    lifecycleHooks: {
+      entityCreate: 'ensure_docusign_account_binding',
+    },
     implementNow: ['all'],
+    biFeed: true,
+    importSupported: true,
+    status: 'live',
   },
   {
     key: 'linkedin_recruiter',
-    name: 'LinkedIn Recruiter',
-    category: 'recruiting',
-    ownerFunction: 'Recruiting',
+    label: 'LinkedIn Recruiter',
     summary:
-      'Two-way sync scaffold. Biggest use at Recruit 619; attach account when issued.',
-    manageHref: '/shared-services/it/technology#linkedin_recruiter',
-    docsPath: 'docs/PARTNER_SPINE.md#linkedin-recruiter',
-    scopeMode: 'all_entities',
+      'Two-way sync scaffold; primary use Recruit 619; available to all entities later.',
+    ownerSs: 'Recruiting',
+    coOwners: ['HR'],
+    scope: 'recruit_primary',
+    capabilities: ['recruiter_crm'],
     envKeys: [
       'LINKEDIN_RECRUITER_CLIENT_ID',
       'LINKEDIN_RECRUITER_CLIENT_SECRET',
-      'LINKEDIN_RECRUITER_ACCESS_TOKEN',
+      'LINKEDIN_RECRUITER_LIVE',
     ],
-    liveEnvKey: 'LINKEDIN_RECRUITER_LIVE',
-    supportsImport: true,
-    supportsWebhook: false,
-    supportsAutoProvision: false,
-    biSignals: ['candidates_synced', 'inmail_activity'],
+    liveFlag: 'LINKEDIN_RECRUITER_LIVE',
+    docsPath: 'docs/PARTNER_SPINE.md#linkedin-recruiter',
+    lifecycleHooks: {
+      entityCreate: 'ensure_linkedin_recruiter_seat_pool',
+    },
     implementNow: ['ENT-R619'],
+    biFeed: true,
+    importSupported: true,
+    status: 'scaffolded',
   },
   {
     key: 'appcast',
-    name: 'Appcast',
-    category: 'job_publish',
-    ownerFunction: 'Recruiting',
+    label: 'Appcast',
     summary:
-      'Job publishing. Immediate at R619; careers pages for all entities; contact dedup on apply.',
-    manageHref: '/shared-services/it/technology#appcast',
+      'Job publishing — careers/internal for all entities; Recruit 619 client fills now.',
+    ownerSs: 'Recruiting',
+    coOwners: ['Marketing'],
+    scope: 'all_entities',
+    capabilities: ['job_publish'],
+    envKeys: [
+      'APPCAST_API_KEY',
+      'APPCAST_EMPLOYER_ID',
+      'APPCAST_WEBHOOK_SECRET',
+      'APPCAST_LIVE',
+    ],
+    liveFlag: 'APPCAST_LIVE',
+    webhookPath: '/api/partners/appcast/webhook',
     docsPath: 'docs/PARTNER_SPINE.md#appcast',
-    scopeMode: 'all_entities',
-    envKeys: ['APPCAST_API_KEY', 'APPCAST_EMPLOYER_ID', 'APPCAST_WEBHOOK_SECRET'],
-    liveEnvKey: 'APPCAST_LIVE',
-    supportsImport: true,
-    supportsWebhook: true,
-    supportsAutoProvision: false,
-    biSignals: ['jobs_published', 'applies_inbound', 'spend'],
-    implementNow: ['ENT-R619'],
+    lifecycleHooks: {
+      entityCreate: 'ensure_appcast_employer_binding',
+    },
+    implementNow: ['ENT-R619', 'all'],
+    biFeed: true,
+    importSupported: true,
+    status: 'live',
   },
   {
     key: 'google_business',
-    name: 'Google Business Profile',
-    category: 'marketing_presence',
-    ownerFunction: 'Marketing',
+    label: 'Google Business Profile',
     summary:
-      'Per-entity Google Business pages. Managed under Marketing Shared Services.',
-    manageHref: '/shared-services/marketing/presence#google_business',
-    docsPath: 'docs/PARTNER_SPINE.md#google-business-analytics-linkedin',
-    scopeMode: 'marketing_all_entities',
+      'Google Business pages per entity — managed under Marketing Shared Services.',
+    ownerSs: 'Marketing',
+    scope: 'all_entities',
+    capabilities: ['local_presence'],
     envKeys: [
       'GOOGLE_BUSINESS_CLIENT_ID',
       'GOOGLE_BUSINESS_CLIENT_SECRET',
       'GOOGLE_BUSINESS_REFRESH_TOKEN',
+      'GOOGLE_BUSINESS_LIVE',
     ],
-    liveEnvKey: 'GOOGLE_BUSINESS_LIVE',
-    supportsImport: true,
-    supportsWebhook: false,
-    supportsAutoProvision: true,
-    biSignals: ['reviews', 'insights_views', 'search_queries'],
+    liveFlag: 'GOOGLE_BUSINESS_LIVE',
+    docsPath: 'docs/PARTNER_SPINE.md#google-business',
+    lifecycleHooks: {
+      entityCreate: 'ensure_google_business_location_slot',
+      leaver: 'revoke_google_business_managers_if_sole',
+    },
     implementNow: ['all'],
+    biFeed: true,
+    importSupported: true,
+    status: 'scaffolded',
   },
   {
     key: 'google_analytics',
-    name: 'Google Analytics (GA4)',
-    category: 'analytics',
-    ownerFunction: 'Marketing',
+    label: 'Google Analytics (GA4)',
     summary:
-      'GA4 property per entity. Import into unified DB + AI BI. Marketing-owned.',
-    manageHref: '/shared-services/marketing/presence#google_analytics',
-    docsPath: 'docs/PARTNER_SPINE.md#google-business-analytics-linkedin',
-    scopeMode: 'marketing_all_entities',
+      'GA4 property per entity — Marketing Shared Services central management.',
+    ownerSs: 'Marketing',
+    scope: 'all_entities',
+    capabilities: ['web_analytics'],
     envKeys: [
       'GA4_PROPERTY_ID',
-      'GOOGLE_ANALYTICS_CLIENT_ID',
-      'GOOGLE_ANALYTICS_CLIENT_SECRET',
-      'GOOGLE_ANALYTICS_REFRESH_TOKEN',
+      'GA4_SERVICE_ACCOUNT_JSON',
+      'GA4_LIVE',
+      'GOOGLE_OAUTH_CLIENT_ID',
+      'GOOGLE_OAUTH_CLIENT_SECRET',
     ],
-    liveEnvKey: 'GA4_LIVE',
-    supportsImport: true,
-    supportsWebhook: false,
-    supportsAutoProvision: true,
-    biSignals: ['sessions', 'conversions', 'traffic_sources'],
+    liveFlag: 'GA4_LIVE',
+    docsPath: 'docs/PARTNER_SPINE.md#google-analytics',
+    lifecycleHooks: {
+      entityCreate: 'ensure_ga4_property_binding',
+    },
     implementNow: ['all'],
+    biFeed: true,
+    importSupported: true,
+    status: 'scaffolded',
   },
   {
-    key: 'linkedin_company_pages',
-    name: 'LinkedIn Company Pages',
-    category: 'marketing_presence',
-    ownerFunction: 'Marketing',
+    key: 'linkedin_company',
+    label: 'LinkedIn Company Pages',
     summary:
-      'Per-entity LinkedIn Business/Company Pages under Marketing Shared Services (distinct from Recruiter + personal publish OAuth).',
-    manageHref: '/shared-services/marketing/presence#linkedin_company_pages',
-    docsPath: 'docs/PARTNER_SPINE.md#google-business-analytics-linkedin',
-    scopeMode: 'marketing_all_entities',
+      'LinkedIn Business / Company Pages per entity — Marketing Shared Services.',
+    ownerSs: 'Marketing',
+    scope: 'all_entities',
+    capabilities: ['company_page'],
     envKeys: [
       'LINKEDIN_COMPANY_CLIENT_ID',
       'LINKEDIN_COMPANY_CLIENT_SECRET',
-      'LINKEDIN_COMPANY_ACCESS_TOKEN',
+      'LINKEDIN_COMPANY_ORGANIZATION_URN',
+      'LINKEDIN_COMPANY_LIVE',
     ],
-    liveEnvKey: 'LINKEDIN_COMPANY_LIVE',
-    supportsImport: true,
-    supportsWebhook: false,
-    supportsAutoProvision: true,
-    biSignals: ['followers', 'page_posts', 'engagement'],
+    liveFlag: 'LINKEDIN_COMPANY_LIVE',
+    docsPath: 'docs/PARTNER_SPINE.md#linkedin-company',
+    lifecycleHooks: {
+      entityCreate: 'ensure_linkedin_company_page_binding',
+      leaver: 'revoke_linkedin_company_admin_if_sole',
+    },
     implementNow: ['all'],
+    biFeed: true,
+    importSupported: true,
+    status: 'scaffolded',
   },
-] as const;
+];
 
-export function partnerByKey(key: PartnerKey): PartnerCatalogEntry {
+export function getPartner(key: PartnerKey): PartnerDefinition {
   const row = PARTNER_CATALOG.find((p) => p.key === key);
-  if (!row) throw new Error(`Unknown partner key: ${key}`);
+  if (!row) throw new Error(`Unknown partner: ${key}`);
   return row;
 }
 
-export function partnersForOwner(
-  owner: PartnerCatalogEntry['ownerFunction'],
-): PartnerCatalogEntry[] {
-  return PARTNER_CATALOG.filter((p) => p.ownerFunction === owner);
-}
-
-export function marketingPresencePartners(): PartnerCatalogEntry[] {
+export function partnersForOwner(owner: PartnerOwnerSs): PartnerDefinition[] {
   return PARTNER_CATALOG.filter(
-    (p) =>
-      p.key === 'google_business' ||
-      p.key === 'google_analytics' ||
-      p.key === 'linkedin_company_pages',
+    (p) => p.ownerSs === owner || p.coOwners?.includes(owner),
   );
 }
 
+export function marketingPresencePartners(): PartnerDefinition[] {
+  return PARTNER_CATALOG.filter((p) =>
+    (['google_business', 'google_analytics', 'linkedin_company'] as PartnerKey[]).includes(
+      p.key,
+    ),
+  );
+}
+
+export function defaultEntityPartnerEnablement(entityId: string): PartnerKey[] {
+  const keys = PARTNER_CATALOG.filter((p) => {
+    if (p.implementNow.includes('all')) return true;
+    if (entityId === 'ENT-R619' && p.implementNow.includes('ENT-R619')) return true;
+    if (entityId === 'ENT-FIRM' && p.implementNow.includes('ENT-FIRM')) return true;
+    if (entityId === 'ENT-SIGNENT' && p.implementNow.includes('ENT-SIGNENT'))
+      return true;
+    if (entityId === 'ENT-INDA' && p.implementNow.includes('ENT-INDA')) return true;
+    // New entities inherit full spine by default (scaffold bindings).
+    if (!entityId.startsWith('ENT-')) return true;
+    const known = ['ENT-FIRM', 'ENT-R619', 'ENT-SIGNENT', 'ENT-INDA'];
+    if (!known.includes(entityId)) return p.scope === 'all_entities';
+    return p.scope === 'all_entities';
+  }).map((p) => p.key);
+  return [...new Set(keys)];
+}
+
+export function partnerEnvConfigured(def: PartnerDefinition): boolean {
+  if (def.envKeys.length === 0) return false;
+  // At least one primary secret (skip *_LIVE flags).
+  return def.envKeys.some((k) => {
+    if (k.endsWith('_LIVE')) return false;
+    return Boolean(process.env[k]?.trim());
+  });
+}
+
+/** Whether a partner is enabled by default for an entity (inheritance plan). */
 export function defaultEnabledForEntity(
   key: PartnerKey,
   entityId: string,
 ): boolean {
-  const entry = partnerByKey(key);
-  if (entry.implementNow.includes('all')) return true;
-  if (entry.scopeMode === 'recruit_first') return entityId === 'ENT-R619';
-  return (
-    entry.implementNow.includes(entityId as 'ENT-FIRM') ||
-    entry.implementNow.includes('all')
-  );
+  return defaultEntityPartnerEnablement(entityId).includes(key);
+}
+
+/** Compatibility shape for env / technology UI consumers. */
+export type PartnerCatalogEntry = PartnerDefinition & {
+  name: string;
+  ownerFunction: PartnerOwnerSs;
+  liveEnvKey: string | null;
+  manageHref: string;
+  docsPath: string;
+};
+
+export function asCatalogEntry(def: PartnerDefinition): PartnerCatalogEntry {
+  const manageHref =
+    def.key === 'google_business' ||
+    def.key === 'google_analytics' ||
+    def.key === 'linkedin_company'
+      ? '/shared-services/marketing/presence'
+      : def.key === 'verified_first'
+        ? '/shared-services/hr/screening'
+        : def.key === 'docusign'
+          ? '/shared-services/legal/docusign'
+          : '/shared-services/it/technology-stack';
+  return {
+    ...def,
+    name: def.label,
+    ownerFunction: def.ownerSs,
+    liveEnvKey: def.liveFlag ?? null,
+    manageHref,
+    docsPath: def.docsPath,
+  };
+}
+
+export function listCatalogEntries(): PartnerCatalogEntry[] {
+  return PARTNER_CATALOG.map(asCatalogEntry);
 }

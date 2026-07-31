@@ -416,7 +416,7 @@ export const MAIN_NAV: NavItem[] = [
         children: [
           {
             module: 'shared_services',
-            href: '/shared-services/it/technology',
+            href: '/shared-services/it/technology-stack',
             label: 'Partner stack',
             description: 'Vendors · contracts · payments · expirations',
             requiredPermission: 'read:it_assets',

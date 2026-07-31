@@ -1,134 +1,143 @@
 import Link from 'next/link';
-
-import { Badge } from '@/components/ui/badge';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { SscFunctionHomeChromeServer } from '@/components/shared-services/ssc-function-home-chrome-server';
 import { marketingPresencePartners } from '@/lib/partners/catalog';
-import { listPartnerRuntimeStatuses } from '@/lib/partners/env';
-import { listMarketingPresence } from '@/lib/partners/repo';
-import { requirePermission } from '@/lib/rbac/session';
+import { missingEnvForPartner, resolvePartnerStatus } from '@/lib/partners/registry';
+import { listMarketingPresence, listPartnerBindings } from '@/lib/partners/repo';
+import { isFirmWideAccess } from '@/lib/rbac/entity-scope';
+import { getSessionContext, requirePermission } from '@/lib/rbac/session';
 
 const KIND_LABEL: Record<string, string> = {
   google_business: 'Google Business Profile',
   google_analytics: 'Google Analytics (GA4)',
-  linkedin_company_pages: 'LinkedIn Company Page',
+  linkedin_company: 'LinkedIn Company Page',
 };
 
 export default async function MarketingPresencePage() {
   await requirePermission('read:marketing');
+  const ctx = await getSessionContext();
+  const firmWide = ctx
+    ? isFirmWideAccess(ctx.profile.role, ctx.profile.entity_id)
+    : false;
+  const entityId = firmWide ? null : (ctx?.profile.entity_id ?? null);
 
+  const [properties, bindings] = await Promise.all([
+    listMarketingPresence(entityId),
+    listPartnerBindings(entityId),
+  ]);
   const partners = marketingPresencePartners();
-  const runtime = listPartnerRuntimeStatuses().filter((r) =>
-    partners.some((p) => p.key === r.key),
-  );
-  const { rows, error } = await listMarketingPresence();
 
   return (
     <div className="space-y-6">
+      <SscFunctionHomeChromeServer
+        functionKey="marketing"
+        entityId={entityId}
+        firmWide={firmWide}
+      />
+
       <div>
-        <p className="text-xs text-muted-foreground">
-          <Link href="/shared-services/marketing" className="hover:underline">
-            Marketing
-          </Link>
-          {' · '}
-          Shared Services
-        </p>
-        <h1 className="font-heading text-2xl font-semibold tracking-tight">
-          Presence · Google & LinkedIn
+        <h1 className="text-xl font-semibold tracking-tight">
+          Marketing presence
         </h1>
-        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-          Central ops for per-entity Google Business Pages, GA4 properties, and
-          LinkedIn Company / Business Pages. Inherited by every OS entity.
-          Distinct from social publish OAuth and LinkedIn Recruiter.
+        <p className="mt-1 text-sm text-muted-foreground">
+          Google Business Pages, Google Analytics (GA4), and LinkedIn Company
+          Pages for every entity — central ops under Marketing Shared Services.
         </p>
       </div>
 
-      {error && (
-        <p className="text-sm text-amber-700 dark:text-amber-400">
-          DB soft-fail (apply phase89): {error}
-        </p>
-      )}
+      <div className="flex flex-wrap gap-3 text-sm">
+        <Link
+          href="/shared-services/marketing"
+          className="underline underline-offset-2"
+        >
+          ← Marketing home
+        </Link>
+        <Link href="/shared-services/bi" className="underline underline-offset-2">
+          Partner BI
+        </Link>
+        <Link
+          href="/shared-services/it/technology-stack"
+          className="underline underline-offset-2"
+        >
+          Technology stack
+        </Link>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Connection status</CardTitle>
-          <CardDescription>
-            Env placeholders only — Josh connects each account (see PARTNER_SPINE.md).
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {runtime.map((r) => (
-            <div
-              key={r.key}
-              id={r.key}
-              className="flex flex-wrap items-start justify-between gap-2 rounded-md border border-border/70 px-3 py-2 text-sm"
-            >
-              <div>
-                <div className="font-medium">{r.name}</div>
-                <div className="text-xs text-muted-foreground">{r.setupNote}</div>
+      <section className="grid gap-3 md:grid-cols-3">
+        {partners.map((def) => {
+          const binding = bindings.find((b) => b.partner_key === def.key);
+          const status = resolvePartnerStatus(def, binding?.status);
+          const missing = missingEnvForPartner(def.key).filter(
+            (k) => !k.endsWith('_LIVE'),
+          );
+          return (
+            <div key={def.key} className="rounded-lg border border-border p-4">
+              <div className="flex items-start justify-between gap-2">
+                <h2 className="font-semibold">{def.label}</h2>
+                <span className="rounded-md bg-muted px-2 py-0.5 text-xs">
+                  {status}
+                </span>
               </div>
-              <Badge variant={r.status === 'live' ? 'default' : 'outline'}>
-                {r.status}
-              </Badge>
+              <p className="mt-2 text-sm text-muted-foreground">{def.summary}</p>
+              <p className="mt-3 text-xs text-muted-foreground">
+                Env:{' '}
+                {missing.length === 0
+                  ? 'configured'
+                  : `needs ${missing.slice(0, 3).join(', ')}`}
+              </p>
             </div>
-          ))}
-        </CardContent>
-      </Card>
+          );
+        })}
+      </section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Entity properties</CardTitle>
-          <CardDescription>
-            <code className="text-xs">os_marketing_presence_properties</code> —
-            one slot per entity × kind
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No rows yet. After phase89, provision seeds ENT-FIRM / R619 /
-              Signent / Instant NDA. Or call{' '}
-              <code className="text-xs">provision_partner_spine_for_entity</code>.
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b text-muted-foreground">
-                    <th className="py-2 pr-3 font-medium">Entity</th>
-                    <th className="py-2 pr-3 font-medium">Kind</th>
-                    <th className="py-2 pr-3 font-medium">Name</th>
-                    <th className="py-2 pr-3 font-medium">External ID</th>
-                    <th className="py-2 font-medium">Status</th>
+      <section>
+        <h2 className="text-base font-semibold">Per-entity properties</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Slots auto-created when an entity inherits the partner spine. Attach
+          external IDs when Josh connects each account — no fake credentials.
+        </p>
+
+        {properties.length === 0 ? (
+          <p className="mt-4 text-sm text-muted-foreground">
+            No presence rows yet. Apply{' '}
+            <code>supabase/phase89_partner_spine.sql</code> then reopen.
+          </p>
+        ) : (
+          <div className="mt-4 overflow-x-auto rounded-lg border border-border">
+            <table className="w-full min-w-[640px] text-left text-sm">
+              <thead className="border-b border-border bg-muted/40">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Entity</th>
+                  <th className="px-3 py-2 font-medium">Channel</th>
+                  <th className="px-3 py-2 font-medium">Status</th>
+                  <th className="px-3 py-2 font-medium">External ID</th>
+                  <th className="px-3 py-2 font-medium">Last import</th>
+                </tr>
+              </thead>
+              <tbody>
+                {properties.map((p) => (
+                  <tr key={p.id} className="border-b border-border/70">
+                    <td className="px-3 py-2 font-medium">{p.entity_id}</td>
+                    <td className="px-3 py-2">
+                      {KIND_LABEL[p.kind] ?? p.kind}
+                    </td>
+                    <td className="px-3 py-2">
+                      <span className="rounded-md bg-muted px-2 py-0.5 text-xs">
+                        {p.status}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {p.external_id ?? '— attach when connected'}
+                    </td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {p.last_import_at ?? '—'}
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {rows.map((r) => (
-                    <tr key={r.id} className="border-b border-border/60">
-                      <td className="py-2 pr-3 font-mono text-xs">{r.entity_id}</td>
-                      <td className="py-2 pr-3">
-                        {KIND_LABEL[r.kind] ?? r.kind}
-                      </td>
-                      <td className="py-2 pr-3">{r.display_name}</td>
-                      <td className="py-2 pr-3 text-muted-foreground">
-                        {r.external_id ?? '— connect —'}
-                      </td>
-                      <td className="py-2">
-                        <Badge variant="outline">{r.status}</Badge>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

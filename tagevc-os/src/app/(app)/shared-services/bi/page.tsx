@@ -1,93 +1,129 @@
 import Link from 'next/link';
-
-import { Badge } from '@/components/ui/badge';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import {
-  buildPartnerBiInsights,
-  listMarketingPresence,
-  listPartnerContracts,
-} from '@/lib/partners/repo';
+import { buildPartnerBiReport } from '@/lib/partners/bi';
 import { requirePermission } from '@/lib/rbac/session';
 
 export default async function PartnerBiPage() {
   await requirePermission('read:shared_services');
-
-  const [{ rows: contracts }, { rows: presence }] = await Promise.all([
-    listPartnerContracts(),
-    listMarketingPresence(),
-  ]);
-  const insights = buildPartnerBiInsights({ contracts, presence });
+  const report = await buildPartnerBiReport();
 
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-xs text-muted-foreground">
-          <Link href="/shared-services" className="hover:underline">
-            Shared Services
-          </Link>
-          {' · '}
+        <h1 className="text-xl font-semibold tracking-tight">
           AI Business Intelligence
-        </p>
-        <h1 className="font-heading text-2xl font-semibold tracking-tight">
-          Partner BI
         </h1>
-        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-          Actionable insights across Dialpad, Verified First, MyBasePay, Apollo,
-          Gusto, DocuSign, LinkedIn Recruiter, Appcast, Google Business / GA4,
-          and LinkedIn Company Pages — plus unified DB event bus when LIVE.
+        <p className="mt-1 text-sm text-muted-foreground">
+          Cross-system insight shell over partner platforms, marketing presence,
+          commissions, and the unified DB signal feed.
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Insights</CardTitle>
-          <CardDescription>
-            Shell wired to contracts, presence slots, and env connection gaps.
-            Live adapters emit into <code className="text-xs">os_partner_events</code>.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {insights.map((insight, idx) => (
-            <div
-              key={`${insight.partner_key}-${idx}`}
-              className="rounded-md border border-border/70 px-3 py-2 text-sm"
-            >
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium">{insight.title}</span>
-                <Badge
-                  variant={
-                    insight.severity === 'action'
-                      ? 'destructive'
-                      : insight.severity === 'watch'
-                        ? 'secondary'
-                        : 'outline'
-                  }
-                >
-                  {insight.severity}
-                </Badge>
-                <span className="text-xs text-muted-foreground">
-                  {insight.partner_key}
-                </span>
-              </div>
-              <p className="mt-1 text-muted-foreground">{insight.detail}</p>
-              {insight.href ? (
-                <Link
-                  href={insight.href}
-                  className="mt-1 inline-block text-xs underline"
-                >
-                  Open
-                </Link>
-              ) : null}
+      <div className="flex flex-wrap gap-3 text-sm">
+        <Link href="/shared-services" className="underline underline-offset-2">
+          ← Shared Services
+        </Link>
+        <Link href="/c-suite" className="underline underline-offset-2">
+          AI C-Suite
+        </Link>
+        <Link
+          href="/shared-services/it/technology-stack"
+          className="underline underline-offset-2"
+        >
+          Technology stack
+        </Link>
+        <Link
+          href="/shared-services/marketing/presence"
+          className="underline underline-offset-2"
+        >
+          Marketing presence
+        </Link>
+      </div>
+
+      <p className="text-xs text-muted-foreground">
+        Generated {report.generatedAt}
+      </p>
+
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          ['Partners', report.partnerCount],
+          ['Live', report.liveCount],
+          ['Configured', report.configuredCount],
+          ['Scaffolded', report.scaffoldedCount],
+        ].map(([label, value]) => (
+          <div key={String(label)} className="rounded-lg border border-border p-4">
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">
+              {label}
             </div>
+            <div className="mt-1 text-2xl font-semibold">{value}</div>
+          </div>
+        ))}
+      </section>
+
+      <section>
+        <h2 className="text-base font-semibold">Insights</h2>
+        <ul className="mt-3 list-disc space-y-2 pl-5 text-sm">
+          {report.insightBullets.map((b) => (
+            <li key={b}>{b}</li>
           ))}
-        </CardContent>
-      </Card>
+        </ul>
+      </section>
+
+      <section>
+        <h2 className="text-base font-semibold">Partner posture</h2>
+        <div className="mt-3 grid gap-2 md:grid-cols-2">
+          {report.cards.map((c) => (
+            <Link
+              key={c.key}
+              href={c.href}
+              className="rounded-lg border border-border px-3 py-2 text-sm hover:bg-muted/40"
+            >
+              <div className="flex justify-between gap-2">
+                <span className="font-medium">{c.label}</span>
+                <span className="text-xs text-muted-foreground">{c.status}</span>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">{c.summary}</p>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <h2 className="text-base font-semibold">Marketing presence feed</h2>
+        {report.presence.length === 0 ? (
+          <p className="mt-2 text-sm text-muted-foreground">
+            Apply phase89 SQL to seed presence slots.
+          </p>
+        ) : (
+          <ul className="mt-3 space-y-1 text-sm">
+            {report.presence.slice(0, 24).map((p) => (
+              <li key={`${p.entity_id}-${p.kind}`}>
+                <span className="font-medium">{p.entity_id}</span> · {p.kind} ·{' '}
+                {p.status}
+                {p.last_import_at ? ` · imported ${p.last_import_at}` : ''}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section>
+        <h2 className="text-base font-semibold">Commission queue (Gusto)</h2>
+        {report.commissionQueue.length === 0 ? (
+          <p className="mt-2 text-sm text-muted-foreground">
+            No stubs — paid invoice hook will populate{' '}
+            <code>os_gusto_commission_stubs</code>.
+          </p>
+        ) : (
+          <ul className="mt-3 space-y-1 text-sm">
+            {report.commissionQueue.map((c) => (
+              <li key={c.id}>
+                {c.entity_id} · {(c.commission_cents / 100).toFixed(2)} ·{' '}
+                {c.status}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }

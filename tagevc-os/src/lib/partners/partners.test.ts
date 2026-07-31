@@ -1,19 +1,31 @@
 import { describe, expect, it } from 'vitest';
 
-import { PARTNER_CATALOG, defaultEnabledForEntity } from '@/lib/partners/catalog';
+import {
+  PARTNER_CATALOG,
+  defaultEnabledForEntity,
+  marketingPresencePartners,
+} from '@/lib/partners/catalog';
 import { calculateCommissionCents } from '@/lib/partners/commissions';
 import { mergePartnerLifecycleItems } from '@/lib/partners/lifecycle-hooks';
 import { buildPartnerSpineProvisionPlan } from '@/lib/partners/provision';
+import { partnerAdminHref } from '@/lib/partners/registry';
 
 describe('partner spine catalog', () => {
   it('includes marketing presence partners for all entities', () => {
     const keys = PARTNER_CATALOG.map((p) => p.key);
     expect(keys).toContain('google_business');
     expect(keys).toContain('google_analytics');
-    expect(keys).toContain('linkedin_company_pages');
+    expect(keys).toContain('linkedin_company');
     expect(keys).toContain('dialpad');
     expect(keys).toContain('mybasepay');
     expect(keys).toContain('appcast');
+  });
+
+  it('routes marketing presence to Marketing SS UI', () => {
+    for (const p of marketingPresencePartners()) {
+      expect(partnerAdminHref(p)).toBe('/shared-services/marketing/presence');
+      expect(p.ownerSs).toBe('Marketing');
+    }
   });
 
   it('enables MyBasePay for Recruit 619 only by default', () => {
@@ -27,7 +39,7 @@ describe('partner spine catalog', () => {
     expect(plan.marketing_presence.map((p) => p.kind).sort()).toEqual([
       'google_analytics',
       'google_business',
-      'linkedin_company_pages',
+      'linkedin_company',
     ]);
     expect(plan.enablements.length).toBe(PARTNER_CATALOG.length);
   });

@@ -6,8 +6,9 @@ import {
   PARTNER_CATALOG,
   PARTNER_SPINE_CONTRACT_VERSION,
   defaultEnabledForEntity,
+  type PartnerKey,
 } from '@/lib/partners/catalog';
-import type { MarketingPresenceKind, PartnerKey } from '@/lib/partners/types';
+import type { MarketingPresenceKind } from '@/lib/partners/types';
 
 export type PartnerSpineProvisionPlan = {
   contract_version: typeof PARTNER_SPINE_CONTRACT_VERSION;
@@ -31,13 +32,13 @@ export type PartnerSpineProvisionPlan = {
 const PRESENCE_KINDS: MarketingPresenceKind[] = [
   'google_business',
   'google_analytics',
-  'linkedin_company_pages',
+  'linkedin_company',
 ];
 
 const PRESENCE_LABELS: Record<MarketingPresenceKind, string> = {
   google_business: 'Google Business Profile',
   google_analytics: 'GA4 property',
-  linkedin_company_pages: 'LinkedIn Company Page',
+  linkedin_company: 'LinkedIn Company Page',
 };
 
 export function buildPartnerSpineProvisionPlan(
@@ -79,19 +80,17 @@ export function buildPartnerSpineProvisionPlan(
 /** Pure SQL-friendly payload for service upserts. */
 export function provisionPlanRows(plan: PartnerSpineProvisionPlan) {
   return {
-    enablements: plan.enablements.map((e) => ({
+    bindings: plan.enablements.map((e) => ({
       partner_key: e.partner_key,
       entity_id: plan.entity_id,
       enabled: e.enabled,
-      status: e.status,
-      config_meta: { provisioned_by: PARTNER_SPINE_CONTRACT_VERSION },
+      status: 'scaffolded' as const,
     })),
     presence: plan.marketing_presence.map((p) => ({
-      entity_id: plan.entity_id,
       kind: p.kind,
-      display_name: p.display_name,
-      status: p.status,
-      config_meta: { provisioned_by: PARTNER_SPINE_CONTRACT_VERSION },
+      entity_id: plan.entity_id,
+      label: p.display_name,
+      status: 'scaffolded' as const,
     })),
   };
 }

@@ -1,134 +1,129 @@
-/**
- * Partner platform spine — shared types for all entities / future OS clones.
- * Secrets never live here; only keys, statuses, and connection paths.
- */
+/** Partner spine shared types (DB row shapes + connection status). */
 
-export const PARTNER_SPINE_CONTRACT_VERSION = 'partner-spine-v1' as const;
-
-export type PartnerKey =
-  | 'dialpad'
-  | 'verified_first'
-  | 'mybasepay'
-  | 'apollo'
-  | 'gusto'
-  | 'docusign'
-  | 'linkedin_recruiter'
-  | 'appcast'
-  | 'google_business'
-  | 'google_analytics'
-  | 'linkedin_company_pages';
-
-export type PartnerCategory =
-  | 'communications'
-  | 'screening'
-  | 'eor'
-  | 'data'
-  | 'payroll'
-  | 'esignature'
-  | 'recruiting'
-  | 'job_publish'
-  | 'marketing_presence'
-  | 'analytics';
-
-export type PartnerOwnerFunction =
-  | 'IT'
-  | 'HR'
-  | 'Finance'
-  | 'Marketing'
-  | 'Legal'
-  | 'Recruiting'
-  | 'Shared';
+import type { PartnerKey, PartnerOwnerSs } from '@/lib/partners/catalog';
 
 export type PartnerConnectionStatus =
   | 'not_configured'
   | 'scaffold'
+  | 'scaffolded'
   | 'configured'
   | 'live'
-  | 'degraded'
+  | 'error'
   | 'disabled';
 
-export type PartnerScopeMode =
-  | 'firm_wide'
-  | 'all_entities'
-  | 'recruit_first'
-  | 'marketing_all_entities';
-
-export type PartnerCatalogEntry = {
-  key: PartnerKey;
-  name: string;
-  category: PartnerCategory;
-  ownerFunction: PartnerOwnerFunction;
-  summary: string;
-  /** Where operators manage connection / contracts. */
-  manageHref: string;
-  docsPath: string;
-  scopeMode: PartnerScopeMode;
-  /** Env var names Josh must set (never invent values). */
-  envKeys: string[];
-  /** Optional LIVE kill-switch env (fail-closed when unset / 0). */
-  liveEnvKey?: string;
-  supportsImport: boolean;
-  supportsWebhook: boolean;
-  supportsAutoProvision: boolean;
-  biSignals: string[];
-  /** Immediate implementation focus (others are architected). */
-  implementNow: Array<'ENT-FIRM' | 'ENT-R619' | 'ENT-SIGNENT' | 'ENT-INDA' | 'all'>;
-};
-
-export type PartnerEntityEnablement = {
+export type PartnerEntityBinding = {
   id: string;
   partner_key: PartnerKey;
   entity_id: string;
   enabled: boolean;
   status: PartnerConnectionStatus;
-  external_account_ref: string | null;
-  config_meta: Record<string, unknown>;
-  notes: string | null;
-  last_synced_at: string | null;
+  external_account_id: string | null;
+  config: Record<string, unknown>;
+  last_sync_at: string | null;
+  last_error: string | null;
+  created_at: string;
   updated_at: string;
 };
 
-export type PartnerContract = {
+export type PartnerVendorContract = {
   id: string;
   partner_key: PartnerKey;
   entity_id: string | null;
   vendor_name: string;
   contract_title: string;
-  status: 'draft' | 'active' | 'expiring' | 'expired' | 'cancelled';
+  status: 'draft' | 'active' | 'expired' | 'cancelled' | 'renewal_due';
   starts_on: string | null;
   ends_on: string | null;
-  renewal_on: string | null;
+  amount_cents: number | null;
+  currency: string;
   payment_cadence: string | null;
-  payment_amount: number | null;
-  payment_currency: string;
-  storage_path: string | null;
+  document_path: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
 };
 
+export type PartnerVendorPayment = {
+  id: string;
+  contract_id: string;
+  paid_on: string;
+  amount_cents: number;
+  currency: string;
+  reference: string | null;
+  notes: string | null;
+  created_at: string;
+};
+
 export type MarketingPresenceKind =
   | 'google_business'
   | 'google_analytics'
-  | 'linkedin_company_pages';
+  | 'linkedin_company';
 
 export type MarketingPresenceProperty = {
   id: string;
-  entity_id: string;
   kind: MarketingPresenceKind;
-  display_name: string;
+  entity_id: string;
+  label: string;
   external_id: string | null;
-  property_url: string | null;
   status: PartnerConnectionStatus;
-  config_meta: Record<string, unknown>;
-  last_imported_at: string | null;
+  config: Record<string, unknown>;
+  last_import_at: string | null;
+  created_at: string;
   updated_at: string;
 };
 
-export type PartnerBiInsight = {
-  partner_key: PartnerKey | 'cross_cutting';
-  title: string;
-  severity: 'info' | 'watch' | 'action';
-  detail: string;
-  href?: string;
+export type PartnerEventKind =
+  | 'webhook'
+  | 'import'
+  | 'provision'
+  | 'revoke'
+  | 'commission_push'
+  | 'sync'
+  | 'bi_signal';
+
+export type PartnerEvent = {
+  id: string;
+  partner_key: PartnerKey;
+  entity_id: string | null;
+  kind: PartnerEventKind;
+  status: 'received' | 'processed' | 'failed' | 'ignored';
+  external_id: string | null;
+  payload: Record<string, unknown>;
+  created_at: string;
+};
+
+export type PartnerBiSignal = {
+  id: string;
+  partner_key: PartnerKey;
+  entity_id: string | null;
+  metric_key: string;
+  metric_label: string;
+  value_num: number | null;
+  value_text: string | null;
+  observed_at: string;
+  meta: Record<string, unknown>;
+};
+
+export type CommissionPayrollStub = {
+  id: string;
+  entity_id: string;
+  user_id: string | null;
+  invoice_id: string | null;
+  commission_cents: number;
+  currency: string;
+  status: 'calculated' | 'pending_push' | 'pushed' | 'failed' | 'waived';
+  gusto_ref: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PartnerHubCard = {
+  key: PartnerKey;
+  label: string;
+  ownerSs: PartnerOwnerSs;
+  status: PartnerConnectionStatus;
+  summary: string;
+  href: string;
+  envReady: boolean;
 };

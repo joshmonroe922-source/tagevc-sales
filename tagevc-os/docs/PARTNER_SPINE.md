@@ -1,101 +1,112 @@
 # Partner platform spine (Phase 89)
 
-**Contract:** `partner-spine-v1`  
-**SQL:** `supabase/phase89_partner_spine.sql`  
-**Code:** `src/lib/partners/*`  
-**Do not touch Instant NDA product work** — Instant NDA inherits enablement rows as an entity only.
+**Code:** `src/lib/partners/*` · **SQL:** `supabase/phase89_partner_spine.sql`  
+**Principle:** Every current + future OS entity inherits the spine. Secrets never committed — env placeholders only. Fail-closed `*_LIVE=0` until Josh enables.
+
+## Partners
+
+| Key | Owner (SS) | Scope | Status |
+|-----|------------|-------|--------|
+| `dialpad` | IT | All entities | Scaffolded |
+| `verified_first` | HR (+ Recruiting) | Tage HR · R619 · Signent | **Live spine** (phase80) |
+| `mybasepay` | HR / Finance | Contractor EOR — **R619 first** | Scaffolded |
+| `apollo` | Marketing | All entities → unified DB | Scaffolded |
+| `gusto` | Finance / HR | Internal payroll + commissions | Scaffolded |
+| `docusign` | Legal | Org per entity | **Live** (existing) |
+| `linkedin_recruiter` | Recruiting | R619 primary; all later | Scaffolded |
+| `appcast` | Recruiting / Marketing | All careers; **R619 live path** | Live @ R619 |
+| `google_business` | **Marketing** | All entities | Scaffolded |
+| `google_analytics` | **Marketing** | All entities (GA4) | Scaffolded |
+| `linkedin_company` | **Marketing** | All entities (Company Pages) | Scaffolded |
+
+Marketing presence trio (Google Business · GA4 · LinkedIn Company) is managed under **Shared Services → Marketing → Presence**, not buried only in IT.
 
 ## Architecture
 
 ```
-os_partner_catalog  (firm definitions)
+os_partner_catalog
         │
         ▼
-os_partner_entity_enablements  (per entity on/off + status)
+os_partner_entity_bindings  ←── new entity create (provisionPartnerSpineForEntity)
         │
-        ├── Technology UI  → contracts / payments / expirations
-        ├── Marketing Presence → GBP · GA4 · LinkedIn Company Pages
-        ├── Event bus (os_partner_events) → AI BI
-        └── Lifecycle joiner/leaver hooks (stubs where APIs allow)
+        ├── os_partner_vendor_contracts / payments   (Technology admin)
+        ├── os_marketing_presence_properties         (Marketing SS)
+        ├── os_partner_events                        (webhook / import bus)
+        ├── os_partner_bi_signals                    (AI BI feed)
+        └── os_gusto_commission_stubs                (invoice → payroll)
 ```
 
-New entities call:
+### Inheritance
 
-```sql
-select public.provision_partner_spine_for_entity('ENT-ACME', 'Acme Co');
-```
+`provisionPartnerSpineForEntity(entityId)`:
 
-or `provisionPartnerSpineForEntity()` in `src/lib/partners/repo.ts`.
+1. Upserts bindings for every catalog partner (MyBasePay enabled only for recruiting-capable entities by default plan; R619 seeded enabled).
+2. Creates Marketing presence slots: `google_business`, `google_analytics`, `linkedin_company`.
+3. Records a provision event for BI/audit.
 
-## Partners
+Wire this from subsidiary / entity create flows (and call manually for existing entities after SQL apply).
 
-| Key | Owner | Scope | Status |
-|-----|-------|-------|--------|
-| `dialpad` | IT | All entities | Scaffold |
-| `verified_first` | HR | All (Signent scaffold) | **Live spine** (see `VERIFIED_FIRST_SCREENING_SPINE.md`) |
-| `mybasepay` | HR | Architect all; **implement R619** | Scaffold @ R619 |
-| `apollo` | Shared | All + unified DB | Scaffold |
-| `gusto` | Finance | All internal payroll + commissions | Scaffold + commission queue |
-| `docusign` | Legal | Org + subsidiaries | **Existing JWT/Connect** |
-| `linkedin_recruiter` | Recruiting | All; primary R619 | Scaffold (account soon) |
-| `appcast` | Recruiting | All careers; **immediate R619** | **Live on R619 portal** |
-| `google_business` | **Marketing** | All entities | Scaffold |
-| `google_analytics` | **Marketing** | All entities (GA4) | Scaffold |
-| `linkedin_company_pages` | **Marketing** | All entities | Scaffold |
+### JML hooks
 
-### Google Business / Analytics / LinkedIn Company Pages
+Joiner / leaver checklists gain partner hook IDs from `joinerPartnerHooks` / `leaverPartnerHooks` (Dialpad, Gusto, Verified First, Marketing presence admin revoke where product allows). Hooks are **queued labels** until each vendor API is LIVE.
 
-Managed under **Marketing Shared Services** (`/shared-services/marketing/presence`), not buried only in IT.
+### Secrets pattern
 
-- One row per `(entity_id, kind)` in `os_marketing_presence_properties`
-- Distinct from LinkedIn **personal/publish** OAuth (`os_marketing_social_accounts`) and LinkedIn **Recruiter**
-- Import stubs feed `os_partner_events` → BI when LIVE adapters land
-- Joiner/leaver hooks ensure slots exist / revoke editor access (stub)
+- Env keys listed on each partner in `src/lib/partners/catalog.ts` and `.env.example`.
+- Never store API keys in `os_partner_entity_bindings.config` — only external IDs + non-secret meta.
+- OAuth tokens for Marketing presence follow existing `os_marketing_oauth_tokens` vault pattern when wired.
 
 ## DocuSign — connect the org account
 
-Existing code: `src/lib/docusign/*`, Legal module `/shared-services/legal/docusign`.
+Existing live stack: `src/lib/docusign/*`, `/shared-services/legal/docusign`, Connect webhook.
 
-1. DocuSign Admin → Apps and Keys → create **JWT Grant** integration key (or use Tage org app).
-2. Grant consent for the impersonated user (User ID GUID).
-3. Generate RSA keypair; paste private key into `DOCUSIGN_PRIVATE_KEY` (use `\n` for newlines in env).
-4. Set on Vercel / `.env.local` (Tage OS):
+### Connect path (Josh)
 
-```
-DOCUSIGN_INTEGRATION_KEY=
-DOCUSIGN_USER_ID=
-DOCUSIGN_ACCOUNT_ID=
-DOCUSIGN_PRIVATE_KEY=
-DOCUSIGN_OAUTH_HOST=account.docusign.com   # or account-d for demo
-DOCUSIGN_BASE_PATH=https://na4.docusign.net
-DOCUSIGN_WEBHOOK_SECRET=
-DOCUSIGN_CONNECT_HMAC_SECRET=
-```
+1. DocuSign Admin → **Apps and Keys** → create / open Integration Key for Tage VC.
+2. Add RSA keypair; paste private key into `DOCUSIGN_PRIVATE_KEY` (keep `\n` escaped or multiline secret in Vercel).
+3. Set `DOCUSIGN_INTEGRATION_KEY`, `DOCUSIGN_USER_ID` (API user GUID), `DOCUSIGN_ACCOUNT_ID`.
+4. Choose hosts:
+   - Demo: `DOCUSIGN_OAUTH_HOST=account-d.docusign.com`, `DOCUSIGN_BASE_PATH=https://demo.docusign.net`
+   - Prod: `account.docusign.com` + your account base (e.g. `https://na4.docusign.net`)
+5. Grant JWT consent for the integration key (one-time browser consent URL from DocuSign docs).
+6. Connect webhook: point DocuSign Connect to `https://app.tagevc.com/api/docusign/connect` with `DOCUSIGN_WEBHOOK_SECRET` / `DOCUSIGN_CONNECT_HMAC_SECRET`.
+7. **Per subsidiary:** create or link a DocuSign account/brand under the Tage org; store `external_account_id` on `os_partner_entity_bindings` for `docusign` + that `entity_id`. Same Integration Key can impersonate users per account when configured.
 
-5. DocuSign Connect → HTTPS listener `https://app.tagevc.com/api/docusign/connect` (or current Connect route) with HMAC.
-6. Per subsidiary: enable row in `os_partner_entity_enablements` (`docusign`); optional separate Account IDs later via `external_account_ref` / `config_meta` — today one org JWT serves firm templates.
+UI: Shared Services → Legal → DocuSign. Technology stack page shows connection status for all entities.
 
-When env incomplete, OS stays in **mock** envelope mode (`getDocuSignMode()`).
+## Marketing presence (GBP · GA4 · LinkedIn Company)
 
-## MyBasePay @ Recruit 619
+| Kind | Connect |
+|------|---------|
+| `google_business` | Google Cloud OAuth (Business Profile API) → set `GOOGLE_BUSINESS_*`; bind location ID per entity |
+| `google_analytics` | GA4 property per entity; service account or OAuth → `GA4_PROPERTY_ID` / JSON; entity binding stores property ID |
+| `linkedin_company` | LinkedIn Marketing / Organization API → `LINKEDIN_COMPANY_*`; store organization URN per entity |
 
-- Spine enablement defaults **on** only for `ENT-R619`
-- Portal scaffold: `recruit619-portal` MyBasePay module + integration status
-- Flows (placement → EOR worker) come later; adapters fail-closed unless `MYBASEPAY_LIVE=1`
+UI: `/shared-services/marketing/presence`  
+Imports land in `os_partner_bi_signals` + `last_import_at` when LIVE.
 
-## Appcast @ Recruit 619
+## Gusto + commissions
 
-- Feed + apply webhook already on portal (`APPCAST_LIVE`, dual-approve)
-- Spine tracks firm-wide enablement + BI events; careers pages for other entities inherit the same partner key
+Flow (scaffold):
 
-## Gusto commissions
+1. Invoice marked paid (IES / A&F).
+2. `queueCommissionFromPaidInvoice` → `os_gusto_commission_stubs` (`pending_push`).
+3. If `GUSTO_LIVE=1` + token/company UUID → push payroll (stub records `gusto_ref`).
+4. Else dry-run only.
 
-`invoice paid → calculateCommissionCents(rateBps) → os_partner_commission_queue → gustoQueueCommission()`  
-LIVE push not implemented until Josh connects Gusto API.
+## Appcast / MyBasePay @ Recruit 619
 
-## AI BI
+- **Appcast:** Already live-path on `recruit619-portal` (`APPCAST_*`, feed + apply webhook). Spine binding `appcast` / `ENT-R619` mirrors status; firm entities get careers-slot scaffolding.
+- **MyBasePay:** Portal scaffold under Recruit integrations (`mybasepay`); OS spine enables binding for `ENT-R619` only until other entities opt in.
 
-`/shared-services/bi` aggregates partner connection gaps, contract expirations, presence slots, and points at `os_partner_events`.
+## AI Business Intelligence
+
+`/shared-services/bi` (and C-Suite context can import `buildPartnerBiReport`) surfaces:
+
+- Partner connection posture
+- Marketing presence slots
+- Commission queue
+- Imported partner signals
 
 ## Apply SQL
 
@@ -104,16 +115,17 @@ set -a && source .env.local && set +a
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/phase89_partner_spine.sql
 ```
 
-## Josh actions (credentials — do not invent)
+## Josh actions (credentials)
 
-1. Apply phase89 SQL on UDL
-2. DocuSign org JWT + Connect HMAC (if not already production)
+1. Apply `phase89_partner_spine.sql`
+2. DocuSign org JWT + Connect (if not already on prod)
 3. Dialpad API key + webhook secret
-4. Verified First package account IDs (spine already fail-closed)
-5. MyBasePay account → `MYBASEPAY_*` on R619 + OS
+4. Verified First live key when ready (`VERIFIED_FIRST_LIVE=1`)
+5. MyBasePay account for R619 contractor placements
 6. Apollo API key
-7. Gusto company + API token
-8. LinkedIn Recruiter app (when account issued)
-9. Appcast already partially wired on R619 — confirm employer ID / LIVE
-10. Google Business + GA4 OAuth clients; map property IDs per entity
-11. LinkedIn Company Page OAuth (Marketing Organization API) per entity
+7. Gusto company + API token (commissions after payroll mapping)
+8. LinkedIn Recruiter developer app (account coming)
+9. Appcast employer credentials (confirm R619 env)
+10. Google Business Profile API OAuth
+11. GA4 properties per entity + service account
+12. LinkedIn Company Page org URNs + OAuth

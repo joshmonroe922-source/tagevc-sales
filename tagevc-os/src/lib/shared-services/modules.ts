@@ -48,12 +48,12 @@ export const SS_FUNCTION_MODULES: SsHubModule[] = [
     service: 'IT',
     status: 'live',
     description:
-      'Assets · licenses · Intune posture · provisioning dual-approve.',
-    docs: 'docs/OS_PHASE57.md',
+      'Assets · licenses · Intune posture · partner stack · contracts.',
+    docs: 'docs/PARTNER_SPINE.md',
   },
   {
     id: 'partner_stack',
-    href: '/shared-services/it/technology',
+    href: '/shared-services/it/technology-stack',
     title: 'Partner stack',
     short: 'Partners',
     service: 'IT',

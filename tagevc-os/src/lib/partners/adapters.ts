@@ -3,7 +3,7 @@
  */
 
 import { partnerConnectionStatus } from '@/lib/partners/env';
-import type { PartnerKey } from '@/lib/partners/types';
+import type { PartnerKey } from '@/lib/partners/catalog';
 
 export type AdapterResult =
   | { ok: true; dryRun: boolean; message: string; externalRef?: string }
@@ -136,7 +136,7 @@ export async function appcastPublishStub(_input: {
 export async function marketingPresenceImportStub(
   kind: Extract<
     PartnerKey,
-    'google_business' | 'google_analytics' | 'linkedin_company_pages'
+    'google_business' | 'google_analytics' | 'linkedin_company'
   >,
   _input: { entityId: string },
 ): Promise<AdapterResult> {

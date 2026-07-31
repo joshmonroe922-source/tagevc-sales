@@ -2,12 +2,21 @@
  * Partner env / connection status — never invents credentials.
  */
 
-import { PARTNER_CATALOG } from '@/lib/partners/catalog';
-import type {
-  PartnerCatalogEntry,
-  PartnerConnectionStatus,
-  PartnerKey,
-} from '@/lib/partners/types';
+import {
+  PARTNER_CATALOG,
+  asCatalogEntry,
+  type PartnerCatalogEntry,
+  type PartnerKey,
+} from '@/lib/partners/catalog';
+
+export type PartnerConnectionStatus =
+  | 'not_configured'
+  | 'scaffold'
+  | 'scaffolded'
+  | 'configured'
+  | 'live'
+  | 'error'
+  | 'disabled';
 
 export function envPresent(keys: string[]): boolean {
   return keys.every((k) => Boolean(process.env[k]?.trim()));
@@ -19,8 +28,9 @@ export function envAnyPresent(keys: string[]): boolean {
 
 export function isPartnerLive(entry: PartnerCatalogEntry): boolean {
   if (!entry.liveEnvKey) {
-    // DocuSign uses config presence as live
-    return envPresent(entry.envKeys.slice(0, Math.min(4, entry.envKeys.length)));
+    return envPresent(
+      entry.envKeys.filter((k) => !k.endsWith('_LIVE')).slice(0, 4),
+    );
   }
   return process.env[entry.liveEnvKey]?.trim() === '1';
 }
@@ -28,8 +38,9 @@ export function isPartnerLive(entry: PartnerCatalogEntry): boolean {
 export function partnerConnectionStatus(
   key: PartnerKey,
 ): PartnerConnectionStatus {
-  const entry = PARTNER_CATALOG.find((p) => p.key === key);
-  if (!entry) return 'not_configured';
+  const raw = PARTNER_CATALOG.find((p) => p.key === key);
+  if (!raw) return 'not_configured';
+  const entry = asCatalogEntry(raw);
 
   if (key === 'docusign') {
     const configured = envPresent([
@@ -47,16 +58,20 @@ export function partnerConnectionStatus(
     return isPartnerLive(entry) ? 'live' : 'configured';
   }
 
-  const hasSecrets = envAnyPresent(entry.envKeys);
+  const secretKeys = entry.envKeys.filter((k) => !k.endsWith('_LIVE'));
+  const hasSecrets = envAnyPresent(secretKeys);
   if (!hasSecrets) return 'scaffold';
   if (entry.liveEnvKey && !isPartnerLive(entry)) return 'configured';
   return isPartnerLive(entry) ? 'live' : 'configured';
 }
 
 export function partnerSetupNote(key: PartnerKey): string {
-  const entry = PARTNER_CATALOG.find((p) => p.key === key);
-  if (!entry) return 'Unknown partner.';
-  const missing = entry.envKeys.filter((k) => !process.env[k]?.trim());
+  const raw = PARTNER_CATALOG.find((p) => p.key === key);
+  if (!raw) return 'Unknown partner.';
+  const entry = asCatalogEntry(raw);
+  const missing = entry.envKeys.filter(
+    (k) => !k.endsWith('_LIVE') && !process.env[k]?.trim(),
+  );
   if (missing.length === 0) {
     if (entry.liveEnvKey && process.env[entry.liveEnvKey]?.trim() !== '1') {
       return `Secrets present. Set ${entry.liveEnvKey}=1 to go live (fail-closed).`;
@@ -77,13 +92,16 @@ export type PartnerRuntimeRow = {
 };
 
 export function listPartnerRuntimeStatuses(): PartnerRuntimeRow[] {
-  return PARTNER_CATALOG.map((p) => ({
-    key: p.key,
-    name: p.name,
-    ownerFunction: p.ownerFunction,
-    status: partnerConnectionStatus(p.key),
-    setupNote: partnerSetupNote(p.key),
-    manageHref: p.manageHref,
-    live: isPartnerLive(p),
-  }));
+  return PARTNER_CATALOG.map((p) => {
+    const entry = asCatalogEntry(p);
+    return {
+      key: p.key,
+      name: entry.name,
+      ownerFunction: entry.ownerFunction,
+      status: partnerConnectionStatus(p.key),
+      setupNote: partnerSetupNote(p.key),
+      manageHref: entry.manageHref,
+      live: isPartnerLive(entry),
+    };
+  });
 }
