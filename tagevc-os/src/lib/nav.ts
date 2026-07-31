@@ -384,7 +384,7 @@ export const MAIN_NAV: NavItem[] = [
           {
             module: 'shared_services',
             href: '/eos',
-            label: 'Operating System',
+            label: 'Performance Management',
             description: 'Traction EOS · rocks · scorecard · IDS · L10',
             hiddenForRoles: [
               ...sscRolesHiddenFromFunction('HR'),
@@ -407,13 +407,20 @@ export const MAIN_NAV: NavItem[] = [
         module: 'shared_services',
         href: '/shared-services/it/assets',
         label: 'Technology',
-        description: 'Assets · licenses · Intune · activity',
+        description: 'Assets · licenses · Intune · partner stack',
         requiredPermission: 'read:it_assets',
         hiddenForRoles: [
           ...sscRolesHiddenFromFunction('IT'),
           ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
         ],
         children: [
+          {
+            module: 'shared_services',
+            href: '/shared-services/it/technology',
+            label: 'Partner stack',
+            description: 'Vendors · contracts · payments · expirations',
+            requiredPermission: 'read:it_assets',
+          },
           {
             module: 'shared_services',
             href: '/shared-services/it/activity',
@@ -434,12 +441,32 @@ export const MAIN_NAV: NavItem[] = [
         module: 'shared_services',
         href: '/shared-services/marketing',
         label: 'Marketing',
-        description: 'Campaigns · brand · revenue',
+        description: 'Campaigns · brand · presence · revenue',
         requiredPermission: 'read:marketing',
         hiddenForRoles: [
           ...sscRolesHiddenFromFunction('Marketing'),
           ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
         ],
+        children: [
+          {
+            module: 'shared_services',
+            href: '/shared-services/marketing/presence',
+            label: 'Presence',
+            description: 'Google Business · GA4 · LinkedIn Company Pages',
+            requiredPermission: 'read:marketing',
+            hiddenForRoles: [
+              ...sscRolesHiddenFromFunction('Marketing'),
+              ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
+            ],
+          },
+        ],
+      },
+      {
+        module: 'shared_services',
+        href: '/shared-services/bi',
+        label: 'Partner BI',
+        description: 'AI insights across partner spine',
+        hiddenForRoles: [...HIDE_SSC_FUNCTIONS_FOR_ADMIN],
       },
       {
         module: 'shared_services',
@@ -506,14 +533,35 @@ export const MAIN_NAV: NavItem[] = [
     description: 'Direct messages · groups',
   },
   {
-    /** HR-owned Traction EOS — also nested under Shared Services → HR. */
+    /** Grow spine — Performance Management + Training & Development (all entity OS clones). */
     module: 'shared_services',
-    href: '/eos',
-    label: 'Tage VC Operating System',
-    description: 'Rocks · scorecard · IDS · L10 · V/TO · rollup',
+    label: 'Grow',
+    description: 'Performance · training & development',
     hiddenForRoles: [
       ...sscRolesHiddenFromFunction('HR'),
       ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
+    ],
+    children: [
+      {
+        module: 'shared_services',
+        href: '/eos',
+        label: 'Tage VC Performance Management',
+        description: 'Rocks · scorecard · IDS · L10 · V/TO · rollup',
+        hiddenForRoles: [
+          ...sscRolesHiddenFromFunction('HR'),
+          ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
+        ],
+      },
+      {
+        module: 'shared_services',
+        href: '/training',
+        label: 'Training & Development',
+        description: 'LMS · courses · progress',
+        hiddenForRoles: [
+          ...sscRolesHiddenFromFunction('HR'),
+          ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
+        ],
+      },
     ],
   },
 ];

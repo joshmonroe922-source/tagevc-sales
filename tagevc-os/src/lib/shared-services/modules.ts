@@ -52,6 +52,17 @@ export const SS_FUNCTION_MODULES: SsHubModule[] = [
     docs: 'docs/OS_PHASE57.md',
   },
   {
+    id: 'partner_stack',
+    href: '/shared-services/it/technology',
+    title: 'Partner stack',
+    short: 'Partners',
+    service: 'IT',
+    status: 'foundation',
+    description:
+      'Spine vendors · contracts · payments · expirations · entity enablement.',
+    docs: 'docs/PARTNER_SPINE.md',
+  },
+  {
     id: 'marketing',
     href: '/shared-services/marketing',
     title: 'Marketing',
@@ -61,6 +72,28 @@ export const SS_FUNCTION_MODULES: SsHubModule[] = [
     description:
       'Campaigns · approvals · publishing · brand voice · revenue rails.',
     docs: 'docs/OS_PHASE58.md',
+  },
+  {
+    id: 'marketing_presence',
+    href: '/shared-services/marketing/presence',
+    title: 'Marketing presence',
+    short: 'Presence',
+    service: 'Marketing',
+    status: 'foundation',
+    description:
+      'Google Business · GA4 · LinkedIn Company Pages per entity.',
+    docs: 'docs/PARTNER_SPINE.md',
+  },
+  {
+    id: 'partner_bi',
+    href: '/shared-services/bi',
+    title: 'Partner BI',
+    short: 'BI',
+    service: 'All',
+    status: 'foundation',
+    description:
+      'AI Business Intelligence shell across partner systems + unified DB.',
+    docs: 'docs/PARTNER_SPINE.md',
   },
   {
     id: 'legal',

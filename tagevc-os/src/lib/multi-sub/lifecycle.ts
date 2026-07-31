@@ -1,6 +1,7 @@
 /** Central identity lifecycle (P5) — joiner / mover / leaver orchestration. */
 
 import { resolveCanonicalEntityId } from '@/lib/multi-sub/entity-registry';
+import { mergePartnerLifecycleItems } from '@/lib/partners/lifecycle-hooks';
 
 export const MS_P5_CONTRACT_VERSION = 'ms-p5-v1' as const;
 
@@ -25,8 +26,9 @@ export function defaultLifecycleChecklist(
   entityId: string | null | undefined,
 ): LifecycleChecklistItem[] {
   const entity = resolveCanonicalEntityId(entityId) ?? 'ENT-FIRM';
+  let base: LifecycleChecklistItem[];
   if (kind === 'joiner') {
-    return [
+    base = [
       { id: 'profile_create', label: 'Create/update Tage profile', status: 'pending' },
       {
         id: 'home_entity_role',
@@ -54,9 +56,8 @@ export function defaultLifecycleChecklist(
         status: 'pending',
       },
     ];
-  }
-  if (kind === 'mover') {
-    return [
+  } else if (kind === 'mover') {
+    base = [
       { id: 'update_entity_role', label: 'Update entity + role', status: 'pending' },
       {
         id: 'rescope_messaging',
@@ -74,35 +75,37 @@ export function defaultLifecycleChecklist(
         status: 'pending',
       },
     ];
+  } else {
+    // leaver — revoke-first
+    base = [
+      {
+        id: 'revoke_portal',
+        label: 'Revoke portal/SSO access (first)',
+        status: 'pending',
+      },
+      {
+        id: 'revoke_messaging',
+        label: 'Deprovision messaging memberships',
+        status: 'pending',
+      },
+      {
+        id: 'revoke_ticketing',
+        label: 'Revoke ticketing write scope',
+        status: 'pending',
+      },
+      {
+        id: 'offboarding_checklist',
+        label: 'IT offboarding (MDM wipe / licenses)',
+        status: 'pending',
+      },
+      {
+        id: 'evidence_pack',
+        label: 'Capture leaver evidence pack',
+        status: 'pending',
+      },
+    ];
   }
-  // leaver — revoke-first
-  return [
-    {
-      id: 'revoke_portal',
-      label: 'Revoke portal/SSO access (first)',
-      status: 'pending',
-    },
-    {
-      id: 'revoke_messaging',
-      label: 'Deprovision messaging memberships',
-      status: 'pending',
-    },
-    {
-      id: 'revoke_ticketing',
-      label: 'Revoke ticketing write scope',
-      status: 'pending',
-    },
-    {
-      id: 'offboarding_checklist',
-      label: 'IT offboarding (MDM wipe / licenses)',
-      status: 'pending',
-    },
-    {
-      id: 'evidence_pack',
-      label: 'Capture leaver evidence pack',
-      status: 'pending',
-    },
-  ];
+  return mergePartnerLifecycleItems(base, kind, entity);
 }
 
 export function leaverRevokeOrder(): string[] {
