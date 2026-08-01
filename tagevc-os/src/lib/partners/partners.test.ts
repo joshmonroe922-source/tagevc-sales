@@ -7,7 +7,10 @@ import {
 } from '@/lib/partners/catalog';
 import { calculateCommissionCents } from '@/lib/partners/commissions';
 import { runPartnerLifecycleHook } from '@/lib/partners/adapters';
-import { mergePartnerLifecycleItems } from '@/lib/partners/lifecycle-hooks';
+import {
+  completePartnerLifecycleHook,
+  mergePartnerLifecycleItems,
+} from '@/lib/partners/lifecycle-hooks';
 import { buildPartnerSpineProvisionPlan } from '@/lib/partners/provision';
 import { partnerAdminHref } from '@/lib/partners/registry';
 
@@ -73,5 +76,11 @@ describe('partner spine catalog', () => {
       entityId: 'ENT-FIRM',
     });
     expect(revoke.ok).toBe(true);
+
+    const completed = await completePartnerLifecycleHook({
+      checklistItemId: 'partner_gusto_terminate_stub',
+      entityId: 'ENT-R619',
+    });
+    expect(completed.ok).toBe(true);
   });
 });

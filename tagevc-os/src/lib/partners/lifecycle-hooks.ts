@@ -3,7 +3,12 @@
  */
 
 import type { LifecycleChecklistItem, LifecycleKind } from '@/lib/multi-sub/lifecycle';
+import {
+  runPartnerLifecycleHook,
+  type AdapterResult,
+} from '@/lib/partners/adapters';
 import { buildPartnerSpineProvisionPlan } from '@/lib/partners/provision';
+import { recordPartnerEvent } from '@/lib/partners/repo';
 
 export function partnerLifecycleChecklistItems(
   kind: LifecycleKind,
@@ -51,4 +56,35 @@ export function mergePartnerLifecycleItems(
   const extras = partnerLifecycleChecklistItems(kind, entityId);
   const seen = new Set(base.map((b) => b.id));
   return [...base, ...extras.filter((e) => !seen.has(e.id))];
+}
+
+
+/** Mark/run a partner_* checklist item via fail-closed adapters + event bus. */
+export async function completePartnerLifecycleHook(input: {
+  checklistItemId: string;
+  entityId: string;
+  email?: string;
+  userExternalId?: string;
+}): Promise<AdapterResult> {
+  const hookId = input.checklistItemId.startsWith('partner_')
+    ? input.checklistItemId
+    : `partner_${input.checklistItemId}`;
+  const result = await runPartnerLifecycleHook(hookId, {
+    entityId: input.entityId,
+    email: input.email,
+    userExternalId: input.userExternalId,
+  });
+  await recordPartnerEvent({
+    partner_key: 'apollo',
+    entity_id: input.entityId,
+    kind: 'provision',
+    external_id: hookId,
+    payload: {
+      hook: hookId,
+      ok: result.ok,
+      dry_run: 'dryRun' in result ? result.dryRun : undefined,
+      message: result.ok ? result.message : result.error,
+    },
+  });
+  return result;
 }

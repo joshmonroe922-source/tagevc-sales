@@ -20,7 +20,7 @@ const LINKS: Array<{ href: string; label: string }> = [
   { href: '/shared-services/ops/vendor-management/audit', label: 'Audit' },
   { href: '/shared-services/ops/vendor-management/integrations', label: 'Integrations' },
   { href: '/shared-services/ops/vendor-management/settings', label: 'Settings' },
-  { href: '/shared-services/ops/vendor-management/cost-centers', label: 'Cost centers' },
+  { href: '/shared-services/ops/vendor-management/cost-centers', label: 'Cost centers / Comp' },
   { href: '/shared-services/ops/vendor-management/admins', label: 'Admins' },
 ];
 

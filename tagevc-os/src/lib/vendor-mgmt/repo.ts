@@ -583,6 +583,69 @@ export async function listCompBands(
   }
 }
 
+export async function upsertCostCenter(
+  row: Partial<VmCostCenter> & { name: string; entity_id: string },
+): Promise<VmCostCenter | null> {
+  try {
+    const client = await sb();
+    const id =
+      row.id ||
+      `CC-${row.name.toUpperCase().replace(/[^A-Z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 20)}-${Date.now().toString(36).slice(-4)}`;
+    const payload = {
+      id,
+      name: row.name,
+      entity_id: row.entity_id,
+      dept_code: row.dept_code ?? null,
+      cc_type: row.cc_type ?? null,
+      status: row.status ?? 'Active',
+      owner_emp_id: row.owner_emp_id ?? null,
+      notes: row.notes ?? null,
+      updated_at: new Date().toISOString(),
+    };
+    const { data, error } = await client
+      .from('vm_cost_centers')
+      .upsert(payload)
+      .select('*')
+      .maybeSingle();
+    if (error) return null;
+    return data as VmCostCenter;
+  } catch {
+    return null;
+  }
+}
+
+export async function upsertCompBand(
+  row: Partial<VmCompBand> & { role_id: string; entity_id: string },
+): Promise<VmCompBand | null> {
+  try {
+    const client = await sb();
+    const id =
+      row.id ||
+      `CB-${row.role_id.slice(0, 12)}-${(row.level || 'MID').toUpperCase().replace(/[^A-Z0-9]+/g, '').slice(0, 8)}-${Date.now().toString(36).slice(-4)}`;
+    const payload = {
+      id,
+      role_id: row.role_id,
+      level: row.level ?? null,
+      entity_id: row.entity_id,
+      base_min: row.base_min ?? null,
+      base_mid: row.base_mid ?? null,
+      base_max: row.base_max ?? null,
+      comm_target_mid: row.comm_target_mid ?? null,
+      equity_note: row.equity_note ?? null,
+      updated_at: new Date().toISOString(),
+    };
+    const { data, error } = await client
+      .from('vm_comp_bands')
+      .upsert(payload)
+      .select('*')
+      .maybeSingle();
+    if (error) return null;
+    return data as VmCompBand;
+  } catch {
+    return null;
+  }
+}
+
 export async function listLifecycleTemplates(): Promise<VmLifecycleTemplate[]> {
   try {
     const client = await sb();

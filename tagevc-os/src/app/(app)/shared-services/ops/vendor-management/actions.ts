@@ -22,6 +22,8 @@ import {
   upsertVendor,
   upsertVendorProfile,
   updateVmSettings,
+  upsertCostCenter,
+  upsertCompBand,
 } from '@/lib/vendor-mgmt/repo';
 import {
   requireVmSession,
@@ -53,6 +55,8 @@ function revalidateVm() {
   revalidatePath(`${BASE}/hire`);
   revalidatePath(`${BASE}/alerts`);
   revalidatePath(`${BASE}/audit`);
+  revalidatePath(`${BASE}/cost-centers`);
+  revalidatePath(`${BASE}/settings`);
 }
 
 export type ActionResult = { ok: true; id?: string } | { ok: false; error: string };
@@ -533,6 +537,81 @@ export async function inviteAdminAction(formData: FormData): Promise<ActionResul
     });
     revalidateVm();
     return { ok: true, id };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Denied' };
+  }
+}
+
+
+export async function saveCostCenterAction(formData: FormData): Promise<ActionResult> {
+  try {
+    const session = await requireVmSession('edit_contracts');
+    const entity_id = String(formData.get('entity_id') || session.filterEntityId || 'ENT-FIRM');
+    if (!vmSessionCanEntity(session, entity_id)) {
+      return { ok: false, error: 'Entity out of scope' };
+    }
+    const name = String(formData.get('name') || '').trim();
+    if (!name) return { ok: false, error: 'Name required' };
+    const row = await upsertCostCenter({
+      id: String(formData.get('id') || '') || undefined,
+      name,
+      entity_id,
+      dept_code: String(formData.get('dept_code') || '') || null,
+      cc_type: String(formData.get('cc_type') || '') || null,
+      status: (String(formData.get('status') || 'Active') as 'Active' | 'Inactive') || 'Active',
+      notes: String(formData.get('notes') || '') || null,
+    });
+    if (!row) return { ok: false, error: 'Cost center save failed' };
+    await appendAuditEvent({
+      actor_email: session.email,
+      action: 'cost_center.upsert',
+      object_type: 'cost_center',
+      object_id: row.id,
+      new_value: name,
+    });
+    revalidateVm();
+    return { ok: true, id: row.id };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Denied' };
+  }
+}
+
+export async function saveCompBandAction(formData: FormData): Promise<ActionResult> {
+  try {
+    const session = await requireVmSession('edit_contracts');
+    const entity_id = String(formData.get('entity_id') || session.filterEntityId || 'ENT-FIRM');
+    if (!vmSessionCanEntity(session, entity_id)) {
+      return { ok: false, error: 'Entity out of scope' };
+    }
+    const role_id = String(formData.get('role_id') || '').trim();
+    if (!role_id) return { ok: false, error: 'Role required' };
+    const num = (k: string) => {
+      const raw = formData.get(k);
+      if (raw === '' || raw == null) return null;
+      const n = Number(raw);
+      return Number.isFinite(n) ? n : null;
+    };
+    const row = await upsertCompBand({
+      id: String(formData.get('id') || '') || undefined,
+      role_id,
+      entity_id,
+      level: String(formData.get('level') || '') || null,
+      base_min: num('base_min'),
+      base_mid: num('base_mid'),
+      base_max: num('base_max'),
+      comm_target_mid: num('comm_target_mid'),
+      equity_note: String(formData.get('equity_note') || '') || null,
+    });
+    if (!row) return { ok: false, error: 'Comp band save failed' };
+    await appendAuditEvent({
+      actor_email: session.email,
+      action: 'comp_band.upsert',
+      object_type: 'comp_band',
+      object_id: row.id,
+      new_value: role_id,
+    });
+    revalidateVm();
+    return { ok: true, id: row.id };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Denied' };
   }

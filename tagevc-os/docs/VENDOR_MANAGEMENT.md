@@ -78,7 +78,9 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/phase90_vendor_management_sp
 
 - Live HRIS / IdP / SaaS connector jobs (registry only)
 - Step-up MFA challenge UI for contract $ (permission gate present)
-- Cost center admin screen polish
-- Comp bands CRUD UI
 - Bulk CSV import from Seed_Export headers
 - A&F AP vendor link (1099 portal remains separate)
+
+## Shipped follow-ons
+
+- Cost centers + comp bands CRUD at `/shared-services/ops/vendor-management/cost-centers`
