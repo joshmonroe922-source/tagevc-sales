@@ -8,18 +8,18 @@ import {
 import { MAIN_NAV, flattenNavItems } from '@/lib/nav';
 
 describe('eosOperatingSystemNavLabel', () => {
-  it('uses shortened Tage VC label and full subsidiary names', () => {
+  it('uses company-qualified Performance Management labels on Tage', () => {
     expect(eosOperatingSystemNavLabel('ENT-FIRM')).toBe(
-      'Tage VC Operating System',
+      'Tage VC Performance Management',
     );
     expect(eosOperatingSystemNavLabel('ENT-R619')).toBe(
-      'Recruit 619 Operating System',
+      'Recruit 619 Performance Management',
     );
     expect(eosOperatingSystemNavLabel('ENT-INDA')).toBe(
-      'Instant NDA Operating System',
+      'Instant NDA Performance Management',
     );
     expect(eosOperatingSystemNavLabel('ENT-SIGNENT')).toBe(
-      'Signent HR Operating System',
+      'Signent HR Performance Management',
     );
   });
 });
@@ -62,15 +62,32 @@ describe('EOS_SCOPE_ENTITIES', () => {
 });
 
 describe('EOS nav', () => {
-  it('exposes standalone Tage VC Operating System and HR nested link', () => {
-    expect(MAIN_NAV.some((n) => n.label === 'Tage VC Operating System')).toBe(
-      true,
-    );
+  it('exposes Grow → Tage VC Performance Management + HR nested link + Training', () => {
+    const grow = MAIN_NAV.find((n) => n.label === 'Grow');
+    expect(grow).toBeTruthy();
     expect(
-      MAIN_NAV.find((n) => n.label === 'Tage VC Operating System')?.href,
-    ).toBe('/eos');
+      grow?.children?.some(
+        (c) =>
+          c.label === 'Tage VC Performance Management' && c.href === '/eos',
+      ),
+    ).toBe(true);
+    expect(
+      grow?.children?.some(
+        (c) =>
+          c.label === 'Training & Development' && c.href === '/training',
+      ),
+    ).toBe(true);
+    expect(
+      MAIN_NAV.some((n) => n.label === 'Tage VC Performance Management'),
+    ).toBe(false);
     const flat = flattenNavItems(MAIN_NAV);
     const hrOs = flat.filter((i) => i.href === '/eos');
     expect(hrOs.length).toBeGreaterThanOrEqual(2);
+    expect(
+      flat.some(
+        (i) =>
+          i.href === '/eos' && i.label === 'Performance Management',
+      ),
+    ).toBe(true);
   });
 });

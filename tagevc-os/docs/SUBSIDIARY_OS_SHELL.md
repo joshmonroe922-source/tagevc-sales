@@ -120,15 +120,15 @@ assert.match(moduleLinkBoard, /<table/);
 
 ## Traction EOS (required on every entity OS)
 
-
-Every subsidiary OS ships **Traction EOS** as a **standalone** left-nav item (HR-owned conceptually, not buried only under an HR accordion).
+Every subsidiary OS ships **Traction EOS** under the **Grow** left-nav section (HR-owned conceptually). On Tage it is also nested under Shared Services → HR.
 
 | Control | Behavior |
 | --- | --- |
-| **Nav label** | `{Entity Name} Operating System` — Tage shortens to **Tage VC Operating System** |
+| **Nav parent** | **Grow** (section label on R619 / Instant NDA / Signent; accordion on Tage) |
+| **Nav label** | **Tage:** `{Entity Name} Performance Management` (Tage shortens to **Tage VC Performance Management**). **Subsidiary clones:** plain **Performance Management** (no company prefix — single-entity portals). Nested under Shared Services → HR on Tage: **Performance Management**. |
 | **Route** | `/eos` (Recruit 619 also keeps `/desk/eos`) |
 | **Data** | Shared UDL `os_eos_*` tables, hard-scoped to the portal `entity_id` |
-| **Tage rollup** | Consolidated \| Tage VC \| each subsidiary scope toggle on Tage `/eos` |
+| **Tage rollup** | Consolidated \| Tage VC \| each subsidiary scope toggle on Tage `/eos` — page titles stay company-qualified for entity recognition |
 
 ### Copy targets (scaffold)
 
@@ -137,7 +137,7 @@ src/lib/eos/                          # types, dates, dashboard (entity-scoped)
 src/components/eos/                   # action form (+ scope toggle on Tage only)
 src/app/(app)/eos/page.tsx            # rocks · scorecard · IDS · L10 · V/TO
 supabase/phase84_eos_operating_system.sql  # mirror of Tage UDL spine
-src/lib/nav.ts                        # standalone "{Entity} Operating System"
+src/lib/nav.ts                        # Grow → Performance Management (+ Training)
 ```
 
 Canonical docs: `docs/TRACTION_EOS.md`.
@@ -145,8 +145,33 @@ Canonical docs: `docs/TRACTION_EOS.md`.
 Nav smoke:
 
 ```ts
-assert.ok(MAIN_NAV.some((n) => /Operating System$/.test(n.label)));
+// Tage — under Grow accordion (also flattenNavItems for HR nested link)
+const grow = MAIN_NAV.find((n) => n.label === 'Grow');
+assert.ok(grow?.children?.some((c) => /Performance Management$/.test(c.label)));
+assert.ok(grow?.children?.some((c) => c.label === 'Training & Development'));
+// Subsidiary clone — Grow section
+assert.ok(NAV_SECTIONS.some((s) => s.id === 'grow' && s.label === 'Grow'));
+assert.ok(MAIN_NAV.some((n) => n.label === 'Performance Management'));
+assert.ok(MAIN_NAV.some((n) => n.label === 'Training & Development' || n.label.startsWith('Training & Development')));
 assert.ok(!MAIN_NAV.some((n) => n.href === '/help-desk'));
+```
+
+## Grow — Performance + Training (required on every entity OS)
+
+Every entity OS (Tage + current subsidiaries + **future clones**) ships a **Grow** nav group with at least:
+
+| Child | Route (canonical) | Notes |
+| --- | --- | --- |
+| **Performance Management** | `/eos` (R619: `/desk/eos`) | Traction EOS — see § Traction EOS |
+| **Training & Development** | `/training` (R619: `/desk/training`) | Full LMS on Recruit 619; placeholder landing on other clones until content lands |
+
+Recruit 619 may keep additional Grow children (KPI Hierarchy, Content & Brand, Marketing, Reports, Team, Leadership). Clones inherit the **minimum** pair above.
+
+### Copy targets (scaffold)
+
+```
+src/lib/nav.ts                        # Grow section / accordion with PM + T&D
+src/app/(app)/training/page.tsx       # landing (or /desk/training on R619)
 ```
 
 ## A&F — Accounting & Finance (required on every entity OS)

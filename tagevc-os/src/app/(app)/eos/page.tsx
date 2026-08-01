@@ -96,7 +96,7 @@ export default async function EosOperatingSystemPage({
 
   const writeEntityId = eos.isConsolidated ? '' : eos.entityIds[0];
   const title = eos.isConsolidated
-    ? 'Consolidated Operating System'
+    ? 'Consolidated Performance Management'
     : eosOperatingSystemNavLabel(writeEntityId);
 
   let l10Current = null as Awaited<

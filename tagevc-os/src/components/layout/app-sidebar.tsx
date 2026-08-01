@@ -687,7 +687,7 @@ export function AppSidebar({
           Tage VC
         </p>
         <h1 className="mt-1 font-heading text-lg font-semibold tracking-tight text-sidebar-foreground">
-          Operating System
+          Performance Management
         </h1>
       </div>
 

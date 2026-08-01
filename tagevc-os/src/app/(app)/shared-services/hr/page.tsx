@@ -71,7 +71,7 @@ export default async function HrOperationsPage({ searchParams }: Props) {
               href="/eos"
               className="underline-offset-4 hover:underline"
             >
-              Operating System →
+              Performance Management →
             </Link>
             <Link
               href="/shared-services/hr/employees"

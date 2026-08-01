@@ -85,19 +85,22 @@ export const DEFAULT_L10_AGENDA = [
   { key: 'conclude', label: 'Conclude', minutes: 5 },
 ] as const;
 
-/** Standalone left-nav label: `{Entity} Operating System` (Tage shortens). */
+/**
+ * Tage multi-entity left-nav / page titles: `{Entity} Performance Management`.
+ * Subsidiary portals use plain `Performance Management` (no company prefix).
+ */
 export function eosOperatingSystemNavLabel(entityId: string): string {
   switch (entityId) {
     case 'ENT-FIRM':
-      return 'Tage VC Operating System';
+      return 'Tage VC Performance Management';
     case 'ENT-R619':
-      return 'Recruit 619 Operating System';
+      return 'Recruit 619 Performance Management';
     case 'ENT-INDA':
-      return 'Instant NDA Operating System';
+      return 'Instant NDA Performance Management';
     case 'ENT-SIGNENT':
-      return 'Signent HR Operating System';
+      return 'Signent HR Performance Management';
     default:
-      return 'Operating System';
+      return 'Performance Management';
   }
 }
 
