@@ -41,7 +41,7 @@ function sampleTicket(overrides: Partial<Ticket> = {}): Ticket {
     on_allow_list: false,
     draft_approval: 'pending',
     recommendation: null,
-    policy_version: 'v1',
+    policy_version: 'v1_assist',
     ai_generated: false,
     source_doc_id: null,
     ai_suggestion_id: null,

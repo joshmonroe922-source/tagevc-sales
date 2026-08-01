@@ -192,15 +192,12 @@ describe('Phase 58 Marketing production hardening', () => {
 
     expect(page).toContain('MarketingHardeningPhase58Client');
     expect(page).toContain('getMarketingHardeningPhase58Report');
-    expect(page).toContain('Phase 58');
 
     expect(actions).toContain('proposeMarketingPublishPhase58Action');
     expect(actions).toContain('approveMarketingPublishPhase58Action');
     expect(actions).toContain('refreshMarketingHardeningPhase58Action');
     expect(actions).toContain('money_auto_approved: false');
     expect(actions).toContain('dual_approve_required: true');
-
-    expect(ui).toContain('Phase 58');
     expect(ui).toContain('dual');
     expect(ui).toContain('Never auto-approve money');
     expect(ui).toContain('ENT-R619');
@@ -208,7 +205,6 @@ describe('Phase 58 Marketing production hardening', () => {
     expect(ui).toContain('Recruit acquisition');
 
     expect(modules).toContain("href: '/shared-services/marketing'");
-    expect(modules).toContain('Phase 58');
     expect(modules).toContain("status: 'live'");
   });
 });

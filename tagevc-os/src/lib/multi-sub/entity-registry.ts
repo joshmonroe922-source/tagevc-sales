@@ -4,7 +4,7 @@ import { entityDisplayName as resolveEntityDisplayName } from '@/lib/entities/di
 
 export const MS_P1_CONTRACT_VERSION = 'ms-p1-v1' as const;
 
-export const CANONICAL_SUBSIDIARY_CODES = ['ENT-R619', 'ENT-INDA'] as const;
+export const CANONICAL_SUBSIDIARY_CODES = ['ENT-R619', 'ENT-SIGNENT', 'ENT-INDA'] as const;
 export type CanonicalSubsidiaryCode =
   (typeof CANONICAL_SUBSIDIARY_CODES)[number];
 
@@ -31,6 +31,17 @@ export const ENTITY_REGISTRY_SEED = [
     /** Day-to-day recruiter UX (My Recruiting Desk on portal). */
     desk_url: 'https://portal.recruit619.com/desk/my-recruiting-desk' as string | null,
     portal_url_todo: null as string | null,
+    is_subsidiary: true,
+  },
+  {
+    entity_code: 'ENT-SIGNENT',
+    canonical_name: 'Signent HR',
+    status: 'Active' as const,
+    /** Uses Tage HRIS with client segmentation — portal desk scaffolds separately. */
+    portal_url: 'https://app.tagevc.com',
+    desk_url: null as string | null,
+    portal_url_todo:
+      'Signent client portal SSO — HRIS tenancy is shared with Tage (see docs/HRIS_SPINE.md)' as string | null,
     is_subsidiary: true,
   },
   {
@@ -98,6 +109,7 @@ export function isRegisteredSubsidiary(
   const canon = resolveCanonicalEntityId(entityId);
   return (
     canon === 'ENT-R619' ||
+    canon === 'ENT-SIGNENT' ||
     canon === 'ENT-INDA' ||
     Boolean(
       ENTITY_REGISTRY_SEED.find(

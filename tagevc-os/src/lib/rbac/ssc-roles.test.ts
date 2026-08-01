@@ -109,6 +109,8 @@ describe('SSC Role Switcher + nav scope', () => {
       expect(adminChildrenFor(role)).toEqual([
         'Document Library',
         'DocuSign',
+        'Period Checklists',
+        'Audits',
       ]);
     }
   });
@@ -118,19 +120,35 @@ describe('SSC Role Switcher + nav scope', () => {
       expect.arrayContaining(['Tage VC A&F', 'Admin', 'Ticket Portal']),
     );
     expect(sscChildrenFor('ssc_finance')).not.toContain('Legal');
-    expect(adminChildrenFor('ssc_finance')).toEqual(['Document Library']);
+    expect(adminChildrenFor('ssc_finance')).toEqual([
+      'Document Library',
+      'Period Checklists',
+      'Audits',
+    ]);
     expect(sscChildrenFor('ssc_hr')).toEqual(
       expect.arrayContaining(['Human Resources', 'Admin', 'Ticket Portal']),
     );
-    expect(adminChildrenFor('ssc_hr')).toEqual(['Document Library']);
+    expect(adminChildrenFor('ssc_hr')).toEqual([
+      'Document Library',
+      'Period Checklists',
+      'Audits',
+    ]);
     expect(sscChildrenFor('ssc_it')).toEqual(
       expect.arrayContaining(['Technology', 'Admin', 'Ticket Portal']),
     );
-    expect(adminChildrenFor('ssc_it')).toEqual(['Document Library']);
+    expect(adminChildrenFor('ssc_it')).toEqual([
+      'Document Library',
+      'Period Checklists',
+      'Audits',
+    ]);
     expect(sscChildrenFor('ssc_marketing')).toEqual(
       expect.arrayContaining(['Marketing', 'Admin', 'Ticket Portal']),
     );
-    expect(adminChildrenFor('ssc_marketing')).toEqual(['Document Library']);
+    expect(adminChildrenFor('ssc_marketing')).toEqual([
+      'Document Library',
+      'Period Checklists',
+      'Audits',
+    ]);
   });
 
   it('shows IT Activity log for Technology; Visionary Audit log only for Visionary', () => {
@@ -143,6 +161,8 @@ describe('SSC Role Switcher + nav scope', () => {
       (c) => c.label === 'Technology',
     );
     expect(visionaryIt?.children?.map((c) => c.label)).toEqual([
+      'Partner stack',
+      'Mobile launch',
       'Activity log',
       'Audit log',
     ]);
@@ -160,8 +180,14 @@ describe('SSC Role Switcher + nav scope', () => {
       entityId: 'ENT-FIRM',
     }).find((i) => i.label === 'Shared Services');
     const itDesk = itSsc?.children?.find((c) => c.label === 'Technology');
-    expect(itDesk?.children?.map((c) => c.label)).toEqual(['Activity log']);
-    expect(itDesk?.children?.[0]?.href).toBe('/shared-services/it/activity');
+    expect(itDesk?.children?.map((c) => c.label)).toEqual([
+      'Partner stack',
+      'Mobile launch',
+      'Activity log',
+    ]);
+    expect(itDesk?.children?.[0]?.href).toBe(
+      '/shared-services/it/technology-stack',
+    );
     expect(itSsc?.children?.some((c) => c.label === 'Audit log')).toBe(false);
   });
 
@@ -170,7 +196,11 @@ describe('SSC Role Switcher + nav scope', () => {
     expect(children).toEqual(
       expect.arrayContaining(['Tage VC A&F', 'Admin', 'Ticket Portal']),
     );
-    expect(adminChildrenFor('service_lead')).toEqual(['Document Library']);
+    expect(adminChildrenFor('service_lead')).toEqual([
+      'Document Library',
+      'Period Checklists',
+      'Audits',
+    ]);
     expect(children).not.toContain('Human Resources');
     expect(children).not.toContain('Technology');
     expect(children).not.toContain('Marketing');

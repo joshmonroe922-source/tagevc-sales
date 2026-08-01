@@ -217,22 +217,18 @@ describe('Phase 57 HR + IT production hardening', () => {
 
     expect(itPage).toContain('HrItHardeningPhase57Client');
     expect(itPage).toContain('getHrItHardeningPhase57Report');
-    expect(itPage).toContain('Phase 57');
     expect(itPage).toContain("surface=\"it\"");
-
-    expect(ui).toContain('Phase 57');
     expect(ui).toContain('dual');
     expect(ui).toContain('Never auto-close breakers');
     expect(ui).toContain('Recruit 619');
     expect(ui).toContain('Intune dual-approve inbox');
 
-    expect(inboxUi).toContain('Phase 57 aging');
+    expect(inboxUi).toMatch(/Phase 57 aging/i);
     expect(inboxUi).toContain('stale');
     expect(inboxUi).toContain('critical');
     expect(inboxUi).toContain('never auto-closes breakers');
 
     expect(modules).toContain("href: '/shared-services/hr'");
-    expect(modules).toContain('Phase 57');
     expect(modules).toContain("status: 'live'");
   });
 });

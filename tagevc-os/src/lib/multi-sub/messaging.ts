@@ -183,6 +183,10 @@ export const DEFAULT_CHANNELS_BY_ENTITY: Record<
     { channel_key: 'general', title: 'Instant NDA · General' },
     { channel_key: 'support', title: 'Instant NDA · Support' },
   ],
+  'ENT-SIGNENT': [
+    { channel_key: 'general', title: 'Signent HR · General' },
+    { channel_key: 'clients', title: 'Signent HR · Client ops' },
+  ],
   'ENT-FIRM': [
     { channel_key: 'shared-services', title: 'Tage · Shared Services' },
   ],

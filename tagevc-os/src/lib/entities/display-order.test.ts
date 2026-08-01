@@ -112,6 +112,8 @@ describe('Shared Services nav accordion', () => {
       'Document Library',
       'DocuSign',
       'Email analytics',
+      'Period Checklists',
+      'Audits',
     ]);
     expect(admin?.children?.[2]?.href).toBe('/documents');
     expect(admin?.children?.[2]?.module).toBe('documents');
@@ -125,7 +127,7 @@ describe('Shared Services nav accordion', () => {
     const hr = ssc?.children?.find((c) => c.label === 'Human Resources');
     expect(hr?.href).toBe('/shared-services/hr');
     expect(hr?.children?.map((c) => c.label)).toEqual([
-      'Performance Management',
+      'Performance cycle',
       'Screening',
     ]);
     expect(hr?.children?.[1]?.href).toBe('/shared-services/hr/screening');
@@ -136,7 +138,7 @@ describe('Shared Services nav accordion', () => {
     const ssc = MAIN_NAV.find((i) => i.label === 'Shared Services');
     const vm = ssc?.children?.find((c) => c.label === 'Vendor Management');
     expect(vm?.href).toBe('/shared-services/ops/vendor-management');
-    expect(vm?.requiredPermission).toBe('read:it_assets');
+    expect(vm?.requiredPermission).toBe('read:shared_services');
     expect(vm?.children?.map((c) => c.label)).toEqual([
       'Vendors',
       'Renewals',
@@ -163,6 +165,8 @@ describe('Shared Services nav accordion', () => {
       'Document Library',
       'DocuSign',
       'Email analytics',
+      'Period Checklists',
+      'Audits',
     ]);
     expect(ssc?.children?.some((c) => c.label === 'Audit log')).toBe(false);
     expect(MAIN_NAV.some((i) => i.label === 'Audit log')).toBe(false);

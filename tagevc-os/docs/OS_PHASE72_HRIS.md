@@ -1,4 +1,6 @@
-# Phase 72 — HRIS deepen (pre-Signent)
+# Phase 72 — HRIS deepen
+
+> **Canonical product model:** see `docs/HRIS_SPINE.md`. HRIS is fully operational for Tage and spined to all entities; Signent uses the same platform with client segmentation (not a separate HRIS).
 
 Additive on Phase 68 foundation + Phase 71 mailbox scaffold.
 
@@ -17,15 +19,19 @@ Additive on Phase 68 foundation + Phase 71 mailbox scaffold.
 | Manager self-service | — | `/shared-services/hr/manager` |
 | IT child runs | Link kinds typed | Auto-link on start onboarding/offboarding |
 
-## Signent readiness gaps (still open)
+## Signent / tenancy (model locked; gaps are implementation)
 
-1. Multi-tenant Signent HR OS product surface (not built — intentional)
+**Locked:** Same HRIS platform; Signent clients segment via `client_org_id` under `ENT-SIGNENT` (`src/lib/hris/tenancy.ts`). No fake clients.
+
+Still open:
+
+1. Client org CRUD + RLS for Signent customer workforces (no invented seed data)
 2. Live Graph User.ReadWrite.All + Exchange.ManageAsApp admin consent in production
 3. Live DocuSign JWT for HRIS offer/NDA (mock works without secrets)
 4. Payroll / benefits providers + I-9 eVerify automation
 5. Recruit commission calc consuming protected comp fields
 6. Full employee portal (self-service docs, tax forms) beyond manager steps
-7. Cross-entity Signent tenancy + white-label checklist packs
+7. White-label checklist packs per Signent client
 8. Hardening: storage RLS beyond firm-wide for entity-scoped HR ops
 9. Signed PDF pull-back from DocuSign into vault (status recorded; archive sync later)
 10. Manager assignment UX (today: paste profile UUID)

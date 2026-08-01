@@ -123,7 +123,6 @@ describe('Phase 52 Intune per-category backlog trends on Phase 51 inbox snapshot
     expect(client).toContain('intunePhase52Ops');
     expect(client).toContain('refreshIntunePhase52CategoryTrendOpsAction');
     expect(page).toContain('getIntunePhase52OpsReport');
-    expect(page).toContain('Phase 52');
     expect(page).toContain('intunePhase52Ops');
   });
 

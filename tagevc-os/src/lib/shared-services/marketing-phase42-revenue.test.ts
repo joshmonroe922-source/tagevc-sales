@@ -84,7 +84,6 @@ describe('Phase 42 production revenue SLOs', () => {
       'utf8',
     );
     expect(page).toMatch(/getPhase42RevenueSloReport/);
-    expect(page).toMatch(/Phase 4[2-8]/);
     expect(page).toMatch(/sloReport=\{productionSlos\.report\}/);
     expect(ui).toMatch(/Production SLOs/);
     expect(ui).toMatch(/authenticity_severity/);

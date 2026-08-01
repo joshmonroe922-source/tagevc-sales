@@ -39,7 +39,7 @@ export default async function MobileAppStoreLaunchPage() {
             Partner stack
           </Link>
           <Link
-            href="/shared-services/it/vendor-mgmt"
+            href="/shared-services/ops/vendor-management"
             className="underline underline-offset-2"
           >
             Vendor Management

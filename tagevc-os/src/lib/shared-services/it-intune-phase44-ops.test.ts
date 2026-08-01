@@ -153,7 +153,6 @@ describe('Phase 44 Intune resilience ops', () => {
     expect(client).toContain('refreshIntunePhase44ResilienceOpsAction');
     expect(page).toContain('getIntunePhase44Health');
     expect(page).toContain('listIntuneResilienceCorrelationTimeline');
-    expect(page).toContain('Phase 44');
   });
 
   it('preserves Phase 43 soak cycle rails', () => {

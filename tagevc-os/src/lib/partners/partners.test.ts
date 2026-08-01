@@ -70,7 +70,10 @@ describe('partner spine catalog', () => {
       email: 'ops@tagevc.com',
     });
     expect(dialpad.ok).toBe(true);
-    if (dialpad.ok) expect(dialpad.dryRun).toBe(true);
+    if (dialpad.ok) {
+      expect(dialpad.dryRun).toBe(true);
+      expect(dialpad.status).toBe('dry_run');
+    }
 
     const catalogDialpad = await runPartnerLifecycleHook('provision_dialpad_user', {
       entityId: 'ENT-FIRM',

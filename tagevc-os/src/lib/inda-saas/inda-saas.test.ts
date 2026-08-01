@@ -21,9 +21,10 @@ describe('inda saas kpi (tage parent)', () => {
     expect(resolveSaasReportRole({ realRole: 'partner' })).toBe('partner');
   });
 
-  it('exposes Instant NDA SaaS in main nav', () => {
+  it('keeps Instant NDA SaaS KPI dictionary without top-level nav (hub/entity path)', () => {
     const flat = flattenNavItems(MAIN_NAV);
-    expect(flat.some((n) => n.href === '/inda-saas')).toBe(true);
-    expect(MAIN_NAV.map((i) => i.label)).toContain('Instant NDA SaaS');
+    // Intentionally not a top-level MAIN_NAV item — reach via Instant NDA entity OS / hub.
+    expect(flat.some((n) => n.href === '/inda-saas')).toBe(false);
+    expect(MAIN_NAV.map((i) => i.label)).not.toContain('Instant NDA SaaS');
   });
 });

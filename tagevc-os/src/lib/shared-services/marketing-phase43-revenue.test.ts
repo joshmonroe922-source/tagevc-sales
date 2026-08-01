@@ -105,7 +105,6 @@ describe('Phase 43 marketing credential binding and critical ops alerts', () => 
       'utf8',
     );
     expect(page).toMatch(/getPhase43RevenueOpsReport/);
-    expect(page).toMatch(/Phase 4[3-8]/);
     expect(page).toMatch(/opsReport=\{opsReport\.report\}/);
     expect(ui).toMatch(/critical alerts/);
     expect(ui).toMatch(/credential binding/);

@@ -80,7 +80,7 @@ function sampleTicket(overrides: Partial<Ticket> = {}): Ticket {
     on_allow_list: false,
     draft_approval: 'pending',
     recommendation: null,
-    policy_version: 'v1',
+    policy_version: 'v1_assist',
     ai_generated: false,
     source_doc_id: null,
     ai_suggestion_id: null,
@@ -183,7 +183,8 @@ describe('Multi-subsidiary readiness P1–P6', () => {
     expect(DEFAULT_CHANNELS_BY_ENTITY['ENT-R619']?.length).toBeGreaterThan(0);
     expect(DEFAULT_CHANNELS_BY_ENTITY['ENT-INDA']?.length).toBeGreaterThan(0);
     const deeplink = subsidiaryMessagesDeepLink('ENT-INDA');
-    expect(deeplink.todo).toMatch(/TODO/i);
+    expect(deeplink.portal_messages).toContain('instantnda');
+    expect(subsidiaryMessagesDeepLink('ENT-SIGNENT').todo).toMatch(/TODO/i);
     expect(subsidiaryMessagesDeepLink('ENT-R619').portal_messages).toContain(
       'portal.recruit619.com',
     );

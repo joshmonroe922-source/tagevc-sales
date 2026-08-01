@@ -47,6 +47,7 @@ import {
   canRefreshIesSnapshots,
 } from '@/lib/ies/ux';
 import { getSessionContext } from '@/lib/rbac/session';
+import { redirect } from 'next/navigation';
 import { roleHasPermission, type AppRole } from '@/lib/types/roles';
 
 export default async function DashboardPage({
@@ -55,6 +56,14 @@ export default async function DashboardPage({
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const session = await getSessionContext();
+  const dashRole = session?.profile.role ?? '';
+  if (
+    dashRole.startsWith('ssc_') ||
+    dashRole === 'service_lead' ||
+    dashRole === 'counsel_ops'
+  ) {
+    redirect('/to-do');
+  }
   const canWrite = Boolean(
     session && roleHasPermission(session.profile.role, 'write:portfolio_health'),
   );

@@ -5,6 +5,7 @@ export * from '@/lib/af/cash/routing';
 export * from '@/lib/af/waterfall/engine';
 export * from '@/lib/af/ap/pay-match';
 export * from '@/lib/af/ap/vendors';
+export * from '@/lib/af/ap/vm-bridge';
 export * from '@/lib/af/ar/invoice-attachments';
 export * from '@/lib/af/ar/paid-chain';
 export * from '@/lib/af/ar/reminders';

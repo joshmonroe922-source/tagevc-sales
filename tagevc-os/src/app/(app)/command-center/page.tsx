@@ -27,6 +27,23 @@ import { roleHasPermission } from '@/lib/types/roles';
 import { APP_ROLE_LABELS } from '@/lib/types';
 import { redirect } from 'next/navigation';
 
+/** Align with nav.ts Command Center hiddenForRoles. */
+const COMMAND_CENTER_HIDDEN_ROLES = new Set([
+  'coo',
+  'associate',
+  'sub_lead',
+  'ma_associate',
+  're_sourcer',
+  'admin',
+  'ssc_finance',
+  'ssc_hr',
+  'ssc_legal',
+  'ssc_it',
+  'ssc_marketing',
+  'service_lead',
+  'counsel_ops',
+]);
+
 const MODULE_QUICK_NAV = [
   { href: '/think-tank', label: 'Think Tank' },
   { href: '/deal-flow', label: 'Deal Flow' },
@@ -49,9 +66,9 @@ const MODULE_QUICK_NAV = [
 
 export default async function CommandCenterPage() {
   const session = await getSessionContext();
-  // COO (subsidiaries) — nav + route gate; Home/Dashboard remain.
-  if (session?.profile.role === 'coo') {
-    redirect('/dashboard');
+  const role = session?.profile.role;
+  if (role && COMMAND_CENTER_HIDDEN_ROLES.has(role)) {
+    redirect(role.startsWith('ssc_') || role === 'service_lead' ? '/to-do' : '/dashboard');
   }
 
   const [snap, companies, activityResult, firmOps, iesReport] =

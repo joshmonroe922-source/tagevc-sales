@@ -82,7 +82,7 @@ const sidebarProps = {
   fullName: 'Josh Monroe',
   email: 'joshmonroe@tagevc.com',
   impersonatingAs: null as AppRole | null,
-  impersonatableRoles: ['ceo', 'cfo'] as AppRole[],
+  impersonatableRoles: ['partner', 'coo'] as AppRole[],
   liveLookActive: false,
   entityId: 'ENT-FIRM',
 };

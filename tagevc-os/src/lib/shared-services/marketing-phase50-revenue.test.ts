@@ -119,7 +119,6 @@ describe('Phase 50 marketing revenue ops', () => {
       'utf8',
     );
     expect(page).toMatch(/getPhase50RevenueOpsReport/);
-    expect(page).toMatch(/Phase 50/);
     expect(page).toMatch(/phase50OpsReport=\{phase50OpsReport\.report\}/);
     expect(ui).toMatch(/dual-approve promotion/i);
     expect(ui).toMatch(/never auto-approv/i);

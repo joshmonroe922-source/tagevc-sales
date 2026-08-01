@@ -86,7 +86,7 @@ describe('EOS nav', () => {
     expect(
       flat.some(
         (i) =>
-          i.href === '/eos' && i.label === 'Performance Management',
+          i.href === '/eos' && i.label === 'Performance cycle',
       ),
     ).toBe(true);
   });

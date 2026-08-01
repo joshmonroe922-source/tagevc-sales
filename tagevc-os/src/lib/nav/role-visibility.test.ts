@@ -282,6 +282,8 @@ describe('Assets + COO / Subsidiary Leader nav gates', () => {
       'Document Library',
       'DocuSign',
       'Email analytics',
+      'Period Checklists',
+      'Audits',
     ]);
   });
 });

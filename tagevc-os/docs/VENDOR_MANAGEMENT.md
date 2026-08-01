@@ -5,6 +5,7 @@
 **UI:** `/shared-services/ops/vendor-management`  
 **Alias:** `/shared-services/it/vendor-mgmt` → redirects to Operations path  
 **Extends:** Phase 89 partner spine (`docs/PARTNER_SPINE.md`) — does not fork a second vendor DB.
+**Commercial SoR:** Vendor Management owns SaaS/renewal economics; A&F owns payee/tax/bills; Tech Stack is posture — see `docs/CONTRACTS_PAYMENTS_SOR.md`.
 
 ## Placement
 
@@ -81,8 +82,8 @@ Safe to re-run. Expect `PHASE90_APPLIED` with codes=4, modules≥4, alert_rules=
 
 ## Deferred / next
 
-- Live HRIS / IdP / SaaS connector *jobs* (scaffolds + registry shipped; LIVE flags off)
-- A&F AP vendor link (1099 portal remains separate)
+- Live remote connector adapters (dry-run jobs + Monday cron shipped; LIVE flags still fail-closed)
+- Merge VM vendors into A&F AP bill pay (cross-link UI shipped; tax/W-9 stays on A&F)
 
 ## Shipped follow-ons
 
@@ -91,3 +92,6 @@ Safe to re-run. Expect `PHASE90_APPLIED` with codes=4, modules≥4, alert_rules=
 - Admin directory invite / activate / deactivate + MFA enrolled flag
 - CSV seed import (`/import`) for Seed_Export header sets
 - Connector scaffolds (HRIS, IdP, M365, Slack, QBO, cards) on Integrations
+- Connector dry-run sync jobs + audit (`connector-jobs.ts`) + UI buttons + `/api/vendor-mgmt/connector-sync` weekly cron
+- A&F AP → VM vendor cross-link on `/shared-services/af/accounting/vendors`
+- Honest connector status: `syncOk` / `status: dry_run` (dry-run never green-lights sync health)

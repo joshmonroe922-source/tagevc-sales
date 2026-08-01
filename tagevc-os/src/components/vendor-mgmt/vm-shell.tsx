@@ -1,28 +1,33 @@
 import Link from 'next/link';
 import { PageHeader } from '@/components/ui/page-header';
 import { cn } from '@/lib/utils';
-import type { AdminRoleId } from '@/lib/vendor-mgmt/types';
+import { vmHasPermission } from '@/lib/vendor-mgmt/permissions';
+import type { AdminRoleId, VmPermissionKey } from '@/lib/vendor-mgmt/types';
 
-const LINKS: Array<{ href: string; label: string }> = [
-  { href: '/shared-services/ops/vendor-management', label: 'Dashboard' },
-  { href: '/shared-services/ops/vendor-management/vendors', label: 'Vendors' },
-  { href: '/shared-services/ops/vendor-management/renewals', label: 'Renewals' },
-  { href: '/shared-services/ops/vendor-management/products', label: 'Products' },
-  { href: '/shared-services/ops/vendor-management/roles', label: 'Roles' },
-  { href: '/shared-services/ops/vendor-management/employees', label: 'People' },
-  { href: '/shared-services/ops/vendor-management/access', label: 'Access' },
-  { href: '/shared-services/ops/vendor-management/lifecycle', label: 'Lifecycle' },
-  { href: '/shared-services/ops/vendor-management/budgets', label: 'Budgets' },
-  { href: '/shared-services/ops/vendor-management/chargeback', label: 'Chargeback' },
-  { href: '/shared-services/ops/vendor-management/usage', label: 'Usage' },
-  { href: '/shared-services/ops/vendor-management/hire', label: 'Hire sim' },
-  { href: '/shared-services/ops/vendor-management/alerts', label: 'Alerts' },
-  { href: '/shared-services/ops/vendor-management/audit', label: 'Audit' },
-  { href: '/shared-services/ops/vendor-management/integrations', label: 'Integrations' },
-  { href: '/shared-services/ops/vendor-management/import', label: 'CSV import' },
-  { href: '/shared-services/ops/vendor-management/settings', label: 'Settings' },
-  { href: '/shared-services/ops/vendor-management/cost-centers', label: 'Cost centers / Comp' },
-  { href: '/shared-services/ops/vendor-management/admins', label: 'Admins' },
+const LINKS: Array<{
+  href: string;
+  label: string;
+  permission: VmPermissionKey;
+}> = [
+  { href: '/shared-services/ops/vendor-management', label: 'Dashboard', permission: 'view_vendors' },
+  { href: '/shared-services/ops/vendor-management/vendors', label: 'Vendors', permission: 'view_vendors' },
+  { href: '/shared-services/ops/vendor-management/renewals', label: 'Renewals', permission: 'view_vendors' },
+  { href: '/shared-services/ops/vendor-management/products', label: 'Products', permission: 'manage_products' },
+  { href: '/shared-services/ops/vendor-management/roles', label: 'Roles', permission: 'manage_role_rules' },
+  { href: '/shared-services/ops/vendor-management/employees', label: 'People', permission: 'manage_employees' },
+  { href: '/shared-services/ops/vendor-management/access', label: 'Access', permission: 'manage_seats' },
+  { href: '/shared-services/ops/vendor-management/lifecycle', label: 'Lifecycle', permission: 'manage_employees' },
+  { href: '/shared-services/ops/vendor-management/budgets', label: 'Budgets', permission: 'edit_contracts' },
+  { href: '/shared-services/ops/vendor-management/chargeback', label: 'Chargeback', permission: 'edit_contracts' },
+  { href: '/shared-services/ops/vendor-management/usage', label: 'Usage', permission: 'view_vendors' },
+  { href: '/shared-services/ops/vendor-management/hire', label: 'Hire sim', permission: 'view_vendors' },
+  { href: '/shared-services/ops/vendor-management/alerts', label: 'Alerts', permission: 'view_audit_log' },
+  { href: '/shared-services/ops/vendor-management/audit', label: 'Audit', permission: 'view_audit_log' },
+  { href: '/shared-services/ops/vendor-management/integrations', label: 'Integrations', permission: 'view_audit_log' },
+  { href: '/shared-services/ops/vendor-management/import', label: 'CSV import', permission: 'create_vendor' },
+  { href: '/shared-services/ops/vendor-management/settings', label: 'Settings', permission: 'edit_contracts' },
+  { href: '/shared-services/ops/vendor-management/cost-centers', label: 'Cost centers / Comp', permission: 'edit_contracts' },
+  { href: '/shared-services/ops/vendor-management/admins', label: 'Admins', permission: 'manage_admins' },
 ];
 
 export function VmShell({
@@ -42,6 +47,10 @@ export function VmShell({
   primaryAction?: React.ReactNode;
   children: React.ReactNode;
 }) {
+  const visible = LINKS.filter((l) =>
+    adminRole ? vmHasPermission(adminRole, l.permission) : true,
+  );
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -60,13 +69,13 @@ export function VmShell({
             href="/shared-services/it/technology-stack"
             className="text-sm underline underline-offset-2"
           >
-            Partner stack
+            Partner stack (posture)
           </Link>
         }
       />
 
       <nav className="flex flex-wrap gap-1.5 border-b border-border pb-3">
-        {LINKS.map((l) => {
+        {visible.map((l) => {
           const isActive =
             active === l.href ||
             (active !== '/shared-services/ops/vendor-management' &&

@@ -281,24 +281,28 @@ export async function POST(request: Request) {
       console.error('[recruit-ss-intake] inbound upsert failed', error.message);
       return NextResponse.json(
         {
-          ok: true,
+          ok: false,
+          status: 'partial',
+          retryable: true,
           tageTicketId: ticket.ticket_id,
           entityId,
-          warning: 'ticket persisted; inbound ledger upsert failed',
+          error: 'ticket persisted; inbound ledger upsert failed — retry required',
         },
-        { status: 200 },
+        { status: 503 },
       );
     }
   } catch (err) {
     console.error('[recruit-ss-intake] inbound persist failed', err);
     return NextResponse.json(
       {
-        ok: true,
+        ok: false,
+        status: 'partial',
+        retryable: true,
         tageTicketId: ticket.ticket_id,
         entityId,
-        warning: 'ticket persisted; inbound ledger upsert failed',
+        error: 'ticket persisted; inbound ledger upsert failed — retry required',
       },
-      { status: 200 },
+      { status: 503 },
     );
   }
 

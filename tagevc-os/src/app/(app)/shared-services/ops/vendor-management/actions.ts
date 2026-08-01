@@ -33,6 +33,10 @@ import {
 import { evaluateAlertRules, persistTriggeredAlerts } from '@/lib/vendor-mgmt/alerts';
 import { VM_CONNECTOR_SCAFFOLDS } from '@/lib/vendor-mgmt/connectors';
 import {
+  runAllConnectorDryRuns,
+  runConnectorSyncJob,
+} from '@/lib/vendor-mgmt/connector-jobs';
+import {
   boolish,
   numOrNull,
   parseCsv,
@@ -908,6 +912,35 @@ export async function importCsvAction(formData: FormData): Promise<ActionResult>
     });
     revalidateVm();
     return { ok: true, id: String(upserted) };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Denied' };
+  }
+}
+
+export async function runConnectorSyncAction(formData: FormData): Promise<ActionResult> {
+  try {
+    const session = await requireVmSession('view_audit_log');
+    const id = String(formData.get('integration_id') || '').trim();
+    if (!id) return { ok: false, error: 'integration_id required' };
+    const result = await runConnectorSyncJob({
+      integrationId: id,
+      actorEmail: session.email,
+    });
+    revalidateVm();
+    return result.ok
+      ? { ok: true, id: result.integrationId }
+      : { ok: false, error: result.message };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Denied' };
+  }
+}
+
+export async function runAllConnectorsAction(): Promise<ActionResult> {
+  try {
+    const session = await requireVmSession('manage_admins');
+    const results = await runAllConnectorDryRuns({ actorEmail: session.email });
+    revalidateVm();
+    return { ok: true, id: String(results.filter((r) => r.ok).length) };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Denied' };
   }

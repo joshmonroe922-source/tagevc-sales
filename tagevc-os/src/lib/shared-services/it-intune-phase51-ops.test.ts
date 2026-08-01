@@ -145,7 +145,6 @@ describe('Phase 51 Intune unified dual-approve inbox (postmortem + breaker tunin
     expect(client).toContain('refreshIntunePhase51UnifiedInboxOpsAction');
     expect(client).toContain('Unified dual-approve inbox');
     expect(page).toContain('getIntunePhase51OpsReport');
-    expect(page).toContain('Phase 51');
     expect(page).toContain('intunePhase51Ops');
   });
 

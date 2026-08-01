@@ -3,6 +3,11 @@
 **Code:** `src/lib/partners/*` · **SQL:** `supabase/phase89_partner_spine.sql`  
 **Principle:** Every current + future OS entity inherits the spine. Secrets never committed — env placeholders only. Fail-closed `*_LIVE=0` until Josh enables.
 
+**HRIS:** Shared Services → Human Resources is the full operational HRIS for Tage, inherited by all entities. Signent HR sells HR services on the **same** platform with client segmentation (`client_org_id` under `ENT-SIGNENT`) — see `docs/HRIS_SPINE.md`.
+
+**Honest status:** Adapter dry-runs and entity provision return `status: dry_run | partial_scaffold` — never treat scaffold as live-ready (`ok: false` / HTTP 202 on provision until hooks execute live).
+
+
 ## Partners
 
 | Key | Owner (SS) | Scope | Status |
@@ -87,6 +92,7 @@ UI: Shared Services → Legal → DocuSign. Technology stack page shows connecti
 
 UI: `/shared-services/marketing/presence`  
 Imports land in `os_partner_bi_signals` + `last_import_at` when LIVE.
+UI **Import dry-run** on Presence runs fail-closed stubs now and stamps `last_import_at` / BI rows with `meta.dry_run`.
 
 ## Gusto + commissions
 

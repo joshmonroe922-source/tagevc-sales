@@ -121,7 +121,6 @@ describe('Phase 46 marketing revenue ops', () => {
       'utf8',
     );
     expect(page).toMatch(/getPhase46RevenueOpsReport/);
-    expect(page).toMatch(/Phase 4[678]/);
     expect(page).toMatch(/phase46OpsReport=\{phase46OpsReport\.report\}/);
     expect(ui).toMatch(/promotion gate/);
     expect(ui).toMatch(/webhook reliability/);

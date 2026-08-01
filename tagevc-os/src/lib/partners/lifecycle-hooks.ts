@@ -119,15 +119,26 @@ export async function completePartnerLifecycleHook(input: {
     email: input.email,
     userExternalId: input.userExternalId,
   });
+  const status =
+    'status' in result && result.status
+      ? result.status
+      : result.ok && 'dryRun' in result && result.dryRun
+        ? 'dry_run'
+        : result.ok
+          ? 'live_ok'
+          : 'failed';
   await recordPartnerEvent({
     partner_key: 'apollo',
     entity_id: input.entityId,
     kind: 'provision',
     external_id: hookId,
+    status: status === 'live_ok' ? 'processed' : status === 'failed' ? 'failed' : 'ignored',
     payload: {
       hook: hookId,
       ok: result.ok,
+      status,
       dry_run: 'dryRun' in result ? result.dryRun : undefined,
+      live_complete: status === 'live_ok',
       message: result.ok ? result.message : result.error,
     },
   });

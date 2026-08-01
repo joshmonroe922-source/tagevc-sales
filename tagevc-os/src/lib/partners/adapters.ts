@@ -5,9 +5,27 @@
 import { partnerConnectionStatus } from '@/lib/partners/env';
 import type { PartnerKey } from '@/lib/partners/catalog';
 
+export type AdapterExecutionStatus = 'dry_run' | 'live_ok' | 'failed';
+
 export type AdapterResult =
-  | { ok: true; dryRun: boolean; message: string; externalRef?: string }
-  | { ok: false; error: string; dryRun?: boolean };
+  | {
+      ok: true;
+      dryRun: boolean;
+      status: AdapterExecutionStatus;
+      message: string;
+      externalRef?: string;
+    }
+  | {
+      ok: false;
+      error: string;
+      dryRun?: boolean;
+      status: AdapterExecutionStatus;
+    };
+
+/** Live remote work completed — dry-run / scaffold must never count as done. */
+export function isAdapterLiveComplete(result: AdapterResult): boolean {
+  return result.ok && result.status === 'live_ok' && !result.dryRun;
+}
 
 function liveFlag(envKey: string): boolean {
   return process.env[envKey]?.trim() === '1';
@@ -21,11 +39,13 @@ export async function dialpadProvisionUser(_input: {
     return {
       ok: true,
       dryRun: true,
+      status: 'dry_run',
       message: 'Dialpad provision stub (set DIALPAD_LIVE=1 + DIALPAD_API_KEY).',
     };
   }
   return {
     ok: false,
+    status: 'failed',
     error: 'Dialpad live adapter not implemented — scaffold only.',
   };
 }
@@ -40,12 +60,14 @@ export async function gustoQueueCommission(_input: {
     return {
       ok: true,
       dryRun: true,
+      status: 'dry_run',
       message:
         'Gusto commission queued locally (stub). Wire invoice-paid → commission → payroll when LIVE.',
     };
   }
   return {
     ok: false,
+    status: 'failed',
     error: 'Gusto live commission push not implemented — scaffold only.',
   };
 }
@@ -58,12 +80,14 @@ export async function gustoProvisionEmployee(_input: {
     return {
       ok: true,
       dryRun: true,
+      status: 'dry_run',
       message:
         'Gusto employee provision stub — enable GUSTO_LIVE when payroll API ready.',
     };
   }
   return {
     ok: false,
+    status: 'failed',
     error: 'Gusto live employee provision not implemented — scaffold only.',
   };
 }
@@ -77,6 +101,7 @@ export async function mybasepayCreatePlacementWorker(_input: {
     return {
       ok: true,
       dryRun: true,
+      status: 'dry_run',
       message:
         'MyBasePay EOR stub for Recruit 619. Set MYBASEPAY_* when account ready.',
     };
@@ -85,11 +110,13 @@ export async function mybasepayCreatePlacementWorker(_input: {
     return {
       ok: true,
       dryRun: true,
+      status: 'dry_run',
       message: 'MyBasePay configured but MYBASEPAY_LIVE≠1 — dry-run.',
     };
   }
   return {
     ok: false,
+    status: 'failed',
     error: 'MyBasePay live adapter not implemented — scaffold only.',
   };
 }
@@ -102,6 +129,7 @@ export async function apolloImportCompany(_input: {
     return {
       ok: true,
       dryRun: true,
+      status: 'dry_run',
       message: 'Apollo import stub — set APOLLO_API_KEY.',
     };
   }
@@ -109,11 +137,13 @@ export async function apolloImportCompany(_input: {
     return {
       ok: true,
       dryRun: true,
+      status: 'dry_run',
       message: 'Apollo key present; APOLLO_LIVE≠1 — dry-run.',
     };
   }
   return {
     ok: false,
+    status: 'failed',
     error: 'Apollo live import not implemented — scaffold only.',
   };
 }
@@ -124,6 +154,7 @@ export async function linkedinRecruiterSyncStub(_input: {
   return {
     ok: true,
     dryRun: true,
+    status: 'dry_run',
     message:
       'LinkedIn Recruiter two-way sync scaffold — attach account when issued.',
   };
@@ -138,6 +169,7 @@ export async function appcastPublishStub(_input: {
     return {
       ok: true,
       dryRun: true,
+      status: 'dry_run',
       message:
         'Appcast publish lives primarily on Recruit 619 portal feed; spine tracks enablement.',
     };
@@ -145,6 +177,7 @@ export async function appcastPublishStub(_input: {
   return {
     ok: true,
     dryRun: !liveFlag('APPCAST_LIVE'),
+    status: liveFlag('APPCAST_LIVE') ? 'live_ok' : 'dry_run',
     message: liveFlag('APPCAST_LIVE')
       ? 'Appcast LIVE — use R619 /api/integrations/appcast paths.'
       : 'Appcast dry-run — APPCAST_LIVE≠1.',
@@ -161,6 +194,7 @@ export async function marketingPresenceImportStub(
   return {
     ok: true,
     dryRun: true,
+    status: 'dry_run',
     message: `${kind} import stub — connect OAuth under Marketing → Presence, then enable LIVE.`,
   };
 }
@@ -173,11 +207,13 @@ export async function dialpadRevokeUser(_input: {
     return {
       ok: true,
       dryRun: true,
+      status: 'dry_run',
       message: 'Dialpad revoke stub (set DIALPAD_LIVE=1 + DIALPAD_API_KEY).',
     };
   }
   return {
     ok: false,
+    status: 'failed',
     error: 'Dialpad live revoke not implemented — scaffold only.',
   };
 }
@@ -190,11 +226,13 @@ export async function gustoTerminateEmployee(_input: {
     return {
       ok: true,
       dryRun: true,
+      status: 'dry_run',
       message: 'Gusto terminate stub — enable GUSTO_LIVE when payroll API ready.',
     };
   }
   return {
     ok: false,
+    status: 'failed',
     error: 'Gusto live terminate not implemented — scaffold only.',
   };
 }
@@ -207,11 +245,13 @@ export async function apolloRevokeUser(_input: {
     return {
       ok: true,
       dryRun: true,
+      status: 'dry_run',
       message: 'Apollo seat revoke stub — set APOLLO_API_KEY + APOLLO_LIVE=1.',
     };
   }
   return {
     ok: false,
+    status: 'failed',
     error: 'Apollo live revoke not implemented — scaffold only.',
   };
 }
@@ -222,6 +262,7 @@ export async function marketingPresenceRevokeEditor(_input: {
   return {
     ok: true,
     dryRun: true,
+    status: 'dry_run',
     message:
       'Marketing presence editor revoke stub — clear OAuth editors under Presence when LIVE.',
   };
@@ -235,12 +276,14 @@ export async function verifiedFirstPendingStub(_input: {
     return {
       ok: true,
       dryRun: true,
+      status: 'dry_run',
       message:
         'Verified First screening stub — set VERIFIED_FIRST_LIVE=1 when ready.',
     };
   }
   return {
     ok: false,
+    status: 'failed',
     error: 'Verified First live screening trigger not implemented — scaffold only.',
   };
 }
@@ -251,6 +294,7 @@ export async function entityCreateAckStub(
   return {
     ok: true,
     dryRun: true,
+    status: 'dry_run',
     message: `${hookId} acknowledged — spine/SQL / admin UI (no remote call).`,
   };
 }
@@ -348,6 +392,7 @@ export async function runPartnerLifecycleHook(
       return {
         ok: true,
         dryRun: true,
+        status: 'dry_run',
         message: `Unhandled partner hook ${hookId} — recorded as dry-run stub.`,
       };
   }

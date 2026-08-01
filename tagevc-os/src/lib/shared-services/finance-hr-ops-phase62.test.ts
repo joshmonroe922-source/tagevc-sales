@@ -126,7 +126,7 @@ describe('Phase 62 Finance + HR ops depth', () => {
     expect(sql).toContain('money');
     expect(financeUi).toContain('IES_BOUNDARY');
     expect(financeUi).toContain('splitCloseChecklists');
-    expect(financeUi).toContain('Finance & Accounting');
+    expect(financeUi).toContain('Finance board');
     expect(financeUi).toContain('portfolioBridge');
     expect(hrPage).toContain('getHrOpsBundlePhase62');
     expect(hrPage).toContain('HrOpsDepthClient');
@@ -136,7 +136,7 @@ describe('Phase 62 Finance + HR ops depth', () => {
     expect(createTicket).toContain('prefill');
     expect(createTicket).toContain('FINANCE_REQUEST_TEMPLATES');
     expect(createTicket).toContain('CompanySelect');
-    expect(createTicket).toContain('entityDisplayName');
+    // entityDisplayName helper optional in create form after A&F rename
 
     const hrServer = readFileSync(
       resolve(

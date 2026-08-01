@@ -12,11 +12,11 @@ export default async function HirePage({
   const sp = await searchParams;
   const roles = await listRoles(session.filterEntityId);
   const roleId = sp.role || roles[0]?.id || '';
-  const base = Number(sp.base || roles[0] ? 120000 : 0);
+  const baseAnnual = Number(sp.base || 120000);
   const sim = roleId
     ? await simulateHire({
         roleId,
-        baseAnnual: Number(sp.base || 120000),
+        baseAnnual,
         commissionAnnual: Number(sp.comm || 0),
       })
     : null;

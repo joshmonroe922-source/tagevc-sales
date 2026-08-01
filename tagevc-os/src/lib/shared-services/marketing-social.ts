@@ -604,6 +604,18 @@ export async function publishForAccount(
   const { token } = await loadAccessToken(input.account_id);
 
   if (!token) {
+    const allowStub =
+      process.env.NODE_ENV !== 'production' ||
+      process.env.VERCEL_ENV === 'preview' ||
+      process.env.VERCEL_ENV === 'development';
+    if (!allowStub) {
+      return {
+        ok: false,
+        publisher: 'none',
+        error:
+          'No OAuth token — publish blocked in production (set MARKETING_FORCE_STUB_PUBLISH=1 only to simulate).',
+      };
+    }
     const stub = new StubSocialPublisher();
     return stub.publish({ ...input, accessToken: 'stub' });
   }

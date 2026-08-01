@@ -1,7 +1,7 @@
 /**
  * POST { entity_id } — inherit partner spine + marketing presence +
  * Vendor Management (Phase 90) for an entity.
- * Firm-wide / service callers only (secret or session with firm access).
+ * Returns honest status: scaffold ≠ live-ready.
  */
 
 import { NextResponse } from 'next/server';
@@ -40,5 +40,7 @@ export async function POST(req: Request) {
   }
 
   const result = await provisionPartnerSpineForEntity(entityId);
-  return NextResponse.json({ ok: true, ...result });
+  const http =
+    result.status === 'failed' ? 502 : result.ok ? 200 : 202; // 202 Accepted = partial scaffold
+  return NextResponse.json(result, { status: http });
 }

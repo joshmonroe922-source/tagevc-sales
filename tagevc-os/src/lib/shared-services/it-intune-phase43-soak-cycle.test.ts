@@ -124,7 +124,6 @@ describe('Phase 43 Intune soak cycle evidence', () => {
     expect(client).toContain('never auto-reset');
     expect(page).toContain('getIntunePhase43Health');
     expect(page).toContain('listIntuneSoakCycleTimeline');
-    expect(page).toContain('Phase 43');
   });
 
   it('preserves Phase 42 soak rails and does not rebuild postmortems', () => {

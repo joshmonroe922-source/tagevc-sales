@@ -1,9 +1,11 @@
 import Link from 'next/link';
 import { SscFunctionHomeChromeServer } from '@/components/shared-services/ssc-function-home-chrome-server';
+import { dryRunPresenceImportAction } from '@/app/(app)/shared-services/marketing/presence/actions';
 import { marketingPresencePartners } from '@/lib/partners/catalog';
 import { missingEnvForPartner, resolvePartnerStatus } from '@/lib/partners/registry';
 import { listMarketingPresence, listPartnerBindings } from '@/lib/partners/repo';
 import { isFirmWideAccess } from '@/lib/rbac/entity-scope';
+import { roleHasPermission } from '@/lib/types/roles';
 import { getSessionContext, requirePermission } from '@/lib/rbac/session';
 
 const KIND_LABEL: Record<string, string> = {
@@ -19,12 +21,26 @@ export default async function MarketingPresencePage() {
     ? isFirmWideAccess(ctx.profile.role, ctx.profile.entity_id)
     : false;
   const entityId = firmWide ? null : (ctx?.profile.entity_id ?? null);
+  const canWrite = ctx
+    ? roleHasPermission(ctx.profile.role, 'write:marketing')
+    : false;
 
   const [properties, bindings] = await Promise.all([
     listMarketingPresence(entityId),
     listPartnerBindings(entityId),
   ]);
   const partners = marketingPresencePartners();
+
+  const entityOptions = Array.from(
+    new Set(properties.map((p) => p.entity_id)),
+  ).sort();
+  const defaultEntity =
+    entityId ?? entityOptions[0] ?? ctx?.profile.entity_id ?? 'ENT-FIRM';
+
+  async function runPresenceDryRun(formData: FormData) {
+    'use server';
+    await dryRunPresenceImportAction(formData);
+  }
 
   return (
     <div className="space-y-6">
@@ -61,6 +77,42 @@ export default async function MarketingPresencePage() {
           Technology stack
         </Link>
       </div>
+
+      {canWrite ? (
+        <section className="rounded-lg border border-border p-4">
+          <h2 className="text-base font-semibold">Import dry-run</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Runs fail-closed stubs for GBP · GA4 · LinkedIn and writes BI
+            signal rows. No remote calls until LIVE flags are on.
+          </p>
+          <form action={runPresenceDryRun} className="mt-3 flex flex-wrap items-end gap-2">
+            <label className="text-sm">
+              <span className="mb-1 block text-xs text-muted-foreground">
+                Entity
+              </span>
+              <select
+                name="entity_id"
+                defaultValue={defaultEntity}
+                className="rounded-md border border-border bg-background px-2 py-1.5"
+              >
+                {(entityOptions.length ? entityOptions : [defaultEntity]).map(
+                  (id) => (
+                    <option key={id} value={id}>
+                      {id}
+                    </option>
+                  ),
+                )}
+              </select>
+            </label>
+            <button
+              type="submit"
+              className="rounded-md border border-border px-3 py-2 text-sm"
+            >
+              Run presence import dry-run
+            </button>
+          </form>
+        </section>
+      ) : null}
 
       <section className="grid gap-3 md:grid-cols-3">
         {partners.map((def) => {
