@@ -92,6 +92,59 @@ export async function listVendorPayments(
   }
 }
 
+export async function upsertVendorContract(
+  row: Partial<PartnerVendorContract> & {
+    partner_key: PartnerKey;
+    vendor_name: string;
+    contract_title: string;
+  },
+): Promise<PartnerVendorContract | null> {
+  try {
+    const sb = await createPersistClient();
+    const payload = {
+      ...row,
+      updated_at: new Date().toISOString(),
+    };
+    const q = row.id
+      ? sb.from('os_partner_vendor_contracts').update(payload).eq('id', row.id)
+      : sb.from('os_partner_vendor_contracts').insert(payload);
+    const { data, error } = await q.select('*').maybeSingle();
+    if (error) return null;
+    return data as PartnerVendorContract;
+  } catch {
+    return null;
+  }
+}
+
+export async function upsertVendorPayment(input: {
+  contract_id: string;
+  paid_on: string;
+  amount_cents: number;
+  currency?: string;
+  reference?: string | null;
+  notes?: string | null;
+}): Promise<PartnerVendorPayment | null> {
+  try {
+    const sb = await createPersistClient();
+    const { data, error } = await sb
+      .from('os_partner_vendor_payments')
+      .insert({
+        contract_id: input.contract_id,
+        paid_on: input.paid_on,
+        amount_cents: input.amount_cents,
+        currency: input.currency ?? 'USD',
+        reference: input.reference ?? null,
+        notes: input.notes ?? null,
+      })
+      .select('*')
+      .maybeSingle();
+    if (error) return null;
+    return data as PartnerVendorPayment;
+  } catch {
+    return null;
+  }
+}
+
 export async function listMarketingPresence(
   entityId?: string | null,
 ): Promise<MarketingPresenceProperty[]> {
