@@ -1,5 +1,6 @@
 /**
- * POST { entity_id } — inherit partner spine + marketing presence for an entity.
+ * POST { entity_id } — inherit partner spine + marketing presence +
+ * Vendor Management (Phase 90) for an entity.
  * Firm-wide / service callers only (secret or session with firm access).
  */
 

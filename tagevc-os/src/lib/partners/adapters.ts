@@ -146,3 +146,129 @@ export async function marketingPresenceImportStub(
     message: `${kind} import stub — connect OAuth under Marketing → Presence, then enable LIVE.`,
   };
 }
+
+export async function dialpadRevokeUser(_input: {
+  entityId: string;
+  email?: string;
+}): Promise<AdapterResult> {
+  if (!liveFlag('DIALPAD_LIVE') || !process.env.DIALPAD_API_KEY?.trim()) {
+    return {
+      ok: true,
+      dryRun: true,
+      message: 'Dialpad revoke stub (set DIALPAD_LIVE=1 + DIALPAD_API_KEY).',
+    };
+  }
+  return {
+    ok: false,
+    error: 'Dialpad live revoke not implemented — scaffold only.',
+  };
+}
+
+export async function gustoTerminateEmployee(_input: {
+  entityId: string;
+  userExternalId?: string;
+}): Promise<AdapterResult> {
+  if (!liveFlag('GUSTO_LIVE') || !process.env.GUSTO_API_TOKEN?.trim()) {
+    return {
+      ok: true,
+      dryRun: true,
+      message: 'Gusto terminate stub — enable GUSTO_LIVE when payroll API ready.',
+    };
+  }
+  return {
+    ok: false,
+    error: 'Gusto live terminate not implemented — scaffold only.',
+  };
+}
+
+export async function apolloRevokeUser(_input: {
+  entityId: string;
+  email?: string;
+}): Promise<AdapterResult> {
+  if (!process.env.APOLLO_API_KEY?.trim() || !liveFlag('APOLLO_LIVE')) {
+    return {
+      ok: true,
+      dryRun: true,
+      message: 'Apollo seat revoke stub — set APOLLO_API_KEY + APOLLO_LIVE=1.',
+    };
+  }
+  return {
+    ok: false,
+    error: 'Apollo live revoke not implemented — scaffold only.',
+  };
+}
+
+export async function marketingPresenceRevokeEditor(_input: {
+  entityId: string;
+}): Promise<AdapterResult> {
+  return {
+    ok: true,
+    dryRun: true,
+    message:
+      'Marketing presence editor revoke stub — clear OAuth editors under Presence when LIVE.',
+  };
+}
+
+/** Map JML / provision hook ids → adapter stubs (fail-closed dry-run until LIVE). */
+export async function runPartnerLifecycleHook(
+  hookId: string,
+  input: {
+    entityId: string;
+    email?: string;
+    userExternalId?: string;
+    jobId?: string;
+    domain?: string;
+  },
+): Promise<AdapterResult> {
+  const id = hookId.replace(/^partner_/, '');
+  switch (id) {
+    case 'dialpad_user_stub_if_phone':
+    case 'provision_dialpad_user':
+      return dialpadProvisionUser({
+        entityId: input.entityId,
+        email: input.email ?? '',
+      });
+    case 'dialpad_revoke_stub':
+      return dialpadRevokeUser({
+        entityId: input.entityId,
+        email: input.email,
+      });
+    case 'gusto_employee_stub_if_internal':
+    case 'provision_gusto_employee':
+      return gustoQueueCommission({
+        entityId: input.entityId,
+        userExternalId: input.userExternalId ?? 'pending',
+        amountCents: 0,
+        invoiceId: 'joiner-stub',
+      });
+    case 'gusto_terminate_stub':
+      return gustoTerminateEmployee({
+        entityId: input.entityId,
+        userExternalId: input.userExternalId,
+      });
+    case 'apollo_user_revoke_stub':
+      return apolloRevokeUser({
+        entityId: input.entityId,
+        email: input.email,
+      });
+    case 'marketing_presence_editor_revoke_stub':
+      return marketingPresenceRevokeEditor({ entityId: input.entityId });
+    case 'marketing_presence_slots_ensure':
+      return marketingPresenceImportStub('google_business', {
+        entityId: input.entityId,
+      });
+    case 'partner_spine_enablements_ensure':
+    case 'docusign_template_scope_note':
+      return {
+        ok: true,
+        dryRun: true,
+        message: `${id} acknowledged — no remote call (spine/SQL / Legal UI).`,
+      };
+    default:
+      return {
+        ok: true,
+        dryRun: true,
+        message: `Unhandled partner hook ${hookId} — recorded as dry-run stub.`,
+      };
+  }
+}

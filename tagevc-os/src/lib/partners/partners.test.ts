@@ -6,6 +6,7 @@ import {
   marketingPresencePartners,
 } from '@/lib/partners/catalog';
 import { calculateCommissionCents } from '@/lib/partners/commissions';
+import { runPartnerLifecycleHook } from '@/lib/partners/adapters';
 import { mergePartnerLifecycleItems } from '@/lib/partners/lifecycle-hooks';
 import { buildPartnerSpineProvisionPlan } from '@/lib/partners/provision';
 import { partnerAdminHref } from '@/lib/partners/registry';
@@ -58,5 +59,19 @@ describe('partner spine catalog', () => {
     expect(
       calculateCommissionCents({ invoiceAmountCents: 100_000, rateBps: 1000 }),
     ).toBe(10_000);
+  });
+
+  it('runs lifecycle adapter hooks as dry-run stubs', async () => {
+    const dialpad = await runPartnerLifecycleHook('dialpad_user_stub_if_phone', {
+      entityId: 'ENT-FIRM',
+      email: 'ops@tagevc.com',
+    });
+    expect(dialpad.ok).toBe(true);
+    if (dialpad.ok) expect(dialpad.dryRun).toBe(true);
+
+    const revoke = await runPartnerLifecycleHook('partner_dialpad_revoke_stub', {
+      entityId: 'ENT-FIRM',
+    });
+    expect(revoke.ok).toBe(true);
   });
 });
