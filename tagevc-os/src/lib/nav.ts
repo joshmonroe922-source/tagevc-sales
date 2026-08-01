@@ -46,22 +46,25 @@ const HIDE_FOR_ADMIN = ['admin'] as const satisfies readonly AppRole[];
 const HIDE_SSC_FUNCTIONS_FOR_ADMIN = HIDE_FOR_ADMIN;
 
 /**
- * Home → Dashboard → Assets → C-Suite → To Do List → Shared Services → Firm → BD → Command Center → Personal → modules.
+ * Home → Dashboard → Assets → C-Suite → To Do List → Firm → BD → Shared Services → Command Center → Personal → modules.
  * Assets stays under Home (not under Dashboard) — Portfolio→Assets rename + later IA.
- * Shared Services sits above Personal and Firm (entity / personal sections).
+ * Firm stays above Shared Services; Shared Services sits above Command Center and Personal.
  * Firm + Command Center are top-level (not nested under BD / C-Suite).
  * BD stays top-level (not under Assets) so associate / sourcer / sub_lead role transforms keep working.
  * To Do List aggregates SSC checklists + lead/deal follow-ups (not Help Desk tickets).
  * Shared Services holds Tage VC A&F + function homes + Ticket Portal + Admin.
  * Help Desk lives on the Create Ticket split-button dropdown (not left nav).
- * Admin accordion nests Document Library + DocuSign (routes
-{
+ * Admin accordion nests Document Library + DocuSign (routes unchanged).
+ * Think Tank lives on Home (no standalone nav item).
+ */
+export const MAIN_NAV: NavItem[] = [
+  {
     module: 'command_center',
     href: '/home',
     label: 'Home',
     description: 'AI briefing + Think Tank',
   },
-{
+  {
     module: 'portfolio',
     href: '/dashboard',
     label: 'Dashboard',
@@ -69,7 +72,7 @@ const HIDE_SSC_FUNCTIONS_FOR_ADMIN = HIDE_FOR_ADMIN;
     /** SSC operators skip Dashboard; Admin lands here for ops KPIs. */
     hiddenForRoles: HIDE_FOR_SSC,
   },
-{
+  {
     module: 'portfolio',
     label: 'Assets',
     description: 'Net Worth · Businesses · Real Estate · Investments',
@@ -112,7 +115,7 @@ const HIDE_SSC_FUNCTIONS_FOR_ADMIN = HIDE_FOR_ADMIN;
       },
     ],
   },
-{
+  {
     module: 'command_center',
     label: 'C-Suite',
     description: 'AI executive intelligence',
@@ -225,13 +228,70 @@ const HIDE_SSC_FUNCTIONS_FOR_ADMIN = HIDE_FOR_ADMIN;
       },
     ],
   },
-{
+  {
     module: 'command_center',
     href: '/to-do',
     label: 'To Do List',
     description: 'SSC tasks · follow-ups · operator work',
   },
-{
+  {
+    module: 'firm',
+    href: '/firm',
+    label: 'Firm',
+    description: 'Capital · governance · rhythm',
+    hiddenForRoles: [
+      'coo',
+      'associate',
+      'ma_associate',
+      're_sourcer',
+      ...HIDE_FOR_ADMIN,
+      ...HIDE_FOR_SSC,
+    ],
+  },
+  {
+    module: 'deal_flow_vc',
+    label: 'Business Development',
+    description: 'Leads and deal pipelines',
+    hiddenForRoles: ['coo', ...HIDE_FOR_ADMIN, ...HIDE_FOR_SSC],
+    children: [
+      {
+        module: 'deal_flow_vc',
+        href: '/deal-flow/vc/intake',
+        label: 'Lead Intake',
+        description: 'Incoming opportunities',
+        /** Associate / VC Sourcer: BD collapses to VC + M&A sourcing portals. */
+        hiddenForRoles: [
+          'coo',
+          'associate',
+          'ma_associate',
+          're_sourcer',
+          ...HIDE_FOR_ADMIN,
+          ...HIDE_FOR_SSC,
+        ],
+      },
+      {
+        module: 'deal_flow_vc',
+        href: '/deal-flow',
+        label: 'Deal Flow',
+        description: 'VC · M&A · Real Estate',
+        hiddenForRoles: [
+          'coo',
+          'associate',
+          'ma_associate',
+          're_sourcer',
+          ...HIDE_FOR_ADMIN,
+          ...HIDE_FOR_SSC,
+        ],
+      },
+      /**
+       * VC / M&A / RE sourcing links are not default BD children (Visionary /
+       * Think Tank / Partner see Lead Intake + Deal Flow only). Associate,
+       * M&A Associate, and Sourcer get those surfaces via role transforms in
+       * `applyRoleNavTransforms`.
+       */
+    ],
+  },
+  {
     module: 'shared_services',
     label: 'Shared Services',
     description:
@@ -296,7 +356,7 @@ const HIDE_SSC_FUNCTIONS_FOR_ADMIN = HIDE_FOR_ADMIN;
         href: '/shared-services/ops/vendor-management',
         label: 'Vendor Management',
         description: 'Spend · licenses · renewals · people economics',
-        requiredPermission: 'read:shared_services',
+        requiredPermission: 'read:it_assets',
         hiddenForRoles: [...HIDE_SSC_FUNCTIONS_FOR_ADMIN],
         children: [
           {
@@ -304,28 +364,28 @@ const HIDE_SSC_FUNCTIONS_FOR_ADMIN = HIDE_FOR_ADMIN;
             href: '/shared-services/ops/vendor-management/vendors',
             label: 'Vendors',
             description: 'Current stack · seats · utilization',
-            requiredPermission: 'read:shared_services',
+            requiredPermission: 'read:it_assets',
           },
           {
             module: 'shared_services',
             href: '/shared-services/ops/vendor-management/renewals',
             label: 'Renewals',
             description: 'Contract lifecycle · approvals',
-            requiredPermission: 'read:shared_services',
+            requiredPermission: 'read:it_assets',
           },
           {
             module: 'shared_services',
             href: '/shared-services/ops/vendor-management/employees',
             label: 'People',
             description: 'Roster · birthright · offboard',
-            requiredPermission: 'read:shared_services',
+            requiredPermission: 'read:it_assets',
           },
           {
             module: 'shared_services',
             href: '/shared-services/ops/vendor-management/hire',
             label: 'Hire simulator',
             description: 'Fully loaded cost of hire',
-            requiredPermission: 'read:shared_services',
+            requiredPermission: 'read:it_assets',
           },
         ],
       },
@@ -460,64 +520,7 @@ const HIDE_SSC_FUNCTIONS_FOR_ADMIN = HIDE_FOR_ADMIN;
       },
     ],
   },
-{
-    module: 'firm',
-    href: '/firm',
-    label: 'Firm',
-    description: 'Capital · governance · rhythm',
-    hiddenForRoles: [
-      'coo',
-      'associate',
-      'ma_associate',
-      're_sourcer',
-      ...HIDE_FOR_ADMIN,
-      ...HIDE_FOR_SSC,
-    ],
-  },
-{
-    module: 'deal_flow_vc',
-    label: 'Business Development',
-    description: 'Leads and deal pipelines',
-    hiddenForRoles: ['coo', ...HIDE_FOR_ADMIN, ...HIDE_FOR_SSC],
-    children: [
-      {
-        module: 'deal_flow_vc',
-        href: '/deal-flow/vc/intake',
-        label: 'Lead Intake',
-        description: 'Incoming opportunities',
-        /** Associate / VC Sourcer: BD collapses to VC + M&A sourcing portals. */
-        hiddenForRoles: [
-          'coo',
-          'associate',
-          'ma_associate',
-          're_sourcer',
-          ...HIDE_FOR_ADMIN,
-          ...HIDE_FOR_SSC,
-        ],
-      },
-      {
-        module: 'deal_flow_vc',
-        href: '/deal-flow',
-        label: 'Deal Flow',
-        description: 'VC · M&A · Real Estate',
-        hiddenForRoles: [
-          'coo',
-          'associate',
-          'ma_associate',
-          're_sourcer',
-          ...HIDE_FOR_ADMIN,
-          ...HIDE_FOR_SSC,
-        ],
-      },
-      /**
-       * VC / M&A / RE sourcing links are not default BD children (Visionary /
-       * Think Tank / Partner see Lead Intake + Deal Flow only). Associate,
-       * M&A Associate, and Sourcer get those surfaces via role transforms in
-       * `applyRoleNavTransforms`.
-       */
-    ],
-  },
-{
+  {
     module: 'command_center',
     href: '/command-center',
     label: 'Command Center',
@@ -532,7 +535,7 @@ const HIDE_SSC_FUNCTIONS_FOR_ADMIN = HIDE_FOR_ADMIN;
       ...HIDE_FOR_SSC,
     ],
   },
-{
+  {
     module: 'portfolio',
     label: 'Personal',
     description: 'Personal Finance · Credit Management (Josh / Visionary only)',
@@ -571,7 +574,7 @@ const HIDE_SSC_FUNCTIONS_FOR_ADMIN = HIDE_FOR_ADMIN;
       },
     ],
   },
-{
+  {
     module: 'messages',
     href: '/messages',
     label: 'Message Center',
@@ -604,12 +607,6 @@ const HIDE_SSC_FUNCTIONS_FOR_ADMIN = HIDE_FOR_ADMIN;
         description: 'LMS · courses · progress',
         hiddenForRoles: [
           ...sscRolesHiddenFromFunction('HR'),
-          ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
-        ],
-      },
-    ],
-  }
-scRolesHiddenFromFunction('HR'),
           ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
         ],
       },

@@ -3,7 +3,7 @@
 Tage OS sidebar (`app-sidebar.tsx`) treats parent nav items with `children` as accordion groups.
 
 ## Behavior
-- **Top-level order** → Home → **Assets** → **C-Suite** → Dashboard → **To Do List** → **Shared Services** → **Firm** → **Business Development** → **Command Center** → Personal → Message Center → **Grow**
+- **Top-level order** → Home → **Assets** → **C-Suite** → Dashboard → **To Do List** → **Firm** → **Business Development** → **Shared Services** → **Command Center** → Personal → Message Center → **Grow**
 - **To Do List** → `/to-do` — SSC checklist tasks + lead/deal/M&A/RE follow-ups (not Help Desk tickets). Visible to all roles with Home access. Help Desk stays on Create Ticket dropdown only
 - **Subsidiary portals** (R619 / Instant NDA / Signent / future clones) mirror the same AppTopBar: Alerts bell + Create Ticket split → Help Desk. See `docs/SUBSIDIARY_OS_SHELL.md` + `src/lib/platform/shell/`.
 - **A&F spine** (platform-standard, not Tage-only) → every entity OS inherits `{Entity} A&F` with Accounting · Finance · Audit · Controls at `/shared-services/af/*`. Canonical: `src/lib/platform/af/` + `docs/TAGE_VC_AF.md` + `docs/SUBSIDIARY_OS_SHELL.md` § A&F.
