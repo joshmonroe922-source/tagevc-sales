@@ -72,15 +72,40 @@ describe('partner spine catalog', () => {
     expect(dialpad.ok).toBe(true);
     if (dialpad.ok) expect(dialpad.dryRun).toBe(true);
 
+    const catalogDialpad = await runPartnerLifecycleHook('provision_dialpad_user', {
+      entityId: 'ENT-FIRM',
+      email: 'ops@tagevc.com',
+    });
+    expect(catalogDialpad.ok).toBe(true);
+
     const revoke = await runPartnerLifecycleHook('partner_dialpad_revoke_stub', {
       entityId: 'ENT-FIRM',
     });
     expect(revoke.ok).toBe(true);
+
+    const gustoJoiner = await runPartnerLifecycleHook('provision_gusto_employee', {
+      entityId: 'ENT-FIRM',
+      email: 'hire@tagevc.com',
+    });
+    expect(gustoJoiner.ok).toBe(true);
+    if (gustoJoiner.ok) {
+      expect(gustoJoiner.message).toContain('employee provision');
+    }
 
     const completed = await completePartnerLifecycleHook({
       checklistItemId: 'partner_gusto_terminate_stub',
       entityId: 'ENT-R619',
     });
     expect(completed.ok).toBe(true);
+  });
+
+  it('merges catalog joiner hooks into checklist', () => {
+    const merged = mergePartnerLifecycleItems([], 'joiner', 'ENT-FIRM');
+    expect(merged.some((i) => i.id === 'partner_provision_dialpad_user')).toBe(
+      true,
+    );
+    expect(
+      merged.some((i) => i.id === 'partner_pending_verified_first_if_required'),
+    ).toBe(true);
   });
 });

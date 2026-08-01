@@ -76,6 +76,7 @@ export async function listVendorContracts(
 
 export async function listVendorPayments(
   contractId?: string | null,
+  limit?: number,
 ): Promise<PartnerVendorPayment[]> {
   try {
     const sb = await createPersistClient();
@@ -84,12 +85,26 @@ export async function listVendorPayments(
       .select('*')
       .order('paid_on', { ascending: false });
     if (contractId) q = q.eq('contract_id', contractId);
+    if (limit != null) q = q.limit(limit);
     const { data, error } = await q;
     if (error) return [];
     return (data ?? []) as PartnerVendorPayment[];
   } catch {
     return [];
   }
+}
+
+/** Payments with contract overlay for Technology admin UI. */
+export async function listVendorPaymentsEnriched(limit = 20) {
+  const [payments, contracts] = await Promise.all([
+    listVendorPayments(null, limit),
+    listVendorContracts(null),
+  ]);
+  const byId = new Map(contracts.map((c) => [c.id, c]));
+  return payments.map((p) => ({
+    ...p,
+    contract: byId.get(p.contract_id) ?? null,
+  }));
 }
 
 export async function upsertVendorContract(

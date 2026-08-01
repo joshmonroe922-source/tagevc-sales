@@ -50,6 +50,24 @@ export async function gustoQueueCommission(_input: {
   };
 }
 
+export async function gustoProvisionEmployee(_input: {
+  entityId: string;
+  email?: string;
+}): Promise<AdapterResult> {
+  if (!liveFlag('GUSTO_LIVE') || !process.env.GUSTO_API_TOKEN?.trim()) {
+    return {
+      ok: true,
+      dryRun: true,
+      message:
+        'Gusto employee provision stub — enable GUSTO_LIVE when payroll API ready.',
+    };
+  }
+  return {
+    ok: false,
+    error: 'Gusto live employee provision not implemented — scaffold only.',
+  };
+}
+
 export async function mybasepayCreatePlacementWorker(_input: {
   entityId: string;
   placementId: string;
@@ -209,6 +227,34 @@ export async function marketingPresenceRevokeEditor(_input: {
   };
 }
 
+export async function verifiedFirstPendingStub(_input: {
+  entityId: string;
+  email?: string;
+}): Promise<AdapterResult> {
+  if (!liveFlag('VERIFIED_FIRST_LIVE')) {
+    return {
+      ok: true,
+      dryRun: true,
+      message:
+        'Verified First screening stub — set VERIFIED_FIRST_LIVE=1 when ready.',
+    };
+  }
+  return {
+    ok: false,
+    error: 'Verified First live screening trigger not implemented — scaffold only.',
+  };
+}
+
+export async function entityCreateAckStub(
+  hookId: string,
+): Promise<AdapterResult> {
+  return {
+    ok: true,
+    dryRun: true,
+    message: `${hookId} acknowledged — spine/SQL / admin UI (no remote call).`,
+  };
+}
+
 /** Map JML / provision hook ids → adapter stubs (fail-closed dry-run until LIVE). */
 export async function runPartnerLifecycleHook(
   hookId: string,
@@ -229,22 +275,27 @@ export async function runPartnerLifecycleHook(
         email: input.email ?? '',
       });
     case 'dialpad_revoke_stub':
+    case 'revoke_dialpad_user':
       return dialpadRevokeUser({
         entityId: input.entityId,
         email: input.email,
       });
     case 'gusto_employee_stub_if_internal':
     case 'provision_gusto_employee':
-      return gustoQueueCommission({
+      return gustoProvisionEmployee({
         entityId: input.entityId,
-        userExternalId: input.userExternalId ?? 'pending',
-        amountCents: 0,
-        invoiceId: 'joiner-stub',
+        email: input.email,
       });
     case 'gusto_terminate_stub':
+    case 'terminate_gusto_employee':
       return gustoTerminateEmployee({
         entityId: input.entityId,
         userExternalId: input.userExternalId,
+      });
+    case 'pending_verified_first_if_required':
+      return verifiedFirstPendingStub({
+        entityId: input.entityId,
+        email: input.email,
       });
     case 'apollo_user_revoke_stub':
       return apolloRevokeUser({
@@ -252,18 +303,47 @@ export async function runPartnerLifecycleHook(
         email: input.email,
       });
     case 'marketing_presence_editor_revoke_stub':
+    case 'revoke_google_business_managers_if_sole':
+    case 'revoke_linkedin_company_admin_if_sole':
       return marketingPresenceRevokeEditor({ entityId: input.entityId });
     case 'marketing_presence_slots_ensure':
+    case 'ensure_google_business_location_slot':
       return marketingPresenceImportStub('google_business', {
         entityId: input.entityId,
       });
+    case 'ensure_ga4_property_binding':
+      return marketingPresenceImportStub('google_analytics', {
+        entityId: input.entityId,
+      });
+    case 'ensure_linkedin_company_page_binding':
+      return marketingPresenceImportStub('linkedin_company', {
+        entityId: input.entityId,
+      });
+    case 'enable_mybasepay_if_recruiting':
+      return mybasepayCreatePlacementWorker({
+        entityId: input.entityId,
+        placementId: 'entity-create',
+        workerEmail: input.email ?? 'pending@entity-create',
+      });
+    case 'ensure_apollo_workspace_binding':
+      return apolloImportCompany({
+        entityId: input.entityId,
+        domain: input.domain ?? 'example.com',
+      });
+    case 'ensure_appcast_employer_binding':
+      return appcastPublishStub({
+        entityId: input.entityId,
+        jobId: input.jobId ?? 'entity-create',
+      });
+    case 'ensure_linkedin_recruiter_seat_pool':
+      return linkedinRecruiterSyncStub({ entityId: input.entityId });
     case 'partner_spine_enablements_ensure':
     case 'docusign_template_scope_note':
-      return {
-        ok: true,
-        dryRun: true,
-        message: `${id} acknowledged — no remote call (spine/SQL / Legal UI).`,
-      };
+    case 'ensure_dialpad_office':
+    case 'seed_screening_entity_defaults':
+    case 'ensure_gusto_company_binding':
+    case 'ensure_docusign_account_binding':
+      return entityCreateAckStub(id);
     default:
       return {
         ok: true,
