@@ -63,11 +63,22 @@ export default async function BanksPage({ searchParams }: Props) {
       </div>
 
       <section className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <h2 className="font-heading text-lg font-semibold text-[#3a414f]">Feed activity</h2>
-          <Link href={`/shared-services/af/accounting/banks/reconcile${qs}`} className="text-sm text-muted-foreground underline-offset-2 hover:underline">
-            Reconcile →
-          </Link>
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            <Link
+              href={`/shared-services/af/accounting/banks/reconcile${qs}`}
+              className="text-muted-foreground underline-offset-2 hover:underline"
+            >
+              Reconcile exceptions →
+            </Link>
+            <Link
+              href={`/shared-services/af/accounting/gl${qs}`}
+              className="text-muted-foreground underline-offset-2 hover:underline"
+            >
+              GL →
+            </Link>
+          </div>
         </div>
         {store.feedTxns.length === 0 ? (
           <p className="text-sm text-muted-foreground">
@@ -82,16 +93,29 @@ export default async function BanksPage({ searchParams }: Props) {
                   <th className="px-4 py-3">Date</th>
                   <th className="px-4 py-3">Description</th>
                   <th className="px-4 py-3">Bank</th>
+                  <th className="px-4 py-3">Suggest</th>
                   <th className="px-4 py-3 text-right">Amount</th>
                   <th className="px-4 py-3">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {store.feedTxns.map((t) => (
+                {(entityId
+                  ? store.feedTxns.filter((t) => t.entityCode === entityId)
+                  : store.feedTxns
+                ).map((t) => (
                   <tr key={t.id} className="border-t border-border/70">
                     <td className="px-4 py-3">{t.date}</td>
                     <td className="px-4 py-3">{t.description}</td>
                     <td className="px-4 py-3 text-xs">{t.bankAccountId}</td>
+                    <td className="px-4 py-3 text-xs tabular-nums text-muted-foreground">
+                      {t.suggestedAccount
+                        ? `${t.suggestedAccount}${
+                            t.suggestedConfidence != null
+                              ? ` · ${Math.round(t.suggestedConfidence * 100)}%`
+                              : ''
+                          }`
+                        : '—'}
+                    </td>
                     <td className="px-4 py-3 text-right"><Money value={t.amount} /></td>
                     <td className="px-4 py-3"><StatusPill status={t.status} /></td>
                   </tr>

@@ -41,5 +41,20 @@ export {
   purgeDemoAfStore,
   snapshotClosePeriod,
   setPeriodLockMode,
+  runCategorizationRules,
+  addCategorizationRule,
+  excludeFeedTxn,
+  categorizeAndPostFeedTxn,
+  confirmFeedAsBillPay,
+  autoPostHighConfidenceFeeds,
+  postManualJournal,
+  postDraftJournal,
 } from '@/lib/af/seed/store';
 export type { AfStore } from '@/lib/af/seed/store';
+export {
+  defaultCategorizationRules,
+  suggestAccountForFeed,
+  applySuggestionsToFeeds,
+  DEFAULT_AUTO_POST_THRESHOLD,
+  learnRuleFromChoice,
+} from '@/lib/af/banks/categorize';

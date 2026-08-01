@@ -9,7 +9,21 @@ import {
   executePortalPay,
   matchFeedToPayment,
 } from '@/lib/af/ap/pay-match';
-import { makeJe, trialBalance } from '@/lib/af/ledger/je-engine';
+import {
+  makeJe,
+  makeJeDraft,
+  templateBankDeposit,
+  templateBankSpend,
+  trialBalance,
+} from '@/lib/af/ledger/je-engine';
+import { OPERATING_GL } from '@/lib/af/constants';
+import {
+  applySuggestionsToFeeds,
+  defaultCategorizationRules,
+  DEFAULT_AUTO_POST_THRESHOLD,
+  learnRuleFromChoice,
+  upsertCategorizationRule,
+} from '@/lib/af/banks/categorize';
 import {
   buildInitialChecklist,
   computeGoLiveProgress,
@@ -47,8 +61,11 @@ import type {
   AfInvoice,
   AllocationLedgerRow,
   BankFeedTxn,
+  BooksId,
+  CategorizationRule,
   EntityCode,
   GlBalanceMap,
+  JeLine,
   JournalEntry,
   PaymentRecord,
   SetupChecklistItem,
@@ -66,6 +83,8 @@ export type AfStore = {
   personalBalances: GlBalanceMap;
   periodLocks: PeriodLockState[];
   snapshots: AfPeriodSnapshot[];
+  /** Merchant/keyword → CoA rules */
+  categorizationRules: CategorizationRule[];
   /** Set when demo fixtures were cleared for live Plaid go-live. */
   liveGoLive?: boolean;
 };
@@ -104,12 +123,40 @@ function createStore(): AfStore {
     },
     periodLocks: [],
     snapshots: [],
+    categorizationRules: defaultCategorizationRules(),
     liveGoLive: true,
   };
 }
 
+function cashGlForBank(bankAccountId: string, _entityCode: EntityCode): string {
+  const bank = AF_BANKS.find((b) => b.id === bankAccountId);
+  return bank?.glAccount ?? OPERATING_GL;
+}
+
+/** Adjust company cash (and optional AP) — openingBalances use positive outstanding for liabilities. */
+function adjustCashBalance(
+  entityCode: EntityCode,
+  cashGl: string,
+  delta: number,
+  apDelta = 0,
+) {
+  const s = getAfStore();
+  const bal = { ...(s.openingBalances[entityCode] ?? {}) };
+  bal[cashGl] = (bal[cashGl] ?? 0) + delta;
+  if (apDelta) {
+    bal['2000'] = (bal['2000'] ?? 0) + apDelta;
+  }
+  s.openingBalances[entityCode] = bal;
+}
+
 /** Strip Spec seed fixtures from a hydrated workspace; keep checklist + live feeds. */
 export function purgeDemoAfStore(store: AfStore): AfStore {
+  if (!store.categorizationRules?.length) {
+    store = {
+      ...store,
+      categorizationRules: defaultCategorizationRules(),
+    };
+  }
   if (store.liveGoLive) return store;
   const hadDemo =
     store.invoices.some((i) => DEMO_INVOICE_IDS.has(i.id)) ||
@@ -142,6 +189,10 @@ export function purgeDemoAfStore(store: AfStore): AfStore {
     openingBalances: emptyOpening(),
     personalBalances: { '1000': 0, '1010': 0, '1020': 0 },
     snapshots: [],
+    categorizationRules:
+      store.categorizationRules?.length > 0
+        ? store.categorizationRules
+        : defaultCategorizationRules(),
     liveGoLive: true,
   };
 }
@@ -159,6 +210,9 @@ export function getAfStore(): AfStore {
   // Backfill fields for older persisted payloads
   store.periodLocks ??= [];
   store.snapshots ??= [];
+  if (!store.categorizationRules?.length) {
+    store.categorizationRules = defaultCategorizationRules();
+  }
   return store;
 }
 
@@ -449,8 +503,416 @@ export function ingestLiveFeedTxns(
   }
   // Keep newest first-ish for UI
   s.feedTxns.sort((a, b) => b.date.localeCompare(a.date));
+  // CoA suggestions on ingest
+  const applied = applySuggestionsToFeeds(
+    s.feedTxns,
+    s.categorizationRules,
+  );
+  s.feedTxns = applied.feedTxns;
   touchPersist();
   return added;
+}
+
+/** Re-run rules engine across unmatched feeds. */
+export function runCategorizationRules(): number {
+  const s = getAfStore();
+  const applied = applySuggestionsToFeeds(
+    s.feedTxns,
+    s.categorizationRules,
+  );
+  s.feedTxns = applied.feedTxns;
+  if (applied.updated) touchPersist();
+  return applied.updated;
+}
+
+export function addCategorizationRule(
+  rule: CategorizationRule,
+): CategorizationRule[] {
+  const s = getAfStore();
+  s.categorizationRules = upsertCategorizationRule(
+    s.categorizationRules,
+    rule,
+  );
+  runCategorizationRules();
+  touchPersist();
+  return s.categorizationRules;
+}
+
+/** Exclude a feed txn from reconcile (transfer, personal, noise). */
+export function excludeFeedTxn(
+  feedTxnId: string,
+  reason?: string,
+): BankFeedTxn {
+  const s = getAfStore();
+  const txn = s.feedTxns.find((t) => t.id === feedTxnId);
+  if (!txn) throw new Error(`Feed txn ${feedTxnId} not found`);
+  if (txn.status === 'Matched') {
+    throw new Error('Cannot exclude a matched feed txn');
+  }
+  const next: BankFeedTxn = {
+    ...txn,
+    status: 'Excluded',
+    excludedReason: reason ?? 'Excluded from reconcile',
+  };
+  s.feedTxns = s.feedTxns.map((t) => (t.id === feedTxnId ? next : t));
+  touchPersist();
+  void writeAfAudit({
+    occurredAt: new Date().toISOString(),
+    entityCode: txn.entityCode,
+    action: 'feed.excluded',
+    refType: 'feed_txn',
+    refId: feedTxnId,
+    detail: { reason: next.excludedReason },
+  });
+  return next;
+}
+
+/**
+ * Categorize unmatched spend/deposit → post JE via bank templates.
+ * Spend: Dr Expense / Cr Cash. Deposit: Dr Cash / Cr Revenue.
+ */
+export function categorizeAndPostFeedTxn(input: {
+  feedTxnId: string;
+  account: string;
+  learnRule?: boolean;
+}): { txn: BankFeedTxn; journal: JournalEntry } {
+  const s = getAfStore();
+  const txn = s.feedTxns.find((t) => t.id === input.feedTxnId);
+  if (!txn) throw new Error(`Feed txn ${input.feedTxnId} not found`);
+  if (txn.status !== 'Unmatched') {
+    throw new Error(`Feed txn is ${txn.status}, expected Unmatched`);
+  }
+  if (txn.journalId) {
+    throw new Error('Feed txn already has a journal');
+  }
+  const periodGate = assertPeriodAllowsPosting({
+    locks: s.periodLocks,
+    entityCode: txn.entityCode,
+    period: txn.date.slice(0, 7),
+  });
+  if (!periodGate.ok) {
+    throw new Error(periodGate.message ?? 'Period locked');
+  }
+
+  const amount = Math.abs(txn.amount);
+  const cashGl = cashGlForBank(txn.bankAccountId, txn.entityCode);
+  const isSpend = txn.amount < 0;
+  const lines = isSpend
+    ? templateBankSpend(amount, input.account, cashGl)
+    : templateBankDeposit(amount, input.account, cashGl);
+  const journal = makeJe({
+    id: `JE-FEED-${txn.id}`,
+    entityCode: txn.entityCode,
+    date: txn.date,
+    sourceModule: 'BANK',
+    sourceId: txn.id,
+    memo: isSpend
+      ? `Bank spend · ${txn.description}`
+      : `Bank deposit · ${txn.description}`,
+    lines,
+  });
+
+  s.journals.push(journal);
+  // Cash NW map: spend ↓ cash, deposit ↑ cash (Plaid sync may refresh later)
+  adjustCashBalance(txn.entityCode, cashGl, isSpend ? -amount : amount);
+
+  const next: BankFeedTxn = {
+    ...txn,
+    status: 'Matched',
+    journalId: journal.id,
+    suggestedAccount: input.account,
+    suggestedConfidence: 1,
+  };
+  s.feedTxns = s.feedTxns.map((t) => (t.id === input.feedTxnId ? next : t));
+
+  if (input.learnRule) {
+    const learned = learnRuleFromChoice({
+      entityCode: txn.entityCode,
+      description: txn.description,
+      account: input.account,
+      amount: txn.amount,
+    });
+    s.categorizationRules = upsertCategorizationRule(
+      s.categorizationRules,
+      learned,
+    );
+  }
+
+  touchPersist();
+  void publishAfEvent({
+    envelope: buildEnvelope({
+      eventType: 'feed.categorized',
+      entityCode: txn.entityCode,
+      payload: {
+        feed_txn_id: txn.id,
+        journal_id: journal.id,
+        account: input.account,
+      },
+    }),
+  });
+  void writeAfAudit({
+    occurredAt: new Date().toISOString(),
+    entityCode: txn.entityCode,
+    action: 'feed.categorized',
+    refType: 'feed_txn',
+    refId: txn.id,
+    detail: { journalId: journal.id, account: input.account },
+  });
+  return { txn: next, journal };
+}
+
+/**
+ * PATH B — confirm unmatched debit as payment against an open bill.
+ * Posts Dr AP / Cr Cash, marks bill paid, matches feed.
+ */
+export function confirmFeedAsBillPay(input: {
+  feedTxnId: string;
+  billId: string;
+}): {
+  txn: BankFeedTxn;
+  bill: AfBill;
+  payment: PaymentRecord;
+  journal: JournalEntry;
+} {
+  const s = getAfStore();
+  const txn = s.feedTxns.find((t) => t.id === input.feedTxnId);
+  if (!txn) throw new Error(`Feed txn ${input.feedTxnId} not found`);
+  if (txn.status !== 'Unmatched') {
+    throw new Error(`Feed txn is ${txn.status}`);
+  }
+  if (txn.amount >= 0) {
+    throw new Error('Bill pay confirm requires a debit (spend) feed txn');
+  }
+  const bill = s.bills.find((b) => b.id === input.billId);
+  if (!bill) throw new Error(`Bill ${input.billId} not found`);
+  if (bill.entityCode !== txn.entityCode) {
+    throw new Error('Bill entity must match feed entity');
+  }
+  if (bill.status === 'Paid') {
+    throw new Error('Bill already paid');
+  }
+
+  const periodGate = assertPeriodAllowsPosting({
+    locks: s.periodLocks,
+    entityCode: txn.entityCode,
+    period: txn.date.slice(0, 7),
+  });
+  if (!periodGate.ok) {
+    throw new Error(periodGate.message ?? 'Period locked');
+  }
+
+  const payAmount = Math.min(
+    Math.abs(txn.amount),
+    bill.amount - bill.amountPaid,
+  );
+  const result = executePortalPay({
+    bill,
+    amount: payAmount,
+    bankAccountId: txn.bankAccountId,
+    paymentRef: txn.ref ?? txn.id,
+    paidAt: txn.date,
+  });
+
+  const journal = makeJe({
+    id: `JE-${result.payment.id}`,
+    entityCode: bill.entityCode,
+    date: result.payment.paidAt,
+    sourceModule: 'AP',
+    sourceId: result.payment.id,
+    memo: `Pay ${bill.number} (feed confirm)`,
+    lines: result.jeLines,
+  });
+
+  s.bills = s.bills.map((b) => (b.id === bill.id ? result.bill : b));
+  const payment: PaymentRecord = { ...result.payment, feedMatched: true };
+  s.payments.push(payment);
+  s.journals.push(journal);
+  const cashGl = cashGlForBank(txn.bankAccountId, bill.entityCode);
+  // Match payBill convention: cash ↓ and AP outstanding ↓
+  adjustCashBalance(bill.entityCode, cashGl, -payAmount, -payAmount);
+
+  const next: BankFeedTxn = {
+    ...txn,
+    status: 'Matched',
+    matchedPaymentId: payment.id,
+    journalId: journal.id,
+  };
+  s.feedTxns = s.feedTxns.map((t) => (t.id === input.feedTxnId ? next : t));
+
+  touchPersist();
+  void publishAfEvent({
+    envelope: buildEnvelope({
+      eventType: 'bill.paid',
+      entityCode: bill.entityCode,
+      payload: {
+        bill_id: bill.id,
+        payment_id: payment.id,
+        feed_txn_id: txn.id,
+        path: 'B',
+      },
+    }),
+  });
+  void writeAfAudit({
+    occurredAt: new Date().toISOString(),
+    entityCode: bill.entityCode,
+    action: 'feed.confirm_bill',
+    refType: 'feed_txn',
+    refId: txn.id,
+    detail: { billId: bill.id, paymentId: payment.id },
+  });
+  return { txn: next, bill: result.bill, payment, journal };
+}
+
+/**
+ * Auto-post unmatched feeds when suggestion confidence ≥ threshold.
+ */
+export function autoPostHighConfidenceFeeds(
+  threshold = DEFAULT_AUTO_POST_THRESHOLD,
+): { posted: number; errors: string[] } {
+  const s = getAfStore();
+  runCategorizationRules();
+  let posted = 0;
+  const errors: string[] = [];
+  const candidates = s.feedTxns.filter(
+    (t) =>
+      t.status === 'Unmatched' &&
+      !t.journalId &&
+      t.suggestedAccount &&
+      (t.suggestedConfidence ?? 0) >= threshold &&
+      t.suggestedAccount !== '1090', // transfer hint — never auto-post
+  );
+  for (const txn of candidates) {
+    try {
+      categorizeAndPostFeedTxn({
+        feedTxnId: txn.id,
+        account: txn.suggestedAccount!,
+      });
+      posted += 1;
+    } catch (e) {
+      errors.push(
+        `${txn.id}: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  }
+  return { posted, errors };
+}
+
+/** Draft or post a manual journal entry. */
+export function postManualJournal(input: {
+  entityCode: BooksId;
+  date: string;
+  memo: string;
+  lines: JeLine[];
+  status?: 'draft' | 'posted';
+  sourceId?: string;
+}): JournalEntry {
+  const s = getAfStore();
+  const status = input.status ?? 'posted';
+  if (status === 'posted' && input.entityCode !== 'PERS' && input.entityCode !== 'CONSOL') {
+    const periodGate = assertPeriodAllowsPosting({
+      locks: s.periodLocks,
+      entityCode: input.entityCode as EntityCode,
+      period: input.date.slice(0, 7),
+    });
+    if (!periodGate.ok) {
+      throw new Error(periodGate.message ?? 'Period locked');
+    }
+  }
+
+  const id = `JE-MAN-${Date.now()}`;
+  const journal =
+    status === 'draft'
+      ? makeJeDraft({
+          id,
+          entityCode: input.entityCode,
+          date: input.date,
+          sourceModule: 'MANUAL',
+          sourceId: input.sourceId ?? id,
+          memo: input.memo,
+          lines: input.lines,
+          status: 'draft',
+        })
+      : makeJe({
+          id,
+          entityCode: input.entityCode,
+          date: input.date,
+          sourceModule: 'MANUAL',
+          sourceId: input.sourceId ?? id,
+          memo: input.memo,
+          lines: input.lines,
+        });
+
+  s.journals.push(journal);
+  if (status === 'posted' && input.entityCode !== 'CONSOL') {
+    // Apply debit−credit nets for manual entries (TB-style)
+    if (input.entityCode === 'PERS') {
+      const next = { ...s.personalBalances };
+      for (const line of input.lines) {
+        next[line.account] =
+          (next[line.account] ?? 0) + line.debit - line.credit;
+      }
+      s.personalBalances = next;
+    } else {
+      const next = { ...(s.openingBalances[input.entityCode] ?? {}) };
+      for (const line of input.lines) {
+        next[line.account] =
+          (next[line.account] ?? 0) + line.debit - line.credit;
+      }
+      s.openingBalances[input.entityCode] = next;
+    }
+  }
+  touchPersist();
+  void writeAfAudit({
+    occurredAt: new Date().toISOString(),
+    entityCode:
+      input.entityCode === 'CONSOL' || input.entityCode === 'PERS'
+        ? 'TVC'
+        : input.entityCode,
+    action: status === 'draft' ? 'je.draft' : 'je.posted',
+    refType: 'journal',
+    refId: journal.id,
+    detail: { memo: input.memo, lines: input.lines.length },
+  });
+  return journal;
+}
+
+/** Promote a draft JE to posted. */
+export function postDraftJournal(journalId: string): JournalEntry {
+  const s = getAfStore();
+  const je = s.journals.find((j) => j.id === journalId);
+  if (!je) throw new Error(`Journal ${journalId} not found`);
+  if (je.status !== 'draft') throw new Error('Journal is not a draft');
+
+  if (je.entityCode !== 'PERS' && je.entityCode !== 'CONSOL') {
+    const periodGate = assertPeriodAllowsPosting({
+      locks: s.periodLocks,
+      entityCode: je.entityCode as EntityCode,
+      period: je.period,
+    });
+    if (!periodGate.ok) {
+      throw new Error(periodGate.message ?? 'Period locked');
+    }
+  }
+
+  const posted: JournalEntry = { ...je, status: 'posted' };
+  s.journals = s.journals.map((j) => (j.id === journalId ? posted : j));
+  if (je.entityCode === 'PERS') {
+    const next = { ...s.personalBalances };
+    for (const line of je.lines) {
+      next[line.account] =
+        (next[line.account] ?? 0) + line.debit - line.credit;
+    }
+    s.personalBalances = next;
+  } else if (je.entityCode !== 'CONSOL') {
+    const next = { ...(s.openingBalances[je.entityCode] ?? {}) };
+    for (const line of je.lines) {
+      next[line.account] =
+        (next[line.account] ?? 0) + line.debit - line.credit;
+    }
+    s.openingBalances[je.entityCode] = next;
+  }
+  touchPersist();
+  return posted;
 }
 
 /** Set cash GL balance from live Plaid (company entity or PERS personal books). */

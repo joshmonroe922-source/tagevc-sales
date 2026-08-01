@@ -69,6 +69,8 @@ export function StatusPill({
         ? 'bg-sky-50 text-sky-800 border-sky-200'
         : status === 'Draft' || status === 'Not started' || status === 'Unmatched'
           ? 'bg-amber-50 text-amber-900 border-amber-200'
+          : status === 'Excluded' || status === 'Skipped'
+            ? 'bg-slate-50 text-slate-700 border-slate-200'
           : status === 'Blocked' || status === 'Rejected' || status === 'Critical'
             ? 'bg-rose-50 text-rose-800 border-rose-200'
             : 'bg-muted text-muted-foreground border-border';

@@ -12,9 +12,26 @@ import {
   completePlaidLink,
   applyPlaidAccountMaps,
   uploadAfAttachment,
+  runCategorizationRules,
+  excludeFeedTxn,
+  categorizeAndPostFeedTxn,
+  confirmFeedAsBillPay,
+  autoPostHighConfidenceFeeds,
+  postManualJournal,
+  postDraftJournal,
+  addCategorizationRule,
+  DEFAULT_AUTO_POST_THRESHOLD,
 } from '@/lib/af';
-import type { EntityCode } from '@/lib/af';
+import type { EntityCode, JeLine, CategorizationRule } from '@/lib/af';
 import { AF_BANKS } from '@/lib/af';
+
+function revalidateAf() {
+  revalidatePath('/shared-services/af');
+  revalidatePath('/shared-services/af/accounting/banks');
+  revalidatePath('/shared-services/af/accounting/banks/reconcile');
+  revalidatePath('/shared-services/af/accounting/gl');
+  revalidatePath('/shared-services/af/accounting/bills');
+}
 
 export async function actionPayInvoice(invoiceId: string) {
   const result = payInvoice(invoiceId);
@@ -50,8 +67,116 @@ export async function actionCompleteSetupStep(
 
 export async function actionMatchFeeds() {
   const n = autoMatchFeeds();
-  revalidatePath('/shared-services/af/accounting/banks');
-  return { matched: n };
+  const suggested = runCategorizationRules();
+  revalidateAf();
+  return { matched: n, suggested };
+}
+
+export async function actionRunCategorization() {
+  const updated = runCategorizationRules();
+  revalidateAf();
+  return { updated };
+}
+
+export async function actionExcludeFeedTxn(feedTxnId: string, reason?: string) {
+  try {
+    const txn = excludeFeedTxn(feedTxnId, reason);
+    revalidateAf();
+    return { ok: true as const, status: txn.status };
+  } catch (e) {
+    return {
+      ok: false as const,
+      error: e instanceof Error ? e.message : String(e),
+    };
+  }
+}
+
+export async function actionCategorizeFeedTxn(input: {
+  feedTxnId: string;
+  account: string;
+  learnRule?: boolean;
+}) {
+  try {
+    const result = categorizeAndPostFeedTxn(input);
+    revalidateAf();
+    return {
+      ok: true as const,
+      journalId: result.journal.id,
+      status: result.txn.status,
+    };
+  } catch (e) {
+    return {
+      ok: false as const,
+      error: e instanceof Error ? e.message : String(e),
+    };
+  }
+}
+
+export async function actionConfirmFeedBill(input: {
+  feedTxnId: string;
+  billId: string;
+}) {
+  try {
+    const result = confirmFeedAsBillPay(input);
+    revalidateAf();
+    return {
+      ok: true as const,
+      paymentId: result.payment.id,
+      journalId: result.journal.id,
+      billStatus: result.bill.status,
+    };
+  } catch (e) {
+    return {
+      ok: false as const,
+      error: e instanceof Error ? e.message : String(e),
+    };
+  }
+}
+
+export async function actionAutoPostHighConfidence(
+  threshold = DEFAULT_AUTO_POST_THRESHOLD,
+) {
+  const result = autoPostHighConfidenceFeeds(threshold);
+  revalidateAf();
+  return result;
+}
+
+export async function actionPostManualJe(input: {
+  entityCode: EntityCode;
+  date: string;
+  memo: string;
+  lines: JeLine[];
+  status?: 'draft' | 'posted';
+}) {
+  try {
+    const journal = postManualJournal(input);
+    revalidateAf();
+    return { ok: true as const, journalId: journal.id, status: journal.status };
+  } catch (e) {
+    return {
+      ok: false as const,
+      error: e instanceof Error ? e.message : String(e),
+    };
+  }
+}
+
+export async function actionPostDraftJe(journalId: string) {
+  try {
+    const journal = postDraftJournal(journalId);
+    revalidateAf();
+    return { ok: true as const, journalId: journal.id };
+  } catch (e) {
+    return {
+      ok: false as const,
+      error: e instanceof Error ? e.message : String(e),
+    };
+  }
+}
+
+export async function actionAddCategorizationRule(rule: CategorizationRule) {
+  addCategorizationRule(rule);
+  revalidateAf();
+  return { ok: true as const };
 }
 
 export async function actionRunIcFees(period?: string) {
@@ -115,10 +240,18 @@ export async function actionTestBankImport(bankAccountId: string) {
 export async function actionSyncAllLiveFeeds() {
   const { syncAllConnectedCompanyFeeds } = await import('@/lib/af');
   const result = await syncAllConnectedCompanyFeeds();
-  revalidatePath('/shared-services/af');
-  revalidatePath('/shared-services/af/accounting/banks');
-  revalidatePath('/shared-services/af/finance');
-  return result;
+  // After sync: match payments, suggest CoA, auto-post high confidence
+  autoMatchFeeds();
+  runCategorizationRules();
+  const auto = autoPostHighConfidenceFeeds();
+  revalidateAf();
+  return {
+    ...result,
+    autoPosted: auto.posted,
+    message: `${result.message}${
+      auto.posted ? ` · auto-posted ${auto.posted}` : ''
+    }`,
+  };
 }
 
 export async function actionUploadAttachment(formData: FormData) {

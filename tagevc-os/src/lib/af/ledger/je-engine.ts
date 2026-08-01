@@ -64,6 +64,61 @@ export function templateBillPay(amount: number): JeLine[] {
   ];
 }
 
+/**
+ * BANK-SPEND (unmatched outflow): Dr Expense / Cr Cash.
+ * amount is absolute spend magnitude.
+ */
+export function templateBankSpend(
+  amount: number,
+  expenseAccount: string,
+  cashGl = OPERATING_GL,
+): JeLine[] {
+  return [
+    { account: expenseAccount, debit: amount, credit: 0 },
+    { account: cashGl, debit: 0, credit: amount },
+  ];
+}
+
+/**
+ * BANK-DEPOSIT (unmatched inflow, non-AR): Dr Cash / Cr Revenue (or other income).
+ * amount is absolute deposit magnitude.
+ */
+export function templateBankDeposit(
+  amount: number,
+  revenueAccount: string,
+  cashGl = OPERATING_GL,
+): JeLine[] {
+  return [
+    { account: cashGl, debit: amount, credit: 0 },
+    { account: revenueAccount, debit: 0, credit: amount },
+  ];
+}
+
+/** Manual JE — lines must already balance; status may be draft or posted. */
+export function makeJeDraft(input: {
+  id: string;
+  entityCode: BooksId;
+  date: string;
+  sourceModule: string;
+  sourceId: string;
+  memo: string;
+  lines: JeLine[];
+  status?: 'draft' | 'posted';
+}): JournalEntry {
+  assertBalanced(input.lines);
+  return {
+    id: input.id,
+    entityCode: input.entityCode,
+    date: input.date,
+    period: input.date.slice(0, 7),
+    sourceModule: input.sourceModule,
+    sourceId: input.sourceId,
+    memo: input.memo,
+    lines: input.lines,
+    status: input.status ?? 'draft',
+  };
+}
+
 /** MGMT-FEE sub: Dr 6950 / Cr 2450 */
 export function templateMgmtFeeSub(amount: number): JeLine[] {
   return [

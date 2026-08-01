@@ -163,6 +163,20 @@ export type PaymentRecord = {
   feedMatched: boolean;
 };
 
+/** Merchant/keyword → entity CoA categorization rule. */
+export type CategorizationRule = {
+  id: string;
+  entityCode: EntityCode | '*';
+  matchType: 'contains' | 'starts_with' | 'exact';
+  pattern: string;
+  account: string;
+  /** spend | deposit | either */
+  direction: 'spend' | 'deposit' | 'either';
+  priority: number;
+  active: boolean;
+  label?: string;
+};
+
 export type BankFeedTxn = {
   id: string;
   bankAccountId: string;
@@ -173,6 +187,13 @@ export type BankFeedTxn = {
   ref?: string;
   status: 'Unmatched' | 'Matched' | 'Excluded';
   matchedPaymentId?: string;
+  /** Suggested CoA from rules engine */
+  suggestedAccount?: string;
+  suggestedConfidence?: number;
+  suggestedRuleId?: string;
+  /** Posted JE when categorized as general spend/deposit */
+  journalId?: string;
+  excludedReason?: string;
 };
 
 export type AllocationLedgerRow = {
