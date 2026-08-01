@@ -133,8 +133,12 @@ export async function provisionPartnerSpineAction(
   const result = await provisionPartnerSpineForEntity(entityId);
   revalidatePath('/shared-services/it/technology-stack');
   revalidatePath('/shared-services/marketing/presence');
-  return {
-    ok: true,
-    message: `Provisioned ${entityId}: ${result.bindingsCreated} bindings, ${result.presenceSlots} presence slots, vendor mgmt ${result.vendorMgmt.ok ? 'ok' : result.vendorMgmt.error ?? 'failed'}`,
-  };
+  const summary = `Partial scaffold ${entityId} (${result.status}): ${result.bindingsCreated} bindings, ${result.presenceSlots} presence slots, vendor mgmt ${result.vendorMgmt.ok ? 'enabled' : result.vendorMgmt.error ?? 'failed'}.${
+    result.blocking?.length ? ` ${result.blocking.join('; ')}` : ''
+  }`;
+  if (result.ok) {
+    return { ok: true, message: `Live-ready ${entityId}` };
+  }
+  // Scaffold is intentional progress, not a hard failure — surface as ok with honest copy.
+  return { ok: true, message: summary };
 }
