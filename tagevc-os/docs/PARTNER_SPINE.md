@@ -42,9 +42,12 @@ os_partner_entity_bindings  ←── new entity create (provisionPartnerSpineFo
 
 1. Upserts bindings for every catalog partner (MyBasePay enabled only for recruiting-capable entities by default plan; R619 seeded enabled).
 2. Creates Marketing presence slots: `google_business`, `google_analytics`, `linkedin_company`.
-3. Records a provision event for BI/audit.
+3. **Also provisions Vendor Management (Phase 90)** via `provisionVendorMgmtForEntity` — module enablement, entity alias, default cost centers.
+4. Records a provision event for BI/audit.
 
 Wire this from subsidiary / entity create flows (and call manually for existing entities after SQL apply).
+
+See `docs/VENDOR_MANAGEMENT.md` for the Shared Services Ops spend/license spine UI.
 
 ### JML hooks
 

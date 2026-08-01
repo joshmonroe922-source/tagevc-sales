@@ -1,5 +1,6 @@
 /**
- * New OS entity → inherit partner spine + marketing presence slots.
+ * New OS entity → inherit partner spine + marketing presence slots
+ * + Vendor Management module (Phase 90).
  */
 
 import { entityDisplayName } from '@/lib/multi-sub/entity-registry';
@@ -9,6 +10,8 @@ import {
   recordPartnerEvent,
 } from '@/lib/partners/repo';
 import { PARTNER_SPINE_VERSION } from '@/lib/partners/registry';
+import { provisionVendorMgmtForEntity } from '@/lib/vendor-mgmt/provision';
+import { VM_SPINE_VERSION } from '@/lib/vendor-mgmt/types';
 
 export type EntityPartnerProvisionResult = {
   entityId: string;
@@ -16,6 +19,12 @@ export type EntityPartnerProvisionResult = {
   bindingsCreated: number;
   presenceSlots: number;
   hooks: string[];
+  vendorMgmt: {
+    ok: boolean;
+    spineVersion: typeof VM_SPINE_VERSION;
+    code: string;
+    error?: string;
+  };
 };
 
 export async function provisionPartnerSpineForEntity(
@@ -28,6 +37,8 @@ export async function provisionPartnerSpineForEntity(
     .map((p) => p.lifecycle_hook)
     .filter((h): h is string => Boolean(h));
 
+  const vendorMgmt = await provisionVendorMgmtForEntity(entityId);
+
   await recordPartnerEvent({
     partner_key: 'apollo',
     entity_id: entityId,
@@ -38,6 +49,7 @@ export async function provisionPartnerSpineForEntity(
       bindings_created: created,
       presence_slots: presenceSlots,
       hooks,
+      vendor_mgmt: vendorMgmt,
     },
   });
 
@@ -47,5 +59,11 @@ export async function provisionPartnerSpineForEntity(
     bindingsCreated: created,
     presenceSlots,
     hooks,
+    vendorMgmt: {
+      ok: vendorMgmt.ok,
+      spineVersion: vendorMgmt.spineVersion,
+      code: vendorMgmt.code,
+      error: vendorMgmt.error,
+    },
   };
 }
