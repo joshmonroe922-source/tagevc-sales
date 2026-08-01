@@ -41,6 +41,18 @@ export default async function TechnologyStackPage() {
         >
           ← Assets / Intune
         </Link>
+        <Link
+          href="/shared-services/it/vendor-mgmt"
+          className="underline underline-offset-2"
+        >
+          Vendor Management
+        </Link>
+        <Link
+          href="/shared-services/it/mobile-launch"
+          className="underline underline-offset-2"
+        >
+          Mobile launch
+        </Link>
         <Link href="/shared-services/bi" className="underline underline-offset-2">
           Partner BI
         </Link>

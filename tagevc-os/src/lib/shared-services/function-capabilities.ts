@@ -189,6 +189,13 @@ const CATALOG: Record<
       badge: 'Live',
     },
     {
+      id: 'it-mobile-launch',
+      title: 'Mobile App Store Launch',
+      description: 'EAS · App Store · Play · Stripe · auth email playbook.',
+      href: '/shared-services/it/mobile-launch',
+      badge: 'Playbook',
+    },
+    {
       id: 'it-activity',
       title: 'Activity log',
       description: 'Operational IT trail for this desk.',

@@ -63,6 +63,17 @@ export const SS_FUNCTION_MODULES: SsHubModule[] = [
     docs: 'docs/PARTNER_SPINE.md',
   },
   {
+    id: 'mobile_launch',
+    href: '/shared-services/it/mobile-launch',
+    title: 'Mobile App Store Launch',
+    short: 'Mobile launch',
+    service: 'IT',
+    status: 'live',
+    description:
+      'Expo/EAS → Apple + Google Play operational playbook (Stripe, Supabase auth email, error catalog).',
+    docs: 'docs/MOBILE_APP_STORE_LAUNCH_PLAYBOOK.md',
+  },
+  {
     id: 'marketing',
     href: '/shared-services/marketing',
     title: 'Marketing',

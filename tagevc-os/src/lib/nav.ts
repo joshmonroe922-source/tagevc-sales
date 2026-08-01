@@ -407,7 +407,8 @@ export const MAIN_NAV: NavItem[] = [
         module: 'shared_services',
         href: '/shared-services/it/assets',
         label: 'Technology',
-        description: 'Assets · licenses · Intune · partner stack',
+        description:
+          'Assets · Vendor Management · Intune · partner stack · mobile launch',
         requiredPermission: 'read:it_assets',
         hiddenForRoles: [
           ...sscRolesHiddenFromFunction('IT'),
@@ -416,9 +417,24 @@ export const MAIN_NAV: NavItem[] = [
         children: [
           {
             module: 'shared_services',
+            href: '/shared-services/it/vendor-mgmt',
+            label: 'Vendor Management',
+            description: 'Spend · renewals · licenses · people economics',
+            requiredPermission: 'read:it_assets',
+          },
+          {
+            module: 'shared_services',
             href: '/shared-services/it/technology-stack',
             label: 'Partner stack',
-            description: 'Vendors · contracts · payments · expirations',
+            description: 'Platform partners · contracts · payments · expirations',
+            requiredPermission: 'read:it_assets',
+          },
+          {
+            module: 'shared_services',
+            href: '/shared-services/it/mobile-launch',
+            label: 'Mobile launch',
+            description:
+              'App Store + Play playbook · EAS · Stripe · auth email',
             requiredPermission: 'read:it_assets',
           },
           {
