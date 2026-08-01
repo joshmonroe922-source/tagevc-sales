@@ -77,15 +77,17 @@ Safe to re-run. Expect `PHASE90_APPLIED` with codes=4, modules≥4, alert_rules=
 - `.../renewals` · `.../products` · `.../roles` · `.../employees`
 - `.../access` · `.../lifecycle` · `.../budgets` · `.../chargeback`
 - `.../usage` · `.../hire` · `.../alerts` · `.../audit`
-- `.../integrations` · `.../settings` · `.../admins`
+- `.../integrations` · `.../import` · `.../settings` · `.../cost-centers` · `.../admins`
 
 ## Deferred / next
 
-- Live HRIS / IdP / SaaS connector jobs (registry only)
-- Step-up MFA challenge UI for contract $ (permission gate present)
-- Bulk CSV import from Seed_Export headers
+- Live HRIS / IdP / SaaS connector *jobs* (scaffolds + registry shipped; LIVE flags off)
 - A&F AP vendor link (1099 portal remains separate)
 
 ## Shipped follow-ons
 
 - Cost centers + comp bands CRUD at `/shared-services/ops/vendor-management/cost-centers`
+- Step-up MFA cookie gate (SSO email + one-time code) for contract $ / renewal decisions
+- Admin directory invite / activate / deactivate + MFA enrolled flag
+- CSV seed import (`/import`) for Seed_Export header sets
+- Connector scaffolds (HRIS, IdP, M365, Slack, QBO, cards) on Integrations

@@ -1,4 +1,5 @@
 import { ENTITY_OPTIONS } from '@/components/vendor-mgmt/vm-shell';
+import { VmStepUpGate } from '@/components/vendor-mgmt/step-up-gate';
 import { saveVendorAction } from '@/app/(app)/shared-services/ops/vendor-management/actions';
 import type { VmVendor } from '@/lib/vendor-mgmt/types';
 import { redirect } from 'next/navigation';
@@ -6,9 +7,13 @@ import { redirect } from 'next/navigation';
 export function VendorForm({
   vendor,
   entityLocked,
+  sessionEmail,
+  stepUpActive,
 }: {
   vendor?: VmVendor | null;
   entityLocked?: string | null;
+  sessionEmail?: string | null;
+  stepUpActive?: boolean;
 }) {
   async function action(formData: FormData) {
     'use server';
@@ -238,13 +243,10 @@ export function VendorForm({
         Monthly USD, utilization, and waste are computed on save — not typed.
       </p>
 
-      <label className="flex items-start gap-2 rounded-md border border-[#9F957C]/40 bg-[#ECE9E6]/40 px-3 py-2 text-sm">
-        <input type="checkbox" name="step_up_confirm" className="mt-1" />
-        <span>
-          Step-up confirm — I re-authenticated for contract $ / seat pricing
-          changes (workbook MFA gate).
-        </span>
-      </label>
+      <VmStepUpGate
+        email={sessionEmail ?? null}
+        initiallyActive={stepUpActive}
+      />
 
       <button
         type="submit"

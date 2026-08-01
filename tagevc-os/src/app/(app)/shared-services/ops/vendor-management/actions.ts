@@ -31,13 +31,29 @@ import {
   vmSessionCanEntity,
 } from '@/lib/vendor-mgmt/session';
 import { evaluateAlertRules, persistTriggeredAlerts } from '@/lib/vendor-mgmt/alerts';
+import { VM_CONNECTOR_SCAFFOLDS } from '@/lib/vendor-mgmt/connectors';
+import {
+  boolish,
+  numOrNull,
+  parseCsv,
+  validateCsvHeaders,
+  type CsvImportKind,
+} from '@/lib/vendor-mgmt/csv-import';
+import {
+  clearVmStepUp,
+  confirmVmStepUpChallenge,
+  hasValidVmStepUp,
+  issueVmStepUpChallenge,
+} from '@/lib/vendor-mgmt/step-up';
 import type {
+  AdminRoleId,
   BillingCadence,
   PricingModel,
   VendorStatus,
   VmChargebackRule,
   VmVendorProfile,
 } from '@/lib/vendor-mgmt/types';
+import type { VmSession } from '@/lib/vendor-mgmt/session';
 
 const BASE = '/shared-services/ops/vendor-management';
 
@@ -57,9 +73,30 @@ function revalidateVm() {
   revalidatePath(`${BASE}/audit`);
   revalidatePath(`${BASE}/cost-centers`);
   revalidatePath(`${BASE}/settings`);
+  revalidatePath(`${BASE}/admins`);
+  revalidatePath(`${BASE}/integrations`);
+  revalidatePath(`${BASE}/import`);
 }
 
 export type ActionResult = { ok: true; id?: string } | { ok: false; error: string };
+
+async function assertContractStepUp(
+  session: VmSession,
+  formData?: FormData,
+): Promise<ActionResult | null> {
+  if (await hasValidVmStepUp(session.email)) return null;
+  if (
+    formData?.get('step_up_confirm') === 'on' ||
+    formData?.get('step_up_token') === '1'
+  ) {
+    return null;
+  }
+  return {
+    ok: false,
+    error:
+      'Step-up MFA required for contract $ / renewal decisions — use the step-up gate, then retry',
+  };
+}
 
 function slugId(prefix: string, name: string): string {
   const base = name
@@ -92,15 +129,9 @@ export async function saveVendorAction(formData: FormData): Promise<ActionResult
         return { ok: false, error: 'Contract $ edit requires Finance / Vendor Admin' };
       }
     }
-    if (
-      isContractDollar &&
-      vmCanWrite(session, 'edit_contracts') &&
-      formData.get('step_up_confirm') !== 'on'
-    ) {
-      return {
-        ok: false,
-        error: 'Step-up required: confirm re-auth checkbox for contract $ changes',
-      };
+    if (isContractDollar && vmCanWrite(session, 'edit_contracts')) {
+      const step = await assertContractStepUp(session, formData);
+      if (step) return step;
     }
 
     const row = await upsertVendor({
@@ -335,6 +366,14 @@ export async function saveRenewalAction(formData: FormData): Promise<ActionResul
     if (decision && !vmCanWrite(session, 'approve_renewal')) {
       return { ok: false, error: 'Approve/reject requires Finance or Super' };
     }
+    const needsStep =
+      Boolean(decision) ||
+      (formData.get('proposed_annual') != null &&
+        String(formData.get('proposed_annual')) !== '');
+    if (needsStep) {
+      const step = await assertContractStepUp(session, formData);
+      if (step) return step;
+    }
     const row = await upsertRenewal({
       id,
       vendor_id: String(formData.get('vendor_id')),
@@ -508,29 +547,38 @@ export async function inviteAdminAction(formData: FormData): Promise<ActionResul
     const session = await requireVmSession('manage_admins');
     const email = String(formData.get('email') || '').trim().toLowerCase();
     const display_name = String(formData.get('display_name') || '').trim();
-    const admin_role_id = String(formData.get('admin_role_id') || 'AR-VIEW');
+    const admin_role_id = String(
+      formData.get('admin_role_id') || 'AR-VIEW',
+    ) as AdminRoleId;
     const entity_scope = String(formData.get('entity_scope') || 'ALL');
+    const emp_id = String(formData.get('emp_id') || '').trim() || null;
+    const mfa_enrolled = formData.get('mfa_enrolled') === 'on';
     if (!email || !display_name) {
       return { ok: false, error: 'Name and email required' };
     }
-    const id = `AU-${email.split('@')[0].toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12)}`;
+    const id =
+      String(formData.get('id') || '').trim() ||
+      `AU-${email.split('@')[0].toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12)}`;
     const { createPersistClient } = await import('@/lib/supabase/persist-client');
     const sb = await createPersistClient();
     const { error } = await sb.from('vm_admin_users').upsert({
       id,
       display_name,
       email,
+      emp_id,
       admin_role_id,
       entity_scope,
       status: 'Active',
-      mfa_enrolled: false,
-      notes: 'Invited via OS — bind SSO on first login',
+      mfa_enrolled,
+      notes:
+        String(formData.get('notes') || '').trim() ||
+        'Invited via OS — bind SSO on first login',
       updated_at: new Date().toISOString(),
     });
     if (error) return { ok: false, error: error.message };
     await appendAuditEvent({
       actor_email: session.email,
-      action: 'admin.invite',
+      action: formData.get('id') ? 'admin.update' : 'admin.invite',
       object_type: 'admin_user',
       object_id: id,
       new_value: email,
@@ -612,6 +660,254 @@ export async function saveCompBandAction(formData: FormData): Promise<ActionResu
     });
     revalidateVm();
     return { ok: true, id: row.id };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Denied' };
+  }
+}
+
+export async function setAdminStatusAction(formData: FormData): Promise<ActionResult> {
+  try {
+    const session = await requireVmSession('manage_admins');
+    const id = String(formData.get('id') || '').trim();
+    const status = String(formData.get('status') || '') as 'Active' | 'Inactive';
+    if (!id || (status !== 'Active' && status !== 'Inactive')) {
+      return { ok: false, error: 'id and status required' };
+    }
+    const { createPersistClient } = await import('@/lib/supabase/persist-client');
+    const sb = await createPersistClient();
+    const { error } = await sb
+      .from('vm_admin_users')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) return { ok: false, error: error.message };
+    await appendAuditEvent({
+      actor_email: session.email,
+      action: status === 'Inactive' ? 'admin.deactivate' : 'admin.activate',
+      object_type: 'admin_user',
+      object_id: id,
+      new_value: status,
+    });
+    revalidateVm();
+    return { ok: true, id };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Denied' };
+  }
+}
+
+export async function issueVmStepUpAction(): Promise<
+  | { ok: true; code: string; ttlSec: number }
+  | { ok: false; error: string }
+> {
+  try {
+    const session = await requireVmSession('view_vendors');
+    if (!session.email) return { ok: false, error: 'SSO email required for step-up' };
+    const issued = await issueVmStepUpChallenge(session.email);
+    await appendAuditEvent({
+      actor_email: session.email,
+      action: 'auth.stepup_issue',
+      object_type: 'session',
+      object_id: session.email,
+    });
+    return { ok: true, code: issued.code, ttlSec: issued.ttlSec };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Denied' };
+  }
+}
+
+export async function confirmVmStepUpAction(input: {
+  email: string;
+  code: string;
+}): Promise<{ ok: true; expiresAt: number } | { ok: false; error: string }> {
+  try {
+    const session = await requireVmSession('view_vendors');
+    if (!session.email) return { ok: false, error: 'SSO email required' };
+    const result = await confirmVmStepUpChallenge({
+      email: input.email || session.email,
+      code: input.code,
+    });
+    if (!result.ok) return result;
+    await appendAuditEvent({
+      actor_email: session.email,
+      action: 'auth.stepup_confirm',
+      object_type: 'session',
+      object_id: session.email,
+    });
+    return result;
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Denied' };
+  }
+}
+
+export async function clearVmStepUpAction(): Promise<{ ok: true }> {
+  await clearVmStepUp();
+  return { ok: true };
+}
+
+export async function seedIntegrationsAction(): Promise<ActionResult> {
+  try {
+    const session = await requireVmSession('manage_admins');
+    const { createPersistClient } = await import('@/lib/supabase/persist-client');
+    const sb = await createPersistClient();
+    const rows = VM_CONNECTOR_SCAFFOLDS.map(({ env_keys: _e, ...row }) => ({
+      ...row,
+      updated_at: new Date().toISOString(),
+    }));
+    const { error } = await sb.from('vm_integrations').upsert(rows);
+    if (error) return { ok: false, error: error.message };
+    await appendAuditEvent({
+      actor_email: session.email,
+      action: 'integrations.seed_scaffolds',
+      object_type: 'integration',
+      object_id: 'registry',
+      new_value: String(rows.length),
+    });
+    revalidateVm();
+    return { ok: true, id: String(rows.length) };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Denied' };
+  }
+}
+
+export async function importCsvAction(formData: FormData): Promise<ActionResult> {
+  try {
+    const session = await requireVmSession('view_vendors');
+    const canImport =
+      vmCanWrite(session, 'create_vendor') ||
+      vmCanWrite(session, 'edit_contracts') ||
+      vmCanWrite(session, 'manage_employees') ||
+      vmCanWrite(session, 'manage_admins');
+    if (!canImport) {
+      return { ok: false, error: 'Import requires Vendor/Finance/HR/Super write role' };
+    }
+    const kind = String(formData.get('kind') || '') as CsvImportKind;
+    const text = String(formData.get('csv') || '');
+    if (!kind || !text.trim()) return { ok: false, error: 'kind and csv required' };
+    const parsed = parseCsv(text);
+    // Accept display_name alias for employees
+    const headers = parsed.headers.map((h) =>
+      kind === 'employees' && h === 'display_name' ? 'name' : h,
+    );
+    const rows = parsed.rows.map((row) => {
+      if (kind === 'employees' && row.display_name && !row.name) {
+        return { ...row, name: row.display_name };
+      }
+      return row;
+    });
+    const headerCheck = validateCsvHeaders(kind, headers);
+    if (!headerCheck.ok) return { ok: false, error: headerCheck.error };
+
+    let upserted = 0;
+    for (const row of rows) {
+      if (kind === 'vendors') {
+        const entity_id = row.entity_id;
+        if (!entity_id || !vmSessionCanEntity(session, entity_id)) continue;
+        const saved = await upsertVendor({
+          id: row.vendor_id,
+          name: row.name,
+          entity_id,
+          category: row.category || null,
+          product: row.product || null,
+          pricing_model: (row.pricing_model as PricingModel) || 'Fixed',
+          billing_cadence: (row.billing_cadence as BillingCadence) || 'Monthly',
+          invoice_amount: Number(row.invoice_amount || 0),
+          currency: row.currency || 'USD',
+          seats_contracted: numOrNull(row.seats_contracted),
+          seats_active: numOrNull(row.seats_active),
+          unit_price: numOrNull(row.unit_price),
+          contract_start: row.contract_start || null,
+          contract_end: row.contract_end || null,
+          auto_renew: boolish(row.auto_renew),
+          status: (row.status as VendorStatus) || 'Active',
+          owner: row.owner || null,
+          notes: row.notes || null,
+        });
+        if (saved) upserted++;
+      } else if (kind === 'employees') {
+        if (!row.entity_id || !vmSessionCanEntity(session, row.entity_id)) continue;
+        const saved = await upsertEmployee({
+          id: row.emp_id,
+          name: row.name || row.display_name,
+          entity_id: row.entity_id,
+          role_id: row.role_id || null,
+          status: (row.status as 'Active' | 'Terminated') || 'Active',
+          start_date: row.start_date || null,
+          manager_emp_id: row.manager_emp_id || null,
+          notes: row.notes || null,
+          fte: 1,
+          base_salary_annual: 0,
+          commission_target_annual: 0,
+          dept: null,
+          work_location: null,
+        });
+        if (saved) upserted++;
+      } else if (kind === 'products') {
+        const saved = await upsertProduct({
+          id: row.product_id,
+          name: row.name,
+          vendor_id: row.vendor_id || null,
+          entity_scope: row.entity_scope || 'ALL',
+          license_type: row.license_type || null,
+          cost_seat_mo: numOrNull(row.cost_seat_mo) ?? 0,
+          fixed_cost_mo: numOrNull(row.fixed_cost_mo) ?? 0,
+          requires_sso: boolish(row.requires_sso),
+          sensitivity: row.sensitivity || null,
+          offboard_action:
+            row.offboard_action === 'Keep org' ? 'Keep org' : 'Revoke',
+          active: row.active === '' ? true : boolish(row.active),
+          notes: row.notes || null,
+        });
+        if (saved) upserted++;
+      } else if (kind === 'roles') {
+        if (!row.entity_id || !vmSessionCanEntity(session, row.entity_id)) continue;
+        const saved = await upsertRole({
+          id: row.role_id,
+          name: row.name,
+          entity_id: row.entity_id,
+          level: row.level || null,
+          dept: row.dept || row.department || null,
+        });
+        if (saved) upserted++;
+      } else if (kind === 'cost_centers') {
+        if (!row.entity_id || !vmSessionCanEntity(session, row.entity_id)) continue;
+        const saved = await upsertCostCenter({
+          id: row.cost_center_id,
+          name: row.name,
+          entity_id: row.entity_id,
+          dept_code: row.dept_code || null,
+          cc_type: row.cc_type || null,
+          status: (row.status as 'Active' | 'Inactive') || 'Active',
+          notes: row.notes || null,
+        });
+        if (saved) upserted++;
+      } else if (kind === 'admin_users') {
+        if (!vmCanWrite(session, 'manage_admins')) continue;
+        const { createPersistClient } = await import('@/lib/supabase/persist-client');
+        const sb = await createPersistClient();
+        const { error } = await sb.from('vm_admin_users').upsert({
+          id: row.admin_user_id,
+          display_name: row.display_name,
+          email: row.email.toLowerCase(),
+          emp_id: row.emp_id || null,
+          admin_role_id: row.admin_role_id,
+          entity_scope: row.entity_scope || 'ALL',
+          status: row.status === 'Inactive' ? 'Inactive' : 'Active',
+          mfa_enrolled: boolish(row.mfa_enrolled),
+          notes: row.notes || null,
+          updated_at: new Date().toISOString(),
+        });
+        if (!error) upserted++;
+      }
+    }
+
+    await appendAuditEvent({
+      actor_email: session.email,
+      action: 'csv.import',
+      object_type: kind,
+      object_id: 'bulk',
+      new_value: String(upserted),
+    });
+    revalidateVm();
+    return { ok: true, id: String(upserted) };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Denied' };
   }

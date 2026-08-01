@@ -13,6 +13,7 @@ import {
   getVmSettings,
   listFxRates,
 } from '@/lib/vendor-mgmt/repo';
+import { hasValidVmStepUp } from '@/lib/vendor-mgmt/step-up';
 import { requireVmSession, vmCanWrite } from '@/lib/vendor-mgmt/session';
 import { redirect } from 'next/navigation';
 
@@ -38,6 +39,7 @@ export default async function VendorDetailPage({
   });
   const canEdit = vmCanWrite(session, 'edit_vendor');
   const canArchive = vmCanWrite(session, 'archive_vendor');
+  const stepUpActive = await hasValidVmStepUp(session.email);
 
   async function archiveAction() {
     'use server';
@@ -104,7 +106,13 @@ export default async function VendorDetailPage({
         </Link>
       </div>
 
-      {canEdit ? <VendorForm vendor={vendor} /> : null}
+      {canEdit ? (
+        <VendorForm
+          sessionEmail={session.email}
+          stepUpActive={stepUpActive}
+          vendor={vendor}
+        />
+      ) : null}
 
       <section className="space-y-3 border-t border-border pt-6">
         <h2 className="font-heading text-lg font-semibold text-[#3a414f]">

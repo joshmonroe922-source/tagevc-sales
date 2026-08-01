@@ -4,10 +4,12 @@ import {
   money,
   ENTITY_OPTIONS,
 } from '@/components/vendor-mgmt/vm-shell';
+import { VmStepUpGate } from '@/components/vendor-mgmt/step-up-gate';
 import { saveRenewalAction } from '@/app/(app)/shared-services/ops/vendor-management/actions';
 import { daysToEnd, renewalAlertStage } from '@/lib/vendor-mgmt/math';
 import { getVmSettings, listRenewals, listVendors } from '@/lib/vendor-mgmt/repo';
 import { requireVmSession, vmCanWrite } from '@/lib/vendor-mgmt/session';
+import { hasValidVmStepUp } from '@/lib/vendor-mgmt/step-up';
 import { vmEntityLabel } from '@/lib/vendor-mgmt/entities';
 
 export default async function RenewalsPage() {
@@ -20,6 +22,7 @@ export default async function RenewalsPage() {
   const asOf = settings?.as_of_date ?? new Date().toISOString().slice(0, 10);
   const canEdit = vmCanWrite(session, 'edit_contracts');
   const canApprove = vmCanWrite(session, 'approve_renewal');
+  const stepUpActive = await hasValidVmStepUp(session.email);
   const nameById = new Map(vendors.map((v) => [v.id, v.name]));
 
   async function createAction(formData: FormData) {
@@ -34,6 +37,10 @@ export default async function RenewalsPage() {
       active="/shared-services/ops/vendor-management/renewals"
       adminRole={session.adminRole}
     >
+      {canEdit || canApprove ? (
+        <VmStepUpGate email={session.email} initiallyActive={stepUpActive} />
+      ) : null}
+
       {canEdit ? (
         <form action={createAction} className="grid max-w-4xl gap-3 rounded-lg border border-border p-4 sm:grid-cols-3">
           <label className="text-sm sm:col-span-1">
