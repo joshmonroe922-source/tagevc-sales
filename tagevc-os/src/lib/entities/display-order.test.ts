@@ -194,7 +194,7 @@ describe('list vs detail HTML policy', () => {
 });
 
 describe('main nav IA (post Assets + SSC accordion)', () => {
-  it('places Dashboard under Home, then Assets → C-Suite; Firm → BD → SSC → CC → Personal', () => {
+  it('places Dashboard under Home, then Assets → C-Suite; Firm → BD → SSC → CC → Grow → Personal', () => {
     const labels = MAIN_NAV.map((i) => i.label);
     expect(labels.indexOf('Home')).toBe(0);
     expect(labels.indexOf('Dashboard')).toBe(1);
@@ -204,7 +204,9 @@ describe('main nav IA (post Assets + SSC accordion)', () => {
     expect(labels.indexOf('Business Development')).toBe(5);
     expect(labels.indexOf('Shared Services')).toBe(6);
     expect(labels.indexOf('Command Center')).toBe(7);
-    expect(labels.indexOf('Personal')).toBe(8);
+    expect(labels.indexOf('Grow')).toBe(8);
+    expect(labels.indexOf('Personal')).toBe(9);
+    expect(labels.indexOf('Message Center')).toBe(10);
     expect(labels).not.toContain('To Do List');
     expect(labels).not.toContain('Portfolio');
     expect(labels).not.toContain('Entities');

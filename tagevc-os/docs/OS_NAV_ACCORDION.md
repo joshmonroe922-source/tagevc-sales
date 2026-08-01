@@ -3,11 +3,11 @@
 Tage OS sidebar (`app-sidebar.tsx`) treats parent nav items with `children` as accordion groups.
 
 ## Behavior
-- **Top-level order** → Home → **Assets** → **C-Suite** → Dashboard → **Firm** → **Business Development** → **Shared Services** → **Command Center** → Personal → Message Center → **Grow**
+- **Top-level order** → Home → **Assets** → **C-Suite** → Dashboard → **Firm** → **Business Development** → **Shared Services** → **Command Center** → **Grow** → Personal → Message Center
 - **SSC Task List** (under Shared Services) → `/to-do` — SSC checklist tasks + lead/deal/M&A/RE follow-ups (not Help Desk tickets). Help Desk stays on Create Ticket dropdown only
 - **Subsidiary portals** (R619 / Instant NDA / Signent / future clones) mirror the same AppTopBar: Alerts bell + Create Ticket split → Help Desk. See `docs/SUBSIDIARY_OS_SHELL.md` + `src/lib/platform/shell/`.
 - **A&F spine** (platform-standard, not Tage-only) → every entity OS inherits `{Entity} A&F` with Accounting · Finance · Audit · Controls at `/shared-services/af/*`. Canonical: `src/lib/platform/af/` + `docs/TAGE_VC_AF.md` + `docs/SUBSIDIARY_OS_SHELL.md` § A&F.
-- **Grow spine** (platform-standard) → every entity OS inherits **Grow** with **Performance Management** + **Training & Development**. Tage: accordion after Message Center. Subsidiaries: `NAV_SECTIONS` id `grow` (R619 also keeps desk-specific Grow children). See `docs/SUBSIDIARY_OS_SHELL.md` § Grow.
+- **Grow spine** (platform-standard) → every entity OS inherits **Grow** with **Performance Management** + **Training & Development**. Tage: accordion after Command Center (above Personal). Subsidiaries: `NAV_SECTIONS` id `grow` (R619 also keeps desk-specific Grow children). See `docs/SUBSIDIARY_OS_SHELL.md` § Grow.
 - **C-Suite** (Visionary-only) → HQ, CFO, CTO, CMO, CHRO, CLO — between Assets and Dashboard; hidden during Live Look. Command Center is top-level (not nested under C-Suite)
 - **Firm** / **Command Center** — top-level (not nested under BD / C-Suite); **hidden for COO (subsidiaries)**, **Associate / VC Sourcer**, **M&A Associate**, **Sourcer**, and **SSC operators** (Counsel/Ops + `ssc_*` + Service Lead)
 - **Business Development** → default children **Lead Intake** + **Deal Flow** only (Visionary / Think Tank / Partner; VC/M&A/RE sourcing via Deal Flow hub) — **hidden for COO (subsidiaries)** and **SSC operators** (`hiddenForRoles`); **Associate / VC Sourcer** gets BD accordion via transform with **VC Sourcing** → `/deal-flow/vc` + **M&A Sourcing** → `/deal-flow/ma`; **M&A Associate** → top-level **M&A Activities** → `/deal-flow/ma`; **Sourcer** → top-level **Sourcing Platform** → `/deal-flow/re`. BD stays top-level (not under Assets) so role transforms keep working

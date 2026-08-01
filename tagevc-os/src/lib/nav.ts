@@ -46,9 +46,9 @@ const HIDE_FOR_ADMIN = ['admin'] as const satisfies readonly AppRole[];
 const HIDE_SSC_FUNCTIONS_FOR_ADMIN = HIDE_FOR_ADMIN;
 
 /**
- * Home → Dashboard → Assets → C-Suite → Firm → BD → Shared Services → Command Center → Personal → modules.
+ * Home → Dashboard → Assets → C-Suite → Firm → BD → Shared Services → Command Center → Grow → Personal → modules.
  * Assets stays under Home (not under Dashboard) — Portfolio→Assets rename + later IA.
- * Firm stays above Shared Services; Shared Services sits above Command Center and Personal.
+ * Firm stays above Shared Services; Shared Services sits above Command Center; Grow sits above Personal.
  * Firm + Command Center are top-level (not nested under BD / C-Suite).
  * BD stays top-level (not under Assets) so associate / sourcer / sub_lead role transforms keep working.
  * SSC Task List (`/to-do`) lives under Shared Services — SSC checklists + lead/deal follow-ups (not Help Desk).
@@ -536,6 +536,39 @@ export const MAIN_NAV: NavItem[] = [
     ],
   },
   {
+    /** Grow spine — Performance Management + Training & Development (all entity OS clones). */
+    module: 'shared_services',
+    label: 'Grow',
+    description: 'Performance · training & development',
+    hiddenForRoles: [
+      ...sscRolesHiddenFromFunction('HR'),
+      ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
+    ],
+    children: [
+      {
+        module: 'shared_services',
+        href: '/eos',
+        label: 'Tage VC Performance Management',
+        description: 'Rocks · scorecard · IDS · L10 · V/TO · rollup',
+        hiddenForRoles: [
+          ...sscRolesHiddenFromFunction('HR'),
+          ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
+        ],
+      },
+      {
+        module: 'shared_services',
+        href: '/training',
+        label: 'Training & Development',
+        description: 'LMS · courses · progress',
+        hiddenForRoles: [
+          ...sscRolesHiddenFromFunction('HR'),
+          ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
+        ],
+      },
+    ],
+  },
+
+  {
     module: 'portfolio',
     label: 'Personal',
     description: 'Personal Finance · Credit Management (Josh / Visionary only)',
@@ -580,38 +613,7 @@ export const MAIN_NAV: NavItem[] = [
     label: 'Message Center',
     description: 'Direct messages · groups',
   },
-{
-    /** Grow spine — Performance Management + Training & Development (all entity OS clones). */
-    module: 'shared_services',
-    label: 'Grow',
-    description: 'Performance · training & development',
-    hiddenForRoles: [
-      ...sscRolesHiddenFromFunction('HR'),
-      ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
-    ],
-    children: [
-      {
-        module: 'shared_services',
-        href: '/eos',
-        label: 'Tage VC Performance Management',
-        description: 'Rocks · scorecard · IDS · L10 · V/TO · rollup',
-        hiddenForRoles: [
-          ...sscRolesHiddenFromFunction('HR'),
-          ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
-        ],
-      },
-      {
-        module: 'shared_services',
-        href: '/training',
-        label: 'Training & Development',
-        description: 'LMS · courses · progress',
-        hiddenForRoles: [
-          ...sscRolesHiddenFromFunction('HR'),
-          ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
-        ],
-      },
-    ],
-  },
+
 ];
 
 export function flattenNavItems(items: NavItem[] = MAIN_NAV): NavItem[] {
