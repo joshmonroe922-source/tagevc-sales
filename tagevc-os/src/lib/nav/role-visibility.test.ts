@@ -266,14 +266,14 @@ describe('Assets + COO / Subsidiary Leader nav gates', () => {
     expect(labels).not.toContain('Portfolio');
     expect(labels).toContain('Home');
     expect(labels).toContain('Dashboard');
-    expect(labels).toContain('To Do List');
     expect(labels).toContain('Shared Services');
     expect(labels).toContain('Message Center');
     expect(labels).not.toContain('Help Desk');
+    expect(labels).not.toContain('SSC Task List');
 
     const ssc = items.find((i) => i.label === 'Shared Services');
     const childLabels = ssc?.children?.map((c) => c.label) ?? [];
-    expect(childLabels).toEqual(['Ticket Portal', 'Admin']);
+    expect(childLabels).toEqual(['SSC Task List', 'Ticket Portal', 'Admin']);
     const admin = ssc?.children?.find((c) => c.label === 'Admin');
     expect(admin?.href).toBe('/admin');
     expect(admin?.children?.map((c) => c.label)).toEqual([

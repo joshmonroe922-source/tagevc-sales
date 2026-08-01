@@ -46,13 +46,13 @@ const HIDE_FOR_ADMIN = ['admin'] as const satisfies readonly AppRole[];
 const HIDE_SSC_FUNCTIONS_FOR_ADMIN = HIDE_FOR_ADMIN;
 
 /**
- * Home → Dashboard → Assets → C-Suite → To Do List → Firm → BD → Shared Services → Command Center → Personal → modules.
+ * Home → Dashboard → Assets → C-Suite → Firm → BD → Shared Services → Command Center → Personal → modules.
  * Assets stays under Home (not under Dashboard) — Portfolio→Assets rename + later IA.
  * Firm stays above Shared Services; Shared Services sits above Command Center and Personal.
  * Firm + Command Center are top-level (not nested under BD / C-Suite).
  * BD stays top-level (not under Assets) so associate / sourcer / sub_lead role transforms keep working.
- * To Do List aggregates SSC checklists + lead/deal follow-ups (not Help Desk tickets).
- * Shared Services holds Tage VC A&F + function homes + Ticket Portal + Admin.
+ * SSC Task List (`/to-do`) lives under Shared Services — SSC checklists + lead/deal follow-ups (not Help Desk).
+ * Shared Services holds SSC Task List + Tage VC A&F + function homes + Ticket Portal + Admin.
  * Help Desk lives on the Create Ticket split-button dropdown (not left nav).
  * Admin accordion nests Document Library + DocuSign (routes unchanged).
  * Think Tank lives on Home (no standalone nav item).
@@ -229,12 +229,6 @@ export const MAIN_NAV: NavItem[] = [
     ],
   },
   {
-    module: 'command_center',
-    href: '/to-do',
-    label: 'To Do List',
-    description: 'SSC tasks · follow-ups · operator work',
-  },
-  {
     module: 'firm',
     href: '/firm',
     label: 'Firm',
@@ -295,8 +289,14 @@ export const MAIN_NAV: NavItem[] = [
     module: 'shared_services',
     label: 'Shared Services',
     description:
-      'Tage VC A&F · Human Resources · Vendor Management · Technology · Marketing · Legal · Admin',
+      'SSC Task List · Tage VC A&F · Human Resources · Vendor Management · Technology · Marketing · Legal · Admin',
     children: [
+      {
+        module: 'command_center',
+        href: '/to-do',
+        label: 'SSC Task List',
+        description: 'SSC tasks · follow-ups · operator work',
+      },
       {
         module: 'shared_services',
         href: TAGE_VC_AF_NAV.href,

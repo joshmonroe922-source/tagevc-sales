@@ -14,8 +14,8 @@ export default async function ToDoListPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Operator"
-        title="To Do List"
+        eyebrow="Shared Services"
+        title="SSC Task List"
         description="Shared Services checklist work, lead/deal follow-ups, and other operator tasks in your scope. Help Desk tickets stay under Create Ticket → Help Desk."
       />
       <ToDoListClient list={list} />

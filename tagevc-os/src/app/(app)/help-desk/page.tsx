@@ -81,7 +81,7 @@ export default async function HelpDeskPage() {
           Requester tickets only — Create Ticket and subsidiary portal intake.
           SSC checklist work and pipeline follow-ups live on{' '}
           <Link href="/to-do" className="underline underline-offset-2">
-            To Do List
+            SSC Task List
           </Link>
           . Closed tickets older than {ARCHIVE_DAYS} days are archived off this
           list. Full service inbox:{' '}

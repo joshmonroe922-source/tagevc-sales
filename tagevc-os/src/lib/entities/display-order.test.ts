@@ -79,10 +79,11 @@ describe('SSC + entity dropdowns use shared order', () => {
 });
 
 describe('Shared Services nav accordion', () => {
-  it('expands to A&F/Human Resources/Technology/Marketing/Legal/Ticket Portal/Admin in order', () => {
+  it('expands to SSC Task List/A&F/Human Resources/Technology/Marketing/Legal/Ticket Portal/Admin in order', () => {
     const ssc = MAIN_NAV.find((i) => i.label === 'Shared Services');
     expect(ssc?.href).toBeUndefined();
     expect(ssc?.children?.map((c) => c.label)).toEqual([
+      'SSC Task List',
       'Tage VC A&F',
       'Human Resources',
       'Vendor Management',
@@ -93,6 +94,7 @@ describe('Shared Services nav accordion', () => {
       'Ticket Portal',
       'Admin',
     ]);
+    expect(ssc?.children?.[0]?.href).toBe('/to-do');
     expect(ssc?.children?.some((c) => c.href === '/shared-services/finance')).toBe(
       false,
     );
@@ -198,14 +200,16 @@ describe('main nav IA (post Assets + SSC accordion)', () => {
     expect(labels.indexOf('Dashboard')).toBe(1);
     expect(labels.indexOf('Assets')).toBe(2);
     expect(labels.indexOf('C-Suite')).toBe(3);
-    expect(labels.indexOf('To Do List')).toBe(4);
-    expect(labels.indexOf('Firm')).toBe(5);
-    expect(labels.indexOf('Business Development')).toBe(6);
-    expect(labels.indexOf('Shared Services')).toBe(7);
-    expect(labels.indexOf('Command Center')).toBe(8);
-    expect(labels.indexOf('Personal')).toBe(9);
+    expect(labels.indexOf('Firm')).toBe(4);
+    expect(labels.indexOf('Business Development')).toBe(5);
+    expect(labels.indexOf('Shared Services')).toBe(6);
+    expect(labels.indexOf('Command Center')).toBe(7);
+    expect(labels.indexOf('Personal')).toBe(8);
+    expect(labels).not.toContain('To Do List');
     expect(labels).not.toContain('Portfolio');
     expect(labels).not.toContain('Entities');
+    const sscTop = MAIN_NAV.find((i) => i.label === 'Shared Services');
+    expect(sscTop?.children?.some((c) => c.label === 'SSC Task List')).toBe(true);
   });
 
   it('keeps Command Center and Firm as top-level (not nested under C-Suite / BD)', () => {

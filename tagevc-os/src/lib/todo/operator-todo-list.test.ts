@@ -99,9 +99,9 @@ describe('operator todo list', () => {
 });
 
 describe('to-do nav', () => {
-  it('adds To Do List to left nav and keeps Help Desk off left nav', () => {
+  it('adds SSC Task List under Shared Services and keeps Help Desk off left nav', () => {
     const flat = flattenNavItems(MAIN_NAV);
-    expect(flat.some((n) => n.href === '/to-do' && n.label === 'To Do List')).toBe(
+    expect(flat.some((n) => n.href === '/to-do' && n.label === 'SSC Task List')).toBe(
       true,
     );
     expect(flat.some((n) => n.href === '/help-desk')).toBe(false);

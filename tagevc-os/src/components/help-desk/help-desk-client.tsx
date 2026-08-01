@@ -39,7 +39,7 @@ export function HelpDeskClient({ tickets }: { tickets: HelpDeskTicketRow[] }) {
           {tickets.length === 0 ? (
             <EmptyState
               title="No open tickets in view"
-              description="Create a ticket from any page with the Create Ticket button. SSC and follow-up work is on To Do List."
+              description="Create a ticket from any page with the Create Ticket button. SSC and follow-up work is on SSC Task List."
             />
           ) : (
             tickets.map((t) => (
