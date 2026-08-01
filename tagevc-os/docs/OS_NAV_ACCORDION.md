@@ -3,7 +3,7 @@
 Tage OS sidebar (`app-sidebar.tsx`) treats parent nav items with `children` as accordion groups.
 
 ## Behavior
-- **Top-level order** → Home → **Assets** → **C-Suite** → Dashboard → **To Do List** → **Firm** → **Business Development** → **Command Center** → Shared Services → Message Center → **Grow**
+- **Top-level order** → Home → **Assets** → **C-Suite** → Dashboard → **To Do List** → **Shared Services** → **Firm** → **Business Development** → **Command Center** → Personal → Message Center → **Grow**
 - **To Do List** → `/to-do` — SSC checklist tasks + lead/deal/M&A/RE follow-ups (not Help Desk tickets). Visible to all roles with Home access. Help Desk stays on Create Ticket dropdown only
 - **Subsidiary portals** (R619 / Instant NDA / Signent / future clones) mirror the same AppTopBar: Alerts bell + Create Ticket split → Help Desk. See `docs/SUBSIDIARY_OS_SHELL.md` + `src/lib/platform/shell/`.
 - **A&F spine** (platform-standard, not Tage-only) → every entity OS inherits `{Entity} A&F` with Accounting · Finance · Audit · Controls at `/shared-services/af/*`. Canonical: `src/lib/platform/af/` + `docs/TAGE_VC_AF.md` + `docs/SUBSIDIARY_OS_SHELL.md` § A&F.
@@ -22,7 +22,8 @@ Tage OS sidebar (`app-sidebar.tsx`) treats parent nav items with `children` as a
 - **Legal** → `/shared-services/legal` (matters · tasks · counsel ops). DocuSign is **not** Legal primary nav — under Admin
 - **HR** (under Shared Services) → Performance Management (`/eos`) + Screening (`/shared-services/hr/screening`) — nested accordion; HR keeps its own home link. **Tage VC Performance Management** also lives under top-level **Grow** (with Training & Development)
 - **Grow** → **Tage VC Performance Management** (`/eos`) + **Training & Development** (`/training`) — accordion; HR-gated like the prior standalone EOS item
-- **IT / Technology** (under Shared Services) → Vendor Management · Partner stack · **Mobile launch** (`/shared-services/it/mobile-launch`, App Store/Play playbook) · Activity log (`/shared-services/it/activity`, `read:it_assets` / Technology) + Audit log (`/admin/audit`, Visionary-only) — nested accordion; IT keeps its own home link (`/shared-services/it/assets`)
+- **Vendor Management** (under Shared Services, peer of Technology) → Dashboard · Vendors · Renewals · People · Hire simulator (`/shared-services/ops/vendor-management*`, `read:it_assets`) — Group Ops spend/license spine; not nested under IT
+- **IT / Technology** (under Shared Services) → Partner stack · **Mobile launch** (`/shared-services/it/mobile-launch`, App Store/Play playbook) · Activity log (`/shared-services/it/activity`, `read:it_assets` / Technology) + Audit log (`/admin/audit`, Visionary-only) — nested accordion; IT keeps its own home link (`/shared-services/it/assets`)
 - **Admin** (under Shared Services) → `/admin` (users · roles when permitted) + nested **Document Library** (`/documents`) + **DocuSign** (`/shared-services/legal/docusign`). Roles without `admin:users` still see the Admin accordion with Document Library (and DocuSign when in scope); parent href is omitted. Audit log remains under IT, not Admin. Help Desk is Create Ticket dropdown only (not left nav)
 - First tap expands; second tap collapses
 - Active child route forces parent open on navigation (nested: Performance Management / Screening keeps Shared Services + HR expanded; Grow children keep Grow expanded; IT Activity / Audit keeps Shared Services + IT expanded; Document Library / DocuSign keeps Shared Services + Admin expanded)
