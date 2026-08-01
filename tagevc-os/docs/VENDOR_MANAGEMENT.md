@@ -62,8 +62,13 @@ API: `POST /api/partners/provision-entity` still the entrypoint.
 
 ```bash
 set -a && source .env.local && set +a
+# Preferred (no local psql required):
+node scripts/apply-phase90-vendor-mgmt.mjs
+# Or:
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/phase90_vendor_management_spine.sql
 ```
+
+Safe to re-run. Expect `PHASE90_APPLIED` with codes=4, modules≥4, alert_rules=12.
 
 ## Key routes
 
