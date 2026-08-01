@@ -347,7 +347,8 @@ export const MAIN_NAV: NavItem[] = [
   {
     module: 'shared_services',
     label: 'Shared Services',
-    description: 'Tage VC A&F · Human Resources · Technology · Marketing · Legal · Admin',
+    description:
+      'Tage VC A&F · Human Resources · Vendor Management · Technology · Marketing · Legal · Admin',
     children: [
       {
         module: 'shared_services',
@@ -405,23 +406,53 @@ export const MAIN_NAV: NavItem[] = [
       },
       {
         module: 'shared_services',
+        href: '/shared-services/ops/vendor-management',
+        label: 'Vendor Management',
+        description: 'Spend · licenses · renewals · people economics',
+        requiredPermission: 'read:it_assets',
+        hiddenForRoles: [...HIDE_SSC_FUNCTIONS_FOR_ADMIN],
+        children: [
+          {
+            module: 'shared_services',
+            href: '/shared-services/ops/vendor-management/vendors',
+            label: 'Vendors',
+            description: 'Current stack · seats · utilization',
+            requiredPermission: 'read:it_assets',
+          },
+          {
+            module: 'shared_services',
+            href: '/shared-services/ops/vendor-management/renewals',
+            label: 'Renewals',
+            description: 'Contract lifecycle · approvals',
+            requiredPermission: 'read:it_assets',
+          },
+          {
+            module: 'shared_services',
+            href: '/shared-services/ops/vendor-management/employees',
+            label: 'People',
+            description: 'Roster · birthright · offboard',
+            requiredPermission: 'read:it_assets',
+          },
+          {
+            module: 'shared_services',
+            href: '/shared-services/ops/vendor-management/hire',
+            label: 'Hire simulator',
+            description: 'Fully loaded cost of hire',
+            requiredPermission: 'read:it_assets',
+          },
+        ],
+      },
+      {
+        module: 'shared_services',
         href: '/shared-services/it/assets',
         label: 'Technology',
-        description:
-          'Assets · Vendor Management · Intune · partner stack · mobile launch',
+        description: 'Assets · Intune · partner stack · mobile launch',
         requiredPermission: 'read:it_assets',
         hiddenForRoles: [
           ...sscRolesHiddenFromFunction('IT'),
           ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
         ],
         children: [
-          {
-            module: 'shared_services',
-            href: '/shared-services/it/vendor-mgmt',
-            label: 'Vendor Management',
-            description: 'Spend · renewals · licenses · people economics',
-            requiredPermission: 'read:it_assets',
-          },
           {
             module: 'shared_services',
             href: '/shared-services/it/technology-stack',

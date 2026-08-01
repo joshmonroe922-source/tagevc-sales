@@ -41,6 +41,17 @@ export const SS_FUNCTION_MODULES: SsHubModule[] = [
     docs: 'docs/OS_PHASE57.md',
   },
   {
+    id: 'vendor_management',
+    href: '/shared-services/ops/vendor-management',
+    title: 'Vendor Management',
+    short: 'Vendors',
+    service: 'All',
+    status: 'live',
+    description:
+      'Group Ops spend · licenses · renewals · birthright · CPE/RPE · chargeback (multi-entity).',
+    docs: 'docs/VENDOR_MANAGEMENT.md',
+  },
+  {
     id: 'it_assets',
     href: '/shared-services/it/assets',
     title: 'Technology',
@@ -59,7 +70,7 @@ export const SS_FUNCTION_MODULES: SsHubModule[] = [
     service: 'IT',
     status: 'foundation',
     description:
-      'Spine vendors · contracts · payments · expirations · entity enablement.',
+      'Platform partners · bindings · payments · expirations · entity enablement.',
     docs: 'docs/PARTNER_SPINE.md',
   },
   {
