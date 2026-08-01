@@ -85,8 +85,10 @@ describe('Shared Services nav accordion', () => {
     expect(ssc?.children?.map((c) => c.label)).toEqual([
       'Tage VC A&F',
       'Human Resources',
+      'Vendor Management',
       'Technology',
       'Marketing',
+      'Partner BI',
       'Legal',
       'Ticket Portal',
       'Admin',
@@ -121,26 +123,37 @@ describe('Shared Services nav accordion', () => {
     const hr = ssc?.children?.find((c) => c.label === 'Human Resources');
     expect(hr?.href).toBe('/shared-services/hr');
     expect(hr?.children?.map((c) => c.label)).toEqual([
-      'Operating System',
+      'Performance Management',
       'Screening',
     ]);
     expect(hr?.children?.[1]?.href).toBe('/shared-services/hr/screening');
     expect(ssc?.children?.some((c) => c.label === 'Screening')).toBe(false);
   });
 
-  it('nests Activity log + Visionary Audit log under Technology (not Admin)', () => {
+  it('keeps Vendor Management as SSC peer; Technology nests Partner stack + Mobile launch + Activity + Audit', () => {
     const ssc = MAIN_NAV.find((i) => i.label === 'Shared Services');
+    const vm = ssc?.children?.find((c) => c.label === 'Vendor Management');
+    expect(vm?.href).toBe('/shared-services/ops/vendor-management');
+    expect(vm?.requiredPermission).toBe('read:it_assets');
+    expect(vm?.children?.map((c) => c.label)).toEqual([
+      'Vendors',
+      'Renewals',
+      'People',
+      'Hire simulator',
+    ]);
     const it = ssc?.children?.find((c) => c.label === 'Technology');
     expect(it?.href).toBe('/shared-services/it/assets');
     expect(it?.children?.map((c) => c.label)).toEqual([
+      'Partner stack',
+      'Mobile launch',
       'Activity log',
       'Audit log',
     ]);
-    expect(it?.children?.[0]?.href).toBe('/shared-services/it/activity');
-    expect(it?.children?.[0]?.requiredPermission).toBe('read:it_assets');
-    expect(it?.children?.[0]?.visionaryOnly).toBeUndefined();
-    expect(it?.children?.[1]?.href).toBe('/admin/audit');
-    expect(it?.children?.[1]?.visionaryOnly).toBe(true);
+    expect(it?.children?.[0]?.href).toBe('/shared-services/it/technology-stack');
+    expect(it?.children?.[1]?.href).toBe('/shared-services/it/mobile-launch');
+    expect(it?.children?.[2]?.href).toBe('/shared-services/it/activity');
+    expect(it?.children?.[3]?.href).toBe('/admin/audit');
+    expect(it?.children?.[3]?.visionaryOnly).toBe(true);
     const admin = ssc?.children?.find((c) => c.label === 'Admin');
     expect(admin?.children?.map((c) => c.label)).toEqual([
       'Org Chart',
@@ -179,7 +192,7 @@ describe('list vs detail HTML policy', () => {
 });
 
 describe('main nav IA (post Assets + SSC accordion)', () => {
-  it('places Dashboard under Home, then Assets → C-Suite; To Do + Firm + CC top-level', () => {
+  it('places Dashboard under Home, then Assets → C-Suite; Firm → BD → SSC → CC → Personal', () => {
     const labels = MAIN_NAV.map((i) => i.label);
     expect(labels.indexOf('Home')).toBe(0);
     expect(labels.indexOf('Dashboard')).toBe(1);
@@ -188,7 +201,9 @@ describe('main nav IA (post Assets + SSC accordion)', () => {
     expect(labels.indexOf('To Do List')).toBe(4);
     expect(labels.indexOf('Firm')).toBe(5);
     expect(labels.indexOf('Business Development')).toBe(6);
-    expect(labels.indexOf('Command Center')).toBe(7);
+    expect(labels.indexOf('Shared Services')).toBe(7);
+    expect(labels.indexOf('Command Center')).toBe(8);
+    expect(labels.indexOf('Personal')).toBe(9);
     expect(labels).not.toContain('Portfolio');
     expect(labels).not.toContain('Entities');
   });
