@@ -25,6 +25,8 @@ export type PlatformEmailSource =
   | 'intake_alert'
   | 'auth'
   | 'system'
+  | 'w9'
+  | 'ap_invoice'
   | 'webhook'
   | 'unknown';
 

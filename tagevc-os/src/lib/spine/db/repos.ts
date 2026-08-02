@@ -176,23 +176,15 @@ export async function bootstrapGraphFromWebsiteLead(
       { onConflict: 'contact_id,org_id' },
     );
 
-    await sb.from('employments').upsert(
-      {
-        contact_id: contactId,
-        account_id: accountId,
-        is_current: true,
-        source: 'website_intake',
-      },
-      { onConflict: 'contact_id,account_id' },
-    ).then(() => undefined).catch(async () => {
-      // unique index is partial; fall back to insert-ignore
-      await sb.from('employments').insert({
-        contact_id: contactId,
-        account_id: accountId,
-        is_current: true,
-        source: 'website_intake',
-      });
+    const emp = await sb.from('employments').insert({
+      contact_id: contactId,
+      account_id: accountId,
+      is_current: true,
+      source: 'website_intake',
     });
+    if (emp.error) {
+      // likely duplicate current employment — ignore
+    }
 
     const { data: job } = await sb
       .from('enrichment_jobs')
@@ -231,8 +223,8 @@ export async function bootstrapGraphFromWebsiteLead(
 
     return {
       ok: true,
-      accountId,
-      contactId,
+      accountId: accountId as string,
+      contactId: contactId as string,
       orgId,
       jobId: job?.id ?? null,
       replay: false,
