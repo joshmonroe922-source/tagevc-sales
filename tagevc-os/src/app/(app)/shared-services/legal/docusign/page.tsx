@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { DocuSignHubActions } from '@/components/shared-services/docusign-hub-actions';
 import { DocuSignTemplateSendForm } from '@/components/shared-services/docusign-template-send-form';
+import { DocuSignLibrarySendForm } from '@/components/shared-services/docusign-library-send-form';
 import { DocuSignReplacementForm } from '@/components/shared-services/docusign-replacement-form';
 import { DocuSignManualReview } from '@/components/shared-services/docusign-manual-review';
 import { DocuSignMappingReview } from '@/components/shared-services/docusign-mapping-review';
@@ -486,6 +487,7 @@ export default async function DocuSignModulePage({
           templates={templates.rows}
           canWrite={canWrite}
         />
+        <DocuSignLibrarySendForm canWrite={canWrite} />
         <DocuSignReplacementForm
           templates={templates.rows}
           voidedEnvelopeIds={liveRows

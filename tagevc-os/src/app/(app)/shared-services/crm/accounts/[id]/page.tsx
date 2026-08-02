@@ -9,6 +9,7 @@ import {
   actionSuggestHierarchy,
 } from '@/app/(app)/shared-services/crm/actions';
 import { OrgChartPanel } from '@/components/crm/org-chart-panel';
+import { AccountAgentPanel } from '@/components/crm/account-agent-panel';
 import { CreateContactForm } from '@/components/crm/create-forms';
 
 type Props = { params: Promise<{ id: string }> };
@@ -141,6 +142,8 @@ export default async function CrmAccountPage({ params }: Props) {
           )}
         </ul>
       </section>
+
+      <AccountAgentPanel accountId={id} />
 
       <OrgChartPanel
         accountId={id}

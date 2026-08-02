@@ -46,14 +46,16 @@ Tage OS = parent OS. Subsidiaries = apps on one spine: Entra → Supabase graph 
 |-------|--------|
 | C0 layout | Adapted — `src/lib/spine/*`, `apps/worker`, migrations under `supabase/migrations/spine` |
 | C1 schema+RLS+seed | **Shipped** — `0001–0010` + apply bundle `phase94_graph_spine.sql` |
-| C2 Entra claims | Helpers in `0009_rls.sql`; OS still uses Supabase `profiles` — JWT `org_ids[]` hook next |
-| C3 graph CRUD UI | `/shared-services/crm` + account/contact detail + create forms + APIs |
+| C2 Entra claims | **SQL hook** `phase95_spine_claims_hook.sql` + Edge scaffold; Dashboard enable still Josh |
+| C3 graph CRUD UI | `/shared-services/crm` + account/contact detail + create forms + APIs · Admin nav |
 | C4 worker | `apps/worker` mock `account.bootstrap` |
-| C5–C6 Apollo/waterfall | Live providers fail-closed (`APOLLO_LIVE` etc.); health helper |
+| C5–C6 Apollo/waterfall | Live providers fail-closed; Admin → Enrichment + `ENRICHMENT_LIVE_FLIP.md` |
 | C7 hierarchy | Account org-chart panel + rule suggester + accept/reject |
-| C8 suggestions | Contact page shows pending `suggested_updates`; user PATCH locks |
-| C9 Cmd-K | Global `CmdKPalette` + `/api/spine/search` |
-| C2 Entra claims | `entra-claims.ts` + `docs/ENTRA_SPINE_CLAIMS.md` (hook setup for Josh) |
+| C8 suggestions | `/shared-services/crm/suggestions` inbox + contact pending updates |
+| C9 Cmd-K + site research | Global `CmdKPalette` + account site-research agent (public meta) |
+| C10 brief | Graph-derived account brief (no paid LLM) on account page |
+| C11 product FKs | Partial — Signent convert + product tables seeded; portals later |
+| C12 budgets | Org budgets + kill switch UX on Admin → Enrichment |
 | Website→graph | `bootstrapGraphFromWebsiteLead` from intake |
-| DocuSign autofill/attach/send | + `library-send.ts` human-confirmed library send |
+| DocuSign autofill/attach/send | Hub UI library-send form + `library-send.ts` |
 | Email | W-9 + bulk compose API + AP Graph poller |

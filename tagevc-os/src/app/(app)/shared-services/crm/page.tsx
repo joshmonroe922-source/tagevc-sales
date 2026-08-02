@@ -67,7 +67,13 @@ export default async function CrmGraphPage() {
         <kbd className="rounded border border-border px-1.5 py-0.5 text-xs">
           ⌘K
         </kbd>{' '}
-        for search
+        for search ·{' '}
+        <Link
+          href="/shared-services/crm/suggestions"
+          className="underline underline-offset-2"
+        >
+          Suggestions inbox
+        </Link>
       </p>
       {error ? (
         <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">

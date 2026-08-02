@@ -73,3 +73,40 @@ export async function actionSuggestHierarchy(accountId: string) {
   revalidatePath(`/shared-services/crm/accounts/${accountId}`);
   return result;
 }
+
+export async function actionGenerateAccountBrief(accountId: string) {
+  const session = await getSessionContext();
+  if (!session) return { ok: false as const, error: 'Unauthorized' };
+  const { generateAccountBrief } = await import('@/lib/spine/agents/brief');
+  return generateAccountBrief(accountId);
+}
+
+export async function actionRunSiteResearch(accountId: string) {
+  const session = await getSessionContext();
+  if (!session) return { ok: false as const, error: 'Unauthorized' };
+  const { runSiteResearch } = await import('@/lib/spine/agents/site-research');
+  const result = await runSiteResearch(accountId);
+  revalidatePath(`/shared-services/crm/accounts/${accountId}`);
+  revalidatePath('/shared-services/crm/suggestions');
+  return result;
+}
+
+export async function actionDecideSuggestedUpdate(
+  id: string,
+  status: 'accepted' | 'rejected',
+) {
+  const session = await getSessionContext();
+  if (!session) return { ok: false as const, error: 'Unauthorized' };
+  const { createPersistClient } = await import('@/lib/supabase/persist-client');
+  const sb = await createPersistClient();
+  const { error } = await sb
+    .from('suggested_updates')
+    .update({
+      status,
+      resolved_at: new Date().toISOString(),
+    })
+    .eq('id', id);
+  if (error) return { ok: false as const, error: error.message };
+  revalidatePath('/shared-services/crm/suggestions');
+  return { ok: true as const };
+}

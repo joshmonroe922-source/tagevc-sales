@@ -14,35 +14,37 @@ Spine RLS helpers (`fn_org_ids()`, `fn_has_org()`, `fn_can_see_account`) read cl
 | `roles` | text[] | Roles in active org |
 | `is_tage_admin` | bool | Cross-tenant break-glass |
 
-Code: `src/lib/spine/auth/entra-claims.ts` · SQL: `supabase/migrations/spine/0009_rls.sql`
+Code: `src/lib/spine/auth/entra-claims.ts` · SQL: `supabase/migrations/spine/0009_rls.sql` · Hook: `supabase/phase95_spine_claims_hook.sql`
 
-## Setup (Josh / Entra admin — once)
+## Apply + enable (production)
 
-1. **Supabase Dashboard → Authentication → Hooks → Custom Access Token**  
-   Point at Edge Function `spine-claims` (scaffold SQL/docs below) **or** HTTP hook that returns claims JSON.
-2. **Entra app** (`905649ff-…`, tenant `aecc0efa-…`) already used for OS login — ensure OID is available on the ID token (`oid` / `sub`).
-3. After login, call `ensureAdminMemberships` once for Josh so `memberships` cover `tage` / `recruit619` / `signent` / `instant_nda`.
-4. Verify in SQL: `select auth.jwt();` as the user shows `org_ids`.
+1. **SQL** (already shippable):
 
-## Scaffold without full Entra admin
+```bash
+cd tagevc-os
+set -a && source .env.local && set +a
+node scripts/apply-phase95-spine-claims-hook.mjs
+```
 
-Until the Auth Hook is live:
+2. **Supabase Dashboard → Authentication → Hooks → Custom Access Token**  
+   - Enable Postgres function: `public.custom_access_token_hook`  
+   - (Optional alternate) Edge Function `supabase/functions/spine-claims` — prefer Postgres hook.
 
-- Server routes use **service role** for graph writes (existing persist client).
+3. **Memberships** — Admin → Enrichment → **Ensure my spine org memberships** (visionary), or call `ensureAdminMemberships` so Josh covers `tage` / `recruit619` / `signent` / `instant_nda`.
+
+4. **Verify** — re-login, then `select auth.jwt()->'org_ids';` (or decode access token) shows 4 org UUIDs.
+
+## Scaffold without Dashboard toggle
+
+Until the Auth Hook is toggled on:
+
+- Server routes use **service role** for graph writes (persist client).
 - `buildSpineClaimsForUser({ email, entraOid })` derives the same shape from `user_profiles` + `memberships` for app-layer checks.
 - RLS policies remain correct for when JWT claims land — no rewrite needed.
 
-## Edge Function sketch (deploy later)
-
-```ts
-// supabase/functions/spine-claims/index.ts (not deployed yet)
-// Input: { user_id, claims }
-// Lookup user_profiles by entra_oid / email → memberships → return
-// { claims: { org_ids, active_org_id, roles, is_tage_admin, entra_oid } }
-```
-
 ## Acceptance
 
-- [ ] Hook enabled in Supabase
-- [ ] Josh JWT contains 4 org UUIDs
+- [x] Hook SQL + Edge Function scaffold in repo
+- [ ] Hook enabled in Supabase Dashboard (Josh one-click)
+- [ ] Josh JWT contains 4 org UUIDs after ensure-memberships
 - [ ] Non-admin user only sees linked accounts via RLS (not service role)

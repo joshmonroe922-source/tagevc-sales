@@ -80,14 +80,18 @@ function isNavActive(pathname: string, href: string): boolean {
   }
   if (href === '/admin') {
     // Audit log nests under Technology/IT — do not light Admin.
-    // Document Library + DocuSign nest under Admin — children light themselves.
+    // Document Library + DocuSign + CRM + Signent nest under Admin — children light themselves.
     if (
       pathname === '/admin/audit' ||
       pathname.startsWith('/admin/audit/') ||
       pathname === '/documents' ||
       pathname.startsWith('/documents/') ||
       pathname === '/shared-services/legal/docusign' ||
-      pathname.startsWith('/shared-services/legal/docusign/')
+      pathname.startsWith('/shared-services/legal/docusign/') ||
+      pathname === '/shared-services/crm' ||
+      pathname.startsWith('/shared-services/crm/') ||
+      pathname === '/shared-services/signent/clients' ||
+      pathname.startsWith('/shared-services/signent/')
     ) {
       return false;
     }
@@ -279,6 +283,24 @@ function isNavActive(pathname: string, href: string): boolean {
     return (
       pathname === '/shared-services/marketing' ||
       pathname.startsWith('/shared-services/marketing/')
+    );
+  }
+  if (href === '/shared-services/crm') {
+    return (
+      pathname === '/shared-services/crm' ||
+      pathname.startsWith('/shared-services/crm/')
+    );
+  }
+  if (href === '/shared-services/signent/clients') {
+    return (
+      pathname === '/shared-services/signent/clients' ||
+      pathname.startsWith('/shared-services/signent/')
+    );
+  }
+  if (href === '/admin/enrichment') {
+    return (
+      pathname === '/admin/enrichment' ||
+      pathname.startsWith('/admin/enrichment/')
     );
   }
   if (href === '/shared-services/legal/docusign') {

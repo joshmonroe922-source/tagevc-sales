@@ -504,11 +504,29 @@ export const MAIN_NAV: NavItem[] = [
           },
           {
             module: 'shared_services',
+            href: '/shared-services/crm',
+            label: 'CRM graph',
+            description: 'Accounts · contacts · hierarchy · ⌘K',
+          },
+          {
+            module: 'shared_services',
             href: '/shared-services/legal/docusign',
             label: 'DocuSign',
             description: 'Envelopes · templates · archive',
             /** Counsel/Legal + firm roles; not other single-function SSC desks. */
             hiddenForRoles: sscRolesHiddenFromFunction('Legal'),
+          },
+          {
+            module: 'shared_services',
+            href: '/shared-services/signent/clients',
+            label: 'Signent clients',
+            description: 'Sales convert · client_org · ops seams',
+          },
+          {
+            module: 'admin',
+            href: '/admin/enrichment',
+            label: 'Enrichment',
+            description: 'Budgets · LIVE flags · kill switch',
           },
           {
             module: 'admin',
