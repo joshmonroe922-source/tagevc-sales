@@ -60,7 +60,7 @@ export async function sendW9RequestEmail(input: {
     sharedRole: 'w9',
     fromAddress: fromUpn,
     track: true,
-    source: 'os_af_vendor_w9',
+    source: 'w9',
     sentByProfileId: input.sentByProfileId ?? null,
     refType: 'ap_vendor',
     refId: input.apVendorId ?? null,
