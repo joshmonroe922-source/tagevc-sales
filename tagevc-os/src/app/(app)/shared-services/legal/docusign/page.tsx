@@ -15,6 +15,8 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { getDocuSignMode, isDocuSignConfigured } from '@/lib/docusign/config';
+import { getDocuSignAutomationSpine } from '@/lib/docusign/automation-spine';
+import { listEntityDocuSignAccounts } from '@/lib/docusign/entity-accounts';
 import { listRecentEnvelopes } from '@/lib/docusign/envelopes';
 import {
   countDocuSignEvents,
@@ -324,6 +326,73 @@ export default async function DocuSignModulePage({
           Void policy: {voidPolicy}. Capital sends still require{' '}
           <code className="text-xs">action:docusign_capital</code>.
         </p>
+        {(() => {
+          const accounts = listEntityDocuSignAccounts();
+          const spine = getDocuSignAutomationSpine(
+            firmWide ? null : (ctx?.profile.entity_id ?? null),
+          );
+          return (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">
+                  Entity account sync + automation spine (D01)
+                </CardTitle>
+                <CardDescription>
+                  Org account holds all four entities. Map each Tage entity to
+                  its DocuSign account, then library → autofill → e-sign →
+                  library → DB attach. See docs/DOCUSIGN_ENTITY_AUTOMATION.md.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {accounts.map((a) => (
+                    <div
+                      key={a.entityId}
+                      className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2"
+                    >
+                      <span className="font-medium">{a.entityId}</span>
+                      <Badge variant={a.ready ? 'default' : 'secondary'}>
+                        {a.ready
+                          ? `${a.accountId?.slice(0, 8)}… (${a.source})`
+                          : 'missing account id'}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Mapping {spine.entityMapping.mapped}/{spine.entityMapping.total}
+                  {spine.entityMapping.missing.length
+                    ? ` · set ${spine.entityMapping.missing
+                        .map((id) => `DOCUSIGN_ACCOUNT_ID_${id.replace('ENT-', '')}`)
+                        .join(', ')}`
+                    : ' · all mapped'}
+                </p>
+                <ul className="space-y-1">
+                  {spine.steps.map((s) => (
+                    <li
+                      key={s.id}
+                      className="flex flex-wrap items-center gap-2 text-xs"
+                    >
+                      <Badge
+                        variant={
+                          s.status === 'ready'
+                            ? 'default'
+                            : s.status === 'scaffold'
+                              ? 'secondary'
+                              : 'outline'
+                        }
+                      >
+                        {s.status}
+                      </Badge>
+                      <span className="font-medium">{s.label}</span>
+                      <span className="text-muted-foreground">{s.note}</span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          );
+        })()}
         <LegalHardeningPhase56Client
           report={phase56Report}
           canWrite={canWrite}

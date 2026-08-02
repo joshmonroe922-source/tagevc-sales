@@ -124,10 +124,15 @@ set -a && source .env.local && set +a
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/phase89_partner_spine.sql
 ```
 
+## Decision defaults (2026-08-02)
+
+- **D01:** Hold most `*_LIVE` until contracts land; **DocuSign now** — see `docs/DOCUSIGN_ENTITY_AUTOMATION.md`
+- Full log: `docs/DECISION_LOG_2026-08-02.md`
+
 ## Josh actions (credentials)
 
-1. Apply `phase89_partner_spine.sql`
-2. DocuSign org JWT + Connect (if not already on prod)
+1. Apply `phase89_partner_spine.sql` (+ phase91 Signent tenancy, phase92 AP/W-9)
+2. DocuSign org JWT + Connect + per-entity `DOCUSIGN_ACCOUNT_ID_*`
 3. Dialpad API key + webhook secret
 4. Verified First live key when ready (`VERIFIED_FIRST_LIVE=1`)
 5. MyBasePay account for R619 contractor placements

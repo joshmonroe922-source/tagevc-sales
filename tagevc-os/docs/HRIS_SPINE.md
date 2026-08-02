@@ -25,4 +25,15 @@ Do **not** invent client orgs or seed fake Signent customers. Client rows appear
 
 ## Registry
 
-`ENT-SIGNENT` is a **canonical operating subsidiary** in `src/lib/multi-sub/entity-registry.ts` (Active). Portal/desk SSO URL may still be TODO; HRIS tenancy is live-path on Tage OS.
+`ENT-SIGNENT` is a **canonical operating subsidiary** in `src/lib/multi-sub/entity-registry.ts` (Active).
+
+| Surface | URL |
+|---------|-----|
+| Portal / desk | `https://portal.signenthr.com` |
+| Marketing | `https://www.signenthr.com` |
+
+Employment: hired via Tage OS HR Shared Services; employed by Signent HR (same pattern as R619 / INDA). Empty client tenancy SQL: `supabase/phase91_signent_client_tenancy.sql`. Vision: `docs/SIGNENT_HR_OS_VISION.md`.
+
+## Soft stop (D07)
+
+When joiner partner hooks are not `live_ok`, notify Visionary + HR; allow override with audit note (`src/lib/hris/partner-hook-gate.ts`). Automation health alerts stay visible — do not silently mark complete.

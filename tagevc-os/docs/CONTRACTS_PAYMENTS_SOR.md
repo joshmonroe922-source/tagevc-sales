@@ -16,4 +16,6 @@ Three surfaces historically wrote overlapping commercial/payment data. **Ownersh
 
 ## Cross-link
 
-`src/lib/af/ap/vm-bridge.ts` builds suggested AP counterparts from active `vm_vendors`. Durable shared IDs and bill-pay merge remain deferred until Josh enables reconciliation.
+`src/lib/af/ap/vm-bridge.ts` **auto-creates** AP vendors when VM status is Active (D05=B; `ensureApVendorFromVm` / phase92 SQL). Tax starts `w9_missing`.
+
+**D04=A:** Technology Stack commercial contract/payment writes are **frozen** (read-only + redirect to VM). Write-through (B) can come later if needed.

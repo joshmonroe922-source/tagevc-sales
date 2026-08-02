@@ -56,9 +56,13 @@ export default async function NetWorthPage() {
           Net Worth
         </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Visionary roll-up of Businesses, Real Estate, and Investments. Manage
-          private holdings under Investments. Credit Management lives under
-          Personal.
+          Scope: <span className="font-medium text-foreground">Visionary assets</span>{' '}
+          — personal + private holdings roll-up (Businesses, Real Estate,
+          Investments). Separate from{' '}
+          <span className="font-medium text-foreground">Firm AUM / portfolio</span>{' '}
+          and from{' '}
+          <span className="font-medium text-foreground">A&amp;F company finance</span>.
+          Credit Management lives under Personal. Labels only (D12=A).
         </p>
       </header>
 

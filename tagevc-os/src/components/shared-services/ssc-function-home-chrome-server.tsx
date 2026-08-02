@@ -1,8 +1,10 @@
 import { Suspense } from 'react';
 import { SscFunctionHomeChrome } from '@/components/shared-services/ssc-function-home-chrome';
 import { Skeleton } from '@/components/ui/skeleton';
+import { listScopedTickets } from '@/lib/data/pipeline-scope';
 import { getSscFunctionHomeGlance } from '@/lib/shared-services/ssc-checklist/function-home-glance';
 import type { SscFunction } from '@/lib/shared-services/ssc-checklist/types';
+import { filterOutstandingTicketsForFunction } from '@/lib/shared-services/ssc-function-tickets';
 
 const PURPOSES: Record<SscFunction, string> = {
   finance:
@@ -22,10 +24,18 @@ type Props = {
 };
 
 async function ChromeInner({ functionKey, entityId, firmWide }: Props) {
-  const glance = await getSscFunctionHomeGlance({
+  const [glance, tickets] = await Promise.all([
+    getSscFunctionHomeGlance({
+      functionKey,
+      entityId: entityId || null,
+    }),
+    listScopedTickets().catch(() => []),
+  ]);
+  const outstandingTickets = filterOutstandingTicketsForFunction(
+    tickets,
     functionKey,
-    entityId: entityId || null,
-  });
+    entityId || null,
+  );
   return (
     <SscFunctionHomeChrome
       functionKey={functionKey}
@@ -33,6 +43,7 @@ async function ChromeInner({ functionKey, entityId, firmWide }: Props) {
       firmWide={firmWide}
       glance={glance}
       purpose={PURPOSES[functionKey]}
+      outstandingTickets={outstandingTickets}
     />
   );
 }

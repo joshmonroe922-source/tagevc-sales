@@ -7,8 +7,14 @@ import {
   buildVmAfVendorLinks,
   evaluateBillApproval,
   getAfStore,
+  syncActiveVmVendorsToAp,
   type EntityCode,
 } from '@/lib/af';
+import { ENTITY_INVOICE_INBOXES } from '@/lib/af/ap/invoice-inbox';
+import {
+  buildW9RequestEmail,
+  currentTaxYear,
+} from '@/lib/af/ap/w9-campaign';
 import { resolveAfEntityParam } from '@/lib/af/page-helpers';
 import { listVendors } from '@/lib/vendor-mgmt/repo';
 import { requirePermission } from '@/lib/rbac/session';
@@ -44,14 +50,23 @@ export default async function VendorsPage({ searchParams }: Props) {
   const vmEntity =
     entityId && AF_TO_ENT[entityId] ? AF_TO_ENT[entityId] : null;
   let vmLinks: ReturnType<typeof buildVmAfVendorLinks> = [];
+  let apSync: { created: number; updated: number; errors: string[] } = {
+    created: 0,
+    updated: 0,
+    errors: [],
+  };
   try {
     const vmVendors = await listVendors(vmEntity);
     vmLinks = buildVmAfVendorLinks(vmVendors).filter(
       (l) => !entityId || l.entityCode === entityId || l.entityCode === 'MULTI',
     );
+    // D05=B — auto-create AP vendors for Active VM rows (fail-soft if SQL missing)
+    apSync = await syncActiveVmVendorsToAp(vmVendors);
   } catch {
     vmLinks = [];
   }
+  const taxYear = currentTaxYear();
+  const w9Missing = vendors.filter((v) => v.taxStatus === 'w9_missing');
 
   return (
     <div className="space-y-8">
@@ -77,8 +92,13 @@ export default async function VendorsPage({ searchParams }: Props) {
           </Link>
         </div>
         <p className="text-sm text-muted-foreground">
-          Suggested AP counterparts from active VM vendors. W-9 / 1099 still
-          collected here — VM does not invent tax status.
+          Active VM vendors auto-create AP rows (D05=B) — tax starts W-9
+          missing. Sync this load: {apSync.created} created · {apSync.updated}{' '}
+          updated
+          {apSync.errors.length
+            ? ` · ${apSync.errors.length} error(s) (apply phase92 SQL if missing)`
+            : ''}
+          . See docs/AP_INVOICE_W9_EMAIL.md.
         </p>
         <div className="overflow-hidden rounded-xl border border-border">
           <table className="w-full text-sm">
@@ -121,6 +141,97 @@ export default async function VendorsPage({ searchParams }: Props) {
                     </td>
                   </tr>
                 ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="font-heading text-lg font-semibold text-[#3a414f]">
+          Entity invoice inboxes
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Josh creates these mailboxes / DNS aliases; inbound parse posts to{' '}
+          <code className="text-xs">/api/af/ap/inbound-invoice</code>. We do not
+          invent credentials.
+        </p>
+        <ul className="grid gap-2 sm:grid-cols-2">
+          {ENTITY_INVOICE_INBOXES.filter(
+            (i) => !entityId || i.entityCode === entityId,
+          ).map((i) => (
+            <li
+              key={i.entityCode}
+              className="rounded-lg border border-border px-4 py-3 text-sm"
+            >
+              <p className="font-medium">{i.entityCode}</p>
+              <p className="font-mono text-xs">{i.suggestedAddress}</p>
+              <p className="text-xs text-muted-foreground">{i.parseHint}</p>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="font-heading text-lg font-semibold text-[#3a414f]">
+          W-9 campaign {taxYear}
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Outstanding W-9s for the tax year — request / bulk / weekly reminders
+          (scaffold). AI year check on receive → exception path for AP.
+        </p>
+        <div className="overflow-hidden rounded-xl border border-border">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/40 text-left text-xs uppercase text-muted-foreground">
+              <tr>
+                <th className="px-4 py-3">Vendor</th>
+                <th className="px-4 py-3">Entity</th>
+                <th className="px-4 py-3">Request email</th>
+                <th className="px-4 py-3">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {w9Missing.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={4}
+                    className="px-4 py-6 text-center text-muted-foreground"
+                  >
+                    No W-9-missing vendors in this portal seed — live list fills
+                    from os_af_vendor_w9 after phase92.
+                  </td>
+                </tr>
+              ) : (
+                w9Missing.map((v) => {
+                  const inbox =
+                    ENTITY_INVOICE_INBOXES.find(
+                      (i) => i.entityCode === v.entityCode,
+                    )?.suggestedAddress ?? 'ap@tagevc.com';
+                  const mail = buildW9RequestEmail({
+                    vendorName: v.name,
+                    taxYear,
+                    entityLabel: String(v.entityCode),
+                    replyToInbox: inbox,
+                  });
+                  const mailto = `mailto:${encodeURIComponent(v.email || 'vendor@example.com')}?subject=${encodeURIComponent(mail.subject)}&body=${encodeURIComponent(mail.body)}`;
+                  return (
+                    <tr key={v.id} className="border-t border-border/70">
+                      <td className="px-4 py-3 font-medium">{v.name}</td>
+                      <td className="px-4 py-3">{v.entityCode}</td>
+                      <td className="px-4 py-3">
+                        <a
+                          href={mailto}
+                          className="text-sm font-medium underline underline-offset-2"
+                        >
+                          Request W-9 {taxYear}
+                        </a>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground">
+                        outstanding
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

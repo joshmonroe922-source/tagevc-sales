@@ -381,12 +381,41 @@ export async function runPartnerLifecycleHook(
       });
     case 'ensure_linkedin_recruiter_seat_pool':
       return linkedinRecruiterSyncStub({ entityId: input.entityId });
+    case 'ensure_docusign_account_binding': {
+      const { resolveDocuSignAccountId } = await import(
+        '@/lib/docusign/entity-accounts'
+      );
+      const { isDocuSignConfigured } = await import('@/lib/docusign/config');
+      const account = resolveDocuSignAccountId(input.entityId);
+      if (!isDocuSignConfigured()) {
+        return {
+          ok: true,
+          dryRun: true,
+          status: 'dry_run',
+          message: `DocuSign JWT not configured — binding for ${account.entityId} stays dry-run.`,
+        };
+      }
+      if (!account.ready) {
+        return {
+          ok: false,
+          dryRun: true,
+          status: 'failed',
+          error: `Missing DocuSign account id for ${account.entityId}. Set DOCUSIGN_ACCOUNT_ID_* env (see docs/DOCUSIGN_ENTITY_AUTOMATION.md).`,
+        };
+      }
+      return {
+        ok: true,
+        dryRun: false,
+        status: 'live_ok',
+        message: `DocuSign account ${account.accountId} mapped for ${account.entityId} (${account.source}).`,
+        externalRef: account.accountId ?? undefined,
+      };
+    }
     case 'partner_spine_enablements_ensure':
     case 'docusign_template_scope_note':
     case 'ensure_dialpad_office':
     case 'seed_screening_entity_defaults':
     case 'ensure_gusto_company_binding':
-    case 'ensure_docusign_account_binding':
       return entityCreateAckStub(id);
     default:
       return {

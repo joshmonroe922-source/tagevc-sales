@@ -81,7 +81,10 @@ export function hrisTenantMatchSqlHint(ref: HrisTenantRef): {
 
 export const SIGNENT_HRIS_MODEL = {
   product: 'Same Tage HRIS platform (not a fork)',
-  seller: 'Signent HR (ENT-SIGNENT) — fractional / outsourced HR services',
+  seller: 'Signent HR (ENT-SIGNENT) — wholly owned Tage Global subsidiary',
   segmentation: 'client_org_id under ENT-SIGNENT',
   firmEmployees: 'entity_id = ENT-SIGNENT without client_org_id',
+  portalUrl: 'https://portal.signenthr.com',
+  marketingUrl: 'https://www.signenthr.com',
+  hiring: 'Tage OS HR Shared Services process; employed by Signent HR',
 } as const;

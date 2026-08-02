@@ -40,6 +40,8 @@ type Props = {
   bundle: SscOperatorBundle;
   canWrite: boolean;
   mode?: 'checklists' | 'audits';
+  /** Deep-link from function home outstanding rows */
+  focusTaskId?: string | null;
 };
 
 type Tab = 'overview' | 'tasks' | 'audits' | 'sync';
@@ -78,6 +80,7 @@ export function SscChecklistClient({
   bundle,
   canWrite,
   mode = 'checklists',
+  focusTaskId = null,
 }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -112,6 +115,19 @@ export function SscChecklistClient({
     q.risk,
     q.overdue_only,
   ]);
+
+  useEffect(() => {
+    if (!focusTaskId) return;
+    setTab('tasks');
+    // Ensure focused task is in the visible window
+    const idx = bundle.tasks.findIndex((t) => t.id === focusTaskId);
+    if (idx >= 0) setTaskLimit(Math.max(TASK_WINDOW, idx + 1));
+    const t = window.setTimeout(() => {
+      const el = document.getElementById(`ssc-task-${focusTaskId}`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 80);
+    return () => window.clearTimeout(t);
+  }, [focusTaskId, bundle.tasks]);
 
   function navigate(patch: Record<string, string>) {
     const params = new URLSearchParams();
@@ -681,7 +697,12 @@ export function SscChecklistClient({
                   {tasks.map((task) => (
                     <div
                       key={task.id}
-                      className="rounded-md border border-border p-3 space-y-2"
+                      id={`ssc-task-${task.id}`}
+                      className={
+                        focusTaskId === task.id
+                          ? 'rounded-md border-2 border-[#3a414f] bg-muted/30 p-3 space-y-2 scroll-mt-24'
+                          : 'rounded-md border border-border p-3 space-y-2'
+                      }
                     >
                       <div className="flex flex-wrap items-start justify-between gap-2">
                         <div>

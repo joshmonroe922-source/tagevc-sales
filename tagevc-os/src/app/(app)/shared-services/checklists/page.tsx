@@ -94,7 +94,14 @@ export default async function SscChecklistsPage({ searchParams }: Props) {
     ? roleHasPermission(ctx.profile.role, 'write:shared_services')
     : false;
 
+  const focusTaskId = firstParam(params.task)?.trim() || null;
+
   return (
-    <SscChecklistClient bundle={bundle} canWrite={canWrite} mode="checklists" />
+    <SscChecklistClient
+      bundle={bundle}
+      canWrite={canWrite}
+      mode="checklists"
+      focusTaskId={focusTaskId}
+    />
   );
 }

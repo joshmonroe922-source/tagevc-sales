@@ -21,6 +21,7 @@ export const ENTITY_REGISTRY_SEED = [
     portal_url: 'https://app.tagevc.com',
     desk_url: null as string | null,
     portal_url_todo: null as string | null,
+    marketing_url: 'https://www.tagevc.com' as string | null,
     is_subsidiary: false,
   },
   {
@@ -31,17 +32,19 @@ export const ENTITY_REGISTRY_SEED = [
     /** Day-to-day recruiter UX (My Recruiting Desk on portal). */
     desk_url: 'https://portal.recruit619.com/desk/my-recruiting-desk' as string | null,
     portal_url_todo: null as string | null,
+    marketing_url: null as string | null,
     is_subsidiary: true,
   },
   {
     entity_code: 'ENT-SIGNENT',
     canonical_name: 'Signent HR',
     status: 'Active' as const,
-    /** Uses Tage HRIS with client segmentation — portal desk scaffolds separately. */
-    portal_url: 'https://app.tagevc.com',
-    desk_url: null as string | null,
-    portal_url_todo:
-      'Signent client portal SSO — HRIS tenancy is shared with Tage (see docs/HRIS_SPINE.md)' as string | null,
+    /** Wholly owned Tage sub — operate at portal.signenthr.com (D03). */
+    portal_url: 'https://portal.signenthr.com',
+    desk_url: 'https://portal.signenthr.com' as string | null,
+    /** Marketing site; SSO deep-links use portal_url. */
+    portal_url_todo: null as string | null,
+    marketing_url: 'https://www.signenthr.com' as string | null,
     is_subsidiary: true,
   },
   {
@@ -51,6 +54,7 @@ export const ENTITY_REGISTRY_SEED = [
     portal_url: 'https://portal.instantnda.us',
     desk_url: null as string | null,
     portal_url_todo: null as string | null,
+    marketing_url: null as string | null,
     is_subsidiary: true,
   },
 ] as const;

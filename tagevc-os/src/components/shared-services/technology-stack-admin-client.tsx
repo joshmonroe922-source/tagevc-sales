@@ -104,12 +104,20 @@ export function TechnologyStackAdminClient({ contracts, payments }: Props) {
 
   return (
     <div className="space-y-6">
-      <section className="space-y-3 rounded-lg border border-border p-4">
+      <section className="space-y-3 rounded-lg border border-amber-200 bg-amber-50/50 p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-base font-semibold">Contracts</h2>
+            <h2 className="text-base font-semibold">Contracts (read-only)</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Firm-wide write. Secrets stay in env — only commercial terms here.
+              D04=A — New commercial writes are frozen here. Use{' '}
+              <a
+                href="/shared-services/ops/vendor-management/vendors"
+                className="font-medium underline underline-offset-2"
+              >
+                Vendor Management
+              </a>{' '}
+              for contracts & renewals; A&amp;F AP for pay/tax. Existing rows
+              remain visible. Write-through from Technology can come later.
             </p>
           </div>
           {editContract ? (
@@ -304,19 +312,19 @@ export function TechnologyStackAdminClient({ contracts, payments }: Props) {
             />
           </div>
           <div className="flex flex-wrap items-center gap-3 sm:col-span-3">
-            <Button type="submit" disabled={contractPending}>
-              {editContract ? 'Update contract' : 'Save contract'}
+            <Button type="submit" disabled>
+              Writes frozen — use Vendor Management
             </Button>
             <ActionMessage state={contractState} />
           </div>
         </form>
       </section>
 
-      <section className="space-y-3 rounded-lg border border-border p-4">
-        <h2 className="text-base font-semibold">Record payment</h2>
+      <section className="space-y-3 rounded-lg border border-border p-4 opacity-70">
+        <h2 className="text-base font-semibold">Record payment (frozen)</h2>
         {contracts.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Add a contract before recording payments.
+            Commercial payments live in Vendor Management / A&amp;F AP.
           </p>
         ) : (
           <form action={paymentAction} className="grid gap-3 sm:grid-cols-4">
@@ -372,8 +380,8 @@ export function TechnologyStackAdminClient({ contracts, payments }: Props) {
               <Input id="payment_notes" name="notes" />
             </div>
             <div className="flex flex-wrap items-center gap-3 sm:col-span-4">
-              <Button type="submit" variant="outline" disabled={paymentPending}>
-                Add payment
+              <Button type="submit" variant="outline" disabled>
+                Writes frozen — use Vendor Management
               </Button>
               <ActionMessage state={paymentState} />
             </div>

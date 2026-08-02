@@ -7,6 +7,10 @@ import {
   getAfStore,
 } from '@/lib/af';
 import type { ForecastHorizonId } from '@/lib/af';
+import {
+  buildCashFlowShell,
+  buildExpenseTimeline,
+} from '@/lib/af/ap/expense-forecast';
 import { resolveAfEntityParam } from '@/lib/af/page-helpers';
 import { requirePermission } from '@/lib/rbac/session';
 import Link from 'next/link';
@@ -34,6 +38,27 @@ export default async function ForecastsPage({ searchParams }: Props) {
   const weeks = build13WeekCash({
     entityCode: cashEntity,
     balances: store.openingBalances[cashEntity] ?? {},
+  });
+
+  const openByMonth: Record<string, number> = {};
+  for (const b of store.bills) {
+    if (entityId && b.entityCode !== entityId) continue;
+    if (b.status === 'Paid' || b.status === 'Rejected') continue;
+    const due = (b.dueDate || '').slice(0, 7);
+    if (!due) continue;
+    openByMonth[due] = (openByMonth[due] ?? 0) + (b.amount - b.amountPaid);
+  }
+  const expenseSeries = buildExpenseTimeline({
+    entityCode: entityId as 'TVC' | 'R619' | 'SHR' | 'INDA' | null,
+    openBillAmountsByMonth: openByMonth,
+    horizonMonths: 12,
+  });
+  const openingCash =
+    (store.openingBalances[cashEntity] as Record<string, number> | undefined)
+      ?.Cash ?? 0;
+  const cashFlow = buildCashFlowShell({
+    openingCash,
+    expenseSeries,
   });
 
   return (
@@ -121,6 +146,45 @@ export default async function ForecastsPage({ searchParams }: Props) {
           );
         })}
       </div>
+
+      <section className="space-y-3">
+        <h2 className="font-heading text-lg font-semibold text-[#3a414f]">
+          AP expense timeline · {expenseSeries.entityCode}
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Shell from open AP bills (D05). Total projected{' '}
+          <Money value={expenseSeries.totalProjected} /> over{' '}
+          {expenseSeries.horizonMonths} months.
+        </p>
+        <div className="overflow-hidden rounded-xl border border-border">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/40 text-left text-xs uppercase text-muted-foreground">
+              <tr>
+                <th className="px-4 py-3">Period</th>
+                <th className="px-4 py-3">Source</th>
+                <th className="px-4 py-3 text-right">Expense</th>
+                <th className="px-4 py-3 text-right">Cash (shell)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {expenseSeries.points.map((p, i) => (
+                <tr key={p.period} className="border-t border-border/70">
+                  <td className="px-4 py-2">{p.period}</td>
+                  <td className="px-4 py-2 text-xs text-muted-foreground">
+                    {p.source}
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    <Money value={p.amount} />
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    <Money value={cashFlow[i]?.cash ?? 0} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       <section className="space-y-3">
         <h2 className="font-heading text-lg font-semibold text-[#3a414f]">

@@ -27,12 +27,23 @@ async function requireFirmWrite() {
   return { ok: true as const, ctx };
 }
 
+/** D04=A — Freeze new Tech Stack commercial writes; VM is SoR. */
+const TECH_STACK_COMMERCIAL_FROZEN = true;
+
 export async function savePartnerContractAction(
   _prev: PartnerWriteResult | null,
   formData: FormData,
 ): Promise<PartnerWriteResult> {
   const gate = await requireFirmWrite();
   if (!gate.ok) return gate;
+
+  if (TECH_STACK_COMMERCIAL_FROZEN) {
+    return {
+      ok: false,
+      error:
+        'Tech Stack commercial writes are frozen (D04=A). Record contracts & renewals in Vendor Management → /shared-services/ops/vendor-management/vendors. Write-through from Technology can come later if needed.',
+    };
+  }
 
   const partner_key = String(formData.get('partner_key') || '') as PartnerKey;
   const vendor_name = String(formData.get('vendor_name') || '').trim();
@@ -95,6 +106,14 @@ export async function savePartnerPaymentAction(
 ): Promise<PartnerWriteResult> {
   const gate = await requireFirmWrite();
   if (!gate.ok) return gate;
+
+  if (TECH_STACK_COMMERCIAL_FROZEN) {
+    return {
+      ok: false,
+      error:
+        'Tech Stack payment writes are frozen (D04=A). Use Vendor Management for commercial payments; A&F AP for bill pay / tax.',
+    };
+  }
 
   const contract_id = String(formData.get('contract_id') || '');
   const paid_on = String(formData.get('paid_on') || '');

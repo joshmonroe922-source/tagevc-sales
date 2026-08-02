@@ -578,20 +578,23 @@ function publisherFor(platform: MarketingPlatform): SocialPublisher {
 }
 
 /**
- * Publish content for an account. Refreshes OAuth when needed;
- * stub publisher when no token (dev / unconfigured).
+ * Publish content for an account. Refreshes OAuth when needed.
+ * D11=C — marketing stubs banned in all environments.
  * Blog/web uses webhook when configured (no OAuth token required).
  */
 export async function publishForAccount(
   input: PublishInput,
 ): Promise<PublishResult> {
-  const forceStub =
+  if (
     process.env.MARKETING_FORCE_STUB_PUBLISH === '1' ||
-    process.env.MARKETING_FORCE_STUB_PUBLISH === 'true';
-
-  if (forceStub) {
-    const stub = new StubSocialPublisher();
-    return stub.publish({ ...input, accessToken: 'stub' });
+    process.env.MARKETING_FORCE_STUB_PUBLISH === 'true'
+  ) {
+    return {
+      ok: false,
+      publisher: 'none',
+      error:
+        'Marketing stub publish is banned (D11=C). Connect a real OAuth publisher; MARKETING_FORCE_STUB_PUBLISH is ignored.',
+    };
   }
 
   if (input.platform === 'web' && process.env.BLOG_PUBLISH_WEBHOOK_URL?.trim()) {
@@ -604,20 +607,12 @@ export async function publishForAccount(
   const { token } = await loadAccessToken(input.account_id);
 
   if (!token) {
-    const allowStub =
-      process.env.NODE_ENV !== 'production' ||
-      process.env.VERCEL_ENV === 'preview' ||
-      process.env.VERCEL_ENV === 'development';
-    if (!allowStub) {
-      return {
-        ok: false,
-        publisher: 'none',
-        error:
-          'No OAuth token — publish blocked in production (set MARKETING_FORCE_STUB_PUBLISH=1 only to simulate).',
-      };
-    }
-    const stub = new StubSocialPublisher();
-    return stub.publish({ ...input, accessToken: 'stub' });
+    return {
+      ok: false,
+      publisher: 'none',
+      error:
+        'No OAuth token — publish blocked in all environments (D11=C). Connect a real publisher account; stubs are banned.',
+    };
   }
 
   const pub = publisherFor(input.platform);

@@ -20,6 +20,10 @@ import {
 import { SscFunctionCapabilities } from '@/components/shared-services/ssc-function-capabilities';
 import type { SscFunctionHomeGlance } from '@/lib/shared-services/ssc-checklist/function-home-glance';
 import {
+  SSC_FUNCTION_TO_SERVICE,
+  type SscOutstandingTicket,
+} from '@/lib/shared-services/ssc-function-tickets';
+import {
   timeNavLabel,
   type SscAttentionKind,
   type SscTimeNav,
@@ -57,6 +61,7 @@ type Props = {
   firmWide?: boolean;
   glance: SscFunctionHomeGlance;
   purpose: string;
+  outstandingTickets?: SscOutstandingTicket[];
 };
 
 function checklistHref(
@@ -75,6 +80,14 @@ function checklistHref(
   return `/shared-services/checklists?${qs.toString()}`;
 }
 
+function taskHref(
+  functionKey: SscFunction,
+  entityId: string | null | undefined,
+  taskId: string,
+) {
+  return checklistHref(functionKey, entityId, { task: taskId });
+}
+
 /**
  * Consistent SSC function home chrome:
  * header → entity → period → capabilities → needs attention → active tasks.
@@ -85,6 +98,7 @@ export function SscFunctionHomeChrome({
   firmWide = true,
   glance,
   purpose,
+  outstandingTickets = [],
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -239,23 +253,73 @@ export function SscFunctionHomeChrome({
             ) : (
               <ul className="divide-y divide-border rounded-md border border-border text-sm">
                 {glance.needs_attention.map((t) => (
-                  <li
-                    key={t.id}
-                    className="flex flex-wrap items-center justify-between gap-2 px-3 py-2"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate font-medium">{t.title}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {t.company_name}
-                        {t.due_date ? ` · due ${t.due_date}` : ''}
-                      </p>
-                    </div>
-                    <Badge
-                      variant="outline"
-                      className={attentionBadgeClass(t.attention_kind)}
+                  <li key={t.id}>
+                    <Link
+                      href={taskHref(functionKey, entityId, t.id)}
+                      className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 hover:bg-muted/40"
                     >
-                      {attentionBadgeLabel(t.attention_kind)}
-                    </Badge>
+                      <div className="min-w-0">
+                        <p className="truncate font-medium underline-offset-2 group-hover:underline">
+                          {t.title}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {t.company_name}
+                          {t.due_date ? ` · due ${t.due_date}` : ''}
+                          {' · open to complete'}
+                        </p>
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className={attentionBadgeClass(t.attention_kind)}
+                      >
+                        {attentionBadgeLabel(t.attention_kind)}
+                      </Badge>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section className="space-y-2">
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-[#3a414f]">
+                Outstanding tickets
+              </h2>
+              <Badge variant="outline">{outstandingTickets.length}</Badge>
+              <Link
+                href={`/shared-services?service=${SSC_FUNCTION_TO_SERVICE[functionKey]}`}
+                className="ml-auto text-xs text-muted-foreground underline-offset-2 hover:underline"
+              >
+                Ticket portal →
+              </Link>
+            </div>
+            {outstandingTickets.length === 0 ? (
+              <EmptyState
+                title="No open tickets for this service"
+                description="Escalations and Help Desk items for this Shared Service appear here."
+              />
+            ) : (
+              <ul className="divide-y divide-border rounded-md border border-border text-sm">
+                {outstandingTickets.slice(0, 12).map((t) => (
+                  <li key={t.ticket_id}>
+                    <Link
+                      href={t.href}
+                      className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 hover:bg-muted/40"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate font-medium underline-offset-2 hover:underline">
+                          {t.title}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {t.company_name || t.entity_id || 'Unscoped'}
+                          {` · ${t.priority} · ${t.status}`}
+                        </p>
+                      </div>
+                      <span className="text-xs font-medium text-[#3a414f]">
+                        Open →
+                      </span>
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -282,29 +346,35 @@ export function SscFunctionHomeChrome({
             ) : (
               <ul className="divide-y divide-border rounded-md border border-border text-sm">
                 {glance.open_tasks.slice(0, 12).map((t) => (
-                  <li
-                    key={t.id}
-                    className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5"
-                  >
-                    <span className="truncate">{t.title}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {t.company_name}
-                      {t.due_date ? ` · ${t.due_date}` : ''}
-                      {t.is_overdue ? ' · overdue' : ''}
-                    </span>
+                  <li key={t.id}>
+                    <Link
+                      href={taskHref(functionKey, entityId, t.id)}
+                      className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 hover:bg-muted/40"
+                    >
+                      <span className="truncate font-medium underline-offset-2 hover:underline">
+                        {t.title}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {t.company_name}
+                        {t.due_date ? ` · ${t.due_date}` : ''}
+                        {t.is_overdue ? ' · overdue' : ''}
+                      </span>
+                    </Link>
                   </li>
                 ))}
               </ul>
             )}
             <p className="text-xs text-muted-foreground">
-              Complete checkoff and evidence on the{' '}
+              Click a task or ticket to open it and complete the work. Queues
+              stay separate — see{' '}
               <Link
-                href={checklistHref(functionKey, entityId)}
+                href="/shared-services/checklists"
                 className="font-medium underline-offset-2 hover:underline"
               >
-                active checklist
-              </Link>
-              . Deep tools for {functionLabel(functionKey)} stay below.
+                checklist
+              </Link>{' '}
+              vs tickets glossary in docs/WORK_QUEUE_GLOSSARY.md. Deep tools for{' '}
+              {functionLabel(functionKey)} stay below.
             </p>
           </section>
         </>
