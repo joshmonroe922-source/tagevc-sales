@@ -10,7 +10,7 @@ import {
   enrichmentKillSwitchEnabled,
   mockEnrichCompany,
   mockExpandPeople,
-} from '../../../src/lib/spine/enrichment/waterfall.ts';
+} from '../../../src/lib/spine/enrichment/waterfall.js';
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
 const key =
