@@ -12,6 +12,8 @@ export type PlatformEmailSource =
   | 'digest'
   | 'intake_alert'
   | 'system'
+  | 'w9'
+  | 'ap_invoice'
   | 'unknown';
 
 export type EntityScopedEmailMessage = {
