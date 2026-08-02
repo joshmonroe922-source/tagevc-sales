@@ -1,6 +1,11 @@
+import Link from 'next/link';
 import { PageHeader } from '@/components/ui/page-header';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 import { requirePermission } from '@/lib/rbac/session';
+import {
+  CreateAccountForm,
+  CreateContactForm,
+} from '@/components/crm/create-forms';
 
 export default async function CrmGraphPage() {
   await requirePermission('read:shared_services');
@@ -27,12 +32,12 @@ export default async function CrmGraphPage() {
         .from('accounts')
         .select('id, name, canonical_domain, enrich_status')
         .order('updated_at', { ascending: false })
-        .limit(25),
+        .limit(40),
       sb
         .from('contacts')
         .select('id, full_name, primary_email, title')
         .order('updated_at', { ascending: false })
-        .limit(25),
+        .limit(40),
       sb
         .from('enrichment_jobs')
         .select('id', { count: 'exact', head: true })
@@ -55,18 +60,32 @@ export default async function CrmGraphPage() {
     <div className="space-y-6 p-6">
       <PageHeader
         title="CRM graph"
-        description="Shared accounts / contacts spine (Database Refresh C1–C3). Website intake bootstraps here."
+        description="Shared accounts / contacts (C3–C9). ⌘K search · hierarchy on account pages."
       />
       <p className="text-sm text-muted-foreground">
-        Queued enrichment jobs: <strong>{jobsQueued}</strong> · see{' '}
-        <code className="text-xs">docs/LEAD_GEN_SPINE.md</code> · worker{' '}
-        <code className="text-xs">apps/worker</code>
+        Queued jobs: <strong>{jobsQueued}</strong> · Press{' '}
+        <kbd className="rounded border border-border px-1.5 py-0.5 text-xs">
+          ⌘K
+        </kbd>{' '}
+        for search
       </p>
       {error ? (
         <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
           {error}
         </div>
       ) : null}
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <section className="rounded-md border border-border p-4">
+          <h2 className="mb-3 text-sm font-semibold">New account</h2>
+          <CreateAccountForm />
+        </section>
+        <section className="rounded-md border border-border p-4">
+          <h2 className="mb-3 text-sm font-semibold">New contact</h2>
+          <CreateContactForm />
+        </section>
+      </div>
+
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="rounded-md border border-border">
           <h2 className="border-b border-border px-4 py-3 text-sm font-semibold">
@@ -75,12 +94,17 @@ export default async function CrmGraphPage() {
           <ul className="divide-y divide-border text-sm">
             {accounts.length === 0 ? (
               <li className="px-4 py-6 text-muted-foreground">
-                No accounts yet — submit a website lead or create via API.
+                No accounts yet.
               </li>
             ) : (
               accounts.map((a) => (
                 <li key={a.id} className="flex justify-between gap-2 px-4 py-3">
-                  <span className="font-medium">{a.name}</span>
+                  <Link
+                    href={`/shared-services/crm/accounts/${a.id}`}
+                    className="font-medium underline-offset-2 hover:underline"
+                  >
+                    {a.name}
+                  </Link>
                   <span className="text-xs text-muted-foreground">
                     {a.canonical_domain || '—'} · {a.enrich_status || '—'}
                   </span>
@@ -101,7 +125,12 @@ export default async function CrmGraphPage() {
             ) : (
               contacts.map((c) => (
                 <li key={c.id} className="flex justify-between gap-2 px-4 py-3">
-                  <span className="font-medium">{c.full_name}</span>
+                  <Link
+                    href={`/shared-services/crm/contacts/${c.id}`}
+                    className="font-medium underline-offset-2 hover:underline"
+                  >
+                    {c.full_name}
+                  </Link>
                   <span className="text-xs text-muted-foreground">
                     {c.title || '—'} · {c.primary_email || '—'}
                   </span>

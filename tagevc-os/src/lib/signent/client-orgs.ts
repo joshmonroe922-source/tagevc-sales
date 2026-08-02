@@ -73,3 +73,139 @@ export const SIGNENT_PORTAL_ROLES = {
     purpose: 'Deliver products, electronic audit, AI findings, upsell proposals',
   },
 } as const;
+
+export type ConvertSalesToClientInput = {
+  legalName: string;
+  tradeName?: string;
+  productKeys: string[];
+  salesOwnerProfileId?: string | null;
+  /** Optional graph account to link via meta */
+  accountId?: string | null;
+  primaryContactEmail?: string | null;
+  invoiceRef?: string | null;
+};
+
+/**
+ * Sales → Ops convert: create a real client_org row (never invent demo clients).
+ * Requires a legal name + at least one purchased product key from a paid path.
+ */
+export async function convertSalesPurchaseToClientOrg(
+  input: ConvertSalesToClientInput,
+): Promise<
+  | { ok: true; clientOrg: SignentClientOrg }
+  | { ok: false; error: string }
+> {
+  const legalName = input.legalName.trim();
+  const products = input.productKeys.map((p) => p.trim()).filter(Boolean);
+  if (!legalName) return { ok: false, error: 'legal_name required' };
+  if (!products.length) {
+    return {
+      ok: false,
+      error: 'purchased_product_keys required — convert only after purchase',
+    };
+  }
+
+  try {
+    const sb = await createPersistClient();
+    const portalPath = `${SIGNENT_PORTAL_URL}/ops/clients`;
+    const { data, error } = await sb
+      .from('os_signent_client_orgs')
+      .insert({
+        legal_name: legalName,
+        trade_name: (input.tradeName || legalName).trim(),
+        status: 'active',
+        portal_url: portalPath,
+        sales_owner_profile_id: input.salesOwnerProfileId || null,
+        purchased_product_keys: products,
+        meta: {
+          converted_at: new Date().toISOString(),
+          account_id: input.accountId || null,
+          primary_contact_email: input.primaryContactEmail || null,
+          invoice_ref: input.invoiceRef || null,
+          source: 'sales_convert',
+        },
+      })
+      .select(
+        'id, legal_name, trade_name, status, portal_url, purchased_product_keys, created_at',
+      )
+      .single();
+
+    if (error || !data) {
+      return { ok: false, error: error?.message || 'insert failed' };
+    }
+
+    // Optional spine engagement link (does not invent clients on graph)
+    if (input.accountId) {
+      try {
+        const { data: org } = await sb
+          .from('organizations')
+          .select('id')
+          .eq('slug', 'signent')
+          .maybeSingle();
+        if (org?.id) {
+          await sb.from('spine_signent_engagements').insert({
+            org_id: org.id,
+            account_id: input.accountId,
+            client_org_id: data.id,
+            status: 'active',
+            notes: `Converted products: ${products.join(', ')}`,
+          });
+        }
+      } catch {
+        /* soft */
+      }
+    }
+
+    return {
+      ok: true,
+      clientOrg: {
+        id: String(data.id),
+        legal_name: String(data.legal_name),
+        trade_name: String(data.trade_name ?? ''),
+        status: data.status as SignentClientOrgStatus,
+        portal_url: data.portal_url ? String(data.portal_url) : null,
+        purchased_product_keys: Array.isArray(data.purchased_product_keys)
+          ? (data.purchased_product_keys as string[])
+          : [],
+        created_at: String(data.created_at),
+      },
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'convert failed',
+    };
+  }
+}
+
+/** Ops module seams — honest status for portal.signenthr.com/ops */
+export const SIGNENT_OPS_MODULES = [
+  {
+    id: 'client_workspace',
+    label: 'Client workspace',
+    status: 'ready' as const,
+    href: `${SIGNENT_PORTAL_URL}/ops`,
+    note: 'Empty until convertSalesPurchaseToClientOrg runs',
+  },
+  {
+    id: 'handbook_autofill',
+    label: 'Handbook / form autofill',
+    status: 'scaffold' as const,
+    href: `${SIGNENT_PORTAL_URL}/ops`,
+    note: 'Merge from client_org + graph contacts',
+  },
+  {
+    id: 'electronic_audit',
+    label: 'Electronic HR audit',
+    status: 'scaffold' as const,
+    href: `${SIGNENT_PORTAL_URL}/ops`,
+    note: 'AI findings gated — ops edit before client share',
+  },
+  {
+    id: 'upsell',
+    label: 'Upsell proposals',
+    status: 'scaffold' as const,
+    href: `${SIGNENT_PORTAL_URL}/sales`,
+    note: 'LTV after delivery evidence',
+  },
+] as const;

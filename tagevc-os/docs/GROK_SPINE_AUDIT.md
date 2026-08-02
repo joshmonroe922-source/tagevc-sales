@@ -47,9 +47,13 @@ Tage OS = parent OS. Subsidiaries = apps on one spine: Entra → Supabase graph 
 | C0 layout | Adapted — `src/lib/spine/*`, `apps/worker`, migrations under `supabase/migrations/spine` |
 | C1 schema+RLS+seed | **Shipped** — `0001–0010` + apply bundle `phase94_graph_spine.sql` |
 | C2 Entra claims | Helpers in `0009_rls.sql`; OS still uses Supabase `profiles` — JWT `org_ids[]` hook next |
-| C3 graph CRUD UI | Minimal CRM page `/shared-services/crm` |
+| C3 graph CRUD UI | `/shared-services/crm` + account/contact detail + create forms + APIs |
 | C4 worker | `apps/worker` mock `account.bootstrap` |
-| C5–C6 Apollo/waterfall | Ranks + kill switch + budget gate; Apollo still partner stub until keys |
+| C5–C6 Apollo/waterfall | Live providers fail-closed (`APOLLO_LIVE` etc.); health helper |
+| C7 hierarchy | Account org-chart panel + rule suggester + accept/reject |
+| C8 suggestions | Contact page shows pending `suggested_updates`; user PATCH locks |
+| C9 Cmd-K | Global `CmdKPalette` + `/api/spine/search` |
+| C2 Entra claims | `entra-claims.ts` + `docs/ENTRA_SPINE_CLAIMS.md` (hook setup for Josh) |
 | Website→graph | `bootstrapGraphFromWebsiteLead` from intake |
-| DocuSign autofill/attach | `autofill.ts` / `attach.ts` — spine steps ready |
-| Email W-9 | `sendW9RequestEmail` via platform orchestrator |
+| DocuSign autofill/attach/send | + `library-send.ts` human-confirmed library send |
+| Email | W-9 + bulk compose API + AP Graph poller |
