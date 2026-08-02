@@ -3,12 +3,22 @@
  */
 
 import { getDocuSignConfig, type DocuSignConfig } from './config';
+import { resolveDocuSignAccountId } from './entity-accounts';
 import { getDocuSignAccessToken } from './jwt';
 import {
   assertPdfPayload,
   DOCUSIGN_CERTIFICATE_MAX_BYTES,
   readBoundedResponseBuffer,
 } from './archive-contracts';
+
+/** Prefer per-entity DocuSign account; fall back to JWT default account. */
+function accountIdForEntity(
+  cfg: DocuSignConfig,
+  entityId?: string | null,
+): string {
+  const mapped = resolveDocuSignAccountId(entityId).accountId;
+  return mapped || cfg.accountId;
+}
 
 export type CreateEnvelopeInput = {
   emailSubject: string;
@@ -34,9 +44,11 @@ async function docusignFetch(
   cfg: DocuSignConfig,
   path: string,
   init?: RequestInit,
+  accountId?: string,
 ): Promise<Response> {
   const token = await getDocuSignAccessToken(cfg);
-  const url = `${cfg.basePath}/restapi/v2.1/accounts/${cfg.accountId}${path}`;
+  const acct = accountId || cfg.accountId;
+  const url = `${cfg.basePath}/restapi/v2.1/accounts/${acct}${path}`;
   return fetch(url, {
     ...init,
     signal: init?.signal ?? AbortSignal.timeout(45_000),
@@ -155,10 +167,16 @@ export async function createEnvelope(
       : {}),
   };
 
-  const res = await docusignFetch(cfg, '/envelopes', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
+  const accountId = accountIdForEntity(cfg, input.entityId);
+  const res = await docusignFetch(
+    cfg,
+    '/envelopes',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    accountId,
+  );
 
   const json = (await res.json().catch(() => ({}))) as {
     envelopeId?: string;
@@ -262,10 +280,16 @@ export async function createEnvelopeFromTemplate(
       : {}),
   };
 
-  const res = await docusignFetch(cfg, '/envelopes', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
+  const accountId = accountIdForEntity(cfg, input.entityId);
+  const res = await docusignFetch(
+    cfg,
+    '/envelopes',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    accountId,
+  );
 
   const json = (await res.json().catch(() => ({}))) as {
     envelopeId?: string;

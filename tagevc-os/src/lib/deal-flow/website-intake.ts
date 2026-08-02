@@ -9,6 +9,7 @@ import {
   listAllLeads,
 } from '@/lib/data/deal-flow-store';
 import { createPersistClient } from '@/lib/supabase/persist-client';
+import { bootstrapGraphFromWebsiteLead } from '@/lib/spine/db/repos';
 import type { DealPath } from '@/lib/types';
 
 export type WebsiteIntakeBody = {
@@ -196,6 +197,16 @@ export async function ingestWebsiteLead(
       enroll_drip: body.enroll_drip !== false,
     });
   }
+
+  // Best-effort graph bootstrap (agent.routing) — never fail website intake
+  void bootstrapGraphFromWebsiteLead({
+    leadId: lead.lead_id,
+    name,
+    email,
+    company: companyName,
+    website: body.website?.trim() || null,
+    orgSlug: 'tage',
+  }).catch(() => undefined);
 
   return {
     ok: true,

@@ -5,9 +5,9 @@
 
 import { entityDisplayName } from '@/lib/entities/display-name';
 import {
-  defaultLifecycleChecklist,
+  baseLifecycleChecklist,
   type LifecycleKind,
-} from '@/lib/multi-sub/lifecycle';
+} from '@/lib/multi-sub/lifecycle-defaults';
 import type { SsRequestTemplate } from '@/lib/shared-services/finance-ops-phase62';
 import { APP_ROLE_LABELS, type AppRole } from '@/lib/types/roles';
 
@@ -78,9 +78,9 @@ export type HrChecklistPack = {
 };
 
 export function hrChecklistPacks(entityId?: string | null): HrChecklistPack[] {
-  const joiner = defaultLifecycleChecklist('joiner', entityId);
-  const mover = defaultLifecycleChecklist('mover', entityId);
-  const leaver = defaultLifecycleChecklist('leaver', entityId);
+  const joiner = baseLifecycleChecklist('joiner', entityId);
+  const mover = baseLifecycleChecklist('mover', entityId);
+  const leaver = baseLifecycleChecklist('leaver', entityId);
   return [
     {
       pack_id: 'firm_joiner',

@@ -54,7 +54,14 @@ function authorizeWebhook(
     const sig =
       request.headers.get('x-docusign-signature-1') ||
       request.headers.get('X-DocuSign-Signature-1');
-    if (verifyConnectHmac(rawBody, sig, hmacSecret)) return { ok: true };
+    // Account-level + org-level Connect keys may differ; allow comma-separated secrets.
+    const secrets = hmacSecret
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (secrets.some((secret) => verifyConnectHmac(rawBody, sig, secret))) {
+      return { ok: true };
+    }
   }
 
   if (customSecret || hmacSecret) {

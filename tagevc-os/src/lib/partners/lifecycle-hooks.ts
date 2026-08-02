@@ -2,7 +2,10 @@
  * Partner hooks injected into joiner / leaver checklists (scaffold only).
  */
 
-import type { LifecycleChecklistItem, LifecycleKind } from '@/lib/multi-sub/lifecycle';
+import type {
+  LifecycleChecklistItem,
+  LifecycleKind,
+} from '@/lib/multi-sub/lifecycle-defaults';
 import {
   runPartnerLifecycleHook,
   type AdapterResult,

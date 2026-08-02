@@ -6,22 +6,24 @@
 
 When `vm_vendors.status = Active`, bridge creates / upserts an AP vendor (`src/lib/af/ap/vm-bridge.ts` → `ensureApVendorFromVm`). Tax status starts `w9_missing` until a W-9 is filed for the tax year.
 
-## Entity invoice inboxes (Josh creates DNS / mail)
+## Bootstrap mailboxes (M365 aliases — live now)
 
-We **do not invent mailbox credentials**. Prefer inbound parse (Resend Inbound, Postmark Inbound, or Google Group → webhook).
+Josh configured **send-from aliases** on `joshmonroe@tagevc.com` (tagevc.com). Prefer Microsoft Graph over Resend-only for AP / AR / W-9.
 
-Suggested addresses (pick one scheme and stick to it):
+| Workflow | Address | Env |
+|----------|---------|-----|
+| AP | `accountspayable@tagevc.com` | `M365_ALIAS_AP` |
+| AR | `accountsreceivable@tagevc.com` | `M365_ALIAS_AR` |
+| W-9 | `w-9@tagevc.com` | `M365_ALIAS_W9` |
+| Host | `joshmonroe@tagevc.com` | `M365_HOST_MAILBOX` |
 
-| Entity | Suggested inbox |
-|--------|-----------------|
-| Tage VC (`TVC` / `ENT-FIRM`) | `ap+tvc@tagevc.com` or `invoices@tagevc.com` |
-| Recruit 619 | `ap+r619@tagevc.com` or `invoices@recruit619.com` |
-| Signent HR | `ap+signent@tagevc.com` or `invoices@signenthr.com` |
-| Instant NDA | `ap+inda@tagevc.com` or `invoices@instantnda.us` |
+**Permission model:** Delegated `Mail.Send` + `Mail.ReadWrite` on app **Tage VC OS** (`905649ff-1aee-4683-87e0-5d6d2005aea5`). Application Mail.* deferred until true shared mailboxes.
 
-Inbound webhook seam: `/api/af/ap/inbound-invoice` (parses entity from `+tag` or domain → creates one-time / recurring bill draft in AP portal for approval/pay).
+See **`docs/M365_MAIL_SETUP.md`**. Later per-entity: `ap+r619@…` / shared mailboxes when volume requires it.
 
-Env placeholders: `AP_INBOUND_WEBHOOK_SECRET`, `AP_INVOICE_FROM_DOMAIN`, optional per-entity overrides in `.env.example`.
+Inbound webhook seam: `/api/af/ap/inbound-invoice` (routes by To: alias → AP / AR / W-9 queues).
+
+Env: `AP_INBOUND_WEBHOOK_SECRET`, M365_* aliases above, Graph credentials in `.env.example`.
 
 ## W-9 request
 

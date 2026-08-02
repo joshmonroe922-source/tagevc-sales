@@ -1,6 +1,5 @@
 /**
  * DocuSign automation spine — library → autofill → send → library → DB attach.
- * Seams only until JWT + Connect are live with per-entity accounts.
  */
 
 import {
@@ -8,6 +7,10 @@ import {
   resolveDocuSignAccountId,
 } from '@/lib/docusign/entity-accounts';
 import { getDocuSignMode, isDocuSignConfigured } from '@/lib/docusign/config';
+
+/** Autofill + attach modules are implemented (see autofill.ts / attach.ts). */
+const AUTOFILL_READY = true;
+const ATTACH_READY = true;
 
 export const DOCUSIGN_AUTOMATION_STEPS = [
   'select_library_template',
@@ -43,7 +46,8 @@ const STEP_META: Record<
   },
   autofill_from_record: {
     label: 'Autofill from DB record',
-    scaffoldNote: 'Merge fields from employee / vendor / deal / client_org',
+    scaffoldNote:
+      'buildAutofillTabs() maps employee / vendor / deal / client_org → textTabs',
   },
   send_envelope: {
     label: 'Send for e-signature',
@@ -51,7 +55,7 @@ const STEP_META: Record<
   },
   connect_status: {
     label: 'Connect webhook status',
-    scaffoldNote: '/api/docusign/connect HMAC verified events',
+    scaffoldNote: '/api/docusign/webhook HMAC verified events',
   },
   pull_signed_pdf: {
     label: 'Return signed PDF to library',
@@ -59,7 +63,8 @@ const STEP_META: Record<
   },
   attach_to_record: {
     label: 'Attach to source record',
-    scaffoldNote: 'HRIS step / AP vendor / matter document_id',
+    scaffoldNote:
+      'attachSignedDocumentToRecord() → HRIS / AP vendor / matter / client_org',
   },
 };
 
@@ -95,7 +100,15 @@ export function getDocuSignAutomationSpine(entityId?: string | null): Automation
           note: `Missing DocuSign account for ${account.entityId}`,
         };
       }
-      if (id === 'autofill_from_record' || id === 'attach_to_record') {
+      if (id === 'autofill_from_record' && !AUTOFILL_READY) {
+        return {
+          id,
+          label: meta.label,
+          status: 'scaffold' as const,
+          note: meta.scaffoldNote,
+        };
+      }
+      if (id === 'attach_to_record' && !ATTACH_READY) {
         return {
           id,
           label: meta.label,

@@ -254,6 +254,25 @@ export async function actionSyncAllLiveFeeds() {
   };
 }
 
+export async function actionSendW9Request(input: {
+  vendorId: string;
+  vendorName: string;
+  vendorEmail: string;
+  entityCode: EntityCode | 'MULTI' | string;
+  taxYear: number;
+}) {
+  const { sendW9RequestEmail } = await import('@/lib/af/ap/w9-send');
+  const result = await sendW9RequestEmail({
+    vendorName: input.vendorName,
+    vendorEmail: input.vendorEmail,
+    taxYear: input.taxYear,
+    entityCode: input.entityCode,
+    apVendorId: input.vendorId,
+  });
+  revalidatePath('/shared-services/af/accounting/vendors');
+  return result;
+}
+
 export async function actionUploadAttachment(formData: FormData) {
   const file = formData.get('file');
   const entityCode = String(formData.get('entityCode') ?? '') as EntityCode;

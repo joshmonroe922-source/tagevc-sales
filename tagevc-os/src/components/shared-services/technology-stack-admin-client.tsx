@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useMemo, useState } from 'react';
+import Link from 'next/link';
 import {
   provisionPartnerSpineAction,
   savePartnerContractAction,
@@ -47,11 +48,11 @@ type Props = {
 };
 
 export function TechnologyStackAdminClient({ contracts, payments }: Props) {
-  const [contractState, contractAction, contractPending] = useActionState<
+  const [contractState, contractAction, _contractPending] = useActionState<
     PartnerWriteResult | null,
     FormData
   >(savePartnerContractAction, null);
-  const [paymentState, paymentAction, paymentPending] = useActionState<
+  const [paymentState, paymentAction, _paymentPending] = useActionState<
     PartnerWriteResult | null,
     FormData
   >(savePartnerPaymentAction, null);
@@ -110,12 +111,12 @@ export function TechnologyStackAdminClient({ contracts, payments }: Props) {
             <h2 className="text-base font-semibold">Contracts (read-only)</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               D04=A — New commercial writes are frozen here. Use{' '}
-              <a
+              <Link
                 href="/shared-services/ops/vendor-management/vendors"
                 className="font-medium underline underline-offset-2"
               >
                 Vendor Management
-              </a>{' '}
+              </Link>{' '}
               for contracts & renewals; A&amp;F AP for pay/tax. Existing rows
               remain visible. Write-through from Technology can come later.
             </p>

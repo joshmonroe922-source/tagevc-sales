@@ -1,5 +1,4 @@
 import { createClient as createSupabaseJsClient } from '@supabase/supabase-js';
-import { createClient as createServerClient } from '@/lib/supabase/server';
 
 /** Prefer service role for background/webhook writes; else cookie session. */
 export async function createPersistClient() {
@@ -10,5 +9,6 @@ export async function createPersistClient() {
       auth: { persistSession: false, autoRefreshToken: false },
     });
   }
-  return createServerClient();
+  const { createClient } = await import('@/lib/supabase/server');
+  return createClient();
 }

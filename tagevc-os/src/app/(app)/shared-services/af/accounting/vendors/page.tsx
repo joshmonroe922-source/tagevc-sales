@@ -15,6 +15,7 @@ import {
   buildW9RequestEmail,
   currentTaxYear,
 } from '@/lib/af/ap/w9-campaign';
+import { W9RequestButton } from '@/components/shared-services/w9-request-button';
 import { resolveAfEntityParam } from '@/lib/af/page-helpers';
 import { listVendors } from '@/lib/vendor-mgmt/repo';
 import { requirePermission } from '@/lib/rbac/session';
@@ -219,12 +220,14 @@ export default async function VendorsPage({ searchParams }: Props) {
                       <td className="px-4 py-3 font-medium">{v.name}</td>
                       <td className="px-4 py-3">{v.entityCode}</td>
                       <td className="px-4 py-3">
-                        <a
-                          href={mailto}
-                          className="text-sm font-medium underline underline-offset-2"
-                        >
-                          Request W-9 {taxYear}
-                        </a>
+                        <W9RequestButton
+                          vendorId={v.id}
+                          vendorName={v.name}
+                          vendorEmail={v.email || ''}
+                          entityCode={String(v.entityCode)}
+                          taxYear={taxYear}
+                          mailtoFallback={mailto}
+                        />
                       </td>
                       <td className="px-4 py-3 text-xs text-muted-foreground">
                         outstanding

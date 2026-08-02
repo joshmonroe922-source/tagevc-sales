@@ -164,8 +164,8 @@ export function subsidiaryMessagesDeepLink(entityId: string | null | undefined):
   if (canon === 'ENT-SIGNENT') {
     return {
       tage_messages: tage,
-      portal_messages: null,
-      todo: 'TODO: Signent HR portal URL for SSO deep-links',
+      portal_messages: 'https://portal.signenthr.com/messages',
+      todo: null,
     };
   }
   return { tage_messages: tage, portal_messages: null, todo: null };

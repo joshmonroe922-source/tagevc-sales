@@ -49,11 +49,13 @@ Seams:
 
 ## Josh checklist
 
+**Full paste pack:** [`docs/DOCUSIGN_JOSH_CHECKLIST.md`](./DOCUSIGN_JOSH_CHECKLIST.md)
+
 1. Apps and Keys → Integration Key + RSA → `DOCUSIGN_INTEGRATION_KEY`, `DOCUSIGN_PRIVATE_KEY`, `DOCUSIGN_USER_ID`
 2. Set default + per-entity account IDs (table above)
 3. OAuth host / base path (demo vs prod)
-4. JWT consent once
-5. Connect → `https://app.tagevc.com/api/docusign/connect` + HMAC secret
+4. JWT consent once (impersonation + signature scopes)
+5. Connect → **`https://app.tagevc.com/api/docusign/webhook`** + `DOCUSIGN_CONNECT_HMAC_SECRET`
 6. Confirm each entity account appears under Technology → Partner stack / Legal → DocuSign
 
 ## Hold LIVE for others

@@ -52,14 +52,20 @@ When spinning Instant NDA / Signent OS:
 ```
 NEXT_PUBLIC_APP_URL=
 AZURE_TENANT_ID=          # or MS_GRAPH_TENANT_ID
-AZURE_CLIENT_ID=          # or MS_GRAPH_CLIENT_ID
-AZURE_CLIENT_SECRET=      # or MS_GRAPH_CLIENT_SECRET
+AZURE_CLIENT_ID=905649ff-1aee-4683-87e0-5d6d2005aea5   # Tage VC OS app
+AZURE_CLIENT_SECRET=      # or MS_GRAPH_CLIENT_SECRET — never commit
 MS_GRAPH_REDIRECT_URI=    # optional override
-MS_GRAPH_SCOPES=          # default includes Mail.Send Mail.ReadWrite
-RESEND_API_KEY=           # system mail
+MS_GRAPH_SCOPES=openid offline_access User.Read Mail.ReadWrite Mail.Send
+M365_HOST_MAILBOX=joshmonroe@tagevc.com
+M365_ALIAS_AP=accountspayable@tagevc.com
+M365_ALIAS_AR=accountsreceivable@tagevc.com
+M365_ALIAS_W9=w-9@tagevc.com
+RESEND_API_KEY=           # system mail fallback
 RESEND_WEBHOOK_SECRET=    # optional Resend analytics
 SUPABASE_SERVICE_ROLE_KEY=# tracking writes
 ```
+
+Full Entra checklist: **`docs/M365_MAIL_SETUP.md`**.
 
 ## Apply SQL
 

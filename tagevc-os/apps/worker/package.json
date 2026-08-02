@@ -1,0 +1,17 @@
+{
+  "name": "@tagevc/enrichment-worker",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "start": "node --import tsx src/index.ts",
+    "dev": "node --watch --import tsx src/index.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.110.7"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.0",
+    "typescript": "^5"
+  }
+}
