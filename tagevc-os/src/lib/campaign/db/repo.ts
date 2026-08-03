@@ -125,3 +125,107 @@ export async function attachListToCampaign(entityId: string, listId: string, mod
   });
   return created.id as string;
 }
+
+export async function listMergeFields(_entityId: string) {
+  const { DEFAULT_MERGE_FIELDS } = await import('@/lib/campaign/core/merge');
+  return DEFAULT_MERGE_FIELDS.map((f) => ({
+    object_name: f.object,
+    api_name: f.api_name,
+    label: f.label,
+    data_type: f.data_type,
+    sensitive: f.sensitive,
+    allow: true,
+    allow_merge: true,
+  }));
+}
+
+export async function analyticsOverview(entityId: string) {
+  const sb = await campaignDb();
+  const [campaigns, events, recipients, journeys] = await Promise.all([
+    sb.from('ecc_campaigns').select('id', { count: 'exact', head: true }).eq('entity_id', entityId),
+    sb.from('ecc_engagement_events').select('event_type').eq('entity_id', entityId).limit(2000),
+    sb.from('ecc_campaign_recipients').select('score, open_count, click_count, replied, campaign_id').limit(2000),
+    sb.from('ecc_journeys').select('id', { count: 'exact', head: true }).eq('entity_id', entityId),
+  ]);
+  const byType: Record<string, number> = {};
+  for (const e of events.data ?? []) {
+    const t = String(e.event_type || 'unknown');
+    byType[t] = (byType[t] || 0) + 1;
+  }
+  const scores = (recipients.data ?? []).map((r) => Number(r.score || 0));
+  const avgScore = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
+  return {
+    campaigns: campaigns.count ?? 0,
+    journeys: journeys.count ?? 0,
+    engagement_events: (events.data ?? []).length,
+    events_by_type: byType,
+    recipients_sampled: scores.length,
+    avg_engagement_score: Math.round(avgScore * 100) / 100,
+    hot_recipients: scores.filter((s) => s >= 4).length,
+    clicked_no_reply: (recipients.data ?? []).filter((r) => Number(r.click_count) > 0 && !r.replied).length,
+  };
+}
+
+export async function listJourneys(entityId: string) {
+  const sb = await campaignDb();
+  const { data, error } = await sb
+    .from('ecc_journeys')
+    .select('*')
+    .eq('entity_id', entityId)
+    .order('updated_at', { ascending: false });
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+export async function getJourney(entityId: string, id: string) {
+  const sb = await campaignDb();
+  const { data, error } = await sb
+    .from('ecc_journeys')
+    .select('*')
+    .eq('entity_id', entityId)
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function createJourney(entityId: string, input: Record<string, unknown>) {
+  const sb = await campaignDb();
+  const base = {
+    entity_id: entityId,
+    name: String(input.name || '').trim(),
+    journey_type: input.journey_type || 'sequence',
+    mutex_group: input.mutex_group ?? null,
+    default_delivery_plane: input.default_delivery_plane || 'graph',
+    graph_json: input.graph_json || { nodes: [], edges: [] },
+    created_by: input.created_by || null,
+    owner_id: input.owner_id || input.created_by || null,
+    status: input.status || 'draft',
+  };
+  const enriched = {
+    ...base,
+    trigger_json: input.trigger_json || { type: 'manual' },
+    goal_json: input.goal_json || {},
+    reentry_policy: input.reentry_policy || 'allow_after_exit',
+    starter_pack_key: input.starter_pack_key || null,
+  };
+  let { data, error } = await sb.from('ecc_journeys').insert(enriched).select('*').single();
+  if (error && /column|trigger_json|goal_json|starter_pack/i.test(error.message)) {
+    ({ data, error } = await sb.from('ecc_journeys').insert(base).select('*').single());
+  }
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function updateJourney(entityId: string, id: string, patch: Record<string, unknown>) {
+  const sb = await campaignDb();
+  const { data, error } = await sb
+    .from('ecc_journeys')
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq('entity_id', entityId)
+    .eq('id', id)
+    .select('*')
+    .single();
+  if (error) throw new Error(error.message);
+  return data;
+}

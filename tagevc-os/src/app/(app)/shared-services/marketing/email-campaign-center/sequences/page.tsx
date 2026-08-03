@@ -1,23 +1,47 @@
 import { getSessionContext, requirePermission } from '@/lib/rbac/session';
 import { campaignDb } from '@/lib/campaign/db/client';
+import { starterPacksForEntity } from '@/lib/campaign/core/journey-graph';
+import { SequencesClient } from '@/components/campaign/sequences-client';
 
 export default async function Page() {
   await requirePermission('read:marketing');
   const ctx = await getSessionContext();
   const entityId = ctx?.profile.entity_id || 'ENT-FIRM';
   const sb = await campaignDb();
-  const { data } = await sb.from('ecc_journeys').select('*').eq('entity_id', entityId).order('updated_at', { ascending: false });
-  return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="font-heading text-xl font-semibold text-[#3a414f]">Sequences</h2>
-        <p className="text-sm text-muted-foreground">Mutex groups · per-step Graph/MTA · call_vm_email via dialer hooks.</p>
-      </div>
-      {(data ?? []).length === 0 ? (
-        <p className="rounded-lg border border-[#d7d3c3] bg-white px-4 py-8 text-center text-sm text-muted-foreground">No journeys configured</p>
-      ) : (
-        <pre className="overflow-auto rounded border border-[#d7d3c3] bg-white p-3 text-xs">{JSON.stringify(data, null, 2)}</pre>
-      )}
-    </div>
-  );
+
+  let rows: Array<{
+    id: string;
+    name: string;
+    journey_type: string;
+    status: string;
+    mutex_group: string | null;
+    starter_pack_key?: string | null;
+    updated_at?: string;
+    graph_json?: { nodes?: unknown[] };
+  }> = [];
+
+  const full = await sb
+    .from('ecc_journeys')
+    .select('id, name, journey_type, status, mutex_group, starter_pack_key, updated_at, graph_json')
+    .eq('entity_id', entityId)
+    .order('updated_at', { ascending: false });
+  if (full.error) {
+    const basic = await sb
+      .from('ecc_journeys')
+      .select('id, name, journey_type, status, mutex_group, updated_at, graph_json')
+      .eq('entity_id', entityId)
+      .order('updated_at', { ascending: false });
+    rows = (basic.data ?? []).map((r) => ({ ...r, starter_pack_key: null }));
+  } else {
+    rows = full.data ?? [];
+  }
+
+  const packs = starterPacksForEntity(entityId).map((p) => ({
+    key: p.id,
+    name: p.name,
+    description: p.description,
+    mutexGroup: p.mutex_group,
+  }));
+
+  return <SequencesClient journeys={rows} packs={packs} />;
 }

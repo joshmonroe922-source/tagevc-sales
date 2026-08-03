@@ -137,8 +137,8 @@ Acceptance suite: `src/lib/spine/acceptance/t01-t18.test.ts` — **21 tests pass
 | 5 ECC UI + CRM + team | Done |
 | 5b DocuSign hooks | Partial (port + envelope_actions tables) |
 | 5c Multichannel VM+email | Done |
-| 6 Journeys visual builder | Partial (graph_json + starter sequence nodes) |
-| 7 Intelligence | Stub (no AI auto-send) |
+| 6 Journeys visual builder | Done (xyflow editor + vertical starter packs) |
+| 7 Intelligence | Done (STO + RFM + attribution lite + AI human-approve) |
 
 CRM contact page deliberately decoupled from unfinished campaign panel (`24dd524`).
 

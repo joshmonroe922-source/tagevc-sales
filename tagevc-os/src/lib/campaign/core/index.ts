@@ -6,3 +6,5 @@ export * from './segment-dsl';
 export * from './mutex';
 export * from './engagement';
 export * from './state-machine';
+export * from './journey-graph';
+export * from './intelligence';

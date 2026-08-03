@@ -33,7 +33,10 @@ Route: `/shared-services/marketing/email-campaign-center`
 ```bash
 set -a && source .env.local && set +a
 node scripts/apply-phase-email-campaign-platform.mjs
+node scripts/apply-phase-email-campaign-journeys-intel.mjs
 ```
+
+Phase 6–7: journey graph editor + starter packs under **Sequences**; engagement STO/AI/attribution under **Intelligence**.
 
 ## Cron
 
