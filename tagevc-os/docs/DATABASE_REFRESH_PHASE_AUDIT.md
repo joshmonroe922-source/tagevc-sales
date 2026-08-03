@@ -122,7 +122,7 @@ Acceptance suite: `src/lib/spine/acceptance/t01-t18.test.ts` — **21 tests pass
 | Item | Detail |
 |------|--------|
 | PR | [#1 — Ship Email Campaign Center (HubSpot-class, owned spine)](https://github.com/joshmonroe922-source/tagevc-sales/pull/1) — **OPEN** |
-| Branch | `feat/email-campaign-center` (tip `221bce8`; 5 commits ahead of `main`) |
+| Branch | `feat/email-campaign-center` (includes Phase 6/7 journeys + intelligence) |
 | UI | Shared Services → Marketing → Email Campaign Center |
 
 **Build-plan snapshot** (`docs/campaign/build-plan.md`):

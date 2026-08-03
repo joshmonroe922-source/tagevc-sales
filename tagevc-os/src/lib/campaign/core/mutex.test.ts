@@ -7,7 +7,7 @@ describe('mutex', () => {
       active: [{ id: 'e1', journeyId: 'j1', mutexGroup: 'recruiting_outreach' }],
       nextMutexGroup: 'recruiting_outreach',
     });
-    expect('ok' in r).toBe(false);
+    expect(r.ok).toBe(false);
   });
 
   it('allows different groups under global cap', () => {
