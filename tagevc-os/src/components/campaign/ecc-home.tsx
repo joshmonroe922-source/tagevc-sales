@@ -69,7 +69,13 @@ export function EccHomeClient({ home }: { home: EccHome }) {
   );
 }
 
-type Named = { id: string; name: string; count_cached?: number };
+type Named = {
+  id: string;
+  name: string;
+  count_cached?: number;
+  subject?: string;
+  html?: string;
+};
 type CampaignInitial = {
   id?: string; name?: string; subject?: string; body_html?: string; audience_id?: string;
 };
