@@ -15,7 +15,8 @@ export type EnrichmentJobType =
   | 'account.site_research'
   | 'contact.refresh_stale'
   | 'account.refresh_stale'
-  | 'agent.routing';
+  | 'agent.routing'
+  | 'agent.data_qa';
 
 export function accountBootstrapKey(accountId: string, orgId: string, day?: string): string {
   const d = day ?? new Date().toISOString().slice(0, 10);

@@ -6,12 +6,15 @@ import { requirePermission } from '@/lib/rbac/session';
 import { listAccountOrgChart } from '@/lib/spine/db/crud';
 import {
   actionOrgEdgeDecision,
+  actionOrgEdgeDrag,
   actionSuggestHierarchy,
 } from '@/app/(app)/shared-services/crm/actions';
-import { OrgChartPanel } from '@/components/crm/org-chart-panel';
+import { OrgChartFlow } from '@/components/crm/org-chart-flow';
 import { AccountAgentPanel } from '@/components/crm/account-agent-panel';
+import { AccountProductLinks } from '@/components/crm/account-product-links';
 import { AccountRefreshButton } from '@/components/crm/account-refresh-button';
 import { CreateContactForm } from '@/components/crm/create-forms';
+import { listAccountProductLinks } from '@/lib/spine/products/graph-links';
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -28,7 +31,7 @@ function freshness(last: string | null, status: string | null): string {
 export default async function CrmAccountPage({ params }: Props) {
   await requirePermission('read:shared_services');
   const { id } = await params;
-  const sb = await createPersistClient();
+  const sb = await createPersistClient({ mode: 'service' });
   const { data: account } = await sb
     .from('accounts')
     .select('*')
@@ -37,6 +40,7 @@ export default async function CrmAccountPage({ params }: Props) {
   if (!account) notFound();
 
   const chart = await listAccountOrgChart(id);
+  const products = await listAccountProductLinks(id);
   const { data: people } = await sb
     .from('employments')
     .select('title, contacts(id, full_name, primary_email, title)')
@@ -151,14 +155,22 @@ export default async function CrmAccountPage({ params }: Props) {
         </ul>
       </section>
 
+      <AccountProductLinks
+        accountId={id}
+        recruitReqs={products.recruitReqs}
+        ndaEnvelopes={products.ndaEnvelopes}
+        signentEngagements={products.signentEngagements}
+      />
+
       <AccountAgentPanel accountId={id} />
 
-      <OrgChartPanel
+      <OrgChartFlow
         accountId={id}
         nodes={chart.nodes}
         edges={chart.edges}
         suggestAction={actionSuggestHierarchy}
         edgeAction={actionOrgEdgeDecision}
+        dragAction={actionOrgEdgeDrag}
       />
     </div>
   );

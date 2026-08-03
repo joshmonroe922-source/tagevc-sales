@@ -40,23 +40,24 @@ Tage OS = parent OS. Subsidiaries = apps on one spine: Entra → Supabase graph 
 | `packages/agents` | `tagevc-os/src/lib/spine/agents` |
 | `supabase/migrations` | `tagevc-os/supabase/migrations/spine/0001–0008` + apply bundle `phase94_graph_spine.sql` |
 
-## Phase progress (2026-08-02 build)
+## Phase progress (2026-08-03 build)
 
 | Phase | Status |
 |-------|--------|
 | C0 layout | Adapted — `src/lib/spine/*`, `apps/worker`, migrations under `supabase/migrations/spine` |
 | C1 schema+RLS+seed | **Shipped** — `0001–0010` + apply bundle `phase94_graph_spine.sql` |
-| C2 Entra claims | **SQL hook** `phase95_spine_claims_hook.sql` + Edge scaffold; Dashboard enable still Josh |
-| C3 graph CRUD UI | `/shared-services/crm` + account/contact detail + create forms + APIs · Admin nav |
-| C4 worker | `apps/worker` mock `account.bootstrap` |
-| C5–C6 Apollo/waterfall | Live providers fail-closed; Admin → Enrichment + `ENRICHMENT_LIVE_FLIP.md` |
-| C7 hierarchy | Account org-chart panel + rule suggester + accept/reject |
+| C2 Entra claims | **SQL hook** `phase95_spine_claims_hook.sql` + Edge scaffold; Dashboard enable still Josh · **Org switcher UX shipped** |
+| C3 graph CRUD UI | `/shared-services/crm` + account/contact detail + create forms + APIs · **org-scoped lists** |
+| C4 worker | `apps/worker` LIVE-ready bootstrap + mock fallback + credit_ledger |
+| C5–C6 Apollo/waterfall | Fail-closed providers wired in worker; ledger + budget_blocked; Admin → Enrichment + `ENRICHMENT_LIVE_FLIP.md` |
+| C7 hierarchy | **React Flow** org chart + drag-to-confirm + accept/reject · rules never overwrite confirmed/rejected |
 | C8 suggestions | `/shared-services/crm/suggestions` inbox + contact pending updates |
 | C9 Cmd-K + site research | Global `CmdKPalette` + account site-research agent (public meta) |
-| C10 brief | Graph-derived account brief + tool-gated `/api/spine/copilot` |
-| C11 product FKs | Signent convert + client detail ops scaffolds; portals later |
+| C10 brief | Account brief + copilot · **stale-refresh cron** `/api/spine/stale-refresh` · **agent.data_qa** |
+| C11 product FKs | Recruit/NDA/Signent graph tables + account UI create/list (portals later; Instant NDA store untouched) |
 | C12 budgets | Org budgets + kill switch UX on Admin → Enrichment |
 | Website→graph | Per-entity org routing (`entity` / `/website-intake/[entity]`) |
 | DocuSign autofill/attach/send | Library-send + attach stash → webhook apply |
 | Email / AP | W-9 campaign UI + AP poll cron (fail-closed without Graph) |
-| CRM polish | Suggestion accept applies+locks · bell · job toaster · Cmd-K |
+| CRM polish | Suggestion accept · bell · **Realtime job toaster** · Cmd-K · org switcher |
+| T01–T18 | Unit/static suite `src/lib/spine/acceptance/t01-t18.test.ts` (LIVE e2e still need keys/DB) |

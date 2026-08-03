@@ -2,30 +2,43 @@
 
 Providers stay **fail-closed** until both a real API key and a `*_LIVE=1` flag are set. Never commit keys.
 
-## Env (Vercel Production + worker)
+The worker always runs. Without LIVE flags it uses **mock** firmographics + people expand (safe demos). With LIVE it calls real providers and writes `credit_ledger`.
+
+## Env (Vercel Production + worker host)
 
 | Variable | Purpose |
 |----------|---------|
 | `ENRICHMENT_KILL_SWITCH` | `1` blocks all paid calls globally |
-| `APOLLO_API_KEY` + `APOLLO_LIVE=1` | Company enrich + people expand |
-| `PDL_API_KEY` + `PDL_LIVE=1` | Person waterfall |
-| `HUNTER_API_KEY` + `HUNTER_LIVE=1` | Email finder |
-| `ZEROBOUNCE_API_KEY` + `ZEROBOUNCE_LIVE=1` | Email verify gate before merge |
+| `APOLLO_API_KEY` + `APOLLO_LIVE=1` | Company enrich + people search |
+| `PDL_API_KEY` + `PDL_LIVE=1` | Person waterfall (adapter ready; wire when key lands) |
+| `HUNTER_API_KEY` + `HUNTER_LIVE=1` | Email finder during expand |
+| `ZEROBOUNCE_API_KEY` + `ZEROBOUNCE_LIVE=1` | Email verify gate before primary_email write |
 | Org `monthly_enrichment_budget_usd` | Cap in `organizations` (phase94) |
+| `WORKER_POLL_MS` | Worker drain interval (default 5000) |
+| `SPINE_STALE_DAYS` | Stale cron cutoff (default 90) |
 
 ## Flip order (approved default)
 
 1. Confirm contract + key in provider console.
-2. Set API key on Vercel (and worker host).
-3. Set `*_LIVE=1` for that provider only.
+2. Set API key on Vercel **and** the worker host.
+3. Set `*_LIVE=1` for that provider only (start with Apollo).
 4. Leave kill switch **off**.
 5. Open **Admin → Enrichment** — provider row should show **READY**.
 6. Create/refresh one account in CRM; watch `enrichment_jobs` + `credit_ledger`.
 7. If spend spikes: set `ENRICHMENT_KILL_SWITCH=1` immediately.
 
+## What Josh still needs to supply (blocked without these)
+
+- **Apollo API key** (+ optional PDL / Hunter / ZeroBounce keys) — ping when ready; until then mock path stays on.
+- Confirm worker process is running somewhere (Railway/Fly/local) with the same Supabase service role + provider env as Vercel.
+- Supabase Dashboard: enable **Realtime** on `enrichment_jobs` (job toaster already subscribes; poll is fallback).
+- Supabase Auth Hook for JWT `org_ids[]` (see `docs/ENTRA_SPINE_CLAIMS.md`) so RLS can replace app-level org filtering.
+
 ## UX
 
 - Admin → Enrichment shows configured / LIVE / ready status and org budgets.
+- Top bar **Org** switcher scopes CRM lists/search/jobs to the active subsidiary.
+- Job toaster shows progress (Realtime + poll).
 - Worker uses mock providers when LIVE is off (safe demos).
 - Merge engine still requires verified email for primary_email writes (R3).
 
@@ -33,3 +46,6 @@ Providers stay **fail-closed** until both a real API key and a `*_LIVE=1` flag a
 
 - Health: `getEnrichmentProviderHealth()` in `src/lib/spine/enrichment/providers.ts`
 - Waterfall ranks: `src/lib/spine/enrichment/waterfall.ts`
+- Bootstrap orchestrator: `src/lib/spine/enrichment/bootstrap.ts`
+- Ledger: `src/lib/spine/enrichment/ledger.ts`
+- Worker: `apps/worker/src/index.ts`

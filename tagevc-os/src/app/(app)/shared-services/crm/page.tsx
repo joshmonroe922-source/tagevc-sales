@@ -6,9 +6,12 @@ import {
   CreateAccountForm,
   CreateContactForm,
 } from '@/components/crm/create-forms';
+import { getActiveOrgSlug } from '@/lib/spine/auth/active-org';
+import { resolveOrgIdBySlug } from '@/lib/spine/db/repos';
 
 export default async function CrmGraphPage() {
   await requirePermission('read:shared_services');
+  const activeOrg = await getActiveOrgSlug();
 
   let accounts: Array<{
     id: string;
@@ -26,22 +29,47 @@ export default async function CrmGraphPage() {
   let error: string | null = null;
 
   try {
-    const sb = await createPersistClient();
+    const sb = await createPersistClient({ mode: 'service' });
+    const orgId = await resolveOrgIdBySlug(activeOrg);
+    const [aLinks, cLinks] = orgId
+      ? await Promise.all([
+          sb
+            .from('account_org_links')
+            .select('account_id')
+            .eq('org_id', orgId)
+            .limit(200),
+          sb
+            .from('contact_org_links')
+            .select('contact_id')
+            .eq('org_id', orgId)
+            .limit(200),
+        ])
+      : [{ data: [] }, { data: [] }];
+    const accountIds = (aLinks.data ?? []).map((r) => String(r.account_id));
+    const contactIds = (cLinks.data ?? []).map((r) => String(r.contact_id));
+
     const [a, c, j] = await Promise.all([
-      sb
-        .from('accounts')
-        .select('id, name, canonical_domain, enrich_status')
-        .order('updated_at', { ascending: false })
-        .limit(40),
-      sb
-        .from('contacts')
-        .select('id, full_name, primary_email, title')
-        .order('updated_at', { ascending: false })
-        .limit(40),
+      accountIds.length
+        ? sb
+            .from('accounts')
+            .select('id, name, canonical_domain, enrich_status')
+            .in('id', accountIds)
+            .order('updated_at', { ascending: false })
+            .limit(40)
+        : Promise.resolve({ data: [] as typeof accounts, error: null }),
+      contactIds.length
+        ? sb
+            .from('contacts')
+            .select('id, full_name, primary_email, title')
+            .in('id', contactIds)
+            .order('updated_at', { ascending: false })
+            .limit(40)
+        : Promise.resolve({ data: [] as typeof contacts, error: null }),
       sb
         .from('enrichment_jobs')
         .select('id', { count: 'exact', head: true })
-        .eq('status', 'queued'),
+        .eq('status', 'queued')
+        .eq('org_id', orgId || '00000000-0000-0000-0000-000000000000'),
     ]);
     accounts = a.data ?? [];
     contacts = c.data ?? [];
@@ -60,7 +88,7 @@ export default async function CrmGraphPage() {
     <div className="space-y-6 p-6">
       <PageHeader
         title="CRM graph"
-        description="Shared accounts / contacts (C3–C9). ⌘K search · hierarchy on account pages."
+        description={`Shared accounts / contacts (C3–C11) · active org: ${activeOrg}. ⌘K search · hierarchy on account pages.`}
       />
       <p className="text-sm text-muted-foreground">
         Queued jobs: <strong>{jobsQueued}</strong> · Press{' '}

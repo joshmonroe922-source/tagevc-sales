@@ -15,6 +15,7 @@ import { listRoleSwitcherRoles } from '@/lib/rbac/impersonation';
 import { getSessionContext } from '@/lib/rbac/session';
 import { countMyUnreadNotifications } from '@/lib/data/activity';
 import { countPendingSuggestions } from '@/lib/spine/db/crud';
+import { getActiveOrgSlug } from '@/lib/spine/auth/active-org';
 import { getDesktopPrefsAction } from '@/app/(app)/notifications/inbox-actions';
 
 export const dynamic = 'force-dynamic';
@@ -33,11 +34,13 @@ export default async function AppShellLayout({
   await bootstrapDomainStores();
 
   const canImpersonate = session.realRole === 'visionary';
-  const [unread, desktopPrefs, suggestionCount] = await Promise.all([
-    countMyUnreadNotifications(),
-    getDesktopPrefsAction(),
-    countPendingSuggestions(),
-  ]);
+  const [unread, desktopPrefs, suggestionCount, activeOrgSlug] =
+    await Promise.all([
+      countMyUnreadNotifications(),
+      getDesktopPrefsAction(),
+      countPendingSuggestions(),
+      getActiveOrgSlug(),
+    ]);
 
   const sidebarProps = {
     role: session.profile.role,
@@ -66,6 +69,7 @@ export default async function AppShellLayout({
           <AppTopBar
             unreadCount={unread}
             suggestionCount={suggestionCount}
+            activeOrgSlug={activeOrgSlug}
             desktopEnabled={desktopPrefs.desktopEnabled}
             soundEnabled={desktopPrefs.soundEnabled}
             mobileNav={

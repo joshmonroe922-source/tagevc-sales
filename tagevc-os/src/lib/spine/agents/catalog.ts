@@ -40,8 +40,8 @@ export const SPINE_AGENTS = [
   {
     id: 'agent.data_qa',
     label: 'Data QA',
-    jobs: [] as const,
-    description: 'Scaffold — stale freshness + missing email flags',
+    jobs: ['agent.data_qa'] as const,
+    description: 'Nightly stale freshness + missing email flags (report only)',
   },
 ] as const;
 

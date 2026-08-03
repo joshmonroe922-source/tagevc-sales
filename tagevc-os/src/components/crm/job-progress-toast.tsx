@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
 
 type Job = {
   id: string;
@@ -30,10 +31,37 @@ export function JobProgressToast() {
       }
     };
     void tick();
-    const id = window.setInterval(tick, 12_000);
+    const pollId = window.setInterval(tick, 15_000);
+
+    // Realtime on enrichment_jobs when available (poll remains fallback).
+    let channel: ReturnType<ReturnType<typeof createClient>['channel']> | null =
+      null;
+    try {
+      const sb = createClient();
+      channel = sb
+        .channel('spine-enrichment-jobs')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'enrichment_jobs',
+          },
+          () => {
+            void tick();
+          },
+        )
+        .subscribe();
+    } catch {
+      /* realtime optional */
+    }
+
     return () => {
       cancelled = true;
-      window.clearInterval(id);
+      window.clearInterval(pollId);
+      if (channel) {
+        void createClient().removeChannel(channel);
+      }
     };
   }, []);
 
@@ -43,7 +71,10 @@ export function JobProgressToast() {
   if (!active.length) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-[70] w-80 space-y-2">
+    <div
+      className="fixed bottom-4 right-4 z-[70] w-80 space-y-2"
+      aria-live="polite"
+    >
       {active.slice(0, 3).map((j) => (
         <div
           key={j.id}
@@ -52,6 +83,14 @@ export function JobProgressToast() {
           <div className="flex items-center justify-between gap-2">
             <span className="font-medium">{j.type}</span>
             <span className="uppercase text-muted-foreground">{j.status}</span>
+          </div>
+          <div className="mt-1 h-1.5 overflow-hidden rounded bg-muted">
+            <div
+              className="h-full bg-[#1B2838] transition-all"
+              style={{
+                width: `${Math.min(100, Math.max(4, j.progress_pct ?? 8))}%`,
+              }}
+            />
           </div>
           <div className="mt-1 text-muted-foreground">
             {j.progress_message ||

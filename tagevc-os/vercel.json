@@ -5,6 +5,10 @@
       "schedule": "0 */6 * * *"
     },
     {
+      "path": "/api/campaign/worker/send",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/marketing/schedule-worker",
       "schedule": "*/15 * * * *"
     },
@@ -119,6 +123,10 @@
     {
       "path": "/api/vendor-mgmt/connector-sync",
       "schedule": "0 9 * * 1"
+    },
+    {
+      "path": "/api/spine/stale-refresh",
+      "schedule": "0 9 * * *"
     }
   ]
 }

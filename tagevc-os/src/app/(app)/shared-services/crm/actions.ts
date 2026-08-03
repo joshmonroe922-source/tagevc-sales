@@ -7,17 +7,25 @@ import {
   patchContactAsUser,
   setOrgEdgeStatus,
   suggestHierarchyForAccount,
+  upsertOrgEdgeFromDrag,
 } from '@/lib/spine/db/crud';
 import { getSessionContext } from '@/lib/rbac/session';
+import { getActiveOrgSlug } from '@/lib/spine/auth/active-org';
+import {
+  createNdaEnvelope,
+  createRecruitJobReq,
+  createSignentEngagement,
+} from '@/lib/spine/products/graph-links';
 
 export async function actionCreateAccount(formData: FormData) {
   const session = await getSessionContext();
   if (!session) return { ok: false as const, error: 'Unauthorized' };
+  const active = await getActiveOrgSlug();
   const result = await createAccount({
     name: String(formData.get('name') || ''),
     domain: String(formData.get('domain') || '') || null,
     website: String(formData.get('website') || '') || null,
-    orgSlug: String(formData.get('org_slug') || 'tage'),
+    orgSlug: String(formData.get('org_slug') || active),
   });
   revalidatePath('/shared-services/crm');
   return result;
@@ -70,6 +78,49 @@ export async function actionSuggestHierarchy(accountId: string) {
   const session = await getSessionContext();
   if (!session) return { ok: false as const, error: 'Unauthorized' };
   const result = await suggestHierarchyForAccount(accountId);
+  revalidatePath(`/shared-services/crm/accounts/${accountId}`);
+  return result;
+}
+
+export async function actionOrgEdgeDrag(
+  accountId: string,
+  managerContactId: string,
+  reportContactId: string,
+) {
+  const session = await getSessionContext();
+  if (!session) return { ok: false as const, error: 'Unauthorized' };
+  const result = await upsertOrgEdgeFromDrag({
+    accountId,
+    managerContactId,
+    reportContactId,
+  });
+  revalidatePath(`/shared-services/crm/accounts/${accountId}`);
+  return result;
+}
+
+export async function actionCreateRecruitReq(
+  accountId: string,
+  title: string,
+) {
+  const session = await getSessionContext();
+  if (!session) return { ok: false as const, error: 'Unauthorized' };
+  const result = await createRecruitJobReq({ accountId, title });
+  revalidatePath(`/shared-services/crm/accounts/${accountId}`);
+  return result;
+}
+
+export async function actionCreateNdaEnvelope(accountId: string) {
+  const session = await getSessionContext();
+  if (!session) return { ok: false as const, error: 'Unauthorized' };
+  const result = await createNdaEnvelope({ accountId });
+  revalidatePath(`/shared-services/crm/accounts/${accountId}`);
+  return result;
+}
+
+export async function actionCreateSignentEngagement(accountId: string) {
+  const session = await getSessionContext();
+  if (!session) return { ok: false as const, error: 'Unauthorized' };
+  const result = await createSignentEngagement({ accountId });
   revalidatePath(`/shared-services/crm/accounts/${accountId}`);
   return result;
 }

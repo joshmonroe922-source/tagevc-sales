@@ -2,9 +2,14 @@
  * Graph CRUD + search + org-edge mutations (C3 / C7–C9 API layer).
  */
 
-import { createPersistClient } from '@/lib/supabase/persist-client';
+import {
+  createPersistClient,
+  createUserScopedClient,
+} from '@/lib/supabase/persist-client';
 import { resolveOrgIdBySlug } from '@/lib/spine/db/repos';
 import { accountBootstrapKey } from '@/lib/spine/enrichment/jobs';
+import { proposeHierarchyEdges } from '@/lib/spine/agents/hierarchy';
+import { getActiveOrgSlug } from '@/lib/spine/auth/active-org';
 
 function domainFromInput(domain?: string | null, website?: string | null): string | null {
   const raw = (domain || website || '').trim().toLowerCase().replace(/^www\./, '');
@@ -31,11 +36,15 @@ export async function createAccount(input: {
 > {
   const name = input.name.trim();
   if (!name) return { ok: false, error: 'name required' };
-  const orgId = await resolveOrgIdBySlug(input.orgSlug || 'tage');
+  const orgId = await resolveOrgIdBySlug(
+    input.orgSlug || (await getActiveOrgSlug()),
+  );
   if (!orgId) return { ok: false, error: 'org missing — apply phase94' };
 
   const domain = domainFromInput(input.domain, input.website);
-  const sb = await createPersistClient();
+  // Explicit service for graph writes until Entra JWT org_ids hook is live.
+  // Always stamps account_org_links for active org (app-level isolation).
+  const sb = await createPersistClient({ mode: 'service' });
 
   if (domain) {
     const existing = await sb
@@ -111,11 +120,36 @@ export async function createContact(input: {
 > {
   const fullName = input.fullName.trim();
   if (!fullName) return { ok: false, error: 'full_name required' };
-  const orgId = await resolveOrgIdBySlug(input.orgSlug || 'tage');
+  const orgId = await resolveOrgIdBySlug(
+    input.orgSlug || (await getActiveOrgSlug()),
+  );
   if (!orgId) return { ok: false, error: 'org missing' };
 
-  const sb = await createPersistClient();
+  const sb = await createPersistClient({ mode: 'service' });
   const email = (input.email || '').trim().toLowerCase() || null;
+
+  // T09: email domain → ensure account when input.accountId omitted
+  let accountId = input.accountId || null;
+  if (!accountId && email && email.includes('@')) {
+    const host = email.split('@')[1]?.toLowerCase() || null;
+    const personal = new Set([
+      'gmail.com',
+      'yahoo.com',
+      'hotmail.com',
+      'outlook.com',
+      'icloud.com',
+      'aol.com',
+    ]);
+    if (host && !personal.has(host)) {
+      const ensured = await createAccount({
+        name: host.split('.')[0] || host,
+        domain: host,
+        orgSlug: input.orgSlug || 'tage',
+        expand: false,
+      });
+      if (ensured.ok) accountId = ensured.accountId;
+    }
+  }
 
   if (email) {
     const hit = await sb
@@ -130,10 +164,11 @@ export async function createContact(input: {
         visibility: 'org',
         is_primary: true,
       });
-      if (input.accountId) {
+  if (accountId) {
+        // employment link when input.accountId (or email-domain ensure) present
         await sb.from('employments').insert({
           contact_id: hit.data.id,
-          account_id: input.accountId,
+          account_id: accountId,
           title: input.title || null,
           is_current: true,
           source: 'manual',
@@ -166,10 +201,10 @@ export async function createContact(input: {
     is_primary: true,
   });
 
-  if (input.accountId) {
+  if (accountId) {
     await sb.from('employments').insert({
       contact_id: c.id,
-      account_id: input.accountId,
+      account_id: accountId,
       title: input.title || null,
       is_current: true,
       source: 'manual',
@@ -184,7 +219,7 @@ export async function patchContactAsUser(input: {
   fields: Record<string, string | null>;
   userProfileId?: string | null;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
-  const sb = await createPersistClient();
+  const sb = await createPersistClient({ mode: 'service' });
   const allowed = [
     'full_name',
     'first_name',
@@ -259,20 +294,62 @@ export async function searchGraph(
   const query = q.trim();
   if (query.length < 2) return { hits: [] };
   try {
-    const sb = await createPersistClient();
+    const sb = await createPersistClient({ mode: 'service' });
+    const orgId = await resolveOrgIdBySlug(await getActiveOrgSlug());
     const safe = query.replace(/[%_,.()]/g, ' ').trim();
     const like = `%${safe}%`;
+
+    // Org-scoped via link tables (app-level isolation until JWT claims RLS).
+    let accountIds: string[] | null = null;
+    let contactIds: string[] | null = null;
+    if (orgId) {
+      const [aLinks, cLinks] = await Promise.all([
+        sb
+          .from('account_org_links')
+          .select('account_id')
+          .eq('org_id', orgId)
+          .limit(500),
+        sb
+          .from('contact_org_links')
+          .select('contact_id')
+          .eq('org_id', orgId)
+          .limit(500),
+      ]);
+      accountIds = (aLinks.data ?? []).map((r) => String(r.account_id));
+      contactIds = (cLinks.data ?? []).map((r) => String(r.contact_id));
+    }
+
+    const accountQ = sb
+      .from('accounts')
+      .select('id, name, canonical_domain')
+      .ilike('name', like)
+      .limit(limit);
+    const contactQ = sb
+      .from('contacts')
+      .select('id, full_name, primary_email, title')
+      .or(`full_name.ilike.%${safe}%,title.ilike.%${safe}%`)
+      .limit(limit);
+
     const [accounts, contacts] = await Promise.all([
-      sb
-        .from('accounts')
-        .select('id, name, canonical_domain')
-        .ilike('name', like)
-        .limit(limit),
-      sb
-        .from('contacts')
-        .select('id, full_name, primary_email, title')
-        .ilike('full_name', like)
-        .limit(limit),
+      accountIds && accountIds.length
+        ? accountQ.in('id', accountIds)
+        : accountIds
+          ? Promise.resolve({ data: [] as Array<{
+              id: string;
+              name: string;
+              canonical_domain: string | null;
+            }> })
+          : accountQ,
+      contactIds && contactIds.length
+        ? contactQ.in('id', contactIds)
+        : contactIds
+          ? Promise.resolve({ data: [] as Array<{
+              id: string;
+              full_name: string;
+              primary_email: string | null;
+              title: string | null;
+            }> })
+          : contactQ,
     ]);
 
     const hits: SearchHit[] = [];
@@ -320,7 +397,7 @@ export async function listAccountOrgChart(accountId: string): Promise<{
   error?: string;
 }> {
   try {
-    const sb = await createPersistClient();
+    const sb = await createPersistClient({ mode: 'service' });
     const { data: emps } = await sb
       .from('employments')
       .select('contact_id, title, contacts(id, full_name, title)')
@@ -379,7 +456,7 @@ export async function setOrgEdgeStatus(input: {
   status: 'confirmed' | 'rejected';
   userProfileId?: string | null;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
-  const sb = await createPersistClient();
+  const sb = await createPersistClient({ mode: 'service' });
   const patch: Record<string, unknown> = {
     status: input.status,
     updated_at: new Date().toISOString(),
@@ -405,7 +482,7 @@ export async function decideSuggestedUpdate(input: {
   status: 'accepted' | 'rejected';
   userProfileId?: string | null;
 }): Promise<{ ok: true; applied?: boolean } | { ok: false; error: string }> {
-  const sb = await createPersistClient();
+  const sb = await createPersistClient({ mode: 'service' });
   const { data: row, error } = await sb
     .from('suggested_updates')
     .select(
@@ -524,11 +601,14 @@ export async function decideSuggestedUpdate(input: {
 
 export async function countPendingSuggestions(): Promise<number> {
   try {
-    const sb = await createPersistClient();
-    const { count } = await sb
+    const sb = await createPersistClient({ mode: 'service' });
+    const orgId = await resolveOrgIdBySlug(await getActiveOrgSlug());
+    let q = sb
       .from('suggested_updates')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'pending');
+    if (orgId) q = q.eq('org_id', orgId);
+    const { count } = await q;
     return count ?? 0;
   } catch {
     return 0;
@@ -546,15 +626,18 @@ export async function listRecentEnrichmentJobs(limit = 8): Promise<
   }>
 > {
   try {
-    const sb = await createPersistClient();
-    const { data } = await sb
+    const sb = await createPersistClient({ mode: 'service' });
+    const orgId = await resolveOrgIdBySlug(await getActiveOrgSlug());
+    let q = sb
       .from('enrichment_jobs')
       .select(
         'id, type, status, progress_pct, progress_message, account_id, created_at',
       )
-      .in('status', ['queued', 'running', 'succeeded', 'failed'])
+      .in('status', ['queued', 'running', 'succeeded', 'failed', 'budget_blocked'])
       .order('created_at', { ascending: false })
       .limit(limit);
+    if (orgId) q = q.eq('org_id', orgId);
+    const { data } = await q;
     return (data ?? []).map((j) => ({
       id: String(j.id),
       type: String(j.type),
@@ -568,6 +651,59 @@ export async function listRecentEnrichmentJobs(limit = 8): Promise<
   } catch {
     return [];
   }
+}
+
+/** Drag-to-set-manager on org chart (user-confirmed edge). */
+export async function upsertOrgEdgeFromDrag(input: {
+  accountId: string;
+  managerContactId: string;
+  reportContactId: string;
+  userProfileId?: string | null;
+}): Promise<{ ok: true; edgeId: string } | { ok: false; error: string }> {
+  if (input.managerContactId === input.reportContactId) {
+    return { ok: false, error: 'self_edge' };
+  }
+  const sb = await createPersistClient({ mode: 'service' });
+  const { data: existing } = await sb
+    .from('org_edges')
+    .select('id, status')
+    .eq('account_id', input.accountId)
+    .eq('manager_contact_id', input.managerContactId)
+    .eq('report_contact_id', input.reportContactId)
+    .maybeSingle();
+  if (existing?.status === 'rejected') {
+    return { ok: false, error: 'pair_rejected' };
+  }
+  if (existing?.id) {
+    const { error } = await sb
+      .from('org_edges')
+      .update({
+        status: 'confirmed',
+        confirmed_at: new Date().toISOString(),
+        confirmed_by: input.userProfileId || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', existing.id);
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, edgeId: existing.id };
+  }
+  const { data, error } = await sb
+    .from('org_edges')
+    .insert({
+      account_id: input.accountId,
+      manager_contact_id: input.managerContactId,
+      report_contact_id: input.reportContactId,
+      relation: 'reports_to',
+      status: 'confirmed',
+      confidence: 1,
+      rationale: 'User drag on org chart',
+      confirmed_at: new Date().toISOString(),
+      confirmed_by: input.userProfileId || null,
+    })
+    .select('id')
+    .single();
+  if (error || !data) return { ok: false, error: error?.message || 'insert failed' };
+  return { ok: true, edgeId: data.id };
 }
 
 /** Rule-based hierarchy suggestions (agent.hierarchy lite — no LLM). */
@@ -592,12 +728,12 @@ export async function suggestHierarchyForAccount(
     (a, b) => rank(b.title) - rank(a.title),
   );
   const top = sorted[0];
-  const sb = await createPersistClient();
+  const sb = await createPersistClient({ mode: 'service' });
+  // Never overwrite confirmed; never re-suggest rejected pairs (T07/T08).
   const { data: prior } = await sb
     .from('org_edges')
     .select('manager_contact_id, report_contact_id, status')
     .eq('account_id', accountId)
-    .eq('manager_contact_id', top.id)
     .in('status', ['suggested', 'confirmed', 'rejected']);
   const blocked = new Set(
     (prior ?? []).map((e) => `${e.manager_contact_id}:${e.report_contact_id}`),
@@ -620,4 +756,31 @@ export async function suggestHierarchyForAccount(
     if (!error) created += 1;
   }
   return { ok: true, created };
+}
+
+/** Roll employment on job change (T17). */
+export async function rollEmploymentOnJobChange(input: {
+  contactId: string;
+  newAccountId: string;
+  newTitle?: string | null;
+  source?: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const sb = await createPersistClient({ mode: 'service' });
+  const today = new Date().toISOString().slice(0, 10);
+  const { error: endErr } = await sb
+    .from('employments')
+    .update({ is_current: false, ended_on: today })
+    .eq('contact_id', input.contactId)
+    .eq('is_current', true);
+  if (endErr) return { ok: false, error: endErr.message };
+  const { error } = await sb.from('employments').insert({
+    contact_id: input.contactId,
+    account_id: input.newAccountId,
+    title: input.newTitle || null,
+    is_current: true,
+    started_on: today,
+    source: input.source || 'job_change',
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
 }

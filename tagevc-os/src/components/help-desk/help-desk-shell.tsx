@@ -8,6 +8,7 @@ import {
 } from '@/components/help-desk/create-ticket-modal';
 import { NotificationsBell } from '@/components/layout/notifications-bell';
 import { SuggestionBell } from '@/components/crm/suggestion-bell';
+import { OrgSwitcher } from '@/components/crm/org-switcher';
 import { AppTopBarShell } from '@/lib/platform/shell/app-top-bar';
 
 export function AppTopBar({
@@ -16,6 +17,7 @@ export function AppTopBar({
   soundEnabled = false,
   mobileNav,
   suggestionCount = 0,
+  activeOrgSlug = 'tage',
 }: {
   unreadCount?: number;
   desktopEnabled?: boolean;
@@ -23,11 +25,17 @@ export function AppTopBar({
   /** Phone Menu drawer (md:hidden). Desktop keeps the left sidebar. */
   mobileNav?: ReactNode;
   suggestionCount?: number;
+  activeOrgSlug?: string;
 }) {
   return (
     <AppTopBarShell
       mobileNav={mobileNav}
-      extras={<SuggestionBell initialCount={suggestionCount} />}
+      extras={
+        <div className="flex items-center gap-2">
+          <OrgSwitcher activeSlug={activeOrgSlug} />
+          <SuggestionBell initialCount={suggestionCount} />
+        </div>
+      }
       alerts={
         <NotificationsBell
           initialUnread={unreadCount}

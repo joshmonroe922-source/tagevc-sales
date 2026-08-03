@@ -1,16 +1,17 @@
 /**
- * Enrichment worker skeleton (C4) — drains enrichment_jobs with mock providers.
- * Run: cd apps/worker && npm i && npm start  (needs DATABASE_URL or SUPABASE_*)
+ * Enrichment worker (C4–C6) — drains enrichment_jobs.
+ * LIVE providers via bootstrap orchestrator; mock fallback when not LIVE.
+ * Always stamps credit_ledger for paid calls.
  *
- * Live Apollo/PDL/Hunter only when *_LIVE + keys set; default is mock enrich.
+ * Run: cd apps/worker && npm i && npm start
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { enrichmentKillSwitchEnabled } from '../../../src/lib/spine/enrichment/waterfall.js';
+import { runAccountBootstrap } from '../../../src/lib/spine/enrichment/bootstrap.js';
 import {
-  enrichmentKillSwitchEnabled,
-  mockEnrichCompany,
-  mockExpandPeople,
-} from '../../../src/lib/spine/enrichment/waterfall.js';
+  getEnrichmentProviderHealth,
+} from '../../../src/lib/spine/enrichment/providers.js';
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
 const key =
@@ -24,7 +25,18 @@ if (!url || !key) {
 const sb = createClient(url, key, { auth: { persistSession: false } });
 const POLL_MS = Number(process.env.WORKER_POLL_MS || 5000);
 
-async function claimJob() {
+type JobRow = {
+  id: string;
+  org_id: string;
+  type: string;
+  account_id: string | null;
+  contact_id: string | null;
+  payload: Record<string, unknown>;
+  attempts: number | null;
+  status: string;
+};
+
+async function claimJob(): Promise<JobRow | null> {
   if (enrichmentKillSwitchEnabled()) {
     console.log('ENRICHMENT_KILL_SWITCH on — idle');
     return null;
@@ -50,119 +62,134 @@ async function claimJob() {
     .eq('status', 'queued')
     .select('*')
     .maybeSingle();
-  return claimed;
+  return claimed as JobRow | null;
 }
 
-async function runAccountBootstrap(job: {
-  id: string;
-  org_id: string;
-  account_id: string | null;
-  payload: Record<string, unknown>;
-}) {
-  const accountId = job.account_id || String(job.payload.account_id || '');
-  if (!accountId) throw new Error('missing account_id');
-
+async function failJob(jobId: string, message: string, status = 'failed') {
   await sb
     .from('enrichment_jobs')
-    .update({ progress_pct: 20, progress_message: 'loading account' })
-    .eq('id', job.id);
-
-  const { data: account } = await sb
-    .from('accounts')
-    .select('*')
-    .eq('id', accountId)
-    .single();
-  if (!account) throw new Error('account not found');
-
-  const domain = account.canonical_domain || 'example.com';
-  const firm = mockEnrichCompany(domain);
-
-  await sb
-    .from('accounts')
     .update({
-      name: account.name || firm.name,
-      industry: account.industry || firm.industry,
-      employee_count: account.employee_count || firm.employee_count,
-      enrich_status: 'enriched',
-      last_enriched_at: new Date().toISOString(),
-      enrichment_version: (account.enrichment_version ?? 0) + 1,
+      status,
+      progress_pct: 100,
+      progress_message: message,
+      finished_at: new Date().toISOString(),
+      error: message,
     })
-    .eq('id', accountId);
+    .eq('id', jobId);
+}
 
-  await sb.from('enrichment_evidence').insert({
-    job_id: job.id,
-    provider: firm.provider,
-    request_meta: { domain },
-    normalized: firm,
-  });
+async function runRefreshStale(job: JobRow) {
+  const accountId = job.account_id || String(job.payload.account_id || '');
+  const contactId = job.contact_id || String(job.payload.contact_id || '');
+  const day = new Date().toISOString().slice(0, 10);
 
-  await sb
-    .from('enrichment_jobs')
-    .update({ progress_pct: 60, progress_message: 'expand people (mock)' })
-    .eq('id', job.id);
-
-  const { data: org } = await sb
-    .from('organizations')
-    .select('icp_title_patterns, auto_expand_cap')
-    .eq('id', job.org_id)
-    .maybeSingle();
-
-  const patterns = (org?.icp_title_patterns as string[]) || ['CEO'];
-  const cap = Math.min(
-    Number(job.payload.cap || org?.auto_expand_cap || 5),
-    10,
-  );
-  const people = mockExpandPeople({ domain, patterns, cap });
-
-  for (const p of people) {
-    const { data: contact } = await sb
-      .from('contacts')
-      .insert({
-        full_name: p.full_name,
-        title: p.title,
-        enrich_status: 'pending',
-      })
-      .select('id')
-      .single();
-    if (!contact) continue;
-    await sb.from('contact_org_links').upsert({
-      contact_id: contact.id,
-      org_id: job.org_id,
-      visibility: 'org',
-    });
-    await sb.from('employments').insert({
-      contact_id: contact.id,
-      account_id: accountId,
-      title: p.title,
-      is_current: true,
-      source: 'mock_expand',
-    });
+  if (job.type === 'account.refresh_stale' && accountId) {
+    await sb.from('enrichment_jobs').upsert(
+      {
+        org_id: job.org_id,
+        type: 'account.bootstrap',
+        payload: { account_id: accountId, org_id: job.org_id, expand: false },
+        idempotency_key: `account.bootstrap:${accountId}:${job.org_id}:${day}:stale`,
+        account_id: accountId,
+        status: 'queued',
+        parent_job_id: job.id,
+      },
+      { onConflict: 'idempotency_key' },
+    );
   }
-
+  if (job.type === 'contact.refresh_stale' && contactId) {
+    await sb
+      .from('contacts')
+      .update({ enrich_status: 'pending' })
+      .eq('id', contactId);
+  }
   await sb
     .from('enrichment_jobs')
     .update({
       status: 'succeeded',
       progress_pct: 100,
-      progress_message: `mock bootstrap + ${people.length} people`,
+      progress_message: 'stale refresh enqueued',
       finished_at: new Date().toISOString(),
-      provider_trace: [{ provider: 'cache', step: 'account.bootstrap' }],
+    })
+    .eq('id', job.id);
+}
+
+async function runJobChange(job: JobRow) {
+  const contactId = String(job.payload.contact_id || job.contact_id || '');
+  const newAccountId = String(job.payload.new_account_id || '');
+  const title = (job.payload.title as string) || null;
+  if (!contactId || !newAccountId) {
+    await failJob(job.id, 'missing contact_id/new_account_id');
+    return;
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  await sb
+    .from('employments')
+    .update({ is_current: false, ended_on: today })
+    .eq('contact_id', contactId)
+    .eq('is_current', true);
+  await sb.from('employments').insert({
+    contact_id: contactId,
+    account_id: newAccountId,
+    title,
+    is_current: true,
+    started_on: today,
+    source: 'signal.job_change',
+  });
+  await sb
+    .from('enrichment_jobs')
+    .update({
+      status: 'succeeded',
+      progress_pct: 100,
+      progress_message: 'employment rolled',
+      finished_at: new Date().toISOString(),
+    })
+    .eq('id', job.id);
+}
+
+async function runDataQaJob(job: JobRow) {
+  const { runDataQaPass } = await import(
+    '../../../src/lib/spine/agents/data-qa.js'
+  );
+  const report = await runDataQaPass(sb, job.org_id, { limit: 40 });
+  await sb
+    .from('enrichment_jobs')
+    .update({
+      status: 'succeeded',
+      progress_pct: 100,
+      progress_message: `data_qa flags=${report.flags.length}`,
+      finished_at: new Date().toISOString(),
+      provider_trace: report.flags.slice(0, 20),
     })
     .eq('id', job.id);
 }
 
 async function loop() {
-  console.log('Enrichment worker started', { pollMs: POLL_MS });
+  const health = getEnrichmentProviderHealth();
+  console.log('Enrichment worker started', {
+    pollMs: POLL_MS,
+    ready: health.filter((h) => h.ready).map((h) => h.provider),
+  });
   for (;;) {
+    let job: JobRow | null = null;
     try {
-      const job = await claimJob();
+      job = await claimJob();
       if (!job) {
         await new Promise((r) => setTimeout(r, POLL_MS));
         continue;
       }
       console.log('job', job.id, job.type);
       if (job.type === 'account.bootstrap' || job.type === 'account.enrich') {
-        await runAccountBootstrap(job);
+        await runAccountBootstrap(sb, job);
+      } else if (
+        job.type === 'account.refresh_stale' ||
+        job.type === 'contact.refresh_stale'
+      ) {
+        await runRefreshStale(job);
+      } else if (job.type === 'signal.job_change') {
+        await runJobChange(job);
+      } else if (job.type === 'agent.data_qa') {
+        await runDataQaJob(job);
       } else {
         await sb
           .from('enrichment_jobs')
@@ -176,6 +203,12 @@ async function loop() {
       }
     } catch (e) {
       console.error(e);
+      if (job?.id) {
+        await failJob(
+          job.id,
+          e instanceof Error ? e.message : 'worker_error',
+        );
+      }
       await new Promise((r) => setTimeout(r, POLL_MS));
     }
   }
