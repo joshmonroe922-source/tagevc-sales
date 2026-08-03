@@ -15,7 +15,7 @@ import { listRoleSwitcherRoles } from '@/lib/rbac/impersonation';
 import { getSessionContext } from '@/lib/rbac/session';
 import { countMyUnreadNotifications } from '@/lib/data/activity';
 import { countPendingSuggestions } from '@/lib/spine/db/crud';
-import { getActiveOrgSlug } from '@/lib/spine/auth/active-org';
+import { getActiveOrgSlug } from '@/lib/spine/auth/active-org-server';
 import { getDesktopPrefsAction } from '@/app/(app)/notifications/inbox-actions';
 
 export const dynamic = 'force-dynamic';

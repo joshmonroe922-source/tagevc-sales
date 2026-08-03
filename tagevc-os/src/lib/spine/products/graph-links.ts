@@ -5,7 +5,7 @@
 
 import { createPersistClient } from '@/lib/supabase/persist-client';
 import { resolveOrgIdBySlug } from '@/lib/spine/db/repos';
-import { getActiveOrgSlug } from '@/lib/spine/auth/active-org';
+import { getActiveOrgSlug } from '@/lib/spine/auth/active-org-server';
 
 /** Workers must never call this — hiring_manager is user-owned (T13). */
 export async function createRecruitJobReq(input: {

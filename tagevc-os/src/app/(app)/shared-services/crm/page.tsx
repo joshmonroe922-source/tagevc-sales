@@ -6,7 +6,7 @@ import {
   CreateAccountForm,
   CreateContactForm,
 } from '@/components/crm/create-forms';
-import { getActiveOrgSlug } from '@/lib/spine/auth/active-org';
+import { getActiveOrgSlug } from '@/lib/spine/auth/active-org-server';
 import { resolveOrgIdBySlug } from '@/lib/spine/db/repos';
 
 export default async function CrmGraphPage() {

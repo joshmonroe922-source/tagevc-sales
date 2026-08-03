@@ -10,7 +10,7 @@ import {
   upsertOrgEdgeFromDrag,
 } from '@/lib/spine/db/crud';
 import { getSessionContext } from '@/lib/rbac/session';
-import { getActiveOrgSlug } from '@/lib/spine/auth/active-org';
+import { getActiveOrgSlug } from '@/lib/spine/auth/active-org-server';
 import {
   createNdaEnvelope,
   createRecruitJobReq,
