@@ -5,7 +5,13 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ECC_ROUTE_PREFIX } from '@/lib/campaign/core/types';
 
-export function EccHomeClient({ home }: { home: any }) {
+type EccHome = {
+  stats?: { campaigns?: number; lists?: number; templates?: number; suppressed?: number };
+  hotFollowUps?: Array<{ contactId: string; email?: string; reason?: string; score?: number }>;
+  needsApproval?: Array<{ id: string; name: string }>;
+};
+
+export function EccHomeClient({ home }: { home: EccHome }) {
   const router = useRouter();
   return (
     <div className="space-y-6">
@@ -36,7 +42,7 @@ export function EccHomeClient({ home }: { home: any }) {
             <p className="text-sm text-muted-foreground">Engagement appears here after sends.</p>
           ) : (
             <ul className="divide-y divide-[#ece9e6]">
-              {home.hotFollowUps.map((f: any) => (
+              {home.hotFollowUps.map((f) => (
                 <li key={`${f.contactId}-${f.score}`} className="flex justify-between gap-3 py-2.5 text-sm">
                   <div className="min-w-0">
                     <p className="truncate font-medium text-[#3a414f]">{f.email || f.contactId}</p>
@@ -52,7 +58,7 @@ export function EccHomeClient({ home }: { home: any }) {
           <h3 className="font-heading mb-3 text-lg text-[#3a414f]">Needs approval</h3>
           {(home.needsApproval || []).length === 0 ? (
             <p className="text-sm text-muted-foreground">No campaigns waiting.</p>
-          ) : home.needsApproval.map((c: any) => (
+          ) : home.needsApproval.map((c) => (
             <Link key={c.id} href={`${ECC_ROUTE_PREFIX}/campaigns/${c.id}`} className="mb-2 block rounded border border-[#ece9e6] px-3 py-2 text-sm hover:border-[#9f957c]">{c.name}</Link>
           ))}
         </section>
@@ -61,14 +67,19 @@ export function EccHomeClient({ home }: { home: any }) {
   );
 }
 
-export function CampaignBuilderClient({ lists, templates, initial }: { lists: any[]; templates: any[]; initial?: any }) {
+type Named = { id: string; name: string; count_cached?: number };
+type CampaignInitial = {
+  id?: string; name?: string; subject?: string; body_html?: string; audience_id?: string;
+};
+
+export function CampaignBuilderClient({ lists, templates, initial }: { lists: Named[]; templates: Named[]; initial?: CampaignInitial }) {
   const router = useRouter();
   const [name, setName] = useState(initial?.name || '');
   const [subject, setSubject] = useState(initial?.subject || '');
   const [body, setBody] = useState(initial?.body_html || '');
   const [listId, setListId] = useState(initial?.audience_id || '');
-  const [fields, setFields] = useState<any[]>([]);
-  const [preview, setPreview] = useState<any>(null);
+  const [fields, setFields] = useState<Array<{ object?: string; label?: string; insert_token?: string }>>([]);
+  const [preview, setPreview] = useState<{ subject?: string; html?: string; missing?: string[] } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

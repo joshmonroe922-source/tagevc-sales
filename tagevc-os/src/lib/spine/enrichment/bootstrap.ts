@@ -363,7 +363,7 @@ export async function runContactEnrich(
     .eq('id', job.org_id)
     .maybeSingle();
   const budgetUsd = Number(org?.monthly_enrichment_budget_usd ?? 50);
-  let monthSpend = await sumMonthSpendUsd(sb, job.org_id);
+  const monthSpend = await sumMonthSpendUsd(sb, job.org_id);
   const trace: Array<Record<string, unknown>> = [];
 
   const { data: emp } = await sb

@@ -65,7 +65,10 @@ export async function processDueSendJobs(opts?: {
   return results;
 }
 
-async function processJob(job: any, userAccessToken: string | null, replyTo: string) {
+type SendJob = {
+  id: string; entity_id: string; campaign_id: string; send_id: string; contact_ids?: string[];
+};
+async function processJob(job: SendJob, userAccessToken: string | null, replyTo: string) {
   const sb = await campaignDb();
   const settings = await getEntitySettings(job.entity_id);
   const campaign = await getCampaign(job.entity_id, job.campaign_id);
@@ -96,10 +99,10 @@ async function processJob(job: any, userAccessToken: string | null, replyTo: str
     const token = randomBytes(18).toString('base64url');
     const unsub = `${base}/api/campaign/p/prefs/${token}`;
     const merge = renderMergeTemplate(String(campaign.body_html || ''), {
-      contact: c as any, account: {}, owner: {}, system: { entity_name: job.entity_id, unsubscribe_url: unsub, preferences_url: unsub },
+      contact: c as Record<string, unknown>, account: {}, owner: {}, system: { entity_name: job.entity_id, unsubscribe_url: unsub, preferences_url: unsub },
     });
-    const subject = renderMergeTemplate(String(campaign.subject || ''), { contact: c as any, system: { entity_name: job.entity_id } }).html;
-    let html = injectFooter(merge.html, buildComplianceFooter({
+    const subject = renderMergeTemplate(String(campaign.subject || ''), { contact: c as Record<string, unknown>, system: { entity_name: job.entity_id } }).html;
+    const html = injectFooter(merge.html, buildComplianceFooter({
       physicalAddress: settings.physical_address || 'Tage Venture Capital — San Diego, CA',
       unsubUrl: unsub, prefsUrl: unsub, lifecycle: c.lifecycle, entityName: job.entity_id,
     }));

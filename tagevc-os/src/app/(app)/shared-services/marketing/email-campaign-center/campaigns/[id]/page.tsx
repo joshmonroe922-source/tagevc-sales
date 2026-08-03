@@ -29,7 +29,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
             <thead className="bg-[#ece9e6]/70 text-xs"><tr><th className="px-3 py-2 text-left">Email</th><th className="px-3 py-2 text-left">Opens</th><th className="px-3 py-2 text-left">Clicks</th><th className="px-3 py-2 text-left">Score</th></tr></thead>
             <tbody>
               {recipients.length === 0 ? <tr><td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">Send to populate</td></tr> :
-                recipients.map((r: any) => (
+                recipients.map((r: { contact_id: string; email?: string; open_count?: number; click_count?: number; score?: number }) => (
                   <tr key={r.contact_id} className="border-t border-[#ece9e6]">
                     <td className="px-3 py-2">{r.email}</td><td className="px-3 py-2">{r.open_count}</td><td className="px-3 py-2">{r.click_count}</td><td className="px-3 py-2">{r.score}</td>
                   </tr>

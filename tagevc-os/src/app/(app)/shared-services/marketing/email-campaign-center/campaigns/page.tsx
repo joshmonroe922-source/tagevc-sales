@@ -24,7 +24,7 @@ export default async function Page() {
           <tbody>
             {campaigns.length === 0 ? (
               <tr><td colSpan={3} className="px-4 py-8 text-center text-muted-foreground">No campaigns yet</td></tr>
-            ) : campaigns.map((c: any) => (
+            ) : campaigns.map((c: { id: string; name: string; status: string; delivery_plane: string }) => (
               <tr key={c.id} className="border-t border-[#ece9e6]">
                 <td className="px-4 py-2"><Link className="font-medium text-[#3a414f] hover:underline" href={`${ECC_ROUTE_PREFIX}/campaigns/${c.id}`}>{c.name}</Link></td>
                 <td className="px-4 py-2 text-xs">{c.status}</td>
