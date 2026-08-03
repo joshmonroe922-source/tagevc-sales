@@ -4,6 +4,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 import { requirePermission } from '@/lib/rbac/session';
 import { ContactEditForm } from '@/components/crm/contact-edit-form';
+import { ContactRefreshButton } from '@/components/crm/contact-refresh-button';
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -40,12 +41,15 @@ export default async function CrmContactPage({ params }: Props) {
           .filter(Boolean)
           .join(' · ')}
       />
-      <Link
-        href="/shared-services/crm"
-        className="text-sm underline underline-offset-2"
-      >
-        ← CRM
-      </Link>
+      <div className="flex flex-wrap items-center gap-3 text-sm">
+        <Link
+          href="/shared-services/crm"
+          className="underline underline-offset-2"
+        >
+          ← CRM
+        </Link>
+        <ContactRefreshButton contactId={id} />
+      </div>
 
       {(suggestions ?? []).length > 0 ? (
         <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">

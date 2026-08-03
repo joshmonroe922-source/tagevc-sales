@@ -49,7 +49,7 @@ Tage OS = parent OS. Subsidiaries = apps on one spine: Entra → Supabase graph 
 | C2 Entra claims | **SQL hook** `phase95_spine_claims_hook.sql` + Edge scaffold; Dashboard enable still Josh · **Org switcher UX shipped** |
 | C3 graph CRUD UI | `/shared-services/crm` + account/contact detail + create forms + APIs · **org-scoped lists** |
 | C4 worker | `apps/worker` LIVE-ready bootstrap + mock fallback + credit_ledger |
-| C5–C6 Apollo/waterfall | Fail-closed providers wired in worker; ledger + budget_blocked; Admin → Enrichment + `ENRICHMENT_LIVE_FLIP.md` |
+| C5–C6 Apollo/waterfall | Fail-closed providers wired; **budget-first rank** (signature → website → paid, **Apollo last**); ledger + budget_blocked; Admin → Enrichment + `ENRICHMENT_LIVE_FLIP.md`; CRM **Contact Info Refresh** on account + contact |
 | C7 hierarchy | **React Flow** org chart + drag-to-confirm + accept/reject · rules never overwrite confirmed/rejected |
 | C8 suggestions | `/shared-services/crm/suggestions` inbox + contact pending updates |
 | C9 Cmd-K + site research | Global `CmdKPalette` + account site-research agent (public meta) |

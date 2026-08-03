@@ -17,6 +17,8 @@ UI spine looks finished; live enrichment pipeline is about halfway. Company Apol
 
 **Update (same day):** Priority A closed in code — bootstrap now calls `apolloSearchPeople` when LIVE, PDL adapter exists, merge engine runs on contact writes, `contact.enrich`/`contact.bootstrap` handlers live, copilot `jobs.enqueue` shipped. Still need Josh keys + hosted worker for LIVE proof.
 
+**Update (pause track):** Budget-first waterfall wired — email signatures (scaffold) → company/external websites → paid with **Apollo last**. Account + Contact detail **Contact Info Refresh** CTAs enqueue refresh. Further Database Refresh work paused unless Josh restarts.
+
 | Metric | Count |
 |--------|------:|
 | Phases **Done** | 8 |

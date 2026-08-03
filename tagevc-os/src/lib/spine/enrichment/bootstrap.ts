@@ -1,6 +1,8 @@
 /**
  * Account bootstrap orchestrator — LIVE providers when ready, mock otherwise.
- * People expand: Apollo search when LIVE + apollo_org_id; else mock.
+ *
+ * Budget-first order (Josh): email signatures → website meta → paid (Apollo last).
+ * People expand: Apollo search only after free stages, when LIVE + apollo_org_id; else mock.
  * Contact writes go through merge engine (user locks → suggested_updates).
  */
 
@@ -16,8 +18,10 @@ import {
 import {
   budgetAllowsSpend,
   enrichmentKillSwitchEnabled,
+  fetchWebsiteMeta,
   mockEnrichCompany,
   mockExpandPeople,
+  scrapeEmailSignatureScaffold,
   type MockCompanyEnrich,
   type MockPersonEnrich,
 } from './waterfall';
@@ -103,11 +107,44 @@ export async function runAccountBootstrap(
   const domain = account.canonical_domain || 'example.com';
   const trace: Array<Record<string, unknown>> = [];
 
-  await setProgress(sb, job.id, 25, 'company enrich');
+  await setProgress(sb, job.id, 25, 'company enrich (budget-first)');
 
   let firm: MockCompanyEnrich | ApolloOrgResult = mockEnrichCompany(domain);
   let usedLiveCompany = false;
 
+  // Stage 1 — email signatures (scaffold / backlog; free)
+  const sig = scrapeEmailSignatureScaffold({ accountId });
+  trace.push({
+    provider: 'email_signature',
+    step: 'company.enrich',
+    skipped: true,
+    reason: sig.error,
+  });
+
+  // Stage 2 — company + external websites (free public meta)
+  const site = await fetchWebsiteMeta(domain);
+  if (site.ok && site.title) {
+    firm = {
+      ...firm,
+      name: account.name || firm.name,
+      provider: 'website_meta',
+    };
+    trace.push({
+      provider: 'website_meta',
+      step: 'company.enrich',
+      live: true,
+      title: site.title,
+    });
+  } else {
+    trace.push({
+      provider: 'website_meta',
+      step: 'company.enrich',
+      skipped: true,
+      reason: 'no_title',
+    });
+  }
+
+  // Stage 3 — paid: Apollo last when LIVE
   const liveAttempt = await apolloEnrichCompany({
     domain,
     monthSpendUsd: monthSpend,
@@ -134,12 +171,12 @@ export async function runAccountBootstrap(
     await setProgress(sb, job.id, 100, liveAttempt.error, {
       status: 'budget_blocked',
       finished_at: new Date().toISOString(),
-      provider_trace: [{ provider: 'apollo', error: liveAttempt.error }],
+      provider_trace: [...trace, { provider: 'apollo', error: liveAttempt.error }],
     });
     return;
   } else {
     trace.push({
-      provider: 'cache',
+      provider: 'apollo',
       step: 'company.enrich',
       live: false,
       reason: liveAttempt.error,
@@ -377,41 +414,23 @@ async function enrichPersonWaterfall(
   let monthSpend = input.monthSpend;
   let person = { ...input.person };
 
-  // PDL → Apollo already had stub → Hunter → ZeroBounce
-  const pdl = await pdlEnrichPerson({
-    fullName: person.full_name,
-    email: person.email,
-    linkedinUrl: person.linkedin_url,
-    companyDomain: input.domain,
-    monthSpendUsd: monthSpend,
-    budgetUsd: input.budgetUsd,
+  // Budget-first: signature → website → hunter → ZB → PDL → Apollo last
+  const sig = scrapeEmailSignatureScaffold();
+  input.trace.push({
+    provider: 'email_signature',
+    step: 'person.enrich',
+    skipped: true,
+    reason: sig.error,
   });
-  if (pdl.ok) {
-    await recordCreditSpend({
-      sb,
-      orgId: input.orgId,
-      provider: 'pdl',
-      usd: pdl.costUsd,
-      jobId: input.jobId,
-      note: `person.enrich:${person.full_name}`,
-    });
-    monthSpend += pdl.costUsd;
-    person = {
-      ...person,
-      full_name: pdl.data.full_name || person.full_name,
-      title: pdl.data.title || person.title,
-      email: pdl.data.email || person.email,
-      linkedin_url: pdl.data.linkedin_url || person.linkedin_url,
-      provider: 'pdl',
-    };
-    input.trace.push({ provider: 'pdl', step: 'person.enrich', live: true });
-  } else {
-    input.trace.push({
-      provider: 'pdl',
-      skipped: true,
-      reason: pdl.error,
-    });
-  }
+
+  const site = await fetchWebsiteMeta(input.domain);
+  input.trace.push({
+    provider: 'website_meta',
+    step: 'person.enrich',
+    skipped: !site.ok,
+    title: site.title,
+    reason: site.ok ? undefined : 'no_title',
+  });
 
   if (!person.email) {
     const gate = budgetAllowsSpend({
@@ -489,6 +508,63 @@ async function enrichPersonWaterfall(
       // Without ZB LIVE, do not write unverified email as primary
       person = { ...person, email: null, email_status: 'unknown' };
     }
+  }
+
+  // Paid person enrich after free + cheaper find/verify — still before Apollo
+  const needsPaid =
+    !person.email || !person.title || !person.linkedin_url;
+  if (needsPaid) {
+    const pdl = await pdlEnrichPerson({
+      fullName: person.full_name,
+      email: person.email,
+      linkedinUrl: person.linkedin_url,
+      companyDomain: input.domain,
+      monthSpendUsd: monthSpend,
+      budgetUsd: input.budgetUsd,
+    });
+    if (pdl.ok) {
+      await recordCreditSpend({
+        sb,
+        orgId: input.orgId,
+        provider: 'pdl',
+        usd: pdl.costUsd,
+        jobId: input.jobId,
+        note: `person.enrich:${person.full_name}`,
+      });
+      monthSpend += pdl.costUsd;
+      person = {
+        ...person,
+        full_name: pdl.data.full_name || person.full_name,
+        title: pdl.data.title || person.title,
+        email: pdl.data.email || person.email,
+        linkedin_url: pdl.data.linkedin_url || person.linkedin_url,
+        provider: 'pdl',
+      };
+      input.trace.push({ provider: 'pdl', step: 'person.enrich', live: true });
+    } else {
+      input.trace.push({
+        provider: 'pdl',
+        skipped: true,
+        reason: pdl.error,
+      });
+    }
+  }
+
+  // Apollo person match is last (people expand already used Apollo stubs when LIVE)
+  if (person.provider === 'apollo' || person.apollo_id) {
+    input.trace.push({
+      provider: 'apollo',
+      step: 'person.enrich',
+      live: true,
+      note: 'stub_from_people_search',
+    });
+  } else {
+    input.trace.push({
+      provider: 'apollo',
+      step: 'person.enrich',
+      skipped: true,
+      reason: 'apollo_last_no_person_match_needed',
+    });
   }
 
   return { ...person, monthSpend };

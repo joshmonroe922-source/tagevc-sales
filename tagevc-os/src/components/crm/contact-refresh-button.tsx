@@ -2,11 +2,11 @@
 
 import { useState, useTransition } from 'react';
 
-export function AccountRefreshButton({
-  accountId,
+export function ContactRefreshButton({
+  contactId,
   orgSlug = 'tage',
 }: {
-  accountId: string;
+  contactId: string;
   orgSlug?: string;
 }) {
   const [pending, start] = useTransition();
@@ -25,8 +25,9 @@ export function AccountRefreshButton({
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                account_id: accountId,
+                contact_id: contactId,
                 org_slug: orgSlug,
+                job_type: 'contact.enrich',
               }),
             });
             const json = (await res.json()) as {

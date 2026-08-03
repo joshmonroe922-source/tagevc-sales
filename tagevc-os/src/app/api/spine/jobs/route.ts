@@ -25,7 +25,7 @@ export async function GET(req: Request) {
   return NextResponse.json({ ok: true, jobs });
 }
 
-/** Enqueue account.bootstrap refresh (works with mock worker; LIVE providers later). */
+/** Enqueue account.bootstrap or contact.enrich refresh from CRM detail CTAs. */
 export async function POST(req: Request) {
   const session = await getSessionContext();
   if (!session) {
@@ -33,14 +33,20 @@ export async function POST(req: Request) {
   }
   const body = (await req.json().catch(() => ({}))) as {
     account_id?: string;
+    contact_id?: string;
     org_slug?: string;
+    job_type?: string;
   };
-  if (!body.account_id) {
+
+  const wantsContact = Boolean(body.contact_id);
+  const wantsAccount = Boolean(body.account_id);
+  if (!wantsContact && !wantsAccount) {
     return NextResponse.json(
-      { ok: false, error: 'account_id required' },
+      { ok: false, error: 'account_id or contact_id required' },
       { status: 400 },
     );
   }
+
   const orgId = await resolveOrgIdBySlug(body.org_slug || 'tage');
   if (!orgId) {
     return NextResponse.json(
@@ -48,9 +54,48 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
+
   try {
     const sb = await createPersistClient();
-    const key = accountBootstrapKey(body.account_id, orgId);
+    const hour = new Date().toISOString().slice(0, 13);
+
+    if (wantsContact) {
+      const jobType =
+        body.job_type === 'contact.bootstrap'
+          ? 'contact.bootstrap'
+          : 'contact.enrich';
+      const { data, error } = await sb
+        .from('enrichment_jobs')
+        .upsert(
+          {
+            org_id: orgId,
+            type: jobType,
+            contact_id: body.contact_id,
+            account_id: body.account_id || null,
+            status: 'queued',
+            idempotency_key: `${jobType}:${body.contact_id}:${orgId}:${hour}`,
+            payload: {
+              contact_id: body.contact_id,
+              account_id: body.account_id || null,
+              refresh: true,
+            },
+            progress_pct: 0,
+            progress_message: 'queued from CRM contact',
+          },
+          { onConflict: 'idempotency_key' },
+        )
+        .select('id')
+        .maybeSingle();
+      if (error) {
+        return NextResponse.json(
+          { ok: false, error: error.message },
+          { status: 500 },
+        );
+      }
+      return NextResponse.json({ ok: true, jobId: data?.id ?? null });
+    }
+
+    const key = accountBootstrapKey(body.account_id!, orgId);
     const { data, error } = await sb
       .from('enrichment_jobs')
       .upsert(
@@ -59,7 +104,7 @@ export async function POST(req: Request) {
           type: 'account.bootstrap',
           account_id: body.account_id,
           status: 'queued',
-          idempotency_key: `${key}:${new Date().toISOString().slice(0, 13)}`,
+          idempotency_key: `${key}:${hour}`,
           payload: { account_id: body.account_id, refresh: true },
           progress_pct: 0,
           progress_message: 'queued from CRM',

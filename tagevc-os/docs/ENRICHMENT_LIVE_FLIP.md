@@ -27,13 +27,24 @@ The worker always runs. Without LIVE flags it uses **mock** firmographics + peop
 6. Create/refresh one account in CRM; watch `enrichment_jobs` + `credit_ledger`.
 7. If spend spikes: set `ENRICHMENT_KILL_SWITCH=1` immediately.
 
+## Budget-first enrichment order (Josh 2026-08-03)
+
+Paid Apollo is **last**. Free / scaffold stages run first whether LIVE or not:
+
+1. **Email signatures** — scaffold/backlog (`email_signature`); traces as skipped until mailbox AI mining ships.
+2. **Company + external websites** — free public `website_meta` fetch (title/meta).
+3. **Paid providers** — Hunter / ZeroBounce / PDL as needed; **Apollo.ai last** when `APOLLO_LIVE=1`.
+
+Ranks live in `COMPANY_WATERFALL` / `PERSON_WATERFALL` (`src/lib/spine/enrichment/waterfall.ts`). Bootstrap + person enrich follow that order in `bootstrap.ts`.
+
 ## What the worker does now (code ready)
 
-1. Company: Apollo enrich when LIVE, else mock firmographics.
-2. People expand: **Apollo people search** when LIVE + `apollo_org_id`, else mock people.
-3. Person waterfall: PDL → Hunter → ZeroBounce (each fail-closed).
+1. Company: signature scaffold → website meta → Apollo enrich when LIVE (else mock firmographics).
+2. People expand: **Apollo people search** when LIVE + `apollo_org_id` (after free company stages); else mock people.
+3. Person waterfall: signature → website → Hunter → ZeroBounce → PDL → Apollo last (each fail-closed / scaffold).
 4. Contact writes go through **merge engine** (locked/user fields → `suggested_updates`).
 5. Every paid call writes `credit_ledger`; budget exceed → `budget_blocked`.
+6. CRM CTAs: Account + Contact detail **Contact Info Refresh** enqueue `account.bootstrap` / `contact.enrich`.
 
 ## What Josh still needs to supply (blocked without these)
 
@@ -47,7 +58,8 @@ The worker always runs. Without LIVE flags it uses **mock** firmographics + peop
 - Admin → Enrichment shows configured / LIVE / ready status and org budgets.
 - Top bar **Org** switcher scopes CRM lists/search/jobs to the active subsidiary.
 - Job toaster shows progress (Realtime + poll).
-- Worker uses mock providers when LIVE is off (safe demos).
+- Account detail + Contact detail: **Contact Info Refresh** buttons enqueue bootstrap/enrich.
+- Worker uses mock providers when LIVE is off (safe demos); free website_meta still attempted.
 - Merge engine still requires verified email for primary_email writes (R3).
 
 ## Code

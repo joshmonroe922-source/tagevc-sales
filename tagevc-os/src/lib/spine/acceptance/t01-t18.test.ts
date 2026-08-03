@@ -6,9 +6,13 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  BUDGET_FIRST_STAGES,
+  COMPANY_WATERFALL,
+  PERSON_WATERFALL,
   budgetAllowsSpend,
   enrichmentKillSwitchEnabled,
   mockExpandPeople,
+  providerRank,
 } from '@/lib/spine/enrichment/waterfall';
 import { decideMergeField } from '@/lib/spine/merge/engine';
 import {
@@ -72,6 +76,25 @@ describe('T03–T04 bootstrap + expand (unit)', () => {
     expect(bootstrap).toContain('pdlEnrichPerson');
     expect(bootstrap).toContain('runContactEnrich');
     expect(bootstrap).toContain('MAX_EXPAND_CAP = 75');
+    expect(bootstrap).toContain('scrapeEmailSignatureScaffold');
+    expect(bootstrap).toContain('fetchWebsiteMeta');
+  });
+
+  it('budget-first waterfall: signature → website → Apollo last', () => {
+    expect(BUDGET_FIRST_STAGES[0]).toBe('email_signature');
+    expect(BUDGET_FIRST_STAGES[1]).toBe('website_meta');
+    expect(COMPANY_WATERFALL.indexOf('email_signature')).toBeLessThan(
+      COMPANY_WATERFALL.indexOf('website_meta'),
+    );
+    expect(COMPANY_WATERFALL.indexOf('website_meta')).toBeLessThan(
+      COMPANY_WATERFALL.indexOf('apollo'),
+    );
+    expect(COMPANY_WATERFALL.at(-1)).toBe('apollo');
+    expect(PERSON_WATERFALL.at(-1)).toBe('apollo');
+    expect(providerRank('email_signature')).toBeLessThan(
+      providerRank('website_meta'),
+    );
+    expect(providerRank('website_meta')).toBeLessThan(providerRank('apollo'));
   });
 });
 
@@ -211,5 +234,23 @@ describe('supporting spine surfaces', () => {
     expect(doc).toContain('fail-closed');
     expect(doc).toContain('credit_ledger');
     expect(doc).toContain('mock');
+    expect(doc).toContain('Budget-first');
+    expect(doc).toContain('Apollo.ai last');
+    expect(doc).toContain('Contact Info Refresh');
+  });
+
+  it('CRM account + contact detail expose Contact Info Refresh CTAs', () => {
+    const accountBtn = read('src/components/crm/account-refresh-button.tsx');
+    const contactBtn = read('src/components/crm/contact-refresh-button.tsx');
+    const accountPage = read(
+      'src/app/(app)/shared-services/crm/accounts/[id]/page.tsx',
+    );
+    const contactPage = read(
+      'src/app/(app)/shared-services/crm/contacts/[id]/page.tsx',
+    );
+    expect(accountBtn).toContain('Contact Info Refresh');
+    expect(contactBtn).toContain('Contact Info Refresh');
+    expect(accountPage).toContain('AccountRefreshButton');
+    expect(contactPage).toContain('ContactRefreshButton');
   });
 });
