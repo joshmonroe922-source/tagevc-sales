@@ -42,7 +42,7 @@ export function EccHomeClient({ home }: { home: EccHome }) {
             <p className="text-sm text-muted-foreground">Engagement appears here after sends.</p>
           ) : (
             <ul className="divide-y divide-[#ece9e6]">
-              {home.hotFollowUps.map((f) => (
+              {(home.hotFollowUps || []).map((f) => (
                 <li key={`${f.contactId}-${f.score}`} className="flex justify-between gap-3 py-2.5 text-sm">
                   <div className="min-w-0">
                     <p className="truncate font-medium text-[#3a414f]">{f.email || f.contactId}</p>
@@ -58,9 +58,11 @@ export function EccHomeClient({ home }: { home: EccHome }) {
           <h3 className="font-heading mb-3 text-lg text-[#3a414f]">Needs approval</h3>
           {(home.needsApproval || []).length === 0 ? (
             <p className="text-sm text-muted-foreground">No campaigns waiting.</p>
-          ) : home.needsApproval.map((c) => (
+          ) : (
+            (home.needsApproval || []).map((c) => (
             <Link key={c.id} href={`${ECC_ROUTE_PREFIX}/campaigns/${c.id}`} className="mb-2 block rounded border border-[#ece9e6] px-3 py-2 text-sm hover:border-[#9f957c]">{c.name}</Link>
-          ))}
+          ))
+          )}
         </section>
       </div>
     </div>
