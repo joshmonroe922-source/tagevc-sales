@@ -8,7 +8,10 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { enrichmentKillSwitchEnabled } from '../../../src/lib/spine/enrichment/waterfall.js';
-import { runAccountBootstrap } from '../../../src/lib/spine/enrichment/bootstrap.js';
+import {
+  runAccountBootstrap,
+  runContactEnrich,
+} from '../../../src/lib/spine/enrichment/bootstrap.js';
 import {
   getEnrichmentProviderHealth,
 } from '../../../src/lib/spine/enrichment/providers.js';
@@ -182,10 +185,18 @@ async function loop() {
       if (job.type === 'account.bootstrap' || job.type === 'account.enrich') {
         await runAccountBootstrap(sb, job);
       } else if (
-        job.type === 'account.refresh_stale' ||
-        job.type === 'contact.refresh_stale'
+        job.type === 'contact.bootstrap' ||
+        job.type === 'contact.enrich'
       ) {
-        await runRefreshStale(job);
+        await runContactEnrich(sb, job);
+      } else if (job.type === 'account.refresh_stale') {
+        await runAccountBootstrap(sb, {
+          ...job,
+          type: 'account.enrich',
+          payload: { ...job.payload, expand: false },
+        });
+      } else if (job.type === 'contact.refresh_stale') {
+        await runContactEnrich(sb, job);
       } else if (job.type === 'signal.job_change') {
         await runJobChange(job);
       } else if (job.type === 'agent.data_qa') {

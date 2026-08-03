@@ -15,20 +15,20 @@
 
 UI spine looks finished; live enrichment pipeline is about halfway. Company Apollo works when keys are on — **people expand still uses fake employees**, PDL is not coded, merge is not used by the worker, and Copilot cannot enqueue refresh. Prior “LIVE-ready completion” overstates C5–C6 and C10–C12.
 
-**Biggest code lie:** Apollo people search exists but bootstrap never calls it — expand is always mock.
+**Update (same day):** Priority A closed in code — bootstrap now calls `apolloSearchPeople` when LIVE, PDL adapter exists, merge engine runs on contact writes, `contact.enrich`/`contact.bootstrap` handlers live, copilot `jobs.enqueue` shipped. Still need Josh keys + hosted worker for LIVE proof.
 
 | Metric | Count |
 |--------|------:|
-| Phases **Done** | 6 |
-| Phases **Partial** | 7 |
+| Phases **Done** | 8 |
+| Phases **Partial** | 5 |
 | Whole phases not started | 0 |
-| Acceptance tests passed | 21 (unit/static — not LIVE e2e) |
+| Acceptance tests passed | 22+ (unit/static — not LIVE e2e) |
 
 **Scorecard**
 
-- **Done:** C0, C1, C3, C4, C7, C8
-- **Partial:** C2, C5, C6, C9, C10, C11, C12
-- Inside Partial, C5 people-import and C6 PDL are effectively “not started.”
+- **Done:** C0, C1, C3, C4, C5 (code), C6 (code), C7, C8
+- **Partial:** C2, C9, C10, C11, C12
+- C5/C6 still need Josh keys + worker host for runtime proof — adapters are no longer stubs.
 
 ---
 

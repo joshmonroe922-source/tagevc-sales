@@ -248,6 +248,95 @@ export async function apolloSearchPeople(input: {
   }
 }
 
+export type PdlPersonResult = {
+  provider: 'pdl';
+  full_name: string;
+  title: string | null;
+  email: string | null;
+  linkedin_url: string | null;
+  raw?: unknown;
+};
+
+/** Person enrich via People Data Labs — fail-closed without PDL_LIVE + key. */
+export async function pdlEnrichPerson(input: {
+  fullName?: string | null;
+  email?: string | null;
+  linkedinUrl?: string | null;
+  companyDomain?: string | null;
+  monthSpendUsd: number;
+  budgetUsd: number;
+}): Promise<
+  | { ok: true; data: PdlPersonResult; costUsd: number }
+  | { ok: false; error: string; skipped?: boolean }
+> {
+  if (enrichmentKillSwitchEnabled()) {
+    return { ok: false, error: 'kill_switch', skipped: true };
+  }
+  if (!flag('PDL_LIVE') || !hasKey('PDL_API_KEY')) {
+    return { ok: false, error: 'pdl_not_live', skipped: true };
+  }
+  const estimate = PROVIDER_COST_USD.pdl_person;
+  const gate = budgetAllowsSpend({
+    monthSpendUsd: input.monthSpendUsd,
+    estimateUsd: estimate,
+    budgetUsd: input.budgetUsd,
+  });
+  if (!gate.ok) {
+    return { ok: false, error: gate.reason || 'budget', skipped: true };
+  }
+
+  const key = process.env.PDL_API_KEY!.trim();
+  const params = new URLSearchParams();
+  if (input.email) params.set('email', input.email);
+  if (input.fullName) params.set('name', input.fullName);
+  if (input.linkedinUrl) params.set('profile', input.linkedinUrl);
+  if (input.companyDomain) params.set('company', input.companyDomain);
+  params.set('pretty', 'true');
+
+  try {
+    const res = await fetch(
+      `https://api.peopledatalabs.com/v5/person/enrich?${params.toString()}`,
+      {
+        headers: {
+          'X-Api-Key': key,
+          'Content-Type': 'application/json',
+        },
+      },
+    );
+    if (res.status === 404) return { ok: false, error: 'pdl_not_found' };
+    if (!res.ok) return { ok: false, error: `pdl_http_${res.status}` };
+    const json = (await res.json()) as {
+      data?: {
+        full_name?: string;
+        job_title?: string;
+        work_email?: string;
+        linkedin_url?: string;
+      };
+    };
+    const d = json.data;
+    if (!d?.full_name && !d?.work_email) {
+      return { ok: false, error: 'pdl_empty' };
+    }
+    return {
+      ok: true,
+      costUsd: estimate,
+      data: {
+        provider: 'pdl',
+        full_name: d.full_name || input.fullName || 'Unknown',
+        title: d.job_title ?? null,
+        email: d.work_email ?? null,
+        linkedin_url: d.linkedin_url ?? null,
+        raw: d,
+      },
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'pdl_failed',
+    };
+  }
+}
+
 export async function hunterFindEmail(input: {
   domain: string;
   fullName: string;

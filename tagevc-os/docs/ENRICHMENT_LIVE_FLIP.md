@@ -27,6 +27,14 @@ The worker always runs. Without LIVE flags it uses **mock** firmographics + peop
 6. Create/refresh one account in CRM; watch `enrichment_jobs` + `credit_ledger`.
 7. If spend spikes: set `ENRICHMENT_KILL_SWITCH=1` immediately.
 
+## What the worker does now (code ready)
+
+1. Company: Apollo enrich when LIVE, else mock firmographics.
+2. People expand: **Apollo people search** when LIVE + `apollo_org_id`, else mock people.
+3. Person waterfall: PDL → Hunter → ZeroBounce (each fail-closed).
+4. Contact writes go through **merge engine** (locked/user fields → `suggested_updates`).
+5. Every paid call writes `credit_ledger`; budget exceed → `budget_blocked`.
+
 ## What Josh still needs to supply (blocked without these)
 
 - **Apollo API key** (+ optional PDL / Hunter / ZeroBounce keys) — ping when ready; until then mock path stays on.

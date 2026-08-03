@@ -142,7 +142,7 @@ export async function createContact(input: {
       const ensured = await createAccount({
         name: host.split('.')[0] || host,
         domain: host,
-        orgSlug: input.orgSlug || 'tage',
+        orgSlug: input.orgSlug || (await getActiveOrgSlug()),
         expand: false,
       });
       if (ensured.ok) accountId = ensured.accountId;
@@ -162,8 +162,7 @@ export async function createContact(input: {
         visibility: 'org',
         is_primary: true,
       });
-  if (accountId) {
-        // employment link when input.accountId (or email-domain ensure) present
+      if (accountId) {
         await sb.from('employments').insert({
           contact_id: hit.data.id,
           account_id: accountId,
@@ -208,6 +207,24 @@ export async function createContact(input: {
       source: 'manual',
     });
   }
+
+  const day = new Date().toISOString().slice(0, 10);
+  await sb.from('enrichment_jobs').upsert(
+    {
+      org_id: orgId,
+      type: 'contact.bootstrap',
+      payload: {
+        contact_id: c.id,
+        account_id: accountId,
+        org_id: orgId,
+      },
+      idempotency_key: `contact.bootstrap:${c.id}:${day}`,
+      contact_id: c.id,
+      account_id: accountId,
+      status: 'queued',
+    },
+    { onConflict: 'idempotency_key' },
+  );
 
   return { ok: true, contactId: c.id };
 }

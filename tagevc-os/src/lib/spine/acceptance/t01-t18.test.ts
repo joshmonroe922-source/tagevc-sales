@@ -64,6 +64,15 @@ describe('T03–T04 bootstrap + expand (unit)', () => {
     });
     expect(people.length).toBeLessThanOrEqual(3);
   });
+
+  it('bootstrap wires apolloSearchPeople + merge (not mock-only)', () => {
+    const bootstrap = read('src/lib/spine/enrichment/bootstrap.ts');
+    expect(bootstrap).toContain('apolloSearchPeople');
+    expect(bootstrap).toContain('decideMergeField');
+    expect(bootstrap).toContain('pdlEnrichPerson');
+    expect(bootstrap).toContain('runContactEnrich');
+    expect(bootstrap).toContain('MAX_EXPAND_CAP = 75');
+  });
 });
 
 describe('T05–T06 merge / user lock', () => {
@@ -146,12 +155,13 @@ describe('T13–T16 hiring manager / search / copilot / kill switch', () => {
     expect(crud).toContain('title.ilike');
   });
 
-  it('T15: copilot denies send_email', () => {
+  it('T15: copilot denies send_email and allows jobs.enqueue', () => {
     const route = read('src/app/api/spine/copilot/route.ts');
     expect(route).toContain('send_email');
-    expect(route).toMatch(/forbid|DENY|no send_email/i);
-    const probe = route.includes('list_agents') && route.includes('brief');
-    expect(probe).toBe(true);
+    expect(route).toMatch(/tool_denied|forbid/i);
+    expect(route).toContain('jobs.enqueue');
+    expect(route).toContain('list_agents');
+    expect(route).toContain('brief');
   });
 
   it('T16: kill switch + providers not ready without LIVE', () => {

@@ -3,7 +3,7 @@
  * Rules R1–R7 from Database Refresh.xlsx / 03_Schema_SQL.
  */
 
-import type { MergeFieldInput, MergeSource } from '@/lib/spine/db/types';
+import type { MergeFieldInput, MergeSource } from '../db/types';
 
 const WATERFALL_RANK: Record<string, number> = {
   user: 100,
