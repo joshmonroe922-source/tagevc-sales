@@ -10,6 +10,7 @@ export async function actionConvertSignentClient(input: {
   productKeys: string[];
   invoiceRef?: string | null;
   primaryContactEmail?: string | null;
+  accountId?: string | null;
 }) {
   const session = await getSessionContext();
   if (!session) return { ok: false as const, error: 'Unauthorized' };
@@ -18,5 +19,8 @@ export async function actionConvertSignentClient(input: {
     salesOwnerProfileId: session.profile.id,
   });
   revalidatePath('/shared-services/signent/clients');
+  if (result.ok) {
+    revalidatePath(`/shared-services/signent/clients/${result.clientOrg.id}`);
+  }
   return result;
 }

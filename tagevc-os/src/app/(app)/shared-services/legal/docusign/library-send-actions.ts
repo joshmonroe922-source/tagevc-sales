@@ -15,6 +15,14 @@ export async function actionSendLibraryDocuSign(input: {
   confirm: boolean;
   autofillKind?: AutofillRecordKind;
   autofillFields?: Record<string, string>;
+  attachKind?:
+    | 'hris_employee'
+    | 'ap_vendor'
+    | 'legal_matter'
+    | 'client_org'
+    | 'document_meta'
+    | '';
+  attachRecordId?: string;
 }) {
   const session = await getSessionContext();
   if (!session) return { ok: false as const, error: 'Unauthorized' };
@@ -35,8 +43,13 @@ export async function actionSendLibraryDocuSign(input: {
           fields: input.autofillFields,
         }
       : null,
+    attachTarget:
+      input.attachKind && input.attachRecordId
+        ? { kind: input.attachKind, recordId: input.attachRecordId }
+        : null,
   });
 
   revalidatePath('/shared-services/legal/docusign');
+  revalidatePath('/documents');
   return result;
 }

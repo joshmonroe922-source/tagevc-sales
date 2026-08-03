@@ -7,6 +7,7 @@ import {
   GlobalCreateTicketButton,
 } from '@/components/help-desk/create-ticket-modal';
 import { NotificationsBell } from '@/components/layout/notifications-bell';
+import { SuggestionBell } from '@/components/crm/suggestion-bell';
 import { AppTopBarShell } from '@/lib/platform/shell/app-top-bar';
 
 export function AppTopBar({
@@ -14,16 +15,19 @@ export function AppTopBar({
   desktopEnabled = false,
   soundEnabled = false,
   mobileNav,
+  suggestionCount = 0,
 }: {
   unreadCount?: number;
   desktopEnabled?: boolean;
   soundEnabled?: boolean;
   /** Phone Menu drawer (md:hidden). Desktop keeps the left sidebar. */
   mobileNav?: ReactNode;
+  suggestionCount?: number;
 }) {
   return (
     <AppTopBarShell
       mobileNav={mobileNav}
+      extras={<SuggestionBell initialCount={suggestionCount} />}
       alerts={
         <NotificationsBell
           initialUnread={unreadCount}

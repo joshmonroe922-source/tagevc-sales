@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { PageHeader } from '@/components/ui/page-header';
 import { requirePermission } from '@/lib/rbac/session';
 import {
@@ -63,7 +64,12 @@ export default async function SignentClientsPage() {
           ) : (
             rows.map((r) => (
               <li key={r.id} className="px-4 py-3">
-                <div className="font-medium">{r.legal_name}</div>
+                <Link
+                  href={`/shared-services/signent/clients/${r.id}`}
+                  className="font-medium underline-offset-2 hover:underline"
+                >
+                  {r.legal_name}
+                </Link>
                 <div className="text-xs text-muted-foreground">
                   {r.status} · {r.purchased_product_keys.join(', ') || 'no products'}
                 </div>

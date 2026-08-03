@@ -53,9 +53,10 @@ Tage OS = parent OS. Subsidiaries = apps on one spine: Entra → Supabase graph 
 | C7 hierarchy | Account org-chart panel + rule suggester + accept/reject |
 | C8 suggestions | `/shared-services/crm/suggestions` inbox + contact pending updates |
 | C9 Cmd-K + site research | Global `CmdKPalette` + account site-research agent (public meta) |
-| C10 brief | Graph-derived account brief (no paid LLM) on account page |
-| C11 product FKs | Partial — Signent convert + product tables seeded; portals later |
+| C10 brief | Graph-derived account brief + tool-gated `/api/spine/copilot` |
+| C11 product FKs | Signent convert + client detail ops scaffolds; portals later |
 | C12 budgets | Org budgets + kill switch UX on Admin → Enrichment |
-| Website→graph | `bootstrapGraphFromWebsiteLead` from intake |
-| DocuSign autofill/attach/send | Hub UI library-send form + `library-send.ts` |
-| Email | W-9 + bulk compose API + AP Graph poller |
+| Website→graph | Per-entity org routing (`entity` / `/website-intake/[entity]`) |
+| DocuSign autofill/attach/send | Library-send + attach stash → webhook apply |
+| Email / AP | W-9 campaign UI + AP poll cron (fail-closed without Graph) |
+| CRM polish | Suggestion accept applies+locks · bell · job toaster · Cmd-K |

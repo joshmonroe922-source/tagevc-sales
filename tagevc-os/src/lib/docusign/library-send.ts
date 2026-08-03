@@ -13,6 +13,10 @@ import {
   dispatchPreparedDocuSignSend,
   prepareDocuSignSendIntent,
 } from '@/lib/docusign/send-intents-repo';
+import {
+  stashLibraryAttachTarget,
+  type LibraryAttachTarget,
+} from '@/lib/docusign/attach-from-send';
 
 export async function sendLibraryDocumentForSignature(input: {
   entityId: string;
@@ -24,6 +28,8 @@ export async function sendLibraryDocumentForSignature(input: {
   actorId: string;
   explicitHumanConfirm: boolean;
   autofill?: AutofillSourceRecord | null;
+  /** When set, Connect completed attaches signed library doc back to this record. */
+  attachTarget?: LibraryAttachTarget | null;
 }): Promise<
   | { ok: true; envelopeId: string; mode: 'live' | 'mock' }
   | { ok: false; error: string }
@@ -80,6 +86,11 @@ export async function sendLibraryDocumentForSignature(input: {
             docId: input.docId,
           }),
       });
+      await stashLibraryAttachTarget({
+        docId: input.docId,
+        envelopeId: result.envelopeId,
+        attach: input.attachTarget,
+      });
       return { ok: true, envelopeId: result.envelopeId, mode };
     }
 
@@ -90,6 +101,11 @@ export async function sendLibraryDocumentForSignature(input: {
         status: 'sent',
         raw: { mode: 'mock', autofill: autofillTabs?.tabs ?? null },
       }),
+    });
+    await stashLibraryAttachTarget({
+      docId: input.docId,
+      envelopeId: result.envelopeId,
+      attach: input.attachTarget,
     });
     return { ok: true, envelopeId: result.envelopeId, mode };
   } catch (e) {

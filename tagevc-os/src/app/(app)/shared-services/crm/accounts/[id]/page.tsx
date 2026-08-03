@@ -10,6 +10,7 @@ import {
 } from '@/app/(app)/shared-services/crm/actions';
 import { OrgChartPanel } from '@/components/crm/org-chart-panel';
 import { AccountAgentPanel } from '@/components/crm/account-agent-panel';
+import { AccountRefreshButton } from '@/components/crm/account-refresh-button';
 import { CreateContactForm } from '@/components/crm/create-forms';
 
 type Props = { params: Promise<{ id: string }> };
@@ -82,6 +83,13 @@ export default async function CrmAccountPage({ params }: Props) {
             ? ` · ${new Date(String(account.last_enriched_at)).toLocaleDateString()}`
             : ''}
         </span>
+        <AccountRefreshButton accountId={id} />
+        <Link
+          href="/shared-services/crm/suggestions"
+          className="underline underline-offset-2"
+        >
+          Suggestions
+        </Link>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">

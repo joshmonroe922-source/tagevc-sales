@@ -10,9 +10,11 @@ import { Label } from '@/components/ui/label';
 export function DocuSignLibrarySendForm({
   canWrite,
   defaultEntityId = '',
+  defaultDocId = '',
 }: {
   canWrite: boolean;
   defaultEntityId?: string;
+  defaultDocId?: string;
 }) {
   const [entityId, setEntityId] = useState(defaultEntityId);
   const [confirm, setConfirm] = useState(false);
@@ -37,6 +39,12 @@ export function DocuSignLibrarySendForm({
           setFlash(null);
           setErr(null);
           start(async () => {
+            const attachKind = String(fd.get('attachKind') || '') as
+              | 'hris_employee'
+              | 'ap_vendor'
+              | 'client_org'
+              | 'legal_matter'
+              | '';
             const r = await actionSendLibraryDocuSign({
               entityId: entityId || String(fd.get('entityId') || 'ENT-FIRM'),
               docId: String(fd.get('docId') || ''),
@@ -52,6 +60,8 @@ export function DocuSignLibrarySendForm({
                 Company: String(fd.get('company') || ''),
                 Title: String(fd.get('title') || ''),
               },
+              attachKind: attachKind || '',
+              attachRecordId: String(fd.get('attachRecordId') || ''),
             });
             if (r.ok) {
               setFlash(`Sent ${r.envelopeId} (${r.mode})`);
@@ -68,7 +78,13 @@ export function DocuSignLibrarySendForm({
         </div>
         <div className="space-y-1">
           <Label htmlFor="lib-doc">Document ID</Label>
-          <Input id="lib-doc" name="docId" required placeholder="DOC-…" />
+          <Input
+            id="lib-doc"
+            name="docId"
+            required
+            placeholder="DOC-…"
+            defaultValue={defaultDocId}
+          />
         </div>
         <div className="space-y-1">
           <Label htmlFor="lib-subject">Subject</Label>
@@ -104,6 +120,29 @@ export function DocuSignLibrarySendForm({
             rows={5}
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
             placeholder="Paste agreement text or library excerpt…"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="lib-attach-kind">Attach signed PDF to</Label>
+          <select
+            id="lib-attach-kind"
+            name="attachKind"
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+            defaultValue=""
+          >
+            <option value="">Library only (no record attach)</option>
+            <option value="ap_vendor">AP vendor (W-9)</option>
+            <option value="hris_employee">HRIS employee</option>
+            <option value="client_org">Signent client org</option>
+            <option value="legal_matter">Legal matter</option>
+          </select>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="lib-attach-id">Record ID (optional attach)</Label>
+          <Input
+            id="lib-attach-id"
+            name="attachRecordId"
+            placeholder="UUID / vendor id…"
           />
         </div>
         <label className="flex items-center gap-2 text-sm sm:col-span-2">

@@ -209,3 +209,87 @@ export const SIGNENT_OPS_MODULES = [
     note: 'LTV after delivery evidence',
   },
 ] as const;
+
+export async function getSignentClientOrg(
+  id: string,
+): Promise<{ row: SignentClientOrg | null; error?: string; meta?: Record<string, unknown> }> {
+  try {
+    const sb = await createPersistClient();
+    const { data, error } = await sb
+      .from('os_signent_client_orgs')
+      .select(
+        'id, legal_name, trade_name, status, portal_url, purchased_product_keys, created_at, meta',
+      )
+      .eq('id', id)
+      .maybeSingle();
+    if (error) return { row: null, error: error.message };
+    if (!data) return { row: null };
+    return {
+      row: {
+        id: String(data.id),
+        legal_name: String(data.legal_name),
+        trade_name: String(data.trade_name ?? ''),
+        status: data.status as SignentClientOrgStatus,
+        portal_url: data.portal_url ? String(data.portal_url) : null,
+        purchased_product_keys: Array.isArray(data.purchased_product_keys)
+          ? (data.purchased_product_keys as string[])
+          : [],
+        created_at: String(data.created_at),
+      },
+      meta:
+        data.meta && typeof data.meta === 'object'
+          ? (data.meta as Record<string, unknown>)
+          : {},
+    };
+  } catch (e) {
+    return {
+      row: null,
+      error: e instanceof Error ? e.message : 'client_org unavailable',
+    };
+  }
+}
+
+/** Ops UX scaffolds — real pages in Tage OS; delivery still on Signent portal. */
+export function buildSignentOpsScaffold(clientOrgId: string) {
+  return [
+    {
+      id: 'handbook',
+      title: 'Handbook / form autofill',
+      status: 'scaffold' as const,
+      summary:
+        'Pull legal name, contacts, and purchased product keys into handbook merge fields. No auto-send.',
+      next: [
+        'Confirm primary contact email',
+        'Map product keys → handbook sections',
+        'Human review before client share',
+      ],
+      portalHref: `${SIGNENT_PORTAL_URL}/ops/clients/${clientOrgId}/handbook`,
+    },
+    {
+      id: 'audit',
+      title: 'Electronic HR audit',
+      status: 'scaffold' as const,
+      summary:
+        'AI findings stay ops-gated. Tage OS tracks status; Signent portal runs the audit workspace.',
+      next: [
+        'Collect handbook + policy artifacts',
+        'Run findings draft (ops edit)',
+        'Share pack only after ops approval',
+      ],
+      portalHref: `${SIGNENT_PORTAL_URL}/ops/clients/${clientOrgId}/audit`,
+    },
+    {
+      id: 'upsell',
+      title: 'Upsell vision',
+      status: 'scaffold' as const,
+      summary:
+        'LTV proposals after delivery evidence — never invent products the client did not purchase.',
+      next: [
+        'Require delivered product keys',
+        'Score gaps vs catalog',
+        'Sales owner reviews proposal',
+      ],
+      portalHref: `${SIGNENT_PORTAL_URL}/sales/clients/${clientOrgId}/upsell`,
+    },
+  ] as const;
+}

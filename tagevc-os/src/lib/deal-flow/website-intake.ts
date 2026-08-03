@@ -10,6 +10,7 @@ import {
 } from '@/lib/data/deal-flow-store';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 import { bootstrapGraphFromWebsiteLead } from '@/lib/spine/db/repos';
+import { resolveIntakeOrgSlug } from '@/lib/deal-flow/org-routing';
 import type { DealPath } from '@/lib/types';
 
 export type WebsiteIntakeBody = {
@@ -23,6 +24,9 @@ export type WebsiteIntakeBody = {
   idempotency_key?: string;
   website?: string;
   enroll_drip?: boolean;
+  /** Spine org: tage | recruit619 | signent | instant_nda */
+  entity?: string;
+  org_slug?: string;
 };
 
 export type WebsiteIntakeResult =
@@ -31,6 +35,7 @@ export type WebsiteIntakeResult =
       lead_id: string;
       replay: boolean;
       company_name: string;
+      org_slug?: string;
     }
   | { ok: false; error: string; status: number };
 
@@ -199,13 +204,19 @@ export async function ingestWebsiteLead(
   }
 
   // Best-effort graph bootstrap (agent.routing) — never fail website intake
+  const orgSlug = resolveIntakeOrgSlug({
+    entity: body.entity,
+    org_slug: body.org_slug,
+    source: body.source,
+    deal_path: dealPath,
+  });
   void bootstrapGraphFromWebsiteLead({
     leadId: lead.lead_id,
     name,
     email,
     company: companyName,
     website: body.website?.trim() || null,
-    orgSlug: 'tage',
+    orgSlug,
   }).catch(() => undefined);
 
   return {
@@ -213,6 +224,7 @@ export async function ingestWebsiteLead(
     lead_id: lead.lead_id,
     replay: false,
     company_name: companyName,
+    org_slug: orgSlug,
   };
 }
 

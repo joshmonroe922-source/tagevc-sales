@@ -21,10 +21,24 @@ const STATIC: Hit[] = [
   },
   {
     type: 'account',
+    id: 'nav-suggestions',
+    label: 'Suggestions inbox',
+    sublabel: 'Accept / reject agent updates',
+    href: '/shared-services/crm/suggestions',
+  },
+  {
+    type: 'account',
     id: 'nav-docusign',
     label: 'DocuSign hub',
-    sublabel: 'Legal',
+    sublabel: 'Library send · attach',
     href: '/shared-services/legal/docusign',
+  },
+  {
+    type: 'account',
+    id: 'nav-documents',
+    label: 'Document Library',
+    sublabel: 'Tage library SSOT',
+    href: '/documents',
   },
   {
     type: 'account',
@@ -35,10 +49,38 @@ const STATIC: Hit[] = [
   },
   {
     type: 'account',
+    id: 'nav-w9',
+    label: 'W-9 campaigns',
+    sublabel: 'Outstanding + mailbox poll',
+    href: '/shared-services/af/accounting/w9-campaigns',
+  },
+  {
+    type: 'account',
+    id: 'nav-forecasts',
+    label: 'Forecasting',
+    sublabel: '13-week cash',
+    href: '/shared-services/af/finance/forecasts',
+  },
+  {
+    type: 'account',
     id: 'nav-signent',
     label: 'Signent clients',
-    sublabel: 'Client orgs',
+    sublabel: 'Client orgs · ops scaffolds',
     href: '/shared-services/signent/clients',
+  },
+  {
+    type: 'account',
+    id: 'nav-agents',
+    label: 'Spine agents',
+    sublabel: 'Copilot tools',
+    href: '/admin/agents',
+  },
+  {
+    type: 'account',
+    id: 'nav-intake',
+    label: 'Website intake',
+    sublabel: 'Per-entity graph bootstrap',
+    href: '/admin/intake',
   },
 ];
 

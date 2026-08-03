@@ -4,7 +4,6 @@
 
 import { createPersistClient } from '@/lib/supabase/persist-client';
 import { resolveOrgIdBySlug } from '@/lib/spine/db/repos';
-import { decideMergeField } from '@/lib/spine/merge/engine';
 import { accountBootstrapKey } from '@/lib/spine/enrichment/jobs';
 
 function domainFromInput(domain?: string | null, website?: string | null): string | null {
@@ -397,6 +396,180 @@ export async function setOrgEdgeStatus(input: {
   return { ok: true };
 }
 
+/**
+ * Accept a suggested_update: write value onto entity + lock provenance (C8).
+ * Reject only flips status.
+ */
+export async function decideSuggestedUpdate(input: {
+  id: string;
+  status: 'accepted' | 'rejected';
+  userProfileId?: string | null;
+}): Promise<{ ok: true; applied?: boolean } | { ok: false; error: string }> {
+  const sb = await createPersistClient();
+  const { data: row, error } = await sb
+    .from('suggested_updates')
+    .select(
+      'id, entity_type, entity_id, field_name, suggested_value, status, org_id',
+    )
+    .eq('id', input.id)
+    .maybeSingle();
+  if (error || !row) {
+    return { ok: false, error: error?.message || 'suggestion not found' };
+  }
+  if (row.status !== 'pending') {
+    return { ok: false, error: `already ${row.status}` };
+  }
+
+  if (input.status === 'rejected') {
+    const { error: uErr } = await sb
+      .from('suggested_updates')
+      .update({
+        status: 'rejected',
+        resolved_at: new Date().toISOString(),
+        resolved_by: input.userProfileId || null,
+      })
+      .eq('id', input.id);
+    if (uErr) return { ok: false, error: uErr.message };
+    return { ok: true, applied: false };
+  }
+
+  const field = String(row.field_name);
+  const value = row.suggested_value != null ? String(row.suggested_value) : '';
+  const entityType = String(row.entity_type);
+  const entityId = String(row.entity_id);
+
+  if (entityType === 'contact' && value) {
+    const allowed = [
+      'full_name',
+      'primary_email',
+      'title',
+      'linkedin_url',
+      'phone',
+    ] as const;
+    if ((allowed as readonly string[]).includes(field)) {
+      const patch: Record<string, unknown> = {};
+      if (field === 'phone') {
+        patch.phones = value ? [{ type: 'mobile', value }] : [];
+      } else {
+        patch[field] = value;
+      }
+      const { error: cErr } = await sb
+        .from('contacts')
+        .update(patch)
+        .eq('id', entityId);
+      if (cErr) return { ok: false, error: cErr.message };
+      await sb.from('field_provenance').upsert(
+        {
+          entity_type: 'contact',
+          entity_id: entityId,
+          field_name: field === 'phone' ? 'phones' : field,
+          value,
+          source: 'user',
+          confidence: 1,
+          locked: true,
+          locked_by: input.userProfileId || null,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'entity_type,entity_id,field_name' },
+      );
+      await sb.from('contact_field_history').insert({
+        contact_id: entityId,
+        field_name: field,
+        new_value: value,
+        source: 'user',
+      });
+    }
+  } else if (entityType === 'account' && value) {
+    const allowed = [
+      'name',
+      'website',
+      'description',
+      'industry',
+      'canonical_domain',
+    ] as const;
+    if ((allowed as readonly string[]).includes(field)) {
+      const { error: aErr } = await sb
+        .from('accounts')
+        .update({ [field]: value })
+        .eq('id', entityId);
+      if (aErr) return { ok: false, error: aErr.message };
+      await sb.from('field_provenance').upsert(
+        {
+          entity_type: 'account',
+          entity_id: entityId,
+          field_name: field,
+          value,
+          source: 'user',
+          confidence: 1,
+          locked: true,
+          locked_by: input.userProfileId || null,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'entity_type,entity_id,field_name' },
+      );
+    }
+  }
+
+  const { error: uErr } = await sb
+    .from('suggested_updates')
+    .update({
+      status: 'accepted',
+      resolved_at: new Date().toISOString(),
+      resolved_by: input.userProfileId || null,
+    })
+    .eq('id', input.id);
+  if (uErr) return { ok: false, error: uErr.message };
+  return { ok: true, applied: Boolean(value) };
+}
+
+export async function countPendingSuggestions(): Promise<number> {
+  try {
+    const sb = await createPersistClient();
+    const { count } = await sb
+      .from('suggested_updates')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending');
+    return count ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+export async function listRecentEnrichmentJobs(limit = 8): Promise<
+  Array<{
+    id: string;
+    type: string;
+    status: string;
+    progress_pct: number | null;
+    progress_message: string | null;
+    account_id: string | null;
+  }>
+> {
+  try {
+    const sb = await createPersistClient();
+    const { data } = await sb
+      .from('enrichment_jobs')
+      .select(
+        'id, type, status, progress_pct, progress_message, account_id, created_at',
+      )
+      .in('status', ['queued', 'running', 'succeeded', 'failed'])
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    return (data ?? []).map((j) => ({
+      id: String(j.id),
+      type: String(j.type),
+      status: String(j.status),
+      progress_pct: j.progress_pct == null ? null : Number(j.progress_pct),
+      progress_message: j.progress_message
+        ? String(j.progress_message)
+        : null,
+      account_id: j.account_id ? String(j.account_id) : null,
+    }));
+  } catch {
+    return [];
+  }
+}
+
 /** Rule-based hierarchy suggestions (agent.hierarchy lite — no LLM). */
 export async function suggestHierarchyForAccount(
   accountId: string,
@@ -420,15 +593,20 @@ export async function suggestHierarchyForAccount(
   );
   const top = sorted[0];
   const sb = await createPersistClient();
+  const { data: prior } = await sb
+    .from('org_edges')
+    .select('manager_contact_id, report_contact_id, status')
+    .eq('account_id', accountId)
+    .eq('manager_contact_id', top.id)
+    .in('status', ['suggested', 'confirmed', 'rejected']);
+  const blocked = new Set(
+    (prior ?? []).map((e) => `${e.manager_contact_id}:${e.report_contact_id}`),
+  );
   let created = 0;
   for (const n of sorted.slice(1)) {
     if (rank(n.title) >= rank(top.title)) continue;
-    const existing = chart.edges.find(
-      (e) =>
-        e.report_contact_id === n.id &&
-        (e.status === 'confirmed' || e.status === 'suggested'),
-    );
-    if (existing) continue;
+    const key = `${top.id}:${n.id}`;
+    if (blocked.has(key)) continue;
     const { error } = await sb.from('org_edges').insert({
       account_id: accountId,
       manager_contact_id: top.id,

@@ -530,6 +530,30 @@ export const MAIN_NAV: NavItem[] = [
           },
           {
             module: 'admin',
+            href: '/admin/intake',
+            label: 'Website intake',
+            description: 'Tage · R619 · Signent · Instant NDA',
+          },
+          {
+            module: 'admin',
+            href: '/admin/agents',
+            label: 'Spine agents',
+            description: 'Catalog · tool-gated copilot',
+          },
+          {
+            module: 'shared_services',
+            href: '/shared-services/af/accounting/w9-campaigns',
+            label: 'W-9 / AP inbound',
+            description: 'Outstanding W-9 · mailbox poll',
+          },
+          {
+            module: 'shared_services',
+            href: '/shared-services/af/finance/forecasts',
+            label: 'Forecasting',
+            description: '13-week cash · expense horizon',
+          },
+          {
+            module: 'admin',
             href: '/admin/email',
             label: 'Email analytics',
             description: 'Platform Graph/Resend opens · clicks',

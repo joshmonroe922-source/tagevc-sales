@@ -487,7 +487,12 @@ export default async function DocuSignModulePage({
           templates={templates.rows}
           canWrite={canWrite}
         />
-        <DocuSignLibrarySendForm canWrite={canWrite} />
+        <DocuSignLibrarySendForm
+          canWrite={canWrite}
+          defaultDocId={
+            typeof sp.docId === 'string' ? sp.docId.trim() : undefined
+          }
+        />
         <DocuSignReplacementForm
           templates={templates.rows}
           voidedEnvelopeIds={liveRows

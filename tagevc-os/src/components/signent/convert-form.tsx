@@ -24,12 +24,16 @@ export function SignentConvertForm() {
             invoiceRef: String(fd.get('invoice_ref') || '') || null,
             primaryContactEmail:
               String(fd.get('email') || '') || null,
+            accountId: String(fd.get('account_id') || '') || null,
           });
           setMsg(
             r.ok
               ? `Created client ${r.clientOrg.id.slice(0, 8)}…`
               : r.error,
           );
+          if (r.ok) {
+            window.location.href = `/shared-services/signent/clients/${r.clientOrg.id}`;
+          }
         });
       }}
     >
@@ -60,6 +64,11 @@ export function SignentConvertForm() {
         name="invoice_ref"
         placeholder="Invoice / PO ref"
         className="rounded-md border border-border px-3 py-2"
+      />
+      <input
+        name="account_id"
+        placeholder="CRM account UUID (optional graph link)"
+        className="rounded-md border border-border px-3 py-2 sm:col-span-2"
       />
       <button
         type="submit"

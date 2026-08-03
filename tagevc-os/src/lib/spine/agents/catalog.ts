@@ -25,6 +25,24 @@ export const SPINE_AGENTS = [
     jobs: [] as const,
     description: 'Copilot brief from graph + evidence (C10)',
   },
+  {
+    id: 'agent.copilot',
+    label: 'Cmd-K copilot',
+    jobs: [] as const,
+    description: 'Tool-gated search/brief — no send_email / capital DocuSign',
+  },
+  {
+    id: 'agent.dedupe_referee',
+    label: 'Dedupe referee',
+    jobs: [] as const,
+    description: 'Scaffold — merge collisions → suggestions inbox',
+  },
+  {
+    id: 'agent.data_qa',
+    label: 'Data QA',
+    jobs: [] as const,
+    description: 'Scaffold — stale freshness + missing email flags',
+  },
 ] as const;
 
 export type SpineAgentId = (typeof SPINE_AGENTS)[number]['id'];

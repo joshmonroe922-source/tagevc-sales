@@ -9,10 +9,12 @@ import { HelpDeskShell, AppTopBar } from '@/components/help-desk/help-desk-shell
 import { AppShellScrollLock } from '@/components/layout/app-shell-scroll-lock';
 import { MessagePresenceHost } from '@/components/messaging/message-presence-host';
 import { CmdKPalette } from '@/components/crm/cmd-k';
+import { JobProgressToast } from '@/components/crm/job-progress-toast';
 import { bootstrapDomainStores } from '@/lib/data/bootstrap';
 import { listRoleSwitcherRoles } from '@/lib/rbac/impersonation';
 import { getSessionContext } from '@/lib/rbac/session';
 import { countMyUnreadNotifications } from '@/lib/data/activity';
+import { countPendingSuggestions } from '@/lib/spine/db/crud';
 import { getDesktopPrefsAction } from '@/app/(app)/notifications/inbox-actions';
 
 export const dynamic = 'force-dynamic';
@@ -31,9 +33,10 @@ export default async function AppShellLayout({
   await bootstrapDomainStores();
 
   const canImpersonate = session.realRole === 'visionary';
-  const [unread, desktopPrefs] = await Promise.all([
+  const [unread, desktopPrefs, suggestionCount] = await Promise.all([
     countMyUnreadNotifications(),
     getDesktopPrefsAction(),
+    countPendingSuggestions(),
   ]);
 
   const sidebarProps = {
@@ -62,6 +65,7 @@ export default async function AppShellLayout({
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <AppTopBar
             unreadCount={unread}
+            suggestionCount={suggestionCount}
             desktopEnabled={desktopPrefs.desktopEnabled}
             soundEnabled={desktopPrefs.soundEnabled}
             mobileNav={
@@ -87,6 +91,7 @@ export default async function AppShellLayout({
           <MessagePresenceHost />
         </Suspense>
         <CmdKPalette />
+        <JobProgressToast />
       </div>
     </HelpDeskShell>
   );

@@ -7,8 +7,10 @@ export const runtime = 'nodejs';
  * Cron / manual: GET or POST with CRON_SECRET / AP_INBOUND_WEBHOOK_SECRET.
  */
 function authorized(req: Request): boolean {
+  if (req.headers.get('x-vercel-cron') === '1') return true;
   const secret =
     process.env.CRON_SECRET?.trim() ||
+    process.env.DIGEST_SECRET?.trim() ||
     process.env.AP_INBOUND_WEBHOOK_SECRET?.trim();
   if (!secret) return false;
   const header =

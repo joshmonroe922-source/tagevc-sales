@@ -97,16 +97,13 @@ export async function actionDecideSuggestedUpdate(
 ) {
   const session = await getSessionContext();
   if (!session) return { ok: false as const, error: 'Unauthorized' };
-  const { createPersistClient } = await import('@/lib/supabase/persist-client');
-  const sb = await createPersistClient();
-  const { error } = await sb
-    .from('suggested_updates')
-    .update({
-      status,
-      resolved_at: new Date().toISOString(),
-    })
-    .eq('id', id);
-  if (error) return { ok: false as const, error: error.message };
+  const { decideSuggestedUpdate } = await import('@/lib/spine/db/crud');
+  const result = await decideSuggestedUpdate({
+    id,
+    status,
+    userProfileId: session.profile.id,
+  });
   revalidatePath('/shared-services/crm/suggestions');
-  return { ok: true as const };
+  revalidatePath('/shared-services/crm');
+  return result;
 }

@@ -71,6 +71,17 @@ export function DocumentSendActions({
           {pending ? 'Sending…' : 'Send via DocuSign'}
         </Button>
         <Button
+          type="button"
+          variant="outline"
+          onClick={() =>
+            router.push(
+              `/shared-services/legal/docusign?docId=${encodeURIComponent(docId)}`,
+            )
+          }
+        >
+          Library send + attach…
+        </Button>
+        <Button
           variant="outline"
           disabled={!canSimulate || pending || capitalBlocked}
           onClick={() =>

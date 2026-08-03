@@ -245,6 +245,24 @@ export async function POST(request: Request) {
           console.warn('[docusign] CoC email failed', e);
         }
       }
+
+      // Library → send → attach: apply stashed target on completed envelopes
+      if (!suppressReplayEffects) {
+        try {
+          const { applyStashedLibraryAttach } = await import(
+            '@/lib/docusign/attach-from-send'
+          );
+          const attached = await applyStashedLibraryAttach({
+            docId: doc.doc_id,
+            envelopeId: parsed.envelope_id,
+          });
+          if (!attached.ok) {
+            console.warn('[docusign] attach apply', attached.error);
+          }
+        } catch (e) {
+          console.warn('[docusign] attach apply failed', e);
+        }
+      }
     }
 
     return NextResponse.json({
