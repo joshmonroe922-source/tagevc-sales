@@ -19,9 +19,11 @@ import {
 } from './waterfall';
 import { recordCreditSpend, sumMonthSpendUsd } from './ledger';
 
+/* eslint-disable @typescript-eslint/no-explicit-any -- worker Supabase client is untyped by design */
 export type BootstrapSb = {
   from: (table: string) => any;
 };
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 export type BootstrapJob = {
   id: string;

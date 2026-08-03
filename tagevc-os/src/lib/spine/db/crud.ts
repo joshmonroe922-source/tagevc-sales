@@ -4,11 +4,9 @@
 
 import {
   createPersistClient,
-  createUserScopedClient,
 } from '@/lib/supabase/persist-client';
 import { resolveOrgIdBySlug } from '@/lib/spine/db/repos';
 import { accountBootstrapKey } from '@/lib/spine/enrichment/jobs';
-import { proposeHierarchyEdges } from '@/lib/spine/agents/hierarchy';
 import { getActiveOrgSlug } from '@/lib/spine/auth/active-org-server';
 
 function domainFromInput(domain?: string | null, website?: string | null): string | null {
