@@ -666,11 +666,14 @@ async function upsertContactViaMerge(
     .select('field_name, value, source, locked')
     .eq('entity_type', 'contact')
     .eq('entity_id', contactId);
-  const provMap = new Map(
-    (prov ?? []).map((p: { field_name: string; value: string | null; source: string; locked: boolean }) => [
-      p.field_name,
-      p,
-    ]),
+  type ProvRow = {
+    field_name: string;
+    value: string | null;
+    source: string;
+    locked: boolean;
+  };
+  const provMap = new Map<string, ProvRow>(
+    (prov ?? []).map((p: ProvRow) => [p.field_name, p]),
   );
 
   const { data: existing } = await sb

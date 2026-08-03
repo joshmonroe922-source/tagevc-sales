@@ -149,7 +149,10 @@ export function CampaignBuilderClient({ lists, templates, initial }: { lists: Na
           <p className="text-xs font-medium uppercase text-muted-foreground">Template</p>
           <select className="mt-1 w-full rounded border border-[#d7d3c3] px-2 py-2 text-sm" onChange={(e) => {
             const t = templates.find((x) => x.id === e.target.value);
-            if (t) { if (!subject) setSubject(t.subject); if (!body) setBody(t.html); }
+            if (t) {
+              if (!subject && t.subject) setSubject(t.subject);
+              if (!body && t.html) setBody(t.html);
+            }
           }}>
             <option value="">Blank</option>
             {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}

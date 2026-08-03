@@ -7,7 +7,9 @@ import { ECC_ROUTE_PREFIX } from '@/lib/campaign/core/types';
 export function ListActionBar({ listId, listName }: { listId: string; listName: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [campaigns, setCampaigns] = useState<Array<{ id: string; name: string }>>([]);
+  const [campaigns, setCampaigns] = useState<
+    Array<{ id: string; name: string; status?: string }>
+  >([]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   async function openChooser() {
