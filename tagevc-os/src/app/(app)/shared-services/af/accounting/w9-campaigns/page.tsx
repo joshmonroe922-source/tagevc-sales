@@ -15,7 +15,7 @@ export default async function W9CampaignsPage() {
     w9_document_id: string | null;
   }> = [];
   let inbound = 0;
-  let graphConfigured = Boolean(
+  const graphConfigured = Boolean(
     process.env.MS_GRAPH_CLIENT_ID &&
       process.env.MS_GRAPH_CLIENT_SECRET &&
       process.env.MS_GRAPH_TENANT_ID,
