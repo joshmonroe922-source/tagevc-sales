@@ -219,11 +219,26 @@ export async function runAccountBootstrap(
   const rawCap = Number(job.payload.cap || org?.auto_expand_cap || 5);
   const cap = Math.min(Math.max(1, rawCap), MAX_EXPAND_CAP);
 
-  await setProgress(sb, job.id, 55, 'expand people');
+  await setProgress(sb, job.id, 55, 'expand people (Apollo last)');
 
   let people: ExpandPerson[] = [];
   let peopleSource: 'apollo' | 'mock' = 'mock';
 
+  // Free tiers first — signature / website people extract still scaffold
+  trace.push({
+    provider: 'email_signature',
+    step: 'people.expand',
+    skipped: true,
+    reason: 'email_signature_scaffold_backlog',
+  });
+  trace.push({
+    provider: 'website_meta',
+    step: 'people.expand',
+    skipped: true,
+    reason: 'website_people_extract_backlog',
+  });
+
+  // Apollo people search last when LIVE + org id
   if (apolloOrgId) {
     const searched = await apolloSearchPeople({
       apolloOrgId: String(apolloOrgId),

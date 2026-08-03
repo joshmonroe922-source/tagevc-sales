@@ -8,10 +8,12 @@ import type { MergeFieldInput, MergeSource } from '../db/types';
 const WATERFALL_RANK: Record<string, number> = {
   user: 100,
   zerobounce: 90,
+  email_signature: 85,
   hunter: 70,
   apollo: 60,
   pdl: 55,
   website: 40,
+  website_meta: 40,
   import: 30,
   agent: 20,
 };

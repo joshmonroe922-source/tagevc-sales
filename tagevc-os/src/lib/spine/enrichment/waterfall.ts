@@ -3,9 +3,9 @@
  * Live HTTP only from worker process with provider keys.
  *
  * Budget-first priority (Josh 2026-08-03):
- *   1. email signatures (free / backlog scaffold)
- *   2. company + external websites (free public fetch)
- *   3. paid providers — Apollo.ai last when LIVE
+ *   1. email_signature — free / first-party (scaffold OK until scraper ships)
+ *   2. website_meta — company + external public sites
+ *   3. apollo — paid; always last when LIVE
  */
 
 export type ProviderName =
@@ -17,29 +17,15 @@ export type ProviderName =
   | 'pdl'
   | 'apollo';
 
-/** Human-readable budget-first stages (docs + UI). */
-export const BUDGET_FIRST_STAGES = [
-  'email_signature',
-  'website_meta',
-  'paid_providers_apollo_last',
-] as const;
-
-/**
- * Company enrich rank — free/cache first, Apollo last among paid.
- * `email_signature` is scaffold/backlog until mailbox mining ships.
- */
+/** Company enrich order — Apollo last. */
 export const COMPANY_WATERFALL: ProviderName[] = [
   'cache',
   'email_signature',
   'website_meta',
-  'pdl',
   'apollo',
 ];
 
-/**
- * Person enrich rank — free first, Apollo last when LIVE.
- * Signature scrape is scaffold (trace-only) until built.
- */
+/** Person enrich order — free → cheap email → PDL → Apollo last. */
 export const PERSON_WATERFALL: ProviderName[] = [
   'email_signature',
   'website_meta',
@@ -49,13 +35,86 @@ export const PERSON_WATERFALL: ProviderName[] = [
   'apollo',
 ];
 
-/** Lower = earlier in waterfall. Apollo is always last among named providers. */
-export function providerRank(
+/** Stage names in budget-first order (Apollo last). */
+export const BUDGET_FIRST_STAGES = [
+  'email_signature',
+  'website_meta',
+  'apollo',
+] as const;
+
+/** Explicit budget-first tiers for docs + UI. */
+export const BUDGET_FIRST_TIERS = [
+  {
+    tier: 1,
+    label: 'Email signatures',
+    providers: ['email_signature'] as const,
+    cost: 'free',
+  },
+  {
+    tier: 2,
+    label: 'Company + external websites',
+    providers: ['website_meta'] as const,
+    cost: 'free',
+  },
+  {
+    tier: 3,
+    label: 'Apollo.ai (paid)',
+    providers: ['apollo'] as const,
+    cost: 'paid',
+  },
+] as const;
+
+export function providerWaterfallIndex(
+  waterfall: readonly ProviderName[],
   provider: ProviderName,
-  waterfall: readonly ProviderName[] = PERSON_WATERFALL,
 ): number {
   const i = waterfall.indexOf(provider);
-  return i === -1 ? waterfall.length + 1 : i;
+  return i < 0 ? Number.MAX_SAFE_INTEGER : i;
+}
+
+/** Lower = earlier in budget-first person waterfall (Apollo highest / last). */
+export function providerRank(provider: ProviderName): number {
+  return providerWaterfallIndex(PERSON_WATERFALL, provider);
+}
+
+/**
+ * Email-signature scrape scaffold (backlog). Always skipped until mailbox AI ships.
+ * Kept here so bootstrap/worker can import without path alias issues.
+ */
+export function scrapeEmailSignatureScaffold(_input?: {
+  accountId?: string;
+  contactId?: string;
+  email?: string | null;
+}): { ok: false; skipped: true; error: string } {
+  return {
+    ok: false,
+    skipped: true,
+    error: 'email_signature_scaffold_backlog',
+  };
+}
+
+/** Free public website title/meta — budget-first tier 2. */
+export async function fetchWebsiteMeta(
+  domainOrUrl: string,
+): Promise<{ ok: true; title: string | null } | { ok: false; title: null }> {
+  const raw = (domainOrUrl || '').trim();
+  if (!raw) return { ok: false, title: null };
+  const url = raw.startsWith('http')
+    ? raw
+    : `https://${raw.replace(/^www\./, '')}`;
+  try {
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(8000),
+      headers: { 'User-Agent': 'TageOS-Enrichment/1.0' },
+    });
+    if (!res.ok) return { ok: false, title: null };
+    const html = (await res.text()).slice(0, 80_000);
+    const m = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    const title = m?.[1]?.trim().slice(0, 200) || null;
+    return title ? { ok: true, title } : { ok: false, title: null };
+  } catch {
+    return { ok: false, title: null };
+  }
 }
 
 export function enrichmentKillSwitchEnabled(
@@ -123,53 +182,4 @@ export function mockExpandPeople(input: {
     email_status: 'unknown' as const,
     provider: 'cache' as const,
   }));
-}
-
-/**
- * Free website meta fetch (company stage 2). Public HTML title only — no auth scrape.
- */
-export async function fetchWebsiteMeta(domain: string): Promise<{
-  ok: boolean;
-  title: string | null;
-  provider: 'website_meta';
-}> {
-  const d = domain.toLowerCase().replace(/^www\./, '').trim();
-  if (!d || d === 'example.com') {
-    return { ok: false, title: null, provider: 'website_meta' };
-  }
-  const url = `https://${d}`;
-  try {
-    const res = await fetch(url, {
-      signal: AbortSignal.timeout(8000),
-      headers: { 'User-Agent': 'TageOS-Enrichment/1.0' },
-    });
-    if (!res.ok) return { ok: false, title: null, provider: 'website_meta' };
-    const html = (await res.text()).slice(0, 80_000);
-    const m = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-    const title = m?.[1]?.trim().slice(0, 200) || null;
-    return { ok: Boolean(title), title, provider: 'website_meta' };
-  } catch {
-    return { ok: false, title: null, provider: 'website_meta' };
-  }
-}
-
-/**
- * Email-signature contact mining — scaffold/backlog.
- * Always no-op until mailbox AI extraction ships (see platform-email policy).
- */
-export function scrapeEmailSignatureScaffold(_input?: {
-  contactId?: string;
-  accountId?: string;
-}): {
-  ok: false;
-  skipped: true;
-  error: 'email_signature_backlog';
-  provider: 'email_signature';
-} {
-  return {
-    ok: false,
-    skipped: true,
-    error: 'email_signature_backlog',
-    provider: 'email_signature',
-  };
 }
