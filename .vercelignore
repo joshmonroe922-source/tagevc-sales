@@ -1,9 +1,2 @@
-# Keep unfinished Email Campaign Center WIP out of spine production uploads.
-# Remove these ignores when ECC ships.
-tagevc-os/src/lib/campaign/**
-tagevc-os/src/app/api/campaign/**
-tagevc-os/src/components/campaign/**
-tagevc-os/src/app/(app)/shared-services/marketing/email-campaign-center/**
-tagevc-os/docs/campaign/**
-tagevc-os/supabase/phase_email_campaign_platform.sql
-tagevc-os/scripts/apply-phase-email-campaign*.mjs
+# Intentionally empty — Email Campaign Center ships with the OS deploy.
+# Add path ignores here only for true local WIP that must not upload.
