@@ -14,6 +14,7 @@ export type PlatformEmailSource =
   | 'system'
   | 'w9'
   | 'ap_invoice'
+  | 'ecc_campaign'
   | 'unknown';
 
 export type EntityScopedEmailMessage = {

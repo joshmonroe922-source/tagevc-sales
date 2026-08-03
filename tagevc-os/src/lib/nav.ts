@@ -435,13 +435,24 @@ export const MAIN_NAV: NavItem[] = [
         module: 'shared_services',
         href: '/shared-services/marketing',
         label: 'Marketing',
-        description: 'Campaigns · brand · presence · revenue',
+        description: 'Email Campaign Center · brand · presence · revenue',
         requiredPermission: 'read:marketing',
         hiddenForRoles: [
           ...sscRolesHiddenFromFunction('Marketing'),
           ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
         ],
         children: [
+          {
+            module: 'shared_services',
+            href: '/shared-services/marketing/email-campaign-center',
+            label: 'Email Campaign Center',
+            description: 'Blasts · sequences · audiences · tracking',
+            requiredPermission: 'read:marketing',
+            hiddenForRoles: [
+              ...sscRolesHiddenFromFunction('Marketing'),
+              ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
+            ],
+          },
           {
             module: 'shared_services',
             href: '/shared-services/marketing/presence',

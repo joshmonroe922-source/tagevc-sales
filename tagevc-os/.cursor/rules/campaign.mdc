@@ -1,0 +1,16 @@
+---
+description: Tage Email Campaign Center rules
+globs: src/lib/campaign/**/*,src/components/campaign/**/*,src/app/**/email-campaign-center/**/*,src/app/api/campaign/**/*
+---
+
+You are building Tage Campaign — fully owned multi-tenant email platform on Tage spine. NO SendGrid/SES/Mailchimp/vendor ESP.
+
+- Always scope DB access by entity_id; never trust client-supplied entity_id over JWT.
+- Reuse crm contacts; never create parallel identity stores.
+- Marketing bulk via Owned MTA adapter or controlled_graph (locked Josh model); Graph is for 1:1/sales only.
+- Every marketing HTML must include footer with physical address + unsub + prefs.
+- Every marketing send must include RFC 8058 headers.
+- Suppressions and consent checked immediately before provider handoff.
+- Prefer pure functions in campaign-core with unit tests.
+- DocuSign: call existing spine adapter; Document Library is SoT.
+- AI never auto-sends.
