@@ -4,14 +4,13 @@ import { PageHeader } from '@/components/ui/page-header';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 import { requirePermission } from '@/lib/rbac/session';
 import { ContactEditForm } from '@/components/crm/contact-edit-form';
-import { ContactSequencesPanel } from '@/components/campaign/contact-sequences-panel';
 
 type Props = { params: Promise<{ id: string }> };
 
 export default async function CrmContactPage({ params }: Props) {
   await requirePermission('read:shared_services');
   const { id } = await params;
-  const sb = await createPersistClient();
+  const sb = await createPersistClient({ mode: 'service' });
   const { data: contact } = await sb
     .from('contacts')
     .select('*')
@@ -75,8 +74,6 @@ export default async function CrmContactPage({ params }: Props) {
           linkedin_url: contact.linkedin_url,
         }}
       />
-
-      <ContactSequencesPanel contactId={id} />
 
       <section className="rounded-md border border-border p-4 text-sm">
         <h2 className="mb-2 font-semibold">Field provenance</h2>
