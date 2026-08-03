@@ -5,7 +5,7 @@ import { generateAccountBrief } from '@/lib/spine/agents/brief';
 import { searchGraph } from '@/lib/spine/db/crud';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 import { accountBootstrapKey } from '@/lib/spine/enrichment/jobs';
-import { getActiveOrgSlug } from '@/lib/spine/auth/active-org';
+import { getActiveOrgSlug } from '@/lib/spine/auth/active-org-server';
 import { resolveOrgIdBySlug } from '@/lib/spine/db/repos';
 
 export const runtime = 'nodejs';
