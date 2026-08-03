@@ -5,6 +5,7 @@ export async function recordDialerAttempt(input: {
   attemptId?: string; entityId: string; contactId: string; outcome: string;
   vmDropped?: boolean; enrollmentId?: string | null; stepId?: string | null;
   pairedEmailTemplateId?: string | null; ownerId?: string | null;
+  plane?: 'graph' | 'owned_mta' | 'controlled_graph' | 'auto';
 }) {
   const sb = await campaignDb();
   const vmDropped = input.vmDropped ?? input.outcome === 'vm_dropped';
@@ -13,7 +14,10 @@ export async function recordDialerAttempt(input: {
     owner_id: input.ownerId ?? null, enrollment_id: input.enrollmentId ?? null,
     step_id: input.stepId ?? null, outcome: input.outcome, vm_dropped: vmDropped,
     ended_at: new Date().toISOString(),
-    metadata_json: { paired_email_template_id: input.pairedEmailTemplateId },
+    metadata_json: {
+      paired_email_template_id: input.pairedEmailTemplateId,
+      plane: input.plane || 'graph',
+    },
   }).select('id').single();
   const attemptId = String(attempt?.id || input.attemptId || '');
   const { data: existing } = await sb.from('ecc_paired_sends').select('attempt_id').eq('attempt_id', attemptId).maybeSingle();
@@ -37,5 +41,5 @@ export async function recordDialerAttempt(input: {
   await sb.from('ecc_paired_sends').insert({
     attempt_id: attemptId, enrollment_id: input.enrollmentId ?? null, step_id: input.stepId ?? null, status: 'queued',
   });
-  return { attemptId, pairedEmailQueued: true };
+  return { attemptId, pairedEmailQueued: true, plane: input.plane || 'graph' };
 }

@@ -2,12 +2,16 @@ import { campaignDb } from './client';
 import { assertTransition } from '@/lib/campaign/core/state-machine';
 import type { CampaignStatus } from '@/lib/campaign/core/types';
 
-export async function listCampaigns(entityId: string, opts?: { q?: string; status?: string; attachable?: boolean }) {
+export async function listCampaigns(
+  entityId: string,
+  opts?: { q?: string; status?: string; attachable?: boolean; ownerId?: string },
+) {
   const sb = await campaignDb();
   let q = sb.from('ecc_campaigns').select('*').eq('entity_id', entityId).order('updated_at', { ascending: false }).limit(100);
   if (opts?.status) q = q.eq('status', opts.status);
   if (opts?.attachable) q = q.in('status', ['draft','approved','scheduled']);
   if (opts?.q) q = q.ilike('name', `%${opts.q}%`);
+  if (opts?.ownerId) q = q.eq('owner_id', opts.ownerId);
   const { data, error } = await q;
   if (error) throw new Error(error.message);
   return data ?? [];
@@ -40,7 +44,12 @@ export async function createCampaign(entityId: string, input: Record<string, unk
   return data;
 }
 
-export async function updateCampaign(entityId: string, id: string, patch: Record<string, unknown>) {
+export async function updateCampaign(
+  entityId: string,
+  id: string,
+  patch: Record<string, unknown>,
+  _actorId?: string,
+) {
   const sb = await campaignDb();
   const { data, error } = await sb.from('ecc_campaigns').update({ ...patch, updated_at: new Date().toISOString() })
     .eq('entity_id', entityId).eq('id', id).select('*').single();
@@ -229,3 +238,21 @@ export async function updateJourney(entityId: string, id: string, patch: Record<
   if (error) throw new Error(error.message);
   return data;
 }
+
+// Route-facing helpers (suppressions, brand kit, segments, enroll, home, …)
+export {
+  getBrandKit,
+  upsertBrandKit,
+  addSuppression,
+  checkSuppressions,
+  recordConsent,
+  pauseConversation,
+  enrollContact,
+  commandCenterHome,
+  getCampaignRecipients,
+  bumpRecipientScore,
+  listSegments,
+  createSegment,
+  previewSegment,
+  materializeSegment,
+} from './repo-extras';

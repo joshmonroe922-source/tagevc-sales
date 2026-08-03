@@ -30,6 +30,45 @@ import {
   type JourneyNodeType,
 } from '@/lib/campaign/core/journey-graph';
 
+function LibraryDocPicker({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (id: string) => void;
+}) {
+  const [docs, setDocs] = useState<Array<{ id: string; title: string }>>([]);
+  useEffect(() => {
+    void fetch('/api/campaign/v1/docusign')
+      .then((r) => r.json())
+      .then((j) => setDocs(j.data || []))
+      .catch(() => setDocs([]));
+  }, []);
+  return (
+    <label className="block text-xs">
+      <span className="text-[#5c6570]">Library document</span>
+      <select
+        className="mt-1 w-full rounded-md border border-[#e5e0d6] px-2 py-1.5"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        <option value="">Select library doc…</option>
+        {docs.map((d) => (
+          <option key={d.id} value={d.id}>
+            {d.title || d.id}
+          </option>
+        ))}
+      </select>
+      <input
+        className="mt-1 w-full rounded-md border border-[#e5e0d6] px-2 py-1.5"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="or paste library_document_id"
+      />
+    </label>
+  );
+}
+
 function StepNode({ data, selected }: NodeProps) {
   const d = data as { label: string; type: JourneyNodeType; hint?: string };
   const color = JOURNEY_NODE_META[d.type]?.color || '#7c7871';
@@ -374,17 +413,12 @@ export function JourneyGraphEditor({
                 </label>
               ) : null}
               {selData.type === 'send_envelope' ? (
-                <label className="block text-xs">
-                  <span className="text-[#5c6570]">Library document id</span>
-                  <input
-                    className="mt-1 w-full rounded-md border border-[#e5e0d6] px-2 py-1.5"
-                    value={String(selData.config.library_document_id || '')}
-                    onChange={(e) =>
-                      patchSelected({ config: { library_document_id: e.target.value } })
-                    }
-                    placeholder="LIB_…"
-                  />
-                </label>
+                <LibraryDocPicker
+                  value={String(selData.config.library_document_id || '')}
+                  onChange={(id) =>
+                    patchSelected({ config: { library_document_id: id } })
+                  }
+                />
               ) : null}
               <button
                 type="button"

@@ -3,14 +3,11 @@
  * Does not reimplement DocuSign auth.
  */
 
-export type SendEnvelopeInput = {
-  entityId: string;
-  libraryDocumentId: string;
-  contactIds: string[];
-  campaignId?: string | null;
-  enrollmentId?: string | null;
-  emailMessage?: string | null;
-};
+import { listLibraryDocumentsForEntity } from '@/lib/campaign/docusign/library';
+import {
+  queueSendEnvelope,
+  type SendEnvelopeInput,
+} from '@/lib/campaign/docusign-port';
 
 export type DocuSignPort = {
   sendEnvelope(
@@ -22,21 +19,17 @@ export type DocuSignPort = {
   ): Promise<Array<{ id: string; title: string }>>;
 };
 
-/** Stub port — wires to existing spine when library APIs are available. */
+/** Live port — queues ecc_envelope_actions; dispatch via /api/campaign/v1/docusign. */
 export const spineDocuSignPort: DocuSignPort = {
   async sendEnvelope(input) {
-    // Existing spine DocuSign lives under /api/docusign + src/lib/docusign.
-    // Campaign stores library_document_id only; actual send is delegated.
-    if (!input.libraryDocumentId) {
-      return { ok: false, error: 'library_document_id required' };
-    }
+    const result = await queueSendEnvelope({ ...input, queueOnly: true });
+    if (!result.ok) return result;
     return {
-      ok: false,
-      error:
-        'Use Shared Services → Legal → DocuSign library send; campaign enroll hooks call spine when envelope action is configured',
+      ok: true,
+      envelopeId: result.envelopeIds?.[0] || result.actionIds[0] || 'queued',
     };
   },
-  async listLibraryDocuments(_entityId, _q) {
-    return [];
+  async listLibraryDocuments(entityId, q) {
+    return listLibraryDocumentsForEntity(entityId, q);
   },
 };

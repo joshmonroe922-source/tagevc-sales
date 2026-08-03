@@ -139,7 +139,7 @@ export function CampaignBuilderClient({ lists, templates, initial }: { lists: an
         {fields.length ? (
           <div className="max-h-64 overflow-auto rounded-lg border border-[#d7d3c3] bg-white p-3">
             {fields.map((f) => (
-              <button key={f.insert_token} type="button" className="mb-1 block w-full rounded px-2 py-1 text-left text-xs hover:bg-[#ece9e6]" onClick={() => setBody((b) => b + f.insert_token)}>
+              <button key={f.insert_token} type="button" className="mb-1 block w-full rounded px-2 py-1 text-left text-xs hover:bg-[#ece9e6]" onClick={() => setBody((b: string) => b + f.insert_token)}>
                 <span className="font-medium">{f.label}</span>
                 <span className="block font-mono text-[10px] text-muted-foreground">{f.insert_token}</span>
               </button>

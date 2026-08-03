@@ -4,7 +4,7 @@ import { createPersistClient } from '@/lib/supabase/persist-client';
 
 export type CampaignAuth = {
   userId: string; entityId: string; role: string; firmWide: boolean;
-  permissions: { marketer: boolean; approver: boolean; admin: boolean; viewTeam: boolean };
+  permissions: { marketer: boolean; approver: boolean; admin: boolean; viewTeam: boolean; viewEntity: boolean };
 };
 
 export async function requireCampaignAuth(opts?: { entityOverride?: string | null }): Promise<CampaignAuth> {
@@ -22,6 +22,7 @@ export async function requireCampaignAuth(opts?: { entityOverride?: string | nul
       approver: ['visionary','think_tank','partner','coo','sub_lead','service_lead','admin'].includes(role),
       admin: ['visionary','think_tank','admin','service_lead'].includes(role),
       viewTeam: elevated,
+      viewEntity: firmWide || elevated,
     },
   };
 }

@@ -135,7 +135,7 @@ Acceptance suite: `src/lib/spine/acceptance/t01-t18.test.ts` — **21 tests pass
 | 3 Audiences | Done |
 | 4 Owned send path | Done (controlled_graph day-1; Postal adapter ready) |
 | 5 ECC UI + CRM + team | Done |
-| 5b DocuSign hooks | Partial (port + envelope_actions tables) |
+| 5b DocuSign hooks | Done (library queue/dispatch + journey send_envelope) |
 | 5c Multichannel VM+email | Done |
 | 6 Journeys visual builder | Done (xyflow editor + vertical starter packs) |
 | 7 Intelligence | Done (STO + RFM + attribution lite + AI human-approve) |

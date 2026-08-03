@@ -275,7 +275,7 @@ export async function POST(req: Request) {
     if (!result.ok) {
       return NextResponse.json(apiError('VALIDATION', result.error), { status: 422 });
     }
-    return NextResponse.json({ ok: true, ...result });
+    return NextResponse.json({ ok: true, actionIds: result.actionIds, envelopeIds: result.envelopeIds });
   }
 
   if (resource === 'settings') {

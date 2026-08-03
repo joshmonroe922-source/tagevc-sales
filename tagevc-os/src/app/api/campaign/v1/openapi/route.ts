@@ -23,6 +23,7 @@ export async function GET() {
       '/api/campaign/v1/intelligence': { get: {} },
       '/api/campaign/v1/intelligence/sto': { post: {} },
       '/api/campaign/v1/intelligence/ai-assist': { post: {} },
+      '/api/campaign/v1/docusign': { get: {}, post: {} },
       '/api/campaign/v1/me/email-campaign-center/home': { get: {} },
       '/api/campaign/v1/team/campaigns': { get: {} },
       '/api/campaign/p/unsub/one-click': { post: {} },
