@@ -31,6 +31,7 @@ import {
   listDocuSignReconciliationRuns,
 } from '@/lib/docusign/reconciliation-repo';
 import { DOCUSIGN_ENV_KEYS } from '@/lib/docusign/types';
+import { entityDisplayName } from '@/lib/entities/display-name';
 import { roleHasPermission } from '@/lib/types/roles';
 import { getSessionContext, requirePermission } from '@/lib/rbac/session';
 import { isFirmWideAccess } from '@/lib/rbac/entity-scope';
@@ -351,7 +352,9 @@ export default async function DocuSignModulePage({
                       key={a.entityId}
                       className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2"
                     >
-                      <span className="font-medium">{a.entityId}</span>
+                      <span className="font-medium">
+                        {entityDisplayName(a.entityId)}
+                      </span>
                       <Badge variant={a.ready ? 'default' : 'secondary'}>
                         {a.ready
                           ? `${a.accountId?.slice(0, 8)}… (${a.source})`
@@ -1580,7 +1583,9 @@ export default async function DocuSignModulePage({
                           '—'
                         )}
                       </td>
-                      <td className="py-2 pr-3">{e.entity_id ?? '—'}</td>
+                      <td className="py-2 pr-3">
+                        {e.entity_id ? entityDisplayName(e.entity_id) : '—'}
+                      </td>
                       <td className="py-2 text-xs">
                         {e.deal_id || e.ticket_id || '—'}
                       </td>

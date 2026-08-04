@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { buildPartnerBiReport } from '@/lib/partners/bi';
+import { entityDisplayName } from '@/lib/entities/display-name';
 import { requirePermission } from '@/lib/rbac/session';
 
 export default async function PartnerBiPage() {
@@ -97,8 +98,10 @@ export default async function PartnerBiPage() {
           <ul className="mt-3 space-y-1 text-sm">
             {report.presence.slice(0, 24).map((p) => (
               <li key={`${p.entity_id}-${p.kind}`}>
-                <span className="font-medium">{p.entity_id}</span> · {p.kind} ·{' '}
-                {p.status}
+                <span className="font-medium">
+                  {entityDisplayName(p.entity_id)}
+                </span>{' '}
+                · {p.kind} · {p.status}
                 {p.last_import_at ? ` · imported ${p.last_import_at}` : ''}
               </li>
             ))}
@@ -117,8 +120,8 @@ export default async function PartnerBiPage() {
           <ul className="mt-3 space-y-1 text-sm">
             {report.commissionQueue.map((c) => (
               <li key={c.id}>
-                {c.entity_id} · {(c.commission_cents / 100).toFixed(2)} ·{' '}
-                {c.status}
+                {entityDisplayName(c.entity_id)} ·{' '}
+                {(c.commission_cents / 100).toFixed(2)} · {c.status}
               </li>
             ))}
           </ul>

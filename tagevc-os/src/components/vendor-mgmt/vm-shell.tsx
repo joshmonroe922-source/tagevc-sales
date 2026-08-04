@@ -162,8 +162,8 @@ export function money(n: number | null | undefined, digits = 0): string {
 }
 
 export const ENTITY_OPTIONS = [
-  { id: 'ENT-FIRM', label: 'TAGE · Tage VC' },
-  { id: 'ENT-R619', label: 'R619 · Recruit 619' },
-  { id: 'ENT-SIGNENT', label: 'SHR · Signent HR' },
-  { id: 'ENT-INDA', label: 'INDA · Instant NDA' },
+  { id: 'ENT-FIRM', label: 'Tage Venture Capital' },
+  { id: 'ENT-R619', label: 'Recruit 619' },
+  { id: 'ENT-SIGNENT', label: 'Signent HR' },
+  { id: 'ENT-INDA', label: 'Instant NDA' },
 ] as const;

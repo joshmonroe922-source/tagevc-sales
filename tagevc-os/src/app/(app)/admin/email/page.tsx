@@ -14,6 +14,7 @@ import {
   reportingWindow,
 } from '@/lib/platform/reporting-timeframes';
 import { summarizePlatformEmailMessages } from '@/lib/platform/email';
+import { entityDisplayName } from '@/lib/entities/display-name';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 import { getSessionContext } from '@/lib/rbac/session';
 
@@ -136,7 +137,8 @@ export default async function AdminPlatformEmailPage({ searchParams }: Props) {
               <div>
                 <p className="font-medium">{r.subject || '(no subject)'}</p>
                 <p className="text-xs text-muted-foreground">
-                  {r.entity_id} · {new Date(r.created_at).toLocaleString()}
+                  {entityDisplayName(r.entity_id)} ·{' '}
+                  {new Date(r.created_at).toLocaleString()}
                 </p>
               </div>
               <div className="flex flex-wrap gap-1">

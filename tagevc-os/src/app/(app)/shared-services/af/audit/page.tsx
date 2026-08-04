@@ -2,6 +2,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { AfBackLink } from '@/components/af/af-ui';
 import { ModuleLinkBoard } from '@/components/platform/module-link-board';
 import { resolveAfEntityParam } from '@/lib/af/page-helpers';
+import { entityScopeContext } from '@/lib/entities/display-name';
 import { requirePermission } from '@/lib/rbac/session';
 
 type Props = { searchParams?: Promise<{ entity?: string }> };
@@ -15,7 +16,13 @@ export default async function AuditPage({ searchParams }: Props) {
       <PageHeader
         eyebrow="Tage VC A&F · Audit"
         title="Audit"
-        context={entityId ? `Entity · ${entityId}` : firmWide ? 'Firm-wide' : undefined}
+        context={
+          entityId
+            ? entityScopeContext(entityId)
+            : firmWide
+              ? 'Firm-wide'
+              : undefined
+        }
         description="Assurance workspace, PBC requests, and one-click auditor packages."
         secondaryActions={<AfBackLink href={`/shared-services/af${qs}`} label="Tage VC A&F" />}
       />

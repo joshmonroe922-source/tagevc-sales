@@ -12,6 +12,7 @@ import {
   CONSOLIDATED_SELECT_VALUE,
   entitySelectLabel,
 } from '@/lib/entities/display-order';
+import { entityDisplayName } from '@/lib/entities/display-name';
 import { getCachedEntitySelectOptions } from '@/lib/entities/entity-select-cache';
 import {
   functionLabel,
@@ -312,7 +313,10 @@ export function SscFunctionHomeChrome({
                           {t.title}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {t.company_name || t.entity_id || 'Unscoped'}
+                          {t.company_name ||
+                            (t.entity_id
+                              ? entityDisplayName(t.entity_id)
+                              : 'Unscoped')}
                           {` · ${t.priority} · ${t.status}`}
                         </p>
                       </div>

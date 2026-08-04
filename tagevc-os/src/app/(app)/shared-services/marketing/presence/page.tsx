@@ -4,6 +4,7 @@ import { dryRunPresenceImportAction } from '@/app/(app)/shared-services/marketin
 import { marketingPresencePartners } from '@/lib/partners/catalog';
 import { missingEnvForPartner, resolvePartnerStatus } from '@/lib/partners/registry';
 import { listMarketingPresence, listPartnerBindings } from '@/lib/partners/repo';
+import { entityDisplayName } from '@/lib/entities/display-name';
 import { isFirmWideAccess } from '@/lib/rbac/entity-scope';
 import { roleHasPermission } from '@/lib/types/roles';
 import { getSessionContext, requirePermission } from '@/lib/rbac/session';
@@ -168,7 +169,9 @@ export default async function MarketingPresencePage() {
               <tbody>
                 {properties.map((p) => (
                   <tr key={p.id} className="border-b border-border/70">
-                    <td className="px-3 py-2 font-medium">{p.entity_id}</td>
+                    <td className="px-3 py-2 font-medium">
+                      {entityDisplayName(p.entity_id)}
+                    </td>
                     <td className="px-3 py-2">
                       {KIND_LABEL[p.kind] ?? p.kind}
                     </td>

@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PARTNER_CATALOG } from '@/lib/partners/catalog';
+import { entityLabelOrFirm } from '@/lib/entities/display-name';
 import type {
   PartnerVendorContract,
   PartnerVendorPayment,
@@ -160,7 +161,9 @@ export function TechnologyStackAdminClient({ contracts, payments }: Props) {
                         </div>
                       ) : null}
                     </td>
-                    <td className="px-3 py-2">{c.entity_id ?? 'firm-wide'}</td>
+                    <td className="px-3 py-2">
+                      {entityLabelOrFirm(c.entity_id, 'firm-wide')}
+                    </td>
                     <td className="px-3 py-2">{c.status}</td>
                     <td className="px-3 py-2">{c.ends_on ?? '—'}</td>
                     <td className="px-3 py-2">
