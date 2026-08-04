@@ -13,7 +13,7 @@
 | Key | Owner (SS) | Scope | Status |
 |-----|------------|-------|--------|
 | `dialpad` | IT | All entities | Scaffolded |
-| `verified_first` | HR (+ Recruiting) | Tage HR · R619 · Signent | **Live spine** (phase80) |
+| `verified_first` | HR (+ Recruiting) | Tage HR · R619 · Signent | **Live spine** (phase80) — secrets pending; see `docs/VERIFIED_FIRST_SCREENING_SPINE.md` § Connect |
 | `mybasepay` | HR / Finance | Contractor EOR — **R619 first** | Scaffolded |
 | `apollo` | Marketing | All entities → unified DB | Scaffolded |
 | `gusto` | Finance / HR | Internal payroll + commissions | Scaffolded |
@@ -134,7 +134,7 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/phase89_partner_spine.sql
 1. Apply `phase89_partner_spine.sql` (+ phase91 Signent tenancy, phase92 AP/W-9)
 2. DocuSign org JWT + Connect + per-entity `DOCUSIGN_ACCOUNT_ID_*`
 3. Dialpad API key + webhook secret
-4. Verified First live key when ready (`VERIFIED_FIRST_LIVE=1`)
+4. Verified First: API key + webhook secret + package IDs now (CRM/SF not a blocker); set `VERIFIED_FIRST_LIVE=1` only after smoke — `docs/VERIFIED_FIRST_SCREENING_SPINE.md`
 5. MyBasePay account for R619 contractor placements
 6. Apollo API key
 7. Gusto company + API token (commissions after payroll mapping)
