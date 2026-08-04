@@ -4,28 +4,82 @@ import { useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 
 const STORAGE_KEY = 'os.reload-scroll.v2';
-const LEGACY_STORAGE_KEY = 'os.reload-scroll.v1';
+const PENDING_KEY = 'os.reload-scroll.pending.v2';
 
 type Saved = { path: string; y: number; ts: number };
 
-/**
- * Pending restore for this document load. Module-level so React Strict Mode
- * remounts and late Suspense content (admin/loading skeletons) still reconnect.
- */
-let pendingRestore: { path: string; y: number } | null = null;
-let restoreSucceeded = false;
+/** Survives React Strict Mode effect re-entry for a single document load. */
+let restoreLockForTimeOrigin: number | null = null;
 
+function isReloadNavigation(): boolean {
+  try {
+    const nav = performance.getEntriesByType(
+      'navigation',
+    )[0] as PerformanceNavigationTiming | undefined;
+    if (nav?.type === 'reload') return true;
+  } catch {
+    /* ignore */
+  }
+  try {
+    const legacy = (
+      performance as unknown as { navigation?: { type?: number } }
+    ).navigation;
+    if (legacy?.type === 1) return true;
+  } catch {
+    /* ignore */
+  }
+  return false;
+}
+
+function consumePendingReload(): boolean {
+  try {
+    const pending = sessionStorage.getItem(PENDING_KEY);
+    if (pending) {
+      sessionStorage.removeItem(PENDING_KEY);
+      return pending === '1';
+    }
+  } catch {
+    /* ignore */
+  }
+  return false;
+}
+
+function markPendingReload() {
+  try {
+    sessionStorage.setItem(PENDING_KEY, '1');
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Prefer marked shell scroller, then overflow main, else window (null). */
 function getScroller(): HTMLElement | null {
   const marked = document.querySelector<HTMLElement>(
     '[data-scroll-restoration]',
   );
   if (marked) return marked;
-  const main = document.querySelector('main');
-  if (main instanceof HTMLElement) {
+
+  const mains = document.querySelectorAll('main');
+  for (const main of mains) {
+    if (!(main instanceof HTMLElement)) continue;
     const oy = getComputedStyle(main).overflowY;
     if (oy === 'auto' || oy === 'scroll' || oy === 'overlay') return main;
+    if (main.scrollHeight > main.clientHeight + 1) return main;
   }
-  return null;
+
+  const candidates = document.querySelectorAll<HTMLElement>(
+    '.overflow-y-auto, .overflow-auto',
+  );
+  let best: HTMLElement | null = null;
+  let bestOverflow = 0;
+  for (const el of candidates) {
+    const overflow = el.scrollHeight - el.clientHeight;
+    if (overflow > bestOverflow) {
+      bestOverflow = overflow;
+      best = el;
+    }
+  }
+  return bestOverflow > 0 ? best : null;
 }
 
 function readY(el: HTMLElement | null): number {
@@ -40,16 +94,13 @@ function writeY(el: HTMLElement | null, y: number) {
 
 function loadSaved(): Saved | null {
   try {
-    for (const key of [STORAGE_KEY, LEGACY_STORAGE_KEY]) {
-      const raw = sessionStorage.getItem(key);
-      if (!raw) continue;
-      const parsed = JSON.parse(raw) as Saved;
-      if (typeof parsed?.path !== 'string' || typeof parsed?.y !== 'number') {
-        continue;
-      }
-      return parsed;
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Saved;
+    if (typeof parsed?.path !== 'string' || typeof parsed?.y !== 'number') {
+      return null;
     }
-    return null;
+    return parsed;
   } catch {
     return null;
   }
@@ -63,7 +114,6 @@ function save(path: string, y: number) {
       ts: Date.now(),
     };
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-    sessionStorage.removeItem(LEGACY_STORAGE_KEY);
   } catch {
     /* private mode / quota */
   }
@@ -72,34 +122,116 @@ function save(path: string, y: number) {
 function clearSaved() {
   try {
     sessionStorage.removeItem(STORAGE_KEY);
-    sessionStorage.removeItem(LEGACY_STORAGE_KEY);
   } catch {
     /* ignore */
   }
 }
 
-function canApply(el: HTMLElement | null, y: number): boolean {
+function canHoldY(el: HTMLElement | null, y: number): boolean {
   if (!el) {
-    return (
-      (document.documentElement.scrollHeight || document.body.scrollHeight) >=
-      y + (window.innerHeight || 0) * 0.5
-    );
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    return max >= y - 1;
   }
-  return el.scrollHeight >= y + el.clientHeight * 0.5;
+  return el.scrollHeight - el.clientHeight >= y - 1;
+}
+
+function runRestore(
+  y: number,
+  onDone: (applied: boolean) => void,
+): () => void {
+  let cancelled = false;
+  let settled = false;
+  const started = Date.now();
+  // Admin Suspense fallbacks (e.g. /admin/migration SF ops) can take far
+  // longer than a couple seconds before the real scroll height appears.
+  const maxMs = 90_000;
+  let raf = 0;
+  let holdFrames = 0;
+  let pollId = 0;
+  const observers: Array<ResizeObserver | MutationObserver> = [];
+
+  const finish = (applied: boolean) => {
+    if (settled) return;
+    settled = true;
+    for (const ob of observers) ob.disconnect();
+    if (raf) cancelAnimationFrame(raf);
+    if (pollId) window.clearInterval(pollId);
+    onDone(applied);
+  };
+
+  const tryRestore = () => {
+    if (cancelled || settled) return;
+    const el = getScroller();
+    writeY(el, y);
+    const applied = readY(el);
+    const closeEnough = Math.abs(applied - y) <= 2;
+    const tallEnough = canHoldY(el, y);
+
+    if (closeEnough && tallEnough) {
+      holdFrames += 1;
+      if (holdFrames >= 8) {
+        finish(true);
+        return;
+      }
+    } else {
+      holdFrames = 0;
+    }
+
+    if (Date.now() - started > maxMs) {
+      finish(closeEnough);
+      return;
+    }
+
+    raf = requestAnimationFrame(tryRestore);
+  };
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(tryRestore);
+  });
+  // rAF stops when the tab is backgrounded; keep a wall-clock poll too.
+  pollId = window.setInterval(tryRestore, 250);
+
+  const armScrollerObservers = () => {
+    const scroller = getScroller();
+    if (!scroller || settled || cancelled) return;
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(() => {
+        if (!settled && !cancelled) tryRestore();
+      });
+      ro.observe(scroller);
+      if (scroller.firstElementChild) ro.observe(scroller.firstElementChild);
+      observers.push(ro);
+    }
+    if (typeof MutationObserver !== 'undefined') {
+      const mo = new MutationObserver(() => {
+        if (!settled && !cancelled) tryRestore();
+      });
+      mo.observe(scroller, { childList: true, subtree: true });
+      // Also watch body: Suspense can replace the whole main subtree.
+      mo.observe(document.body, { childList: true, subtree: true });
+      observers.push(mo);
+    }
+  };
+  armScrollerObservers();
+
+  return () => {
+    cancelled = true;
+    for (const ob of observers) ob.disconnect();
+    if (raf) cancelAnimationFrame(raf);
+    if (pollId) window.clearInterval(pollId);
+  };
 }
 
 /**
- * Full document load: restore scroll for the same path (shell main scroller
- * or window). Soft client route changes: scroll shell back to top.
+ * Hard refresh: restore scroll for the same path (shell main scroller or window).
+ * Client route changes: scroll shell back to top.
  * Hash URLs: prefer the hash target over a saved Y.
- *
- * Lives in the root layout so soft navigations do not remount this component.
- * Pending restore survives Suspense fallback → real content (slow admin pages).
  */
 export function ReloadScrollRestore() {
   const pathname = usePathname();
   const pathRef = useRef(pathname);
   const readyRef = useRef(false);
+  const skipSaveRef = useRef(false);
 
   useEffect(() => {
     if ('scrollRestoration' in history) {
@@ -113,7 +245,6 @@ export function ReloadScrollRestore() {
 
     if (typeof window !== 'undefined' && window.location.hash) {
       clearSaved();
-      pendingRestore = null;
       const id = decodeURIComponent(window.location.hash.slice(1));
       if (id) {
         requestAnimationFrame(() => {
@@ -125,86 +256,71 @@ export function ReloadScrollRestore() {
     }
 
     const saved = loadSaved();
-    const shouldArm =
-      !restoreSucceeded &&
+    const pending = consumePendingReload();
+    const freshSave =
+      saved != null && Date.now() - saved.ts < 15_000;
+    const alreadyLocked =
+      restoreLockForTimeOrigin === performance.timeOrigin;
+    const shouldRestore =
       !readyRef.current &&
       saved?.path === pathname &&
-      saved.y > 0;
+      saved.y > 0 &&
+      (alreadyLocked ||
+        isReloadNavigation() ||
+        (pending && freshSave));
 
-    if (shouldArm) {
-      pendingRestore = { path: pathname, y: saved.y };
+    if (shouldRestore) {
+      restoreLockForTimeOrigin = performance.timeOrigin;
+      const y = saved.y;
+      skipSaveRef.current = true;
+      readyRef.current = true;
+
+      const stop = runRestore(y, (applied) => {
+        skipSaveRef.current = false;
+        if (applied) clearSaved();
+      });
+
+      return () => {
+        stop();
+        // Strict Mode: allow the remounted effect to continue restoring.
+        readyRef.current = false;
+        skipSaveRef.current = true;
+      };
     }
 
-    // Soft SPA navigations: jump to top and abort any pending restore.
     if (readyRef.current && prev !== pathname) {
-      pendingRestore = null;
-      restoreSucceeded = false;
+      skipSaveRef.current = true;
       writeY(getScroller(), 0);
       clearSaved();
+      requestAnimationFrame(() => {
+        skipSaveRef.current = false;
+      });
     }
 
     readyRef.current = true;
   }, [pathname]);
 
   useEffect(() => {
-    let settled = 0;
-    let ro: ResizeObserver | null = null;
-    let mo: MutationObserver | null = null;
-    let pollId = 0;
-    let attached: HTMLElement | null = null;
     let throttle: ReturnType<typeof setTimeout> | null = null;
-    const started = performance.now();
-    // Admin pages can stream Suspense fallbacks for a long time (SF ops).
-    const maxMs = 90_000;
-
-    const tryRestore = () => {
-      const pending = pendingRestore;
-      if (!pending || restoreSucceeded) return;
-      if (pending.path !== pathRef.current) {
-        pendingRestore = null;
-        return;
-      }
-      if (performance.now() - started > maxMs) {
-        // Leave saved Y for a later refresh; stop fighting the page.
-        pendingRestore = null;
-        return;
-      }
-
-      const el = getScroller();
-      writeY(el, pending.y);
-      const applied = readY(el);
-      const close = Math.abs(applied - pending.y) <= 2;
-      const ready = canApply(el, pending.y);
-
-      if (close && ready) {
-        settled += 1;
-        if (settled >= 2) {
-          restoreSucceeded = true;
-          pendingRestore = null;
-          clearSaved();
-          return;
-        }
-      } else {
-        settled = 0;
-      }
-    };
+    let poll: ReturnType<typeof setInterval> | null = null;
+    let attached: HTMLElement | null = null;
 
     const persist = () => {
-      const el = getScroller();
-      const y = readY(el);
-      const pending = pendingRestore;
-
-      // Never clobber a pending restore with skeleton/zero scroll.
-      if (pending && pending.path === pathRef.current) {
-        if (y <= 0) return;
-        // User scrolled away from the restore target — adopt their position.
-        if (Math.abs(y - pending.y) > 80) {
-          pendingRestore = null;
-        } else {
+      if (skipSaveRef.current) return;
+      const y = readY(getScroller());
+      // Avoid clobbering a good pre-reload Y with a transient 0 while
+      // Suspense / late content still hasn't created overflow height.
+      if (y <= 0) {
+        const existing = loadSaved();
+        if (
+          existing &&
+          existing.path === pathRef.current &&
+          existing.y > 0 &&
+          Date.now() - existing.ts < 90_000
+        ) {
           return;
         }
       }
-
       save(pathRef.current, y);
     };
 
@@ -212,71 +328,52 @@ export function ReloadScrollRestore() {
       if (throttle != null) return;
       throttle = setTimeout(() => {
         throttle = null;
-        // A real user scroll while pending: if they moved, persist() handles it.
-        tryRestore();
         persist();
       }, 100);
+    };
+
+    const onPageExit = () => {
+      persist();
+      markPendingReload();
     };
 
     const onVisibility = () => {
       if (document.visibilityState === 'hidden') persist();
     };
 
-    const bindScroller = () => {
+    const attachToScroller = () => {
       const el = getScroller();
       if (el === attached) return;
-      if (attached) attached.removeEventListener('scroll', onScroll);
+      if (attached) {
+        attached.removeEventListener('scroll', onScroll);
+      }
       attached = el;
       if (attached) {
         attached.addEventListener('scroll', onScroll, { passive: true });
-        if (typeof ResizeObserver !== 'undefined') {
-          ro?.disconnect();
-          ro = new ResizeObserver(() => tryRestore());
-          ro.observe(attached);
-          if (attached.firstElementChild) ro.observe(attached.firstElementChild);
-        }
       }
-      tryRestore();
     };
 
-    bindScroller();
     document.addEventListener('scroll', onScroll, {
       passive: true,
       capture: true,
     });
-    window.addEventListener('pagehide', persist);
-    window.addEventListener('beforeunload', persist);
+    window.addEventListener('pagehide', onPageExit);
+    window.addEventListener('beforeunload', onPageExit);
     document.addEventListener('visibilitychange', onVisibility);
 
-    mo = new MutationObserver(() => {
-      bindScroller();
-      tryRestore();
-    });
-    mo.observe(document.body, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ['style', 'class'],
-    });
-
-    pollId = window.setInterval(() => {
-      tryRestore();
+    attachToScroller();
+    poll = setInterval(() => {
+      attachToScroller();
       persist();
-    }, 250);
-
-    requestAnimationFrame(() => {
-      requestAnimationFrame(tryRestore);
-    });
+    }, 500);
 
     return () => {
       if (throttle != null) clearTimeout(throttle);
-      if (pollId) window.clearInterval(pollId);
-      ro?.disconnect();
-      mo?.disconnect();
+      if (poll != null) clearInterval(poll);
       if (attached) attached.removeEventListener('scroll', onScroll);
       document.removeEventListener('scroll', onScroll, true);
-      window.removeEventListener('pagehide', persist);
-      window.removeEventListener('beforeunload', persist);
+      window.removeEventListener('pagehide', onPageExit);
+      window.removeEventListener('beforeunload', onPageExit);
       document.removeEventListener('visibilitychange', onVisibility);
     };
   }, []);
