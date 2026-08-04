@@ -53,8 +53,12 @@ export function partnerConnectionStatus(
   }
 
   if (key === 'verified_first') {
-    const hasKey = Boolean(process.env.VERIFIED_FIRST_API_KEY?.trim());
-    if (!hasKey) return 'scaffold';
+    const hasUser = Boolean(process.env.VERIFIED_FIRST_API_USERNAME?.trim());
+    const hasPass = Boolean(process.env.VERIFIED_FIRST_API_PASSWORD?.trim());
+    const legacyKey = process.env.VERIFIED_FIRST_API_KEY?.trim() ?? '';
+    const hasLegacyPair = legacyKey.includes(':');
+    const hasCreds = (hasUser && hasPass) || hasLegacyPair;
+    if (!hasCreds) return 'scaffold';
     return isPartnerLive(entry) ? 'live' : 'configured';
   }
 

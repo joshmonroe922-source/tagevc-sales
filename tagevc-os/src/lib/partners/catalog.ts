@@ -112,7 +112,8 @@ export const PARTNER_CATALOG: PartnerDefinition[] = [
     scope: 'all_entities',
     capabilities: ['background_drug'],
     envKeys: [
-      'VERIFIED_FIRST_API_KEY',
+      'VERIFIED_FIRST_API_USERNAME',
+      'VERIFIED_FIRST_API_PASSWORD',
       'VERIFIED_FIRST_WEBHOOK_SECRET',
       'VERIFIED_FIRST_LIVE',
       'VERIFIED_FIRST_API_BASE',
