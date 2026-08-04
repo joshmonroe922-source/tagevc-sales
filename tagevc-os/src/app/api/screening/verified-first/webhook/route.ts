@@ -3,11 +3,13 @@ import { NextResponse } from 'next/server';
 
 import { applyScreeningStatusUpdate } from '@/lib/screening/repo';
 import { captureException } from '@/lib/observability';
+import { normalizeVerifiedFirstWebhookBody } from '@/lib/screening/webhook-payload';
 
 /**
  * Verified First status webhook.
  * Auth: header `x-verified-first-signature` (HMAC-SHA256 of raw body) OR
  * `x-tagevc-webhook-secret` === VERIFIED_FIRST_WEBHOOK_SECRET.
+ * Accepts scaffold flat JSON or VF `status_update` post-backs.
  * Idempotent: same external_order_id + status re-apply is safe.
  */
 function authorize(
@@ -56,27 +58,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const externalOrderId = String(
-    body.external_order_id ?? body.order_id ?? body.id ?? '',
-  ).trim();
-  const orderId = String(body.spine_order_id ?? body.orderId ?? '').trim();
-  const rawStatus = String(body.status ?? body.raw_status ?? '').trim();
-
-  if ((!externalOrderId && !orderId) || !rawStatus) {
-    return NextResponse.json(
-      { error: 'external_order_id (or spine_order_id) and status required' },
-      { status: 400 },
-    );
+  const normalized = normalizeVerifiedFirstWebhookBody(body);
+  if ('error' in normalized) {
+    return NextResponse.json({ error: normalized.error }, { status: 400 });
   }
+
+  const { externalOrderId, orderId, rawStatus, reportStoragePath } =
+    normalized;
 
   try {
     const { order, error } = await applyScreeningStatusUpdate({
       orderId: orderId || undefined,
       externalOrderId: externalOrderId || undefined,
       rawStatus,
-      reportStoragePath: body.report_path
-        ? String(body.report_path)
-        : null,
+      reportStoragePath,
       persistClient: true,
     });
     if (error || !order) {

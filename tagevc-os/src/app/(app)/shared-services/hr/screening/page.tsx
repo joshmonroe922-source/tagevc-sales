@@ -14,8 +14,14 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { listPartnerBindings } from '@/lib/partners/repo';
+import { partnerConnectionStatus } from '@/lib/partners/env';
 import { listScreeningOrders, listScreeningPackages } from '@/lib/screening/repo';
-import { canManageScreening, isVerifiedFirstLive } from '@/lib/screening/types';
+import {
+  canManageScreening,
+  isVerifiedFirstLive,
+} from '@/lib/screening/types';
+import { verifiedFirstApiConfigured } from '@/lib/screening/vendor';
 import { entityDisplayName } from '@/lib/entities/display-name';
 import { getSessionContext, requirePermission } from '@/lib/rbac/session';
 
@@ -32,11 +38,22 @@ export default async function ScreeningAdminPage({ searchParams }: Props) {
   const ctx = await getSessionContext();
   const canManage = canManageScreening(ctx?.profile.role);
   const live = isVerifiedFirstLive();
+  const apiConfigured = verifiedFirstApiConfigured();
+  const webhookConfigured = Boolean(
+    process.env.VERIFIED_FIRST_WEBHOOK_SECRET?.trim(),
+  );
+  const partnerStatus = partnerConnectionStatus('verified_first');
 
-  const [{ packages }, { orders, error }] = await Promise.all([
+  const [{ packages }, { orders, error }, allBindings] = await Promise.all([
     listScreeningPackages({ activeOnly: false }),
     listScreeningOrders({ entityId, limit: 80 }),
+    listPartnerBindings(),
   ]);
+
+  const vfBindings = allBindings.filter((b) => b.partner_key === 'verified_first');
+  const packagesMissingVendorId = packages.filter(
+    (p) => p.active && !String(p.vendor_package_id ?? '').trim(),
+  ).length;
 
   return (
     <div className="space-y-6">
@@ -64,6 +81,91 @@ export default async function ScreeningAdminPage({ searchParams }: Props) {
 
       <Card>
         <CardHeader>
+          <CardTitle className="text-base">Connection status</CardTitle>
+          <CardDescription>
+            Partner spine · status <code>{partnerStatus}</code>. Secrets live in
+            Vercel env — never in binding config. Docs:{' '}
+            <Link
+              href="/shared-services/it/technology-stack"
+              className="underline underline-offset-2"
+            >
+              Technology stack
+            </Link>
+            .
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          <ul className="space-y-1.5">
+            <li className="flex flex-wrap items-center gap-2">
+              <Badge variant={apiConfigured ? 'outline' : 'secondary'}>
+                API key {apiConfigured ? 'set' : 'missing'}
+              </Badge>
+              <Badge variant={webhookConfigured ? 'outline' : 'secondary'}>
+                Webhook secret {webhookConfigured ? 'set' : 'missing'}
+              </Badge>
+              <Badge variant={live ? 'default' : 'secondary'}>
+                LIVE={live ? '1' : '0'}
+              </Badge>
+            </li>
+          </ul>
+          {!apiConfigured ? (
+            <p className="text-muted-foreground">
+              Set <code>VERIFIED_FIRST_API_KEY</code> (+ webhook secret) in
+              Vercel, then flip <code>VERIFIED_FIRST_LIVE=1</code> only after a
+              smoke order. Not blocked by CRM rebuild / SF migration.
+            </p>
+          ) : !live ? (
+            <p className="text-muted-foreground">
+              Key present — still fail-closed until{' '}
+              <code>VERIFIED_FIRST_LIVE=1</code>. Local confirm still records
+              orders without calling the vendor.
+            </p>
+          ) : null}
+          {packagesMissingVendorId > 0 ? (
+            <p className="text-amber-800 dark:text-amber-200">
+              {packagesMissingVendorId} active package
+              {packagesMissingVendorId === 1 ? '' : 's'} missing{' '}
+              <code>vendor_package_id</code> — map VF package IDs before live
+              orders.
+            </p>
+          ) : null}
+          {vfBindings.length > 0 ? (
+            <div>
+              <p className="mb-1 text-xs font-medium text-muted-foreground">
+                Entity bindings
+              </p>
+              <ul className="space-y-1">
+                {vfBindings.map((b) => (
+                  <li
+                    key={b.id}
+                    className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 pb-1"
+                  >
+                    <span>
+                      {entityDisplayName(b.entity_id)}
+                      <span className="text-muted-foreground">
+                        {' '}
+                        · {b.enabled ? 'enabled' : 'disabled'} · {b.status}
+                      </span>
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {b.external_account_id
+                        ? `acct ${b.external_account_id}`
+                        : 'no VF account # yet'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <p className="text-muted-foreground">
+              No partner bindings — apply phase89 SQL / provision spine.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle className="text-base">Packages</CardTitle>
           <CardDescription>
             Vendor catalog (`os_screening_packages`) — Visionary/HR manage
@@ -86,6 +188,9 @@ export default async function ScreeningAdminPage({ searchParams }: Props) {
                     <span className="text-muted-foreground">
                       {' '}
                       · {p.code} · {p.kind}
+                      {p.vendor_package_id
+                        ? ` · vf:${p.vendor_package_id}`
+                        : ' · vf id unset'}
                     </span>
                   </span>
                   <Badge variant={p.active ? 'outline' : 'secondary'}>

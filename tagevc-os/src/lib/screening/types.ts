@@ -110,6 +110,11 @@ export function isVerifiedFirstLive(): boolean {
   return process.env.VERIFIED_FIRST_LIVE === '1';
 }
 
+/**
+ * Map vendor status strings → spine.
+ * Includes Tage scaffold vocab + Verified First post-back phrases
+ * (e.g. "Complete", "File Ordered", "In Need of Review").
+ */
 export function mapVendorStatusToSpine(
   raw: string | null | undefined,
 ): ScreeningOrderStatus | null {
@@ -123,11 +128,13 @@ export function mapVendorStatusToSpine(
     case 'ordered':
     case 'submitted':
     case 'created':
+    case 'file_ordered':
       return 'ordered';
     case 'in_progress':
     case 'inprogress':
     case 'processing':
     case 'pending_results':
+    case 'active':
       return 'in_progress';
     case 'clear':
     case 'complete':
@@ -139,6 +146,7 @@ export function mapVendorStatusToSpine(
     case 'needs_review':
     case 'consider':
     case 'adjudication':
+    case 'in_need_of_review':
       return 'review';
     case 'failed':
     case 'fail':
@@ -149,7 +157,8 @@ export function mapVendorStatusToSpine(
     case 'cancelled':
     case 'canceled':
     case 'void':
-      return 'cancelled';
+    case 'applicant_declined':
+      return 'failed';
     case 'waived':
       return 'waived';
     default:
