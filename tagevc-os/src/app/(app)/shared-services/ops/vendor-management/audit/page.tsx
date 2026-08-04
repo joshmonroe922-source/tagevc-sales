@@ -1,4 +1,5 @@
 import { VmShell, VmTable } from '@/components/vendor-mgmt/vm-shell';
+import { entityLabelOrFirm } from '@/lib/entities/display-name';
 import { listAuditEvents } from '@/lib/vendor-mgmt/repo';
 import { requireVmSession } from '@/lib/vendor-mgmt/session';
 
@@ -22,7 +23,12 @@ export default async function AuditPage() {
             <td className="px-3 py-2 text-xs">{e.actor_email ?? '—'}</td>
             <td className="px-3 py-2">{e.action}</td>
             <td className="px-3 py-2 text-xs">{e.object_type} {e.object_id}</td>
-            <td className="px-3 py-2 text-xs">{e.entity_id ?? '—'}</td>
+            <td
+              className="px-3 py-2 text-xs"
+              title={e.entity_id ?? undefined}
+            >
+              {entityLabelOrFirm(e.entity_id, '—')}
+            </td>
           </tr>
         ))}
       </VmTable>
