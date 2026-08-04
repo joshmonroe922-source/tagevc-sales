@@ -112,28 +112,42 @@ export function ReloadScrollRestore() {
       let raf = 0;
       const timers: number[] = [];
       let cancelled = false;
+      let stuck = false;
 
-      const finish = () => {
+      const finish = (applied: boolean) => {
         if (cancelled) return;
         cancelled = true;
         restoringRef.current = false;
         if (raf) cancelAnimationFrame(raf);
         for (const t of timers) window.clearTimeout(t);
-        clearSaved();
+        // Only clear when we actually held the offset. If content was still
+        // too short (Suspense/streaming), keep the save for a later refresh.
+        if (applied) clearSaved();
       };
 
       const apply = () => {
-        if (cancelled) return;
-        writeY(getRoot(), y);
+        if (cancelled || stuck) return;
+        const el = getRoot();
+        writeY(el, y);
+        const applied = readY(el);
+        const holdable =
+          el != null
+            ? el.scrollHeight - el.clientHeight >= y - 1
+            : document.documentElement.scrollHeight - window.innerHeight >=
+              y - 1;
+        if (holdable && Math.abs(applied - y) <= 2) {
+          stuck = true;
+          finish(true);
+        }
       };
 
       const loop = () => {
         if (cancelled) return;
         apply();
-        if (performance.now() - started < maxMs) {
+        if (!cancelled && performance.now() - started < maxMs) {
           raf = requestAnimationFrame(loop);
-        } else {
-          finish();
+        } else if (!cancelled) {
+          finish(false);
         }
       };
 
@@ -143,7 +157,7 @@ export function ReloadScrollRestore() {
       for (const ms of [0, 50, 100, 200, 400, 800, 1200, 1600, 2000]) {
         timers.push(window.setTimeout(apply, ms));
       }
-      timers.push(window.setTimeout(finish, maxMs + 50));
+      timers.push(window.setTimeout(() => finish(false), maxMs + 50));
 
       return () => {
         // Strict Mode remount: allow the next mount to restore again.
