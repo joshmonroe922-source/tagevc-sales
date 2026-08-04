@@ -10,7 +10,12 @@ import {
   screeningSatisfiesGate,
   spineStatusToBgScreen,
 } from './types';
-import { placeVerifiedFirstOrder } from './vendor';
+import {
+  placeVerifiedFirstOrder,
+  resolveVerifiedFirstCredentials,
+  verifiedFirstBasicAuthHeader,
+  VERIFIED_FIRST_DEFAULT_API_BASE,
+} from './vendor';
 import {
   normalizeVerifiedFirstWebhookBody,
   resolveVerifiedFirstRawStatus,
@@ -49,6 +54,46 @@ describe('screening permissions + LIVE fail-closed', () => {
     });
     assert.equal(res.ok, false);
     if (!res.ok) assert.equal(res.code, 'live_disabled');
+  });
+});
+
+describe('Verified First Basic Auth', () => {
+  it('defaults to api1 host', () => {
+    assert.equal(
+      VERIFIED_FIRST_DEFAULT_API_BASE,
+      'https://api1.verifiedfirst.com',
+    );
+  });
+
+  it('resolves username + password env', () => {
+    const creds = resolveVerifiedFirstCredentials({
+      VERIFIED_FIRST_API_USERNAME: 'vf-user',
+      VERIFIED_FIRST_API_PASSWORD: 'vf-pass',
+    } as NodeJS.ProcessEnv);
+    assert.deepEqual(creds, { username: 'vf-user', password: 'vf-pass' });
+    assert.equal(
+      verifiedFirstBasicAuthHeader(creds!),
+      `Basic ${Buffer.from('vf-user:vf-pass', 'utf8').toString('base64')}`,
+    );
+  });
+
+  it('accepts legacy API_KEY as username:password', () => {
+    const creds = resolveVerifiedFirstCredentials({
+      VERIFIED_FIRST_API_KEY: 'legacy-user:legacy-pass',
+    } as NodeJS.ProcessEnv);
+    assert.deepEqual(creds, {
+      username: 'legacy-user',
+      password: 'legacy-pass',
+    });
+  });
+
+  it('rejects bare API_KEY without username', () => {
+    assert.equal(
+      resolveVerifiedFirstCredentials({
+        VERIFIED_FIRST_API_KEY: 'not-a-basic-pair',
+      } as NodeJS.ProcessEnv),
+      null,
+    );
   });
 });
 

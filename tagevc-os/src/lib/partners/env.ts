@@ -8,6 +8,7 @@ import {
   type PartnerCatalogEntry,
   type PartnerKey,
 } from '@/lib/partners/catalog';
+import { verifiedFirstApiConfigured } from '@/lib/screening/vendor';
 
 export type PartnerConnectionStatus =
   | 'not_configured'
@@ -53,8 +54,7 @@ export function partnerConnectionStatus(
   }
 
   if (key === 'verified_first') {
-    const hasKey = Boolean(process.env.VERIFIED_FIRST_API_KEY?.trim());
-    if (!hasKey) return 'scaffold';
+    if (!verifiedFirstApiConfigured()) return 'scaffold';
     return isPartnerLive(entry) ? 'live' : 'configured';
   }
 

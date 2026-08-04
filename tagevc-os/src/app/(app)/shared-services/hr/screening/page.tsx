@@ -98,7 +98,7 @@ export default async function ScreeningAdminPage({ searchParams }: Props) {
           <ul className="space-y-1.5">
             <li className="flex flex-wrap items-center gap-2">
               <Badge variant={apiConfigured ? 'outline' : 'secondary'}>
-                API key {apiConfigured ? 'set' : 'missing'}
+                Basic Auth {apiConfigured ? 'set' : 'missing'}
               </Badge>
               <Badge variant={webhookConfigured ? 'outline' : 'secondary'}>
                 Webhook secret {webhookConfigured ? 'set' : 'missing'}
@@ -110,13 +110,15 @@ export default async function ScreeningAdminPage({ searchParams }: Props) {
           </ul>
           {!apiConfigured ? (
             <p className="text-muted-foreground">
-              Set <code>VERIFIED_FIRST_API_KEY</code> (+ webhook secret) in
-              Vercel, then flip <code>VERIFIED_FIRST_LIVE=1</code> only after a
-              smoke order. Not blocked by CRM rebuild / SF migration.
+              Set <code>VERIFIED_FIRST_API_USERNAME</code> +{' '}
+              <code>VERIFIED_FIRST_API_PASSWORD</code> (+ webhook secret) in
+              Vercel after VF Integrations provisions Staging credentials. Flip{' '}
+              <code>VERIFIED_FIRST_LIVE=1</code> only after a smoke order. Not
+              blocked by CRM rebuild / SF migration.
             </p>
           ) : !live ? (
             <p className="text-muted-foreground">
-              Key present — still fail-closed until{' '}
+              Basic Auth present — still fail-closed until{' '}
               <code>VERIFIED_FIRST_LIVE=1</code>. Local confirm still records
               orders without calling the vendor.
             </p>
