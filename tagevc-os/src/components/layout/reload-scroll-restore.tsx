@@ -3,22 +3,14 @@
 import { useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 
-const STORAGE_KEY = 'os.reload-scroll.v1';
+const STORAGE_KEY = 'os.reload-scroll.v2';
+const LEGACY_STORAGE_KEY = 'os.reload-scroll.v1';
 
 type Saved = { path: string; y: number; ts: number };
 
-function isReloadNavigation(): boolean {
-  try {
-    const nav = performance.getEntriesByType(
-      'navigation',
-    )[0] as PerformanceNavigationTiming | undefined;
-    return nav?.type === 'reload';
-  } catch {
-    return false;
-  }
-}
+/** Survives React Strict Mode remounts within one document load. */
+let restoreHandledForLoad = false;
 
-/** Prefer marked shell scroller, then overflow main, else window (null). */
 function getScroller(): HTMLElement | null {
   const marked = document.querySelector<HTMLElement>(
     '[data-scroll-restoration]',
@@ -44,13 +36,16 @@ function writeY(el: HTMLElement | null, y: number) {
 
 function loadSaved(): Saved | null {
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Saved;
-    if (typeof parsed?.path !== 'string' || typeof parsed?.y !== 'number') {
-      return null;
+    for (const key of [STORAGE_KEY, LEGACY_STORAGE_KEY]) {
+      const raw = sessionStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw) as Saved;
+      if (typeof parsed?.path !== 'string' || typeof parsed?.y !== 'number') {
+        continue;
+      }
+      return parsed;
     }
-    return parsed;
+    return null;
   } catch {
     return null;
   }
@@ -64,6 +59,7 @@ function save(path: string, y: number) {
       ts: Date.now(),
     };
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    sessionStorage.removeItem(LEGACY_STORAGE_KEY);
   } catch {
     /* private mode / quota */
   }
@@ -72,15 +68,30 @@ function save(path: string, y: number) {
 function clearSaved() {
   try {
     sessionStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(LEGACY_STORAGE_KEY);
   } catch {
     /* ignore */
   }
 }
 
+function canApply(el: HTMLElement | null, y: number): boolean {
+  if (!el) {
+    return (
+      (document.documentElement.scrollHeight || document.body.scrollHeight) >=
+      y + (window.innerHeight || 0) * 0.5
+    );
+  }
+  // Enough content to hold the saved offset (allow half-viewport slack).
+  return el.scrollHeight >= y + el.clientHeight * 0.5;
+}
+
 /**
- * Hard refresh: restore scroll for the same path (shell main scroller or window).
- * Client route changes: scroll shell back to top.
+ * Full document load: restore scroll for the same path (shell main scroller
+ * or window). Soft client route changes: scroll shell back to top.
  * Hash URLs: prefer the hash target over a saved Y.
+ *
+ * Lives in the root layout so soft navigations do not remount this component;
+ * restore only runs on the first mount of a document load.
  */
 export function ReloadScrollRestore() {
   const pathname = usePathname();
@@ -107,49 +118,109 @@ export function ReloadScrollRestore() {
         });
       }
       readyRef.current = true;
+      restoreHandledForLoad = true;
       return;
     }
 
     const saved = loadSaved();
+    // Root-layout mount only happens on full document loads. Soft SPA
+    // navigations keep this component mounted and take the branch below.
+    // Do NOT gate on performance Navigation Timing — some browsers omit it
+    // or report non-reload types for Cmd/Ctrl+R in edge cases.
     const shouldRestore =
+      !restoreHandledForLoad &&
       !readyRef.current &&
-      isReloadNavigation() &&
       saved?.path === pathname &&
       saved.y > 0;
 
     if (shouldRestore) {
       const y = saved.y;
+      restoreHandledForLoad = true;
       skipSaveRef.current = true;
-      let attempts = 0;
-      const maxAttempts = 24;
-      const timers: number[] = [];
+      let settled = 0;
       let cancelled = false;
+      let succeeded = false;
+      let ro: ResizeObserver | null = null;
+      let mo: MutationObserver | null = null;
+      let pollId = 0;
+      const started = performance.now();
+      const maxMs = 4000;
 
-      const finish = () => {
+      const cleanup = () => {
+        if (pollId) window.clearInterval(pollId);
+        ro?.disconnect();
+        mo?.disconnect();
+      };
+
+      const finish = (ok: boolean) => {
         if (cancelled) return;
+        cancelled = true;
+        succeeded = ok;
+        cleanup();
         skipSaveRef.current = false;
-        clearSaved();
+        if (ok) clearSaved();
       };
 
       const tryRestore = () => {
         if (cancelled) return;
-        writeY(getScroller(), y);
-        attempts += 1;
-        if (attempts < maxAttempts) {
-          timers.push(window.setTimeout(tryRestore, 50));
-          return;
+        const el = getScroller();
+        writeY(el, y);
+        const applied = readY(el);
+        const close = Math.abs(applied - y) <= 2;
+        const ready = canApply(el, y);
+
+        if (close && ready) {
+          settled += 1;
+          // Two consecutive successes so late layout shifts don't yank back.
+          if (settled >= 2) {
+            finish(true);
+            return;
+          }
+        } else {
+          settled = 0;
         }
-        finish();
+
+        if (performance.now() - started > maxMs) {
+          finish(close);
+        }
+      };
+
+      const armObservers = () => {
+        const el = getScroller();
+        if (el && typeof ResizeObserver !== 'undefined') {
+          ro = new ResizeObserver(() => tryRestore());
+          ro.observe(el);
+          if (el.firstElementChild) ro.observe(el.firstElementChild);
+        }
+        mo = new MutationObserver(() => tryRestore());
+        mo.observe(document.body, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          attributeFilter: ['style', 'class'],
+        });
+        pollId = window.setInterval(tryRestore, 100);
       };
 
       requestAnimationFrame(() => {
-        requestAnimationFrame(tryRestore);
+        requestAnimationFrame(() => {
+          if (cancelled) return;
+          armObservers();
+          tryRestore();
+        });
       });
+
       readyRef.current = true;
       return () => {
+        // Strict Mode remount: allow the next mount to continue restoring
+        // unless we already stuck the position and cleared storage.
         cancelled = true;
-        for (const t of timers) window.clearTimeout(t);
+        cleanup();
         skipSaveRef.current = false;
+        if (!succeeded) {
+          restoreHandledForLoad = false;
+          readyRef.current = false;
+        }
       };
     }
 
@@ -163,10 +234,12 @@ export function ReloadScrollRestore() {
     }
 
     readyRef.current = true;
+    restoreHandledForLoad = true;
   }, [pathname]);
 
   useEffect(() => {
     let throttle: ReturnType<typeof setTimeout> | null = null;
+    let attached: HTMLElement | null = null;
 
     const persist = () => {
       if (skipSaveRef.current) return;
@@ -178,20 +251,49 @@ export function ReloadScrollRestore() {
       throttle = setTimeout(() => {
         throttle = null;
         persist();
-      }, 150);
+      }, 100);
     };
 
-    const onHide = () => persist();
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') persist();
+    };
 
-    document.addEventListener('scroll', onScroll, { passive: true, capture: true });
-    window.addEventListener('pagehide', onHide);
-    window.addEventListener('beforeunload', onHide);
+    const bindScroller = () => {
+      const el = getScroller();
+      if (el === attached) return;
+      if (attached) attached.removeEventListener('scroll', onScroll);
+      attached = el;
+      if (attached) {
+        attached.addEventListener('scroll', onScroll, { passive: true });
+      }
+    };
+
+    bindScroller();
+    // Capture phase catches overflow-panel scrolls even before direct bind;
+    // also picks up late-mounted `[data-scroll-restoration]`.
+    document.addEventListener('scroll', onScroll, {
+      passive: true,
+      capture: true,
+    });
+    window.addEventListener('pagehide', persist);
+    window.addEventListener('beforeunload', persist);
+    document.addEventListener('visibilitychange', onVisibility);
+
+    const mo = new MutationObserver(() => bindScroller());
+    mo.observe(document.body, { childList: true, subtree: true });
+
+    // Heartbeat so a missed scroll event still leaves a usable position.
+    const beat = window.setInterval(persist, 1000);
 
     return () => {
       if (throttle != null) clearTimeout(throttle);
+      window.clearInterval(beat);
+      mo.disconnect();
+      if (attached) attached.removeEventListener('scroll', onScroll);
       document.removeEventListener('scroll', onScroll, true);
-      window.removeEventListener('pagehide', onHide);
-      window.removeEventListener('beforeunload', onHide);
+      window.removeEventListener('pagehide', persist);
+      window.removeEventListener('beforeunload', persist);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, []);
 
