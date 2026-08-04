@@ -108,18 +108,27 @@ export function ReloadScrollRestore() {
       readyRef.current = true;
 
       const started = performance.now();
-      const maxMs = 2000;
+      // Cover Suspense/admin loading fallbacks (e.g. /admin/migration SF ops).
+      const maxMs = 8000;
       let raf = 0;
+      let pollId = 0;
       const timers: number[] = [];
+      const observers: Array<ResizeObserver | MutationObserver> = [];
       let cancelled = false;
       let stuck = false;
+
+      const cleanupWatchers = () => {
+        if (raf) cancelAnimationFrame(raf);
+        if (pollId) window.clearInterval(pollId);
+        for (const t of timers) window.clearTimeout(t);
+        for (const ob of observers) ob.disconnect();
+      };
 
       const finish = (applied: boolean) => {
         if (cancelled) return;
         cancelled = true;
         restoringRef.current = false;
-        if (raf) cancelAnimationFrame(raf);
-        for (const t of timers) window.clearTimeout(t);
+        cleanupWatchers();
         // Only clear when we actually held the offset. If content was still
         // too short (Suspense/streaming), keep the save for a later refresh.
         if (applied) clearSaved();
@@ -154,16 +163,29 @@ export function ReloadScrollRestore() {
       requestAnimationFrame(() => {
         requestAnimationFrame(loop);
       });
-      for (const ms of [0, 50, 100, 200, 400, 800, 1200, 1600, 2000]) {
+      for (const ms of [0, 50, 100, 200, 400, 800, 1200, 2000, 4000, 6000, 8000]) {
         timers.push(window.setTimeout(apply, ms));
       }
+      pollId = window.setInterval(apply, 200);
       timers.push(window.setTimeout(() => finish(false), maxMs + 50));
+
+      const el = getRoot();
+      if (el && typeof ResizeObserver !== 'undefined') {
+        const ro = new ResizeObserver(() => apply());
+        ro.observe(el);
+        if (el.firstElementChild) ro.observe(el.firstElementChild);
+        observers.push(ro);
+      }
+      if (typeof MutationObserver !== 'undefined') {
+        const mo = new MutationObserver(() => apply());
+        mo.observe(document.body, { childList: true, subtree: true });
+        observers.push(mo);
+      }
 
       return () => {
         // Strict Mode remount: allow the next mount to restore again.
         cancelled = true;
-        if (raf) cancelAnimationFrame(raf);
-        for (const t of timers) window.clearTimeout(t);
+        cleanupWatchers();
         restoringRef.current = false;
         didRestoreThisLoad = false;
         readyRef.current = false;
