@@ -134,7 +134,7 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/phase89_partner_spine.sql
 1. Apply `phase89_partner_spine.sql` (+ phase91 Signent tenancy, phase92 AP/W-9)
 2. DocuSign org JWT + Connect + per-entity `DOCUSIGN_ACCOUNT_ID_*`
 3. Dialpad API key + webhook secret
-4. Verified First: API key + webhook secret + package IDs now (CRM/SF not a blocker); set `VERIFIED_FIRST_LIVE=1` only after smoke — `docs/VERIFIED_FIRST_SCREENING_SPINE.md`
+4. Verified First: Basic Auth username/password + webhook secret + package IDs now (CRM/SF not a blocker); set `VERIFIED_FIRST_LIVE=1` only after staging smoke — `docs/VERIFIED_FIRST_SCREENING_SPINE.md`
 5. MyBasePay account for R619 contractor placements
 6. Apollo API key
 7. Gusto company + API token (commissions after payroll mapping)

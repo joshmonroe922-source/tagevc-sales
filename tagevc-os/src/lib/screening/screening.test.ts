@@ -10,7 +10,12 @@ import {
   screeningSatisfiesGate,
   spineStatusToBgScreen,
 } from './types';
-import { placeVerifiedFirstOrder } from './vendor';
+import {
+  extractVerifiedFirstOrderId,
+  placeVerifiedFirstOrder,
+  resolveVerifiedFirstCredentials,
+  VERIFIED_FIRST_DEFAULT_API_BASE,
+} from './vendor';
 import {
   normalizeVerifiedFirstWebhookBody,
   resolveVerifiedFirstRawStatus,
@@ -49,6 +54,67 @@ describe('screening permissions + LIVE fail-closed', () => {
     });
     assert.equal(res.ok, false);
     if (!res.ok) assert.equal(res.code, 'live_disabled');
+  });
+});
+
+describe('Verified First Basic Auth credentials', () => {
+  it('defaults API base to api1 external path', () => {
+    assert.match(VERIFIED_FIRST_DEFAULT_API_BASE, /api1\.verifiedfirst\.com/);
+    assert.match(VERIFIED_FIRST_DEFAULT_API_BASE, /external\/verified-first/);
+  });
+
+  it('resolves username+password env pair', () => {
+    const prevUser = process.env.VERIFIED_FIRST_API_USERNAME;
+    const prevPass = process.env.VERIFIED_FIRST_API_PASSWORD;
+    const prevKey = process.env.VERIFIED_FIRST_API_KEY;
+    try {
+      delete process.env.VERIFIED_FIRST_API_KEY;
+      process.env.VERIFIED_FIRST_API_USERNAME = 'vf-user';
+      process.env.VERIFIED_FIRST_API_PASSWORD = 'vf-pass';
+      assert.deepEqual(resolveVerifiedFirstCredentials(), {
+        username: 'vf-user',
+        password: 'vf-pass',
+      });
+    } finally {
+      if (prevUser === undefined) delete process.env.VERIFIED_FIRST_API_USERNAME;
+      else process.env.VERIFIED_FIRST_API_USERNAME = prevUser;
+      if (prevPass === undefined) delete process.env.VERIFIED_FIRST_API_PASSWORD;
+      else process.env.VERIFIED_FIRST_API_PASSWORD = prevPass;
+      if (prevKey === undefined) delete process.env.VERIFIED_FIRST_API_KEY;
+      else process.env.VERIFIED_FIRST_API_KEY = prevKey;
+    }
+  });
+
+  it('resolves legacy API_KEY as username:password', () => {
+    const prevUser = process.env.VERIFIED_FIRST_API_USERNAME;
+    const prevPass = process.env.VERIFIED_FIRST_API_PASSWORD;
+    const prevKey = process.env.VERIFIED_FIRST_API_KEY;
+    try {
+      delete process.env.VERIFIED_FIRST_API_USERNAME;
+      delete process.env.VERIFIED_FIRST_API_PASSWORD;
+      process.env.VERIFIED_FIRST_API_KEY = 'legacy-user:legacy-pass';
+      assert.deepEqual(resolveVerifiedFirstCredentials(), {
+        username: 'legacy-user',
+        password: 'legacy-pass',
+      });
+    } finally {
+      if (prevUser === undefined) delete process.env.VERIFIED_FIRST_API_USERNAME;
+      else process.env.VERIFIED_FIRST_API_USERNAME = prevUser;
+      if (prevPass === undefined) delete process.env.VERIFIED_FIRST_API_PASSWORD;
+      else process.env.VERIFIED_FIRST_API_PASSWORD = prevPass;
+      if (prevKey === undefined) delete process.env.VERIFIED_FIRST_API_KEY;
+      else process.env.VERIFIED_FIRST_API_KEY = prevKey;
+    }
+  });
+
+  it('extracts order_id from VF create envelope', () => {
+    assert.equal(
+      extractVerifiedFirstOrderId({
+        type: 'background order',
+        order: { order_id: '31990ab0-fbc0-11ee-824b-ab1e02a1dc5e' },
+      }),
+      '31990ab0-fbc0-11ee-824b-ab1e02a1dc5e',
+    );
   });
 });
 
