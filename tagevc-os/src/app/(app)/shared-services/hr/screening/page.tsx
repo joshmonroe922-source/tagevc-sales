@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/card';
 import { listScreeningOrders, listScreeningPackages } from '@/lib/screening/repo';
 import { canManageScreening, isVerifiedFirstLive } from '@/lib/screening/types';
+import { entityDisplayName } from '@/lib/entities/display-name';
 import { getSessionContext, requirePermission } from '@/lib/rbac/session';
 
 type Props = {
@@ -220,7 +221,7 @@ export default async function ScreeningAdminPage({ searchParams }: Props) {
                       {o.subject_id}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {o.entity_id} · {o.id.slice(0, 8)}…
+                      {entityDisplayName(o.entity_id)} · {o.id.slice(0, 8)}…
                       {o.external_order_id
                         ? ` · ext ${o.external_order_id}`
                         : ''}

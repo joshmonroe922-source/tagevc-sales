@@ -10,6 +10,7 @@ import {
   getNetWorthSnapshot,
 } from '@/lib/af';
 import { resolveAfEntityParam } from '@/lib/af/page-helpers';
+import { entityScopeContext } from '@/lib/entities/display-name';
 import { requirePermission } from '@/lib/rbac/session';
 
 type Props = { searchParams?: Promise<{ entity?: string }> };
@@ -40,7 +41,13 @@ export default async function TageVcAfHubPage({ searchParams }: Props) {
       <PageHeader
         eyebrow="Shared Services · Tage VC A&F"
         title="Tage VC A&F"
-        context={entityId ? `Entity · ${entityId}` : firmWide ? 'Firm-wide' : undefined}
+        context={
+          entityId
+            ? entityScopeContext(entityId)
+            : firmWide
+              ? 'Firm-wide'
+              : undefined
+        }
         description="In-house accounting & finance — GL, banks, AR/AP, waterfall, net worth, and go-live setup. Use Cards | List on each board."
         primaryAction={
           <Link

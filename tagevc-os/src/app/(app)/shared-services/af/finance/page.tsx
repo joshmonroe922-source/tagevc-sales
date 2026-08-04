@@ -2,6 +2,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { AfBackLink, AfModuleGrid, Money } from '@/components/af/af-ui';
 import { FINANCE_MODULES, getNetWorthSnapshot } from '@/lib/af';
 import { resolveAfEntityParam } from '@/lib/af/page-helpers';
+import { entityScopeContext } from '@/lib/entities/display-name';
 import { requirePermission } from '@/lib/rbac/session';
 
 type Props = { searchParams?: Promise<{ entity?: string }> };
@@ -15,7 +16,13 @@ export default async function FinanceHubPage({ searchParams }: Props) {
       <PageHeader
         eyebrow="Tage VC A&F · Finance"
         title="Finance"
-        context={entityId ? `Entity · ${entityId}` : firmWide ? 'Firm-wide' : undefined}
+        context={
+          entityId
+            ? entityScopeContext(entityId)
+            : firmWide
+              ? 'Firm-wide'
+              : undefined
+        }
         description="Budgets, AI forecasts, cash, loans, hiring envelopes, and company net worth."
         secondaryActions={<AfBackLink href={`/shared-services/af${qs}`} label="Tage VC A&F" />}
       />

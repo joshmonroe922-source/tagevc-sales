@@ -61,6 +61,7 @@ import { CompanySelect } from '@/components/shared/company-select';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { entityLabelOrFirm } from '@/lib/entities/display-name';
 import type { OffboardingRun } from '@/lib/shared-services/it-offboarding';
 import type { OnboardingRun } from '@/lib/shared-services/it-onboarding';
 import type {
@@ -868,7 +869,7 @@ export function ItAssetsClient({
                   key={cycle.cycle_id}
                   className="border-b border-border/40 pb-2"
                 >
-                  {cycle.entity_id ?? 'firm'} · {cycle.provider}/{cycle.operation}{' '}
+                  {entityLabelOrFirm(cycle.entity_id)} · {cycle.provider}/{cycle.operation}{' '}
                   · <strong>{cycle.cycle_status}</strong> · open{' '}
                   {cycle.open_breaker_state} → closed ·{' '}
                   {Number(cycle.cycle_elapsed_minutes)}m · samples{' '}
@@ -1228,7 +1229,7 @@ export function ItAssetsClient({
                     <span className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-950">
                       system recommendation
                     </span>{' '}
-                    {recommendation.entity_id ?? 'firm'} ·{' '}
+                    {entityLabelOrFirm(recommendation.entity_id)} ·{' '}
                     {recommendation.provider}/{recommendation.operation} ·{' '}
                     <strong>{recommendation.status}</strong> ·{' '}
                     {recommendation.risk_class} · window{' '}
@@ -1773,7 +1774,7 @@ export function ItAssetsClient({
                   className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 pb-2"
                 >
                   <span>
-                    {breaker.entity_id ?? 'firm'} · {breaker.provider}/
+                    {entityLabelOrFirm(breaker.entity_id)} · {breaker.provider}/
                     {breaker.operation} ·{' '}
                     <strong
                       className={
@@ -1993,7 +1994,7 @@ export function ItAssetsClient({
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span>
                       <strong>{String(metadata.device_name ?? action.managed_device_id)}</strong>{' '}
-                      · {action.status} · {action.entity_id ?? 'firm'}
+                      · {action.status} · {entityLabelOrFirm(action.entity_id)}
                     </span>
                     {canIntuneRetire &&
                     action.status === 'requested' &&

@@ -24,6 +24,7 @@ import {
   resolveDocumentVisibleRoles,
 } from '@/lib/documents/visibility';
 import { formatDate } from '@/lib/format';
+import { entityDisplayName } from '@/lib/entities/display-name';
 import { getSessionContext, isImpersonating } from '@/lib/rbac/session';
 
 type Props = { params: Promise<{ docId: string }> };
@@ -113,7 +114,12 @@ export default async function DocumentDetailPage({ params }: Props) {
             <CardDescription>Excel docs table fields.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <Row label="Entity" value={doc.entity_id ?? '—'} />
+            <Row
+              label="Entity"
+              value={
+                doc.entity_id ? entityDisplayName(doc.entity_id) : '—'
+              }
+            />
             <Row label="Deal / task" value={doc.deal_or_task_id ?? '—'} />
             <Row label="Template" value={doc.template_id ?? '—'} />
             <Row label="Envelope" value={doc.envelope_id ?? '—'} />

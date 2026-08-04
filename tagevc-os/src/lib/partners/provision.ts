@@ -8,6 +8,7 @@ import {
   defaultEnabledForEntity,
   type PartnerKey,
 } from '@/lib/partners/catalog';
+import { entityDisplayName as resolveEntityDisplayName } from '@/lib/entities/display-name';
 import type { MarketingPresenceKind } from '@/lib/partners/types';
 
 export type PartnerSpineProvisionPlan = {
@@ -43,9 +44,9 @@ const PRESENCE_LABELS: Record<MarketingPresenceKind, string> = {
 
 export function buildPartnerSpineProvisionPlan(
   entityId: string,
-  entityDisplayName?: string,
+  companyName?: string,
 ): PartnerSpineProvisionPlan {
-  const label = entityDisplayName?.trim() || entityId;
+  const label = companyName?.trim() || resolveEntityDisplayName(entityId);
   return {
     contract_version: PARTNER_SPINE_CONTRACT_VERSION,
     entity_id: entityId,

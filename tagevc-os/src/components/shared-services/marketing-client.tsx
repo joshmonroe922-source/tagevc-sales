@@ -32,6 +32,7 @@ import { CompanySelect } from '@/components/shared/company-select';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { entityLabelOrFirm } from '@/lib/entities/display-name';
 import type { BrandVoice } from '@/lib/shared-services/marketing-brand';
 import type { MarketingAnalyticsSummary } from '@/lib/shared-services/marketing-analytics';
 import type { PaidAttributionReport } from '@/lib/shared-services/marketing-attribution';
@@ -545,7 +546,7 @@ export function MarketingClient({
                   {account.display_name || account.account_id}
                 </p>
                 <p className="text-muted-foreground">
-                  {account.entity_id ?? 'firm'} · {account.currency} ·{' '}
+                  {entityLabelOrFirm(account.entity_id)} · {account.currency} ·{' '}
                   {account.coverage_status} {account.covered_days}/
                   {account.expected_days}
                 </p>
@@ -747,7 +748,7 @@ export function MarketingClient({
                   )
                   .map((campaign) => (
                     <option value={campaign.campaign_id} key={campaign.campaign_id}>
-                      {campaign.name} · {campaign.entity_id}
+                      {campaign.name} · {entityLabelOrFirm(campaign.entity_id)}
                     </option>
                   ))}
               </select>
@@ -935,7 +936,7 @@ export function MarketingClient({
                         {p.campaign_name ?? p.campaign_id}
                       </span>
                       <span className="block font-mono text-[10px] text-muted-foreground">
-                        {p.campaign_id} · {p.entity_id ?? 'firm'}
+                        {p.campaign_id} · {entityLabelOrFirm(p.entity_id)}
                       </span>
                     </td>
                     <td className="py-1 pr-2">{p.platform}</td>
@@ -1117,7 +1118,7 @@ export function MarketingClient({
                   .map((account) => (
                     <option value={account.account_id} key={account.account_id}>
                       {account.display_name ?? account.handle} · {account.platform}{' '}
-                      · {account.entity_id ?? 'firm'}
+                      · {entityLabelOrFirm(account.entity_id)}
                     </option>
                   ))}
               </select>
@@ -1352,7 +1353,7 @@ export function MarketingClient({
                 )
                 .map((item) => (
                   <option value={item.content_id} key={item.content_id}>
-                    {item.title} · {item.entity_id ?? 'firm'}
+                    {item.title} · {entityLabelOrFirm(item.entity_id)}
                   </option>
                 ))}
             </select>
@@ -1367,7 +1368,7 @@ export function MarketingClient({
                 )
                 .map((account) => (
                   <option value={account.account_id} key={account.account_id}>
-                    @{account.handle} · {account.entity_id ?? 'firm'}
+                    @{account.handle} · {entityLabelOrFirm(account.entity_id)}
                   </option>
                 ))}
             </select>
@@ -1469,7 +1470,9 @@ export function MarketingClient({
             {brandVoices.map((v) => (
               <li key={v.voice_id} className="border-b border-border/40 py-1.5">
                 <span className="font-medium">{v.name}</span>
-                {v.entity_id ? ` · ${v.entity_id}` : ' · firm-wide'}
+                {v.entity_id
+                  ? ` · ${entityLabelOrFirm(v.entity_id)}`
+                  : ' · firm-wide'}
                 {v.tone_guidelines ? (
                   <span className="block text-xs text-muted-foreground">
                     {v.tone_guidelines.slice(0, 120)}
@@ -1498,7 +1501,9 @@ export function MarketingClient({
                 {c.budget_k != null ? ` · $${c.budget_k}k` : ''}
                 {c.ad_platform ? ` · ${c.ad_platform}` : ''}
                 {c.ad_account_id ? ` · account ${c.ad_account_id}` : ''}
-                {c.entity_id ? ` · ${c.entity_id}` : ' · firm-wide'}
+                {c.entity_id
+                  ? ` · ${entityLabelOrFirm(c.entity_id)}`
+                  : ' · firm-wide'}
                 {analytics.by_campaign[c.campaign_id] != null ? (
                   <span className="text-xs text-muted-foreground">
                     {' '}
@@ -1716,7 +1721,9 @@ export function MarketingClient({
                 {' · '}
                 {a.status}
                 {` · ${a.account_type}`}
-                {a.entity_id ? ` · ${a.entity_id}` : ' · firm'}
+                {a.entity_id
+                  ? ` · ${entityLabelOrFirm(a.entity_id)}`
+                  : ' · firm'}
                 {a.external_account_id ? ` · ${a.external_account_id}` : ''}
                 {a.currency ? ` · ${a.currency}` : ''}
                 {a.account_type === 'paid_ads'
