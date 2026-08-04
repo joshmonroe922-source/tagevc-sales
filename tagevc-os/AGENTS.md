@@ -17,3 +17,13 @@
 - Raw `ENT-*` is OK only as a muted secondary line, `title` tooltip, admin/debug copy, or technical docs — not the primary label.
 
 See also: `docs/OS_ENTITY_SELECT_ORDER.md`.
+
+## Reload scroll restore
+
+Hard refresh should stay at the same scroll spot (best-effort if content height changes). Soft navigations still go to top.
+
+- Component: `src/components/layout/reload-scroll-restore.tsx` (`ReloadScrollRestore` in root `layout.tsx`)
+- Mark the shell scroller: `data-scroll-restoration` on app `<main>` (overflow-y-auto)
+- Portable twin: `src/lib/platform/shell/reload-scroll-restore.tsx` — copy on new clones
+- Hash URLs prefer the hash target over a saved Y
+

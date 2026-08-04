@@ -26,3 +26,5 @@ copy `src/lib/platform/af/` the same way. See `docs/TAGE_VC_AF.md`.
 - **md+:** sticky left sidebar (`variant="desktop"`, `hidden md:flex`)
 - **&lt; md:** hide sidebar; AppTopBar shows Menu → right Sheet with full nav / role switcher / sign out (`variant="panel"`)
 - Mount drawer children only while open (`open ? children : null`) to avoid dual-sidebar realtime channel crashes
+
+| `reload-scroll-restore.tsx` | `components/layout/reload-scroll-restore.tsx` + mount in root `app/layout.tsx`; mark `<main data-scroll-restoration>` |

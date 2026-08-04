@@ -53,6 +53,26 @@ src/lib/nav.ts                                # no Help Desk left-nav item
 
 Reference implementations also live under `src/lib/platform/shell/` (portable twins).
 
+## Reload scroll restore (required)
+
+Hard refresh keeps scroll position on the same path. Soft route changes still jump to top. Hash links win over saved Y.
+
+Wire `ReloadScrollRestore` in root `src/app/layout.tsx`. Mark app shell scroller:
+
+```tsx
+<main data-scroll-restoration className="… overflow-y-auto …">
+```
+
+Copy targets:
+
+```
+src/components/layout/reload-scroll-restore.tsx
+src/lib/platform/shell/reload-scroll-restore.tsx   # portable twin
+```
+
+Caveat: dynamic content that changes height after load makes restore best-effort (retries briefly after paint).
+
+
 ## Nav / Think Tank tests
 
 Assert Help Desk is **absent** from left nav and present only via Create Ticket dropdown:
