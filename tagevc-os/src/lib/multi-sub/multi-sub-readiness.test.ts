@@ -184,7 +184,9 @@ describe('Multi-subsidiary readiness P1–P6', () => {
     expect(DEFAULT_CHANNELS_BY_ENTITY['ENT-INDA']?.length).toBeGreaterThan(0);
     const deeplink = subsidiaryMessagesDeepLink('ENT-INDA');
     expect(deeplink.portal_messages).toContain('instantnda');
-    expect(subsidiaryMessagesDeepLink('ENT-SIGNENT').todo).toMatch(/TODO/i);
+    expect(subsidiaryMessagesDeepLink('ENT-SIGNENT').portal_messages).toContain(
+      'signenthr',
+    );
     expect(subsidiaryMessagesDeepLink('ENT-R619').portal_messages).toContain(
       'portal.recruit619.com',
     );
@@ -194,6 +196,11 @@ describe('Multi-subsidiary readiness P1–P6', () => {
     expect(sql).toContain('can_cross_entity_message_ms_p3');
     expect(sql).toContain('list_directory_with_entity_badges_ms_p3');
     expect(MS_P3_CONTRACT_VERSION).toBe('ms-p3-v1');
+    const autoSql = readSql('phase_ms_p3b_messaging_auto_provision.sql');
+    expect(autoSql).toContain('sync_messaging_membership_for_profile_ms_p3b');
+    expect(autoSql).toContain('backfill_messaging_memberships_ms_p3b');
+    expect(autoSql).toContain('profiles_sync_messaging_ms_p3b');
+    expect(autoSql).toContain('ensure_entity_messaging_defaults_ms_p3b');
   });
 
   it('P4 operator board separates parent vs subsidiary', () => {
