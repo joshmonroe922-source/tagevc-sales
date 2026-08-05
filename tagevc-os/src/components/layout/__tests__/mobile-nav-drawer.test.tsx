@@ -111,7 +111,7 @@ describe('MobileNavDrawer + dual AppSidebar (phone Menu)', () => {
       fireEvent.click(screen.getByRole('button', { name: /open navigation menu/i }));
       await waitFor(() => {
         expect(document.body.textContent || '').toContain(
-          'Performance Management',
+          'Operating System',
         );
       });
     } catch (e) {
