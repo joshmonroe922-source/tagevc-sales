@@ -18,6 +18,16 @@
 
 See also: `docs/OS_ENTITY_SELECT_ORDER.md`.
 
+## Engage analytics (Marketing)
+
+Firm rollup: `/shared-services/marketing/engage`
+
+- Entity filter from registry (`getCachedEntitySelectOptions` + priority ids) — Consolidated then Firm / R619 / Signent / Instant NDA / future entities.
+- Fail-closed when `DIALPAD_LIVE` / `TAGE_ECC_LIVE` (or `ECC_LIVE`) are off.
+- Subsidiary portals deep-link here and to Email Campaign Center; they do **not** rebuild ECC.
+
+Helper: `@/lib/shared-services/engage-analytics`
+
 ## Reload scroll restore
 
 Hard refresh should stay at the same scroll spot (best-effort if content height changes). Soft navigations still go to top.
