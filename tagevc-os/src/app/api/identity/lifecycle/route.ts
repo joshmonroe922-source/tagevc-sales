@@ -118,6 +118,23 @@ export async function POST(request: Request) {
       p_actor_id: body.actor_id ?? null,
     });
 
+    // Best-effort: sync messaging home membership when user_id known.
+    // Profile trigger also covers joiner/mover updates of entity_id/active.
+    let messagingSync: unknown = null;
+    const userId =
+      typeof body.user_id === 'string' && body.user_id.length > 0
+        ? body.user_id
+        : null;
+    if (userId && (kind === 'joiner' || kind === 'mover' || kind === 'leaver')) {
+      const { data: syncData, error: syncError } = await sb.rpc(
+        'sync_messaging_membership_for_profile_ms_p3b',
+        { p_user_id: userId },
+      );
+      messagingSync = syncError
+        ? { ok: false, error: syncError.message }
+        : syncData;
+    }
+
     if (error) {
       // Fail-soft contract preview when SQL not applied
       const checklist = defaultLifecycleChecklist(kind, entity);
@@ -129,6 +146,7 @@ export async function POST(request: Request) {
         lifecycle_kind: kind,
         home_entity_id: entity,
         checklist,
+        messaging_sync: messagingSync,
         // TODO: apply phase_ms_p5 for durable runs
         todo: 'TODO: apply phase_ms_p5 SQL — returning checklist preview only',
         rpc_error: error.message,
@@ -141,6 +159,7 @@ export async function POST(request: Request) {
       money_auto_approve: false as const,
       source: auth.source,
       ...(data as Record<string, unknown>),
+      messaging_sync: messagingSync,
       checklist_preview: defaultLifecycleChecklist(kind, entity),
     });
   } catch (e) {
