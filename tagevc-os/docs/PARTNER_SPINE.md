@@ -106,7 +106,21 @@ Flow (scaffold):
 ## Appcast / MyBasePay @ Recruit 619
 
 - **Appcast:** Already live-path on `recruit619-portal` (`APPCAST_*`, feed + apply webhook). Spine binding `appcast` / `ENT-R619` mirrors status; firm entities get careers-slot scaffolding.
-- **MyBasePay:** Portal scaffold under Recruit integrations (`mybasepay`); OS spine enables binding for `ENT-R619` only until other entities opt in. Burden seed (sheet 57) lives in R619 CRM place wizard — timesheets stay SoR in MBP.
+- **MyBasePay:** Portal scaffold under Recruit integrations (`mybasepay`); OS spine enables binding for `ENT-R619` only until other entities opt in. Burden seed: spine migration `0012_mbp_burden_seed.sql` (`mbp_burden`). Adapter remains dry-run / scaffold until `MYBASEPAY_LIVE=1` + real API wire-up.
+
+### MyBasePay connect status (2026-08-05) — NEED_HUMAN
+
+Probed without inventing credentials:
+
+| URL | Result |
+|-----|--------|
+| `https://mybasepay.com` | Marketing site OK — login points to **backoffice** |
+| `https://backoffice.mybasepay.com/login` | Human login (account required) |
+| `https://portal.mybasepay.com` / `https://app.mybasepay.com` | **Not found** / unreachable |
+| `https://developer.mybasepay.com` / `https://docs.mybasepay.com` | **Not found** |
+| `https://api.mybasepay.com` (+ `/docs`, `/openapi.json`, etc.) | ELB returns plain `OK` for all paths — **not** public API docs |
+
+**NEED_HUMAN:** Josh (or MBP AM) must provide API base, auth scheme, and docs from the MyBasePay account / backoffice. Keep `MYBASEPAY_LIVE=0` until then. Do not invent keys. Burden seed (sheet 57) lives in R619 CRM place wizard — timesheets stay SoR in MBP.
 
 ### MyBasePay connect — NEED_HUMAN
 

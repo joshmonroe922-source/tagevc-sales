@@ -14,6 +14,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { EmptyState } from '@/components/ui/empty-state';
+import { ErrorState } from '@/components/ui/error-state';
 import { listPartnerBindings } from '@/lib/partners/repo';
 import { partnerConnectionStatus } from '@/lib/partners/env';
 import { listScreeningOrders, listScreeningPackages } from '@/lib/screening/repo';
@@ -44,7 +46,11 @@ export default async function ScreeningAdminPage({ searchParams }: Props) {
   );
   const partnerStatus = partnerConnectionStatus('verified_first');
 
-  const [{ packages }, { orders, error }, allBindings] = await Promise.all([
+  const [
+    { packages, error: packagesError },
+    { orders, error: ordersError },
+    allBindings,
+  ] = await Promise.all([
     listScreeningPackages({ activeOnly: false }),
     listScreeningOrders({ entityId, limit: 80 }),
     listPartnerBindings(),
@@ -54,6 +60,10 @@ export default async function ScreeningAdminPage({ searchParams }: Props) {
   const packagesMissingVendorId = packages.filter(
     (p) => p.active && !String(p.vendor_package_id ?? '').trim(),
   ).length;
+  const activePackages = packages.filter((p) => p.active);
+  const retryHref = entityId
+    ? `/shared-services/hr/screening?entity=${encodeURIComponent(entityId)}`
+    : '/shared-services/hr/screening';
 
   return (
     <div className="space-y-6">
@@ -78,6 +88,22 @@ export default async function ScreeningAdminPage({ searchParams }: Props) {
           VERIFIED_FIRST_LIVE={live ? '1' : '0'}
         </Badge>
       </div>
+
+      {!live ? (
+        <div
+          className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm"
+          role="status"
+        >
+          <p className="font-medium text-foreground">
+            Vendor API off — <code>VERIFIED_FIRST_LIVE=0</code>
+          </p>
+          <p className="mt-1 text-muted-foreground">
+            Confirm still records a local <code>ordered</code> row for testing.
+            No call to Verified First until LIVE is flipped after a staging
+            smoke. Do not invent Basic Auth credentials.
+          </p>
+        </div>
+      ) : null}
 
       <Card>
         <CardHeader>
@@ -112,7 +138,9 @@ export default async function ScreeningAdminPage({ searchParams }: Props) {
             <p className="text-muted-foreground">
               Set <code>VERIFIED_FIRST_API_USERNAME</code> +{' '}
               <code>VERIFIED_FIRST_API_PASSWORD</code> (+ webhook secret) in
-              Vercel, then flip <code>VERIFIED_FIRST_LIVE=1</code> only after a
+              Vercel from VF Integrations (
+              <code>integrations@verifiedfirst.com</code>
+              ), then flip <code>VERIFIED_FIRST_LIVE=1</code> only after a
               staging smoke order. Not blocked by CRM rebuild / SF migration.
             </p>
           ) : !live ? (
@@ -121,7 +149,12 @@ export default async function ScreeningAdminPage({ searchParams }: Props) {
               <code>VERIFIED_FIRST_LIVE=1</code>. Local confirm still records
               orders without calling the vendor.
             </p>
-          ) : null}
+          ) : (
+            <p className="text-amber-800 dark:text-amber-200">
+              LIVE is on — Confirm will call Verified First. Human checkbox
+              required; no silent sends.
+            </p>
+          )}
           {packagesMissingVendorId > 0 ? (
             <p className="text-amber-800 dark:text-amber-200">
               {packagesMissingVendorId} active package
@@ -173,10 +206,17 @@ export default async function ScreeningAdminPage({ searchParams }: Props) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {packages.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No packages — apply phase80 SQL.
-            </p>
+          {packagesError ? (
+            <ErrorState
+              title="Could not load packages"
+              description={packagesError}
+              onRetryHref={retryHref}
+            />
+          ) : packages.length === 0 ? (
+            <EmptyState
+              title="No screening packages"
+              description="Apply phase80 SQL (os_screening_packages) on the Tage UDL, then refresh. LIVE stays 0 until Staging smoke."
+            />
           ) : (
             <ul className="space-y-2 text-sm">
               {packages.map((p) => (
@@ -210,92 +250,106 @@ export default async function ScreeningAdminPage({ searchParams }: Props) {
             <CardTitle className="text-base">Create pending order</CardTitle>
             <CardDescription>
               Creates a ready-to-order row — does not call the vendor until
-              confirm.
+              confirm
+              {!live ? ' (and LIVE=0 still skips the vendor on confirm)' : ''}.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form action={createPendingScreeningOrderAction} className="grid gap-3 sm:grid-cols-2">
-              <label className="text-sm">
-                Entity ID
-                <input
-                  name="entity_id"
-                  required
-                  defaultValue={entityId ?? 'ENT-001'}
-                  className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
-                />
-              </label>
-              <label className="text-sm">
-                Subject type
-                <select
-                  name="subject_type"
-                  className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
-                  defaultValue="employee"
-                >
-                  <option value="employee">employee</option>
-                  <option value="placement">placement</option>
-                  <option value="candidate">candidate</option>
-                  <option value="signent_client_employee">
-                    signent_client_employee
-                  </option>
-                </select>
-              </label>
-              <label className="text-sm">
-                Subject ID
-                <input
-                  name="subject_id"
-                  required
-                  className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
-                />
-              </label>
-              <label className="text-sm">
-                Kind
-                <select
-                  name="kind"
-                  className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
-                  defaultValue="bg"
-                >
-                  <option value="bg">bg</option>
-                  <option value="drug">drug</option>
-                  <option value="combo">combo</option>
-                </select>
-              </label>
-              <label className="text-sm sm:col-span-2">
-                Package
-                <select
-                  name="package_id"
-                  className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
-                  defaultValue={packages[0]?.id ?? ''}
-                >
-                  {packages
-                    .filter((p) => p.active)
-                    .map((p) => (
+            {activePackages.length === 0 ? (
+              <EmptyState
+                title="No active packages to order"
+                description={
+                  packagesError
+                    ? 'Fix the packages load error above first.'
+                    : 'Add or activate a package before creating a pending order.'
+                }
+              />
+            ) : (
+              <form
+                action={createPendingScreeningOrderAction}
+                className="grid gap-3 sm:grid-cols-2"
+              >
+                <label className="text-sm">
+                  Entity ID
+                  <input
+                    name="entity_id"
+                    required
+                    defaultValue={entityId ?? 'ENT-001'}
+                    className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+                  />
+                </label>
+                <label className="text-sm">
+                  Subject type
+                  <select
+                    name="subject_type"
+                    className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+                    defaultValue="employee"
+                  >
+                    <option value="employee">employee</option>
+                    <option value="placement">placement</option>
+                    <option value="candidate">candidate</option>
+                    <option value="signent_client_employee">
+                      signent_client_employee
+                    </option>
+                  </select>
+                </label>
+                <label className="text-sm">
+                  Subject ID
+                  <input
+                    name="subject_id"
+                    required
+                    className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+                  />
+                </label>
+                <label className="text-sm">
+                  Kind
+                  <select
+                    name="kind"
+                    className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+                    defaultValue="bg"
+                  >
+                    <option value="bg">bg</option>
+                    <option value="drug">drug</option>
+                    <option value="combo">combo</option>
+                  </select>
+                </label>
+                <label className="text-sm sm:col-span-2">
+                  Package
+                  <select
+                    name="package_id"
+                    required
+                    className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+                    defaultValue={activePackages[0]?.id ?? ''}
+                  >
+                    {activePackages.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.name} ({p.code})
                       </option>
                     ))}
-                </select>
-              </label>
-              <label className="text-sm">
-                Subject name
-                <input
-                  name="subject_name"
-                  className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
-                />
-              </label>
-              <label className="text-sm">
-                Subject email
-                <input
-                  name="subject_email"
-                  type="email"
-                  className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
-                />
-              </label>
-              <div className="sm:col-span-2">
-                <Button type="submit" size="sm">
-                  Create pending order
-                </Button>
-              </div>
-            </form>
+                  </select>
+                </label>
+                <label className="text-sm">
+                  Subject name
+                  <input
+                    name="subject_name"
+                    className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+                  />
+                </label>
+                <label className="text-sm">
+                  Subject email
+                  <input
+                    name="subject_email"
+                    type="email"
+                    className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+                  />
+                </label>
+                <div className="sm:col-span-2">
+                  <Button type="submit" size="sm">
+                    Create pending order
+                  </Button>
+                </div>
+              </form>
+            )}
           </CardContent>
         </Card>
       ) : null}
@@ -304,12 +358,27 @@ export default async function ScreeningAdminPage({ searchParams }: Props) {
         <CardHeader>
           <CardTitle className="text-base">Order queue</CardTitle>
           <CardDescription>
-            {error ? `Load error: ${error}` : `${orders.length} recent orders`}
+            {ordersError
+              ? 'Could not load orders'
+              : `${orders.length} recent orders`}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {orders.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No orders yet.</p>
+          {ordersError ? (
+            <ErrorState
+              title="Could not load orders"
+              description={ordersError}
+              onRetryHref={retryHref}
+            />
+          ) : orders.length === 0 ? (
+            <EmptyState
+              title="No screening orders yet"
+              description={
+                live
+                  ? 'Create a pending order, then confirm with the human checkbox.'
+                  : 'Create a pending order to exercise the queue. Confirm stays local while LIVE=0.'
+              }
+            />
           ) : (
             orders.map((o) => (
               <div
@@ -357,11 +426,18 @@ export default async function ScreeningAdminPage({ searchParams }: Props) {
                         value={String(o.consumer_ref.subject_email ?? '')}
                       />
                       <label className="flex items-center gap-1.5 text-xs">
-                        <input type="checkbox" name="human_confirm" value="1" required />
-                        I confirm placing this Verified First order
+                        <input
+                          type="checkbox"
+                          name="human_confirm"
+                          value="1"
+                          required
+                        />
+                        {live
+                          ? 'I confirm placing this Verified First order'
+                          : 'I confirm local order only (LIVE=0 — no vendor call)'}
                       </label>
                       <Button type="submit" size="sm">
-                        Confirm &amp; order
+                        {live ? 'Confirm & order' : 'Confirm locally'}
                       </Button>
                     </form>
                     <form
