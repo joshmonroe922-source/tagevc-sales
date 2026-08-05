@@ -11,6 +11,8 @@ export async function enrollContact(input: {
   actorId?: string;
   ownerId?: string;
   source?: string;
+  /** CRM job/req merge context (stored in metadata_json). */
+  metadata?: Record<string, unknown> | null;
 }) {
   const sb = await campaignDb();
   const { data: journey } = await sb
@@ -87,6 +89,7 @@ export async function enrollContact(input: {
       state: 'active',
       source: input.source || 'api',
       current_node: triggerNode,
+      metadata_json: input.metadata ?? {},
     })
     .select('id')
     .single();

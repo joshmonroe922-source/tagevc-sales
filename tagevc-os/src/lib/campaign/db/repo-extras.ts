@@ -180,6 +180,7 @@ export async function enrollContact(input: {
   ownerId?: string;
   actorId?: string;
   source?: string;
+  metadata?: Record<string, unknown> | null;
 }) {
   const result = await enrollContactCore({
     entityId: input.entityId,
@@ -187,6 +188,7 @@ export async function enrollContact(input: {
     journeyId: input.journeyId,
     actorId: input.ownerId || input.actorId,
     source: input.source,
+    metadata: input.metadata,
   });
   if (!result.ok) {
     const err = new Error(result.error) as Error & {
