@@ -106,7 +106,17 @@ Flow (scaffold):
 ## Appcast / MyBasePay @ Recruit 619
 
 - **Appcast:** Already live-path on `recruit619-portal` (`APPCAST_*`, feed + apply webhook). Spine binding `appcast` / `ENT-R619` mirrors status; firm entities get careers-slot scaffolding.
-- **MyBasePay:** Portal scaffold under Recruit integrations (`mybasepay`); OS spine enables binding for `ENT-R619` only until other entities opt in.
+- **MyBasePay:** Portal scaffold under Recruit integrations (`mybasepay`); OS spine enables binding for `ENT-R619` only until other entities opt in. Burden seed (sheet 57) lives in R619 CRM place wizard — timesheets stay SoR in MBP.
+
+### MyBasePay connect — NEED_HUMAN
+
+Scaffold + R619 burden calc are code-complete (`MYBASEPAY_LIVE` fail-closed). Live API connect is blocked until Josh provides:
+
+1. **Working portal / API URL** for the new MyBasePay dashboard (prior browser session hit not-found / no public developer docs).
+2. Auth model confirmation (API key vs OAuth vs Basic) + sandbox credentials.
+3. External account id for `ENT-R619` binding (non-secret) once the vendor portal exposes it.
+
+Do **not** invent creds or flip `MYBASEPAY_LIVE=1` until those land.
 
 ## AI Business Intelligence
 
