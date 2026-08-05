@@ -1,11 +1,16 @@
 import { requireCampaignAuth } from '@/lib/campaign/auth';
 import { createJourney, listJourneys } from '@/lib/campaign/db/repo';
-import { emptyJourneyGraph, layoutJourneyGraph, normalizeJourneyGraph } from '@/lib/campaign/core/journey-graph';
+import {
+  emptyJourneyGraph,
+  layoutJourneyGraph,
+  normalizeJourneyGraph,
+} from '@/lib/campaign/core/journey-graph';
 import { jsonError, jsonOk, readJson } from '@/lib/campaign/http';
 
-export async function GET() {
+/** List journeys for entity — ECC UI + Recruit 619 Engage / EnrollmentService. */
+export async function GET(req: Request) {
   try {
-    const auth = await requireCampaignAuth();
+    const auth = await requireCampaignAuth(req);
     return jsonOk({ data: await listJourneys(auth.entityId) });
   } catch (e) {
     return jsonError('ERROR', e instanceof Error ? e.message : 'error', 400);
@@ -14,8 +19,10 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const auth = await requireCampaignAuth();
-    if (!auth.permissions.marketer) return jsonError('FORBIDDEN', 'Marketer role required', 403);
+    const auth = await requireCampaignAuth(req);
+    if (!auth.permissions.marketer) {
+      return jsonError('FORBIDDEN', 'Marketer role required', 403);
+    }
     const body = await readJson<{
       name?: string;
       journey_type?: string;

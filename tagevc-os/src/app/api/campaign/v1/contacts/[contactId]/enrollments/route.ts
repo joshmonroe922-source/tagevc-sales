@@ -9,10 +9,10 @@ import { jsonError, jsonOk, readJson } from '@/lib/campaign/http';
 
 type Ctx = { params: Promise<{ contactId: string }> };
 
-export async function GET(_req: Request, ctx: Ctx) {
+export async function GET(req: Request, ctx: Ctx) {
   try {
     const { contactId } = await ctx.params;
-    const auth = await requireCampaignAuth();
+    const auth = await requireCampaignAuth(req);
     const sb = await campaignDb();
     const { data } = await sb
       .from('ecc_journey_enrollments')
@@ -29,7 +29,7 @@ export async function GET(_req: Request, ctx: Ctx) {
 export async function POST(req: Request, ctx: Ctx) {
   try {
     const { contactId } = await ctx.params;
-    const auth = await requireCampaignAuth();
+    const auth = await requireCampaignAuth(req);
     const body = await readJson<{
       journey_id?: string;
       source?: string;
@@ -62,7 +62,7 @@ export async function POST(req: Request, ctx: Ctx) {
 export async function PATCH(req: Request, ctx: Ctx) {
   try {
     const { contactId } = await ctx.params;
-    const auth = await requireCampaignAuth();
+    const auth = await requireCampaignAuth(req);
     const body = await readJson<{
       enrollment_id?: string;
       action?: 'pause' | 'exit';

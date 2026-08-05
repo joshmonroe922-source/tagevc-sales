@@ -3,6 +3,7 @@
  * Future entities: provisionVendorMgmtForEntity assigns a code + enablement row.
  */
 
+import { entityDisplayName } from '@/lib/entities/display-name';
 import type { VmEntityCode } from '@/lib/vendor-mgmt/types';
 
 export const VM_ENTITY_SEED: ReadonlyArray<{
@@ -59,7 +60,7 @@ export function vmEntityIdForCode(code: string): string | null {
 
 export function vmEntityLabel(entityId: string): string {
   const row = VM_ENTITY_SEED.find((e) => e.entity_id === entityId);
-  return row?.legal_name ?? entityId;
+  return row?.legal_name ?? entityDisplayName(entityId);
 }
 
 /** Suggest a short code for a newly provisioned OS entity. */

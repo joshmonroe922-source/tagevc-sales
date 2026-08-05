@@ -13,16 +13,23 @@ Canonical order for **every** company/entity scope dropdown (SSC, Portfolio filt
 
 ```ts
 import { sortEntitiesForSelect } from '@/lib/entities/display-order';
+import { entityDisplayName, entityLabel } from '@/lib/entities/display-name';
+import { EntityBadge } from '@/components/entities/entity-badge';
 
 const ordered = sortEntitiesForSelect(entities);
+const label = entityLabel(entity); // or entityDisplayName(entity)
 ```
 
 - Single shared module: `src/lib/entities/display-order.ts`
+- Display names: `src/lib/entities/display-name.ts` (`entityDisplayName` / `entityLabel`)
+- UI badge: `src/components/entities/entity-badge.tsx`
 - `CompanySelect` applies this order by default (`allowConsolidated` prepends Consolidated)
 - Labels are company display names — never raw `ENT-*` as the primary label
 - Entity options for SSC are cached in `src/lib/entities/entity-select-cache.ts` (TTL) so function navigation does not refetch a full directory
+- Agent note: `AGENTS.md` (entity labels section)
 
 ## Do not
 
 - Hardcode A–Z-only sorts that put Instant NDA before Tage VC
 - Duplicate priority lists in individual components
+- Render `{entity_id}` or `ENT-*` as the visible company name in product UI

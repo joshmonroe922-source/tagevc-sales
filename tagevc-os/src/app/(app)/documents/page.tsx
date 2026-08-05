@@ -29,6 +29,7 @@ import {
   resolveDocumentVisibleRoles,
 } from '@/lib/documents/visibility';
 import { getSessionContext } from '@/lib/rbac/session';
+import { entityDisplayName } from '@/lib/entities/display-name';
 import { ENTITY_DOC_FOLDERS } from '@/lib/types/enums';
 import { VIEW_MODE_DEFAULTS } from '@/lib/view-mode';
 
@@ -118,7 +119,7 @@ export default async function DocumentsPage() {
         <CardHeader>
           <CardTitle className="text-base">Folder structure</CardTitle>
           <CardDescription>
-            Tage Venture Capital (ENT-FIRM) and each subsidiary use the same
+            Tage Venture Capital and each subsidiary use the same
             folders (corporate through signed). Legacy firm paths:{' '}
             {FIRM_FOLDERS.join(', ')}. Folder{' '}
             <span className="font-medium text-foreground">05_HR</span> is
@@ -161,7 +162,9 @@ export default async function DocumentsPage() {
                   </Link>
                   <div className="text-xs text-muted-foreground">{d.doc_id}</div>
                 </TableCell>
-                <TableCell className="text-sm">{d.entity_id ?? '—'}</TableCell>
+                <TableCell className="text-sm">
+                  {d.entity_id ? entityDisplayName(d.entity_id) : '—'}
+                </TableCell>
                 <TableCell>
                   {d.doc_type}
                   {isCapitalDocument(d.doc_type) ? (

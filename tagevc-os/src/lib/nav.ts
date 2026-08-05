@@ -464,6 +464,17 @@ export const MAIN_NAV: NavItem[] = [
               ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
             ],
           },
+          {
+            module: 'shared_services',
+            href: '/shared-services/marketing/engage',
+            label: 'Engage analytics',
+            description: 'Calls · SMS · campaigns by entity',
+            requiredPermission: 'read:marketing',
+            hiddenForRoles: [
+              ...sscRolesHiddenFromFunction('Marketing'),
+              ...HIDE_SSC_FUNCTIONS_FOR_ADMIN,
+            ],
+          },
         ],
       },
       {

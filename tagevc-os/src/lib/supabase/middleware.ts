@@ -19,6 +19,9 @@ export async function updateSession(request: NextRequest) {
     path.startsWith('/api/rollups/ingest') ||
     path.startsWith('/api/deal-flow/website-intake') ||
     path.startsWith('/api/screening/verified-first/webhook') ||
+    // Recruit 619 ECC EnrollmentService (Bearer TAGE_CAMPAIGN_API_TOKEN / TAGE_ECC_API_SECRET).
+    path.startsWith('/api/campaign/') ||
+    path.startsWith('/api/partners/') ||
     path.startsWith('/_next') ||
     path === '/favicon.ico';
 

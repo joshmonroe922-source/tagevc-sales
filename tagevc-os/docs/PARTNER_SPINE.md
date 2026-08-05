@@ -13,7 +13,7 @@
 | Key | Owner (SS) | Scope | Status |
 |-----|------------|-------|--------|
 | `dialpad` | IT | All entities | Scaffolded |
-| `verified_first` | HR (+ Recruiting) | Tage HR · R619 · Signent | **Live spine** (phase80) |
+| `verified_first` | HR (+ Recruiting) | Tage HR · R619 · Signent | **Live spine** (phase80) — secrets pending; see `docs/VERIFIED_FIRST_SCREENING_SPINE.md` § Connect |
 | `mybasepay` | HR / Finance | Contractor EOR — **R619 first** | Scaffolded |
 | `apollo` | Marketing | All entities → unified DB | Scaffolded |
 | `gusto` | Finance / HR | Internal payroll + commissions | Scaffolded |
@@ -106,7 +106,31 @@ Flow (scaffold):
 ## Appcast / MyBasePay @ Recruit 619
 
 - **Appcast:** Already live-path on `recruit619-portal` (`APPCAST_*`, feed + apply webhook). Spine binding `appcast` / `ENT-R619` mirrors status; firm entities get careers-slot scaffolding.
-- **MyBasePay:** Portal scaffold under Recruit integrations (`mybasepay`); OS spine enables binding for `ENT-R619` only until other entities opt in.
+- **MyBasePay:** Portal scaffold under Recruit integrations (`mybasepay`); OS spine enables binding for `ENT-R619` only until other entities opt in. Burden seed: spine migration `0012_mbp_burden_seed.sql` (`mbp_burden`). Adapter remains dry-run / scaffold until `MYBASEPAY_LIVE=1` + real API wire-up.
+
+### MyBasePay connect status (2026-08-05) — NEED_HUMAN
+
+Probed without inventing credentials:
+
+| URL | Result |
+|-----|--------|
+| `https://mybasepay.com` | Marketing site OK — login points to **backoffice** |
+| `https://backoffice.mybasepay.com/login` | Human login (account required) |
+| `https://portal.mybasepay.com` / `https://app.mybasepay.com` | **Not found** / unreachable |
+| `https://developer.mybasepay.com` / `https://docs.mybasepay.com` | **Not found** |
+| `https://api.mybasepay.com` (+ `/docs`, `/openapi.json`, etc.) | ELB returns plain `OK` for all paths — **not** public API docs |
+
+**NEED_HUMAN:** Josh (or MBP AM) must provide API base, auth scheme, and docs from the MyBasePay account / backoffice. Keep `MYBASEPAY_LIVE=0` until then. Do not invent keys. Burden seed (sheet 57) lives in R619 CRM place wizard — timesheets stay SoR in MBP.
+
+### MyBasePay connect — NEED_HUMAN
+
+Scaffold + R619 burden calc are code-complete (`MYBASEPAY_LIVE` fail-closed). Live API connect is blocked until Josh provides:
+
+1. **Working portal / API URL** for the new MyBasePay dashboard (prior browser session hit not-found / no public developer docs).
+2. Auth model confirmation (API key vs OAuth vs Basic) + sandbox credentials.
+3. External account id for `ENT-R619` binding (non-secret) once the vendor portal exposes it.
+
+Do **not** invent creds or flip `MYBASEPAY_LIVE=1` until those land.
 
 ## AI Business Intelligence
 
@@ -134,7 +158,7 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/phase89_partner_spine.sql
 1. Apply `phase89_partner_spine.sql` (+ phase91 Signent tenancy, phase92 AP/W-9)
 2. DocuSign org JWT + Connect + per-entity `DOCUSIGN_ACCOUNT_ID_*`
 3. Dialpad API key + webhook secret
-4. Verified First live key when ready (`VERIFIED_FIRST_LIVE=1`)
+4. Verified First: Basic Auth username/password + webhook secret + package IDs now (CRM/SF not a blocker); set `VERIFIED_FIRST_LIVE=1` only after staging smoke — `docs/VERIFIED_FIRST_SCREENING_SPINE.md`
 5. MyBasePay account for R619 contractor placements
 6. Apollo API key
 7. Gusto company + API token (commissions after payroll mapping)

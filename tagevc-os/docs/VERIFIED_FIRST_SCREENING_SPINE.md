@@ -84,14 +84,66 @@ Graph / DocuSign paths unchanged. Step complete when status `clear` | `waived` |
 | Env | Purpose |
 |-----|---------|
 | `VERIFIED_FIRST_LIVE` | `1` to call vendor; default/unset = fail-closed |
-| `VERIFIED_FIRST_API_KEY` | Vendor API bearer token |
-| `VERIFIED_FIRST_WEBHOOK_SECRET` | HMAC / shared secret for webhook |
-| `VERIFIED_FIRST_API_BASE` | Optional API base (default Verified First v1) |
+| `VERIFIED_FIRST_API_USERNAME` | Basic Auth username from VF Integrations |
+| `VERIFIED_FIRST_API_PASSWORD` | Basic Auth password from VF Integrations |
+| `VERIFIED_FIRST_API_KEY` | Optional legacy only: `username:password` |
+| `VERIFIED_FIRST_WEBHOOK_SECRET` | Shared secret / HMAC for webhook POST-back |
+| `VERIFIED_FIRST_API_BASE` | Default `https://api1.verifiedfirst.com/external/verified-first` (staging: `api2`) |
+| `VERIFIED_FIRST_SEARCH_TYPE` | Optional; default `app_invitation` |
 
-Webhook: `POST /api/screening/verified-first/webhook`  
+**Auth model:** HTTP **Basic Authentication** (username + password) — **not** Bearer API key and **not** OAuth for the REST API. Public docs: [docs.api.verifiedfirst.com](https://docs.api.verifiedfirst.com/#) · Client Resource Center formats article (Production `api1`, Test `api2`). Credentialing is **not self-serve**: email `integrations@verifiedfirst.com`, Staging + Production portal users, IP/domain whitelist.
+
+Live order call: `POST {API_BASE}/order` with `Authorization: Basic …` and body `{ "order": { "search_type", "package_id", "first_name", "last_name", … } }`.
+
+Webhook: `POST https://app.tagevc.com/api/screening/verified-first/webhook`  
 Headers: `x-tagevc-webhook-secret` or `x-verified-first-signature` (HMAC-SHA256 of body).
 
+Accepted bodies:
+- Spine/test: `{ "spine_order_id"|"external_order_id", "status" }`
+- VF POST-back: `{ "type": "background status", "status_update": { "order_id", "status", "adjudication?", "url?" } }`
+
 Idempotent by `external_order_id` / spine `order_id`. Status map in `src/lib/screening/types.ts` (`mapVendorStatusToSpine`).
+
+## Connect (Josh) — unblocked by CRM / SF
+
+**Verdict:** Connect at Tage partner spine **now**. Do **not** wait on R619 CRM rebuild or Salesforce migration — screening tables, HR admin UI, entity bindings, and fail-closed vendor client are already live on the spine. Those other tracks do not own these secrets or tables.
+
+Asking VF for an “API key” alone is the wrong ask — they issue **Basic Auth username/password** (and activate formats after Staging review). That public-docs process is expected.
+
+### Already done (prod UDL)
+
+- `phase80` tables + seed packages (`vf-basic-bg`, `vf-standard-bg`, `vf-drug-5`, `vf-drug-10`, `vf-combo-bg-drug`)
+- `phase89` bindings for `verified_first` on ENT-FIRM · ENT-R619 · ENT-SIGNENT · ENT-INDA (`status=scaffolded`)
+- Admin: Shared Services → HR → Screening · Technology stack contracts UI
+- Webhook route + human-gated confirm path
+- Vendor client aligned to Basic Auth + `api1`/`api2` + `POST …/order` (keep `LIVE=0`)
+
+### You must provide
+
+1. **Basic Auth username + password** from VF Integrations (staging first).
+2. Optional but recommended: **VF `account_id`(s)** → store on `os_partner_entity_bindings.external_account_id` per entity.
+3. **Package `package_id` UUIDs** from VF portal / `GET …/account/packages` → `os_screening_packages.vendor_package_id`.
+4. Approve webhook URL + outbound IP whitelist with VF.
+5. Approve flipping **`VERIFIED_FIRST_LIVE=1`** only after a **staging** smoke order (keep `0` until then).
+
+### Wire steps (after credentials arrive)
+
+```bash
+# Prefer staging base until smoke passes
+printf '%s' "$VERIFIED_FIRST_API_USERNAME" | vercel env add VERIFIED_FIRST_API_USERNAME production
+printf '%s' "$VERIFIED_FIRST_API_PASSWORD" | vercel env add VERIFIED_FIRST_API_PASSWORD production
+printf '%s' 'https://api2.verifiedfirst.com/external/verified-first' | vercel env add VERIFIED_FIRST_API_BASE production
+# Generate once; give the same value to VF for POST-back auth
+openssl rand -hex 32 | tee /tmp/vf_webhook.secret
+vercel env add VERIFIED_FIRST_WEBHOOK_SECRET production < /tmp/vf_webhook.secret
+# Leave LIVE=0 until staging smoke passes
+printf '0' | vercel env add VERIFIED_FIRST_LIVE production
+rm -f /tmp/vf_webhook.secret
+```
+
+Point VF POST-back to `https://app.tagevc.com/api/screening/verified-first/webhook` with header `x-tagevc-webhook-secret: <secret>` (or HMAC signature).
+
+Recruit 619 portal reads the same UDL spine; set matching `VERIFIED_FIRST_*` on the Recruit Vercel project only if that app places orders itself (otherwise Tage OS is enough).
 
 ## UX surfaces
 
@@ -141,4 +193,6 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f recruit619-portal/supabase/phase50_r6
 - Adverse-action letter automation (legal; later)
 - Auto-order without human confirm (never)
 - Full Signent portal screening UI
-- Live Verified First package account IDs until vendor credentials provisioned
+- Live Verified First package account IDs + `vendor_package_id` mapping (blocked on VF credentials)
+- Confirm optional order body fields (`partner_metadata`, etc.) with VF Integrations if rejected at staging
+- Instant (`search_type=instant`) path once SSN/DOB collection is wired end-to-end

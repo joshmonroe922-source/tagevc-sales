@@ -87,7 +87,10 @@ export default async function AppShellLayout({
           ) : session.impersonatingAs ? (
             <ImpersonationBanner role={session.impersonatingAs} />
           ) : null}
-          <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain">
+          <main
+            data-scroll-restoration-root
+            className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain"
+          >
             <div className="mx-auto max-w-6xl px-6 py-8 md:px-10">{children}</div>
           </main>
         </div>

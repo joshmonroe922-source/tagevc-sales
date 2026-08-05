@@ -4,10 +4,14 @@ import { jsonError, jsonOk, readJson } from '@/lib/campaign/http';
 
 type Ctx = { params: Promise<{ contactId: string }> };
 
+/**
+ * Pause all active enrollments for a contact (conversation mutex).
+ * Used by Recruit 619 EnrollmentService.pauseAllCadences.
+ */
 export async function POST(req: Request, ctx: Ctx) {
   try {
     const { contactId } = await ctx.params;
-    const auth = await requireCampaignAuth();
+    const auth = await requireCampaignAuth(req);
     const body = await readJson<{ reason?: string }>(req);
     await pauseConversation(
       auth.entityId,
