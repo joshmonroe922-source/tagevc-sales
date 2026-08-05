@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Source_Sans_3, Source_Serif_4 } from 'next/font/google';
+import { ReloadScrollRestore } from '@/components/layout/reload-scroll-restore';
 import './globals.css';
 
 const sans = Source_Sans_3({
@@ -28,6 +29,7 @@ export default function RootLayout({
       <body
         className={`${sans.variable} ${serif.variable} font-sans antialiased`}
       >
+        <ReloadScrollRestore />
         {children}
       </body>
     </html>
