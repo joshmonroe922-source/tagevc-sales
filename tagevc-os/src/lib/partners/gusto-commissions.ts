@@ -1,10 +1,15 @@
 /**
  * Gusto commission accounting seam.
  * Invoice paid → calculate commission → push to payroll (LIVE=0 fail-closed).
+ * Uses per-entity resolve — never firm token for subsidiaries.
  */
 
 import { recordPartnerEvent } from '@/lib/partners/repo';
 import { createPersistClient } from '@/lib/supabase/persist-client';
+import {
+  isGustoLive,
+  resolveGustoCompany,
+} from '@/lib/partners/gusto-entity';
 
 export type CommissionCalcInput = {
   entityId: string;
@@ -26,10 +31,9 @@ export type CommissionCalcResult =
     }
   | { ok: false; error: string };
 
-export function isGustoLive(): boolean {
-  return process.env.GUSTO_LIVE?.trim() === '1';
-}
+export { isGustoLive };
 
+/** @deprecated Prefer resolveGustoCompany(entityId). Firm globals only. */
 export function gustoConfigured(): boolean {
   return Boolean(
     process.env.GUSTO_API_TOKEN?.trim() &&
@@ -58,6 +62,8 @@ export async function queueCommissionFromPaidInvoice(
   if (commissionCents <= 0) {
     return { ok: false, error: 'Commission amount is zero' };
   }
+
+  const resolved = await resolveGustoCompany(input.entityId);
 
   try {
     const sb = await createPersistClient();
@@ -92,10 +98,12 @@ export async function queueCommissionFromPaidInvoice(
         stub_id: data.id,
         commission_cents: commissionCents,
         live: isGustoLive(),
+        company_uuid: resolved.companyUuid,
+        resolve_source: resolved.source,
       },
     });
 
-    if (!isGustoLive() || !gustoConfigured()) {
+    if (!isGustoLive() || !resolved.credentialsReady) {
       return {
         ok: true,
         stubId: data.id as string,

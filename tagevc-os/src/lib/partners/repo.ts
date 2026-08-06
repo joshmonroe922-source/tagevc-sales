@@ -30,6 +30,57 @@ export async function listPartnerBindings(
   }
 }
 
+/** Upsert non-secret binding IDs (Dialpad office_id, etc.). Never store API keys in config. */
+export async function upsertPartnerEntityBinding(input: {
+  partner_key: PartnerKey;
+  entity_id: string;
+  enabled?: boolean;
+  status?: PartnerEntityBinding['status'];
+  external_account_id?: string | null;
+  config?: Record<string, unknown>;
+  last_error?: string | null;
+}): Promise<PartnerEntityBinding | null> {
+  try {
+    const sb = await createPersistClient();
+    const existing = await sb
+      .from('os_partner_entity_bindings')
+      .select('*')
+      .eq('partner_key', input.partner_key)
+      .eq('entity_id', input.entity_id)
+      .maybeSingle();
+    const prev = (existing.data ?? null) as PartnerEntityBinding | null;
+    const mergedConfig = {
+      ...(prev?.config ?? {}),
+      ...(input.config ?? {}),
+    };
+    const payload = {
+      partner_key: input.partner_key,
+      entity_id: input.entity_id,
+      enabled: input.enabled ?? prev?.enabled ?? true,
+      status: input.status ?? prev?.status ?? 'configured',
+      external_account_id:
+        input.external_account_id !== undefined
+          ? input.external_account_id
+          : (prev?.external_account_id ?? null),
+      config: mergedConfig,
+      last_error:
+        input.last_error !== undefined
+          ? input.last_error
+          : (prev?.last_error ?? null),
+      updated_at: new Date().toISOString(),
+    };
+    const { data, error } = await sb
+      .from('os_partner_entity_bindings')
+      .upsert(payload, { onConflict: 'partner_key,entity_id' })
+      .select('*')
+      .maybeSingle();
+    if (error) return null;
+    return data as PartnerEntityBinding;
+  } catch {
+    return null;
+  }
+}
+
 export async function ensureEntityPartnerBindings(
   entityId: string,
 ): Promise<{ created: number; plan: ReturnType<typeof entityCreatePartnerPlan> }> {
