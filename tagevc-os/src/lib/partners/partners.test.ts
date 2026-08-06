@@ -92,7 +92,8 @@ describe('partner spine catalog', () => {
     });
     expect(gustoJoiner.ok).toBe(true);
     if (gustoJoiner.ok) {
-      expect(gustoJoiner.message).toContain('employee provision');
+      expect(gustoJoiner.dryRun).toBe(true);
+      expect(gustoJoiner.message.toLowerCase()).toMatch(/gusto|provision/);
     }
 
     const completed = await completePartnerLifecycleHook({

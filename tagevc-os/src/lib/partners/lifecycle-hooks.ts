@@ -54,9 +54,11 @@ function humanizePartnerHook(id: string): string {
       'Ensure partner spine enablements for home entity',
     marketing_presence_slots_ensure:
       'Ensure Marketing presence slots (GBP · GA4 · LinkedIn Company)',
-    gusto_employee_stub_if_internal: 'Gusto payroll stub (internal hire)',
-    provision_gusto_employee: 'Gusto employee provision (stub)',
-    terminate_gusto_employee: 'Gusto terminate / off-cycle stub',
+    gusto_employee_stub_if_internal:
+      'Gusto payroll provision (entity company, fail-closed)',
+    provision_gusto_employee:
+      'Gusto employee provision (entity company, fail-closed)',
+    terminate_gusto_employee: 'Gusto terminate / off-cycle (entity company)',
     dialpad_user_stub_if_phone: 'Dialpad user provision stub',
     provision_dialpad_user: 'Dialpad user provision (stub)',
     revoke_dialpad_user: 'Revoke Dialpad access (stub)',
