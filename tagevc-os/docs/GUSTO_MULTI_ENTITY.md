@@ -1,6 +1,6 @@
 # Gusto multi-entity model (Tage + subsidiary payrolls)
 
-**Status (2026-08-06):** Code path landed — `resolveGustoCompany`, fail-closed adapters, webhook company→entity, HRIS `gusto_provision` assist, `phase96_gusto_multi_entity.sql`. Browser: Josh on **Recruit 619, LLC** Gusto · plan **Simple** · payroll setup **~58%**. Company UUID still **TBD** (OAuth / App directory). `GUSTO_LIVE=0`. Do **not** invent tax/bank/payroll completion here.
+**Status (2026-08-06):** Code path landed — `resolveGustoCompany`, fail-closed adapters, webhook company→entity, HRIS `gusto_provision` assist, `phase96_gusto_multi_entity.sql`. Browser: Josh on **Recruit 619, LLC** Gusto · plan **Simple** (Next-Day Pay + Priority Support) · payroll setup **~58%**. Company UUID still **TBD** (OAuth / App directory). `GUSTO_LIVE=0`. Do **not** invent tax/bank/payroll completion here.
 
 **Related:** `docs/PARTNER_SPINE.md` · `docs/HRIS_SPINE.md` · `docs/MS_GRAPH_HRIS.md` · Dialpad contrast: `docs/DIALPAD_MULTI_ENTITY.md` · DocuSign parallel: `docs/DOCUSIGN_ENTITY_AUTOMATION.md` · IES parallel: `docs/IES_MULTI_ENTITY.md`.
 

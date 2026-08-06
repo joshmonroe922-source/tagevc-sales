@@ -15,7 +15,7 @@
 | `dialpad` | IT | All entities | Scaffolded — multi-office model + IDs: `docs/DIALPAD_MULTI_ENTITY.md`; manager coaching map: `docs/DIALPAD_ORG_HIERARCHY.md` |
 | `verified_first` | HR (+ Recruiting) | Tage HR · R619 · Signent | **Live spine** (phase80) — secrets pending; see `docs/VERIFIED_FIRST_SCREENING_SPINE.md` § Connect |
 | `mybasepay` | HR / Finance | Contractor EOR — **R619 first** | Scaffolded |
-| `apollo` | Marketing | All entities → unified DB | Scaffolded — one workspace pull enrich: `docs/APOLLO_SPINE.md` |
+| `apollo` | Marketing | All entities → unified DB | Scaffolded |
 | `gusto` | Finance / HR | Internal payroll + commissions | Scaffolded — **multi-company:** `docs/GUSTO_MULTI_ENTITY.md` |
 | `docusign` | Legal | Org per entity | **Live** (existing) |
 | `linkedin_recruiter` | Recruiting | R619 primary; all later | Scaffolded |
@@ -162,7 +162,7 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/phase89_partner_spine.sql
 3. Dialpad: credits + 4 offices + 4×800 + API key/webhook — follow `docs/DIALPAD_MULTI_ENTITY.md`
 4. Verified First: Basic Auth username/password + webhook secret + package IDs now (CRM/SF not a blocker); set `VERIFIED_FIRST_LIVE=1` only after staging smoke — `docs/VERIFIED_FIRST_SCREENING_SPINE.md`
 5. MyBasePay account for R619 contractor placements
-6. Apollo scoped API key → vault/`APOLLO_API_KEY`; keep `APOLLO_LIVE=0` until smoke — `docs/APOLLO_SPINE.md`
+6. Apollo API key
 7. Gusto per-entity company UUID + OAuth (see `docs/GUSTO_MULTI_ENTITY.md`); commissions after payroll mapping
 8. LinkedIn Recruiter developer app (account coming)
 9. Appcast employer credentials (confirm R619 env)
