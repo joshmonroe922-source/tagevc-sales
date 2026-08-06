@@ -552,6 +552,12 @@ export const MAIN_NAV: NavItem[] = [
           },
           {
             module: 'admin',
+            href: '/admin/ai',
+            label: 'AI models',
+            description: 'Org default Grok · optional Claude',
+          },
+          {
+            module: 'admin',
             href: '/admin/intake',
             label: 'Website intake',
             description: 'Tage · R619 · Signent · Instant NDA',
