@@ -79,6 +79,8 @@ function humanizePartnerHook(id: string): string {
       'Seed Verified First screening defaults (entity create)',
     enable_mybasepay_if_recruiting:
       'Enable MyBasePay for recruiting entity (entity create)',
+    ensure_mybasepay_account_binding:
+      'Ensure MyBasePay ENT-R619 admin-bridge binding (entity create)',
     ensure_apollo_workspace_binding:
       'Ensure Apollo workspace binding (entity create)',
     ensure_gusto_company_binding:

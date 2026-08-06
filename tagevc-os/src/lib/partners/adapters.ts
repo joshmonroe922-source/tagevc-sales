@@ -120,33 +120,27 @@ export async function gustoProvisionEmployee(input: {
   };
 }
 
-export async function mybasepayCreatePlacementWorker(_input: {
+export async function mybasepayCreatePlacementWorker(input: {
   entityId: string;
   placementId: string;
   workerEmail: string;
 }): Promise<AdapterResult> {
-  if (partnerConnectionStatus('mybasepay') === 'scaffold') {
-    return {
-      ok: true,
-      dryRun: true,
-      status: 'dry_run',
-      message:
-        'MyBasePay EOR stub for Recruit 619. Set MYBASEPAY_* when account ready.',
-    };
-  }
-  if (!liveFlag('MYBASEPAY_LIVE')) {
-    return {
-      ok: true,
-      dryRun: true,
-      status: 'dry_run',
-      message: 'MyBasePay configured but MYBASEPAY_LIVE≠1 — dry-run.',
-    };
-  }
-  return {
-    ok: false,
-    status: 'failed',
-    error: 'MyBasePay live adapter not implemented — scaffold only.',
-  };
+  const { mybasepayCreateWorker } = await import(
+    '@/lib/partners/mybasepay-admin-bridge'
+  );
+  // Placement hook maps onto interim create-worker dry-run (no remote write).
+  return mybasepayCreateWorker({
+    entityId: input.entityId,
+    firstName: 'Pending',
+    lastName: input.placementId,
+    email: input.workerEmail,
+    phone: '0000000000',
+    workerType: 'IC',
+    state: 'IN',
+    city: 'Carmel',
+    address: 'pending',
+    zip: '46032',
+  });
 }
 
 export async function apolloImportCompany(_input: {
@@ -406,12 +400,41 @@ export async function runPartnerLifecycleHook(
       return marketingPresenceImportStub('linkedin_company', {
         entityId: input.entityId,
       });
-    case 'enable_mybasepay_if_recruiting':
-      return mybasepayCreatePlacementWorker({
-        entityId: input.entityId,
-        placementId: 'entity-create',
-        workerEmail: input.email ?? 'pending@entity-create',
-      });
+    case 'enable_mybasepay_if_recruiting': {
+      const { mybasepaySmokeCheck } = await import(
+        '@/lib/partners/mybasepay-admin-bridge'
+      );
+      return mybasepaySmokeCheck(input.entityId);
+    }
+    case 'ensure_mybasepay_account_binding': {
+      const { resolveMyBasePayEntity, isMyBasePayLive } = await import(
+        '@/lib/partners/mybasepay-entity'
+      );
+      const account = await resolveMyBasePayEntity(input.entityId);
+      if (!account.entityId) {
+        return {
+          ok: true,
+          dryRun: true,
+          status: 'dry_run',
+          message: `MyBasePay binding skipped for ${input.entityId} — R619-only until opt-in.`,
+        };
+      }
+      if (!account.ready && !account.credentialsReady) {
+        return {
+          ok: true,
+          dryRun: true,
+          status: 'dry_run',
+          message: `MyBasePay binding scaffolded for ${account.entityId} — set admin bridge env or external_account_id (see docs/MYBASEPAY_INTERIM_BRIDGE.md).`,
+        };
+      }
+      return {
+        ok: true,
+        dryRun: !isMyBasePayLive(),
+        status: isMyBasePayLive() ? 'live_ok' : 'dry_run',
+        message: `MyBasePay ${account.connectionMode} ready for ${account.entityId} (${account.source}). LIVE=${isMyBasePayLive() ? '1' : '0'}.`,
+        externalRef: account.externalAccountId ?? undefined,
+      };
+    }
     case 'ensure_apollo_workspace_binding':
       return apolloImportCompany({
         entityId: input.entityId,

@@ -20,6 +20,37 @@ export type {
   GustoCompanyResolution,
   GustoEntityId,
 } from '@/lib/partners/gusto-entity';
+export {
+  resolveMyBasePayEntity,
+  resolveMyBasePayEntityFromEnv,
+  resolveMyBasePayAccount,
+  resolveMyBasePayFromEnv,
+  isMyBasePayLive,
+  mybasepayBaseUrl,
+  mybasepayApiBase,
+  mybasepayLoginUrl,
+  mybasepayAdminBridgeConfigured,
+  canonicalizeMyBasePayEntityId,
+} from '@/lib/partners/mybasepay-entity';
+export type {
+  MyBasePayResolution,
+  MyBasePayEntityId,
+} from '@/lib/partners/mybasepay-entity';
+export {
+  mybasepaySmokeCheck,
+  mybasepayCreateWorker,
+  mybasepaySyncPull,
+  mybasepayUiMap,
+  describeMyBasePayResolution,
+  mybasepayAdminLogin,
+  mybasepayListWorkersPage,
+  clearMyBasePaySessionCache,
+} from '@/lib/partners/mybasepay-admin-bridge';
+export type {
+  MyBasePayCreateWorkerInput,
+  MyBasePayWorkerType,
+  MyBasePayUiMap,
+} from '@/lib/partners/mybasepay-admin-bridge';
 export * from '@/lib/partners/commissions';
 export * from '@/lib/partners/entity-provision';
 export * from '@/lib/partners/provision';
