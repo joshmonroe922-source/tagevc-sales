@@ -85,8 +85,21 @@ export async function POST(
     payload = { raw: bodyText.slice(0, 2000) };
   }
 
-  const entityId =
+  let entityId =
     typeof payload.entity_id === 'string' ? payload.entity_id : null;
+  let gustoCompanyUuid: string | null = null;
+
+  if (key === 'gusto' && !entityId) {
+    const {
+      extractGustoCompanyUuidFromPayload,
+      resolveEntityIdFromGustoCompanyUuid,
+    } = await import('@/lib/partners/gusto-entity');
+    gustoCompanyUuid = extractGustoCompanyUuidFromPayload(payload);
+    if (gustoCompanyUuid) {
+      entityId = await resolveEntityIdFromGustoCompanyUuid(gustoCompanyUuid);
+    }
+  }
+
   const externalId =
     typeof payload.id === 'string'
       ? payload.id
@@ -100,12 +113,32 @@ export async function POST(
     kind: 'webhook',
     status: 'received',
     external_id: externalId,
-    payload,
+    payload: {
+      ...payload,
+      ...(gustoCompanyUuid
+        ? { _resolved_gusto_company_uuid: gustoCompanyUuid }
+        : {}),
+      ...(key === 'gusto' && gustoCompanyUuid && !entityId
+        ? { _gusto_entity_unmapped: true }
+        : {}),
+    },
   });
 
   return NextResponse.json({
     ok: true,
     partner: key,
-    note: 'Event recorded. Live handlers wire when *_LIVE=1 and vendor credentials are set.',
+    entity_id: entityId,
+    ...(key === 'gusto'
+      ? {
+          company_uuid: gustoCompanyUuid,
+          note: entityId
+            ? 'Event recorded with entity mapped from Gusto company UUID.'
+            : gustoCompanyUuid
+              ? 'Event recorded; company UUID not bound to an OS entity (ignored for routing).'
+              : 'Event recorded. Live handlers wire when GUSTO_LIVE=1 and per-entity credentials are set.',
+        }
+      : {
+          note: 'Event recorded. Live handlers wire when *_LIVE=1 and vendor credentials are set.',
+        }),
   });
 }

@@ -9,6 +9,16 @@ export {
   isGustoLive,
   gustoConfigured,
 } from '@/lib/partners/gusto-commissions';
+export {
+  resolveGustoCompany,
+  resolveGustoCompanyFromEnv,
+  resolveEntityIdFromGustoCompanyUuid,
+  extractGustoCompanyUuidFromPayload,
+} from '@/lib/partners/gusto-entity';
+export type {
+  GustoCompanyResolution,
+  GustoEntityId,
+} from '@/lib/partners/gusto-entity';
 export * from '@/lib/partners/commissions';
 export * from '@/lib/partners/entity-provision';
 export * from '@/lib/partners/provision';

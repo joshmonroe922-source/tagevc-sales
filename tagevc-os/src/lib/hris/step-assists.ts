@@ -1,5 +1,5 @@
 /**
- * HRIS step assists: Graph joiner, mailbox, DocuSign, IT child runs.
+ * HRIS step assists: Graph joiner, mailbox, DocuSign, Gusto, IT child runs.
  */
 
 import { writeAuditEvent } from '@/lib/audit/write';
@@ -14,6 +14,7 @@ import { addEmployeeLink, getEmployee } from '@/lib/hris/employees';
 import { updateStepStatus } from '@/lib/hris/runs';
 import { startOnboarding } from '@/lib/shared-services/it-onboarding';
 import { startOffboarding } from '@/lib/shared-services/it-offboarding';
+import { runPartnerLifecycleHook } from '@/lib/partners/adapters';
 
 export type StepAssistResult = {
   handled: boolean;
@@ -173,6 +174,57 @@ function isDocuSignStep(step: HrisProcessStep): boolean {
   );
 }
 
+function isGustoProvisionStep(step: HrisProcessStep): boolean {
+  return (
+    step.system_hook === 'gusto_provision' ||
+    step.step_key === 'bs.gusto_provision' ||
+    step.step_key === 'sd.gusto_provision'
+  );
+}
+
+/** Fail-closed Gusto employee provision for the hire's entity_id. */
+export async function runGustoProvisionAssist(
+  emp: HrisEmployee,
+): Promise<StepAssistResult> {
+  const result = await runPartnerLifecycleHook('provision_gusto_employee', {
+    entityId: emp.entity_id,
+    email: emp.work_email || emp.personal_email || undefined,
+  });
+  const detail = result.ok
+    ? result.message
+    : result.error;
+  const externalRef = result.ok ? result.externalRef : undefined;
+  await writeAuditEvent({
+    action: 'hris_action',
+    title: `Gusto provision · ${emp.full_name}`,
+    object_type: 'employee',
+    object_id: emp.id,
+    entity_id: emp.entity_id,
+    metadata: {
+      ok: result.ok,
+      dry_run: result.ok ? result.dryRun : result.dryRun ?? false,
+      status: result.status,
+      detail,
+      gusto_company_uuid: externalRef ?? null,
+    },
+  });
+  if (externalRef) {
+    await addEmployeeLink({
+      employee_id: emp.id,
+      kind: 'other',
+      ref_id: externalRef,
+      label: `Gusto company · ${externalRef}`,
+      href: '/shared-services/it/technology-stack#gusto',
+    }).catch(() => undefined);
+  }
+  return {
+    handled: true,
+    detail,
+    evidence_note: detail,
+    evidence_url: '/shared-services/it/technology-stack#gusto',
+  };
+}
+
 /**
  * Dispatch assists when a step is marked done (or explicitly assisted).
  */
@@ -244,6 +296,9 @@ export async function dispatchHrisStepAssist(input: {
       evidence_note: sent.detail,
       evidence_url: `/shared-services/legal/docusign`,
     };
+  }
+  if (isGustoProvisionStep(input.step)) {
+    return runGustoProvisionAssist(emp);
   }
 
   return { handled: false, detail: 'No assist for this step' };

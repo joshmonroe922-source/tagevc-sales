@@ -50,45 +50,73 @@ export async function dialpadProvisionUser(_input: {
   };
 }
 
-export async function gustoQueueCommission(_input: {
+export async function gustoQueueCommission(input: {
   entityId: string;
   userExternalId: string;
   amountCents: number;
   invoiceId: string;
 }): Promise<AdapterResult> {
-  if (!liveFlag('GUSTO_LIVE') || !process.env.GUSTO_API_TOKEN?.trim()) {
+  const { resolveGustoCompany, isGustoLive } = await import(
+    '@/lib/partners/gusto-entity'
+  );
+  const resolved = await resolveGustoCompany(input.entityId);
+  if (!isGustoLive()) {
     return {
       ok: true,
       dryRun: true,
       status: 'dry_run',
-      message:
-        'Gusto commission queued locally (stub). Wire invoice-paid → commission → payroll when LIVE.',
+      message: resolved.ready
+        ? `Gusto commission dry-run for ${resolved.entityId} → company ${resolved.companyUuid} (${resolved.source}).`
+        : `Gusto commission dry-run — no company binding for ${input.entityId} (fail-closed; no firm fallback).`,
+      externalRef: resolved.companyUuid ?? undefined,
+    };
+  }
+  if (!resolved.credentialsReady) {
+    return {
+      ok: false,
+      dryRun: false,
+      status: 'failed',
+      error: `Gusto LIVE but missing company/token for ${input.entityId} — refuse firm fallback. Bind os_partner_entity_bindings or set GUSTO_*_${resolved.entityId === 'ENT-FIRM' ? 'FIRM' : resolved.entityId.replace('ENT-', '')}.`,
     };
   }
   return {
     ok: false,
     status: 'failed',
-    error: 'Gusto live commission push not implemented — scaffold only.',
+    error: `Gusto live commission push not implemented — scaffold only (resolved ${resolved.companyUuid}).`,
   };
 }
 
-export async function gustoProvisionEmployee(_input: {
+export async function gustoProvisionEmployee(input: {
   entityId: string;
   email?: string;
 }): Promise<AdapterResult> {
-  if (!liveFlag('GUSTO_LIVE') || !process.env.GUSTO_API_TOKEN?.trim()) {
+  const { resolveGustoCompany, isGustoLive } = await import(
+    '@/lib/partners/gusto-entity'
+  );
+  const resolved = await resolveGustoCompany(input.entityId);
+  if (!isGustoLive()) {
     return {
       ok: true,
       dryRun: true,
       status: 'dry_run',
-      message:
-        'Gusto employee provision stub — enable GUSTO_LIVE when payroll API ready.',
+      message: resolved.ready
+        ? `Gusto employee provision dry-run for ${resolved.entityId} → company ${resolved.companyUuid} (${resolved.source})${input.email ? ` · ${input.email}` : ''}. Keep GUSTO_LIVE=0 until smoke hire.`
+        : `Gusto employee provision dry-run — unresolved company for ${input.entityId} (fail-closed; will not use ENT-FIRM Gusto).`,
+      externalRef: resolved.companyUuid ?? undefined,
+    };
+  }
+  if (!resolved.credentialsReady) {
+    return {
+      ok: false,
+      dryRun: false,
+      status: 'failed',
+      error: `Gusto LIVE but missing company/token for ${input.entityId} — refuse firm fallback. See docs/GUSTO_MULTI_ENTITY.md.`,
     };
   }
   return {
     ok: false,
     status: 'failed',
-    error: 'Gusto live employee provision not implemented — scaffold only.',
+    error: `Gusto live employee provision not implemented — scaffold only (company ${resolved.companyUuid}).`,
   };
 }
 
@@ -218,22 +246,37 @@ export async function dialpadRevokeUser(_input: {
   };
 }
 
-export async function gustoTerminateEmployee(_input: {
+export async function gustoTerminateEmployee(input: {
   entityId: string;
   userExternalId?: string;
 }): Promise<AdapterResult> {
-  if (!liveFlag('GUSTO_LIVE') || !process.env.GUSTO_API_TOKEN?.trim()) {
+  const { resolveGustoCompany, isGustoLive } = await import(
+    '@/lib/partners/gusto-entity'
+  );
+  const resolved = await resolveGustoCompany(input.entityId);
+  if (!isGustoLive()) {
     return {
       ok: true,
       dryRun: true,
       status: 'dry_run',
-      message: 'Gusto terminate stub — enable GUSTO_LIVE when payroll API ready.',
+      message: resolved.ready
+        ? `Gusto terminate dry-run for ${resolved.entityId} → company ${resolved.companyUuid} (${resolved.source}).`
+        : `Gusto terminate dry-run — unresolved company for ${input.entityId} (fail-closed; no firm fallback).`,
+      externalRef: resolved.companyUuid ?? undefined,
+    };
+  }
+  if (!resolved.credentialsReady) {
+    return {
+      ok: false,
+      dryRun: false,
+      status: 'failed',
+      error: `Gusto LIVE but missing company/token for ${input.entityId} — refuse firm fallback.`,
     };
   }
   return {
     ok: false,
     status: 'failed',
-    error: 'Gusto live terminate not implemented — scaffold only.',
+    error: `Gusto live terminate not implemented — scaffold only (company ${resolved.companyUuid}).`,
   };
 }
 
@@ -411,11 +454,29 @@ export async function runPartnerLifecycleHook(
         externalRef: account.accountId ?? undefined,
       };
     }
+    case 'ensure_gusto_company_binding': {
+      const { resolveGustoCompany } = await import('@/lib/partners/gusto-entity');
+      const account = await resolveGustoCompany(input.entityId);
+      if (!account.ready) {
+        return {
+          ok: true,
+          dryRun: true,
+          status: 'dry_run',
+          message: `Gusto company binding scaffolded for ${account.entityId} — set binding UUID or GUSTO_COMPANY_UUID_* (no firm fallback).`,
+        };
+      }
+      return {
+        ok: true,
+        dryRun: true,
+        status: 'dry_run',
+        message: `Gusto company ${account.companyUuid} mapped for ${account.entityId} (${account.source}). OAuth/token: ${account.tokenSource}.`,
+        externalRef: account.companyUuid ?? undefined,
+      };
+    }
     case 'partner_spine_enablements_ensure':
     case 'docusign_template_scope_note':
     case 'ensure_dialpad_office':
     case 'seed_screening_entity_defaults':
-    case 'ensure_gusto_company_binding':
       return entityCreateAckStub(id);
     default:
       return {

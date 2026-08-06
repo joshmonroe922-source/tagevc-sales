@@ -12,11 +12,11 @@
 
 | Key | Owner (SS) | Scope | Status |
 |-----|------------|-------|--------|
-| `dialpad` | IT | All entities | Scaffolded |
+| `dialpad` | IT | All entities | Scaffolded — multi-office model + IDs: `docs/DIALPAD_MULTI_ENTITY.md`; manager coaching map: `docs/DIALPAD_ORG_HIERARCHY.md` |
 | `verified_first` | HR (+ Recruiting) | Tage HR · R619 · Signent | **Live spine** (phase80) — secrets pending; see `docs/VERIFIED_FIRST_SCREENING_SPINE.md` § Connect |
 | `mybasepay` | HR / Finance | Contractor EOR — **R619 first** | Scaffolded |
 | `apollo` | Marketing | All entities → unified DB | Scaffolded |
-| `gusto` | Finance / HR | Internal payroll + commissions | Scaffolded |
+| `gusto` | Finance / HR | Internal payroll + commissions | Scaffolded — **multi-company:** `docs/GUSTO_MULTI_ENTITY.md` |
 | `docusign` | Legal | Org per entity | **Live** (existing) |
 | `linkedin_recruiter` | Recruiting | R619 primary; all later | Scaffolded |
 | `appcast` | Recruiting / Marketing | All careers; **R619 live path** | Live @ R619 |
@@ -96,11 +96,13 @@ UI **Import dry-run** on Presence runs fail-closed stubs now and stamps `last_im
 
 ## Gusto + commissions
 
+**Multi-entity:** separate Gusto company per legal employer (`ENT-R619` has its own). Binding + OAuth + HR routing — `docs/GUSTO_MULTI_ENTITY.md`. Do not flip `GUSTO_LIVE=1` on the single global `GUSTO_API_TOKEN` / `GUSTO_COMPANY_UUID` pair or subsidiary hires land in the wrong payroll.
+
 Flow (scaffold):
 
 1. Invoice marked paid (IES / A&F).
 2. `queueCommissionFromPaidInvoice` → `os_gusto_commission_stubs` (`pending_push`).
-3. If `GUSTO_LIVE=1` + token/company UUID → push payroll (stub records `gusto_ref`).
+3. If `GUSTO_LIVE=1` + **entity-resolved** token/company UUID → push payroll (stub records `gusto_ref`).
 4. Else dry-run only.
 
 ## Appcast / MyBasePay @ Recruit 619
@@ -155,13 +157,13 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/phase89_partner_spine.sql
 
 ## Josh actions (credentials)
 
-1. Apply `phase89_partner_spine.sql` (+ phase91 Signent tenancy, phase92 AP/W-9)
+1. Apply `phase89_partner_spine.sql` (+ phase91 Signent tenancy, phase92 AP/W-9, **phase96 Gusto multi-entity**)
 2. DocuSign org JWT + Connect + per-entity `DOCUSIGN_ACCOUNT_ID_*`
-3. Dialpad API key + webhook secret
+3. Dialpad: credits + 4 offices + 4×800 + API key/webhook — follow `docs/DIALPAD_MULTI_ENTITY.md`
 4. Verified First: Basic Auth username/password + webhook secret + package IDs now (CRM/SF not a blocker); set `VERIFIED_FIRST_LIVE=1` only after staging smoke — `docs/VERIFIED_FIRST_SCREENING_SPINE.md`
 5. MyBasePay account for R619 contractor placements
 6. Apollo API key
-7. Gusto company + API token (commissions after payroll mapping)
+7. Gusto per-entity company UUID + OAuth (see `docs/GUSTO_MULTI_ENTITY.md`); commissions after payroll mapping
 8. LinkedIn Recruiter developer app (account coming)
 9. Appcast employer credentials (confirm R619 env)
 10. Google Business Profile API OAuth
