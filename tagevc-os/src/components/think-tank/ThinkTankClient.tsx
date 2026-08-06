@@ -59,9 +59,13 @@ export function ThinkTankClient({
       const result = await sendThinkTankChat(text);
       if ('error' in result) {
         const msg = result.error;
-        if (/XAI_API_KEY|GROK_API_KEY|not configured|Grok/i.test(msg)) {
+        if (/ANTHROPIC|Claude|CLAUDE_/i.test(msg)) {
           setSetupHint(
-            'Set XAI_API_KEY (or GROK_API_KEY) in Vercel / .env.local. Optional XAI_MODEL.',
+            'Claude is gated: set ANTHROPIC_API_KEY and ANTHROPIC_LIVE=1. Or choose Grok in Settings → AI.',
+          );
+        } else if (/XAI_API_KEY|GROK_API_KEY|not configured|Grok/i.test(msg)) {
+          setSetupHint(
+            'Set XAI_API_KEY (or GROK_API_KEY) in Vercel / .env.local. Optional XAI_MODEL. Preferred model: Settings → AI.',
           );
         }
         setError(msg);
@@ -86,7 +90,7 @@ export function ThinkTankClient({
           <p className="text-sm text-muted-foreground">
             {compact
               ? 'Ask how to hit today’s goals and clear hot items'
-              : `${ROLE_LABEL[roleBand] ?? 'Personal advisor'} · Grok · persistent thread`}
+              : `${ROLE_LABEL[roleBand] ?? 'Personal advisor'} · preferred AI · persistent thread`}
             {viewAsLabel ? ` · view-as: ${viewAsLabel}` : ''}
           </p>
         </div>
@@ -185,7 +189,7 @@ export function ThinkTankClient({
                     m.role === 'user' ? 'text-[#b2a384]' : 'text-muted-foreground'
                   }`}
                 >
-                  {m.role === 'user' ? 'You' : 'Grok'}
+                  {m.role === 'user' ? 'You' : 'Assistant'}
                 </div>
                 <div className="whitespace-pre-wrap">{m.content}</div>
               </div>

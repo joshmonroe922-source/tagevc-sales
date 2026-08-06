@@ -83,12 +83,12 @@ export default async function AdminPage() {
             </CardHeader>
           </Card>
         </Link>
-        <Link href="/admin/email">
+        <Link href="/admin/ai">
           <Card className="h-full transition-colors hover:border-[#3a414f]/35">
             <CardHeader>
-              <CardTitle className="text-base">Email analytics</CardTitle>
+              <CardTitle className="text-base">AI model defaults</CardTitle>
               <CardDescription>
-                Platform Graph / Resend opens · clicks · entity scope.
+                Org default Grok · optional Claude · Copilot external.
               </CardDescription>
             </CardHeader>
           </Card>

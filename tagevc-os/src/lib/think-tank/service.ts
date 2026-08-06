@@ -1,4 +1,6 @@
-import { grokChatCompletion, XAI_SETUP_NOTE } from '@/lib/think-tank/llm';
+import { preferredChatCompletion } from '@/lib/ai/chat';
+import { getAiOrgSettings, getAiUserPrefs } from '@/lib/ai/settings';
+import { XAI_SETUP_NOTE } from '@/lib/think-tank/llm';
 import {
   buildTageThinkTankSystemPrompt,
   thinkTankRoleBand,
@@ -176,9 +178,18 @@ export async function sendThinkTankMessage(opts: {
     { role: 'user' as const, content: message },
   ];
 
-  const result = await grokChatCompletion({
+  const [orgAi, userAi] = await Promise.all([
+    getAiOrgSettings(opts.entityId),
+    getAiUserPrefs(opts.profileId),
+  ]);
+
+  const result = await preferredChatCompletion({
     messages: llmMessages,
     temperature: 0.5,
+    preference: {
+      userPreferred: userAi.preferredProvider,
+      orgDefault: orgAi.defaultProvider,
+    },
   });
 
   if (!result.content) {
@@ -193,7 +204,10 @@ export async function sendThinkTankMessage(opts: {
       role: 'assistant',
       content: result.content,
       model: result.model,
-      context_meta: { roleBand: conv.roleHint },
+      context_meta: {
+        roleBand: conv.roleHint,
+        provider: result.provider ?? null,
+      },
     })
     .select('id, conversation_id, role, content, model, created_at')
     .maybeSingle();
@@ -211,6 +225,7 @@ export async function sendThinkTankMessage(opts: {
     profileId: opts.profileId,
     conversationId: conv.id,
     model: result.model,
+    provider: result.provider,
   });
 
   return {

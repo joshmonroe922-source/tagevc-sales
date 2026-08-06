@@ -33,6 +33,12 @@ export default async function NotificationSettingsPage() {
             Open Home / Think Tank →
           </Link>
           <Link
+            href="/settings/ai"
+            className="text-muted-foreground underline-offset-4 hover:underline"
+          >
+            AI model preference →
+          </Link>
+          <Link
             href="/settings/data-cleanup"
             className="text-muted-foreground underline-offset-4 hover:underline"
           >
