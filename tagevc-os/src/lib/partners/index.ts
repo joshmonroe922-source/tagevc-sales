@@ -8,6 +8,7 @@ export {
   queueCommissionFromPaidInvoice,
   isGustoLive,
   gustoConfigured,
+  gustoConfiguredForEntity,
 } from '@/lib/partners/gusto-commissions';
 export {
   resolveGustoCompany,

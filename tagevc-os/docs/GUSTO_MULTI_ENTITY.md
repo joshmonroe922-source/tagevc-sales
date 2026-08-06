@@ -1,6 +1,6 @@
 # Gusto multi-entity model (Tage + subsidiary payrolls)
 
-**Status (2026-08-06 browser probe):** Josh logged into **Recruit 619, LLC** Gusto · plan **Simple** (Next-Day Pay + Priority Support) · payroll setup **~58%** · App directory visible. Separate company from Tage’s Gusto (business fact). Partner spine remains **scaffold** (`GUSTO_LIVE=0`). Do **not** invent tax/bank/payroll completion here.
+**Status (2026-08-06):** Code path landed — `resolveGustoCompany`, fail-closed adapters, webhook company→entity, HRIS `gusto_provision` assist, `phase96_gusto_multi_entity.sql`. Browser: Josh on **Recruit 619, LLC** Gusto · plan **Simple** (Next-Day Pay + Priority Support) · payroll setup **~58%**. Company UUID still **TBD** (OAuth / App directory). `GUSTO_LIVE=0`. Do **not** invent tax/bank/payroll completion here.
 
 **Related:** `docs/PARTNER_SPINE.md` · `docs/HRIS_SPINE.md` · `docs/MS_GRAPH_HRIS.md` · Dialpad contrast: `docs/DIALPAD_MULTI_ENTITY.md` · DocuSign parallel: `docs/DOCUSIGN_ENTITY_AUTOMATION.md` · IES parallel: `docs/IES_MULTI_ENTITY.md`.
 
@@ -178,13 +178,16 @@ Out of scope for OS automations: choosing tax elections, linking bank accounts, 
 
 ---
 
-## Next implementation slice (smallest useful)
+## Shipped (this slice) vs next
 
-1. **`src/lib/partners/gusto-entity.ts`** — `resolveGustoCompany(entityId)` from binding + optional `GUSTO_COMPANY_UUID_*` env; no firm fallback for subsidiaries.
-2. **Adapters** — `gustoProvisionEmployee` / terminate: if LIVE and resolved creds → real API; else dry-run; if LIVE and unresolved → **failed** (not firm).
-3. **SQL** — bind ENT-R619 UUID when Josh provides it; scaffold `os_gusto_oauth_tokens` if choosing vault path.
-4. **HRIS** — add `gusto_provision` assist beside Graph/DocuSign in `step-assists.ts`.
-5. **Smoke** — dry-run ENT-R619 hire checklist shows R619 binding; LIVE only after NEED_HUMAN OAuth.
+| Done | Still open |
+|------|------------|
+| `resolveGustoCompany` + env/binding resolve | Capture R619 company UUID (OAuth / App directory) |
+| Fail-closed provision / terminate / commission adapters | Live `POST` employees API |
+| Webhook company UUID → `entity_id` | Webhook event handlers beyond record |
+| HRIS `gusto_provision` assist + phase96 SQL | Apply phase96 in Supabase; upsert R619 UUID |
+| `os_gusto_oauth_tokens` vault table | Encrypt/refresh worker + admin OAuth UI |
+| Unit tests (no firm fallback) | Dry-run smoke hire evidence → then consider `GUSTO_LIVE=1` |
 
 ---
 

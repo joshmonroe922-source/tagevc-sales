@@ -9,6 +9,7 @@ import { createPersistClient } from '@/lib/supabase/persist-client';
 import {
   isGustoLive,
   resolveGustoCompany,
+  resolveGustoCompanyFromEnv,
 } from '@/lib/partners/gusto-entity';
 
 export type CommissionCalcInput = {
@@ -33,12 +34,14 @@ export type CommissionCalcResult =
 
 export { isGustoLive };
 
-/** @deprecated Prefer resolveGustoCompany(entityId). Firm globals only. */
+/** Firm bootstrap env present — prefer resolveGustoCompany / gustoConfiguredForEntity. */
 export function gustoConfigured(): boolean {
-  return Boolean(
-    process.env.GUSTO_API_TOKEN?.trim() &&
-      process.env.GUSTO_COMPANY_UUID?.trim(),
-  );
+  return resolveGustoCompanyFromEnv('ENT-FIRM').credentialsReady;
+}
+
+/** Per-entity credentials ready (no cross-entity borrow). */
+export function gustoConfiguredForEntity(entityId: string): boolean {
+  return resolveGustoCompanyFromEnv(entityId).credentialsReady;
 }
 
 export function calculateCommissionCents(
@@ -114,7 +117,8 @@ export async function queueCommissionFromPaidInvoice(
     }
 
     // Live push seam — real Gusto payroll API wired when credentials exist.
-    const gustoRef = `gusto-pending:${data.id}`;
+    // Fail-closed: payee entity company only (never firm borrow).
+    const gustoRef = `gusto-pending:${resolved.companyUuid}:${data.id}`;
     await sb
       .from('os_gusto_commission_stubs')
       .update({
