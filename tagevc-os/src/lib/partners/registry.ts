@@ -67,8 +67,11 @@ export function partnerAdminHref(def: PartnerDefinition): string {
   if (def.key === 'docusign') {
     return '/shared-services/legal/docusign';
   }
-  if (def.key === 'gusto' || def.key === 'mybasepay') {
+  if (def.key === 'gusto') {
     return '/shared-services/it/technology-stack#gusto';
+  }
+  if (def.key === 'mybasepay') {
+    return '/shared-services/it/technology-stack#mybasepay';
   }
   return '/shared-services/it/technology-stack';
 }

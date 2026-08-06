@@ -62,6 +62,16 @@ export function partnerConnectionStatus(
     return isPartnerLive(entry) ? 'live' : 'configured';
   }
 
+  if (key === 'mybasepay') {
+    const hasAdmin =
+      Boolean(process.env.MYBASEPAY_ADMIN_EMAIL?.trim()) &&
+      Boolean(process.env.MYBASEPAY_ADMIN_PASSWORD?.trim());
+    const hasApiKey = Boolean(process.env.MYBASEPAY_API_KEY?.trim());
+    if (!hasAdmin && !hasApiKey) return 'scaffold';
+    // Interim admin bridge stays configured until deliberate LIVE flip.
+    return isPartnerLive(entry) ? 'live' : 'configured';
+  }
+
   const secretKeys = entry.envKeys.filter((k) => !k.endsWith('_LIVE'));
   const hasSecrets = envAnyPresent(secretKeys);
   if (!hasSecrets) return 'scaffold';
