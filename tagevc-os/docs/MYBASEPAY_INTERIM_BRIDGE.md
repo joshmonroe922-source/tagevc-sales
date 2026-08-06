@@ -2,7 +2,18 @@
 
 **Status (2026-08-06):** Backoffice session mapped · company profile **Recruit 619** · interim auth = `POST /account-service/user/login` → JWT · workers = `GET /backoffice/workers/paged` · create = `POST /backoffice/workers` (gated) · `MYBASEPAY_LIVE=0` + `MYBASEPAY_ALLOW_CREATE=0` · **no contractor creates** until Josh approves. Official public API expected **October** — same `partner=mybasepay` + `ENT-R619` binding.
 
-**Related:** `docs/PARTNER_SPINE.md` · burden seed `supabase/migrations/spine/0012_mbp_burden_seed.sql` · Gusto contrast: `docs/GUSTO_MULTI_ENTITY.md`.
+**Related:** `docs/PARTNER_SPINE.md` · burden seed `supabase/migrations/spine/0012_mbp_burden_seed.sql` · Gusto parallel: `docs/GUSTO_MULTI_ENTITY.md`.
+
+## Dual path with Gusto (intentional)
+
+Recruit 619 runs **both** partner rails — they are not mutually exclusive:
+
+| Path | Partner | Who | Purpose |
+|------|---------|-----|---------|
+| Payroll / W-2 (and Gusto contractors where used) | `gusto` | Internal employer payroll | Company UUID binding per entity — `docs/GUSTO_MULTI_ENTITY.md` |
+| EOR contractor placements | `mybasepay` | Placement workers via MyBasePay backoffice | Interim admin bridge → October API |
+
+Do **not** collapse MBP into Gusto or vice versa. Hires/payroll resolve via `resolveGustoCompany`; placement EOR via `resolveMyBasePayEntity`. Separate LIVE gates (`GUSTO_LIVE`, `MYBASEPAY_LIVE`).
 
 ## Intent
 

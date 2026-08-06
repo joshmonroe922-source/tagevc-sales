@@ -109,6 +109,7 @@ Flow (scaffold):
 
 - **Appcast:** Already live-path on `recruit619-portal` (`APPCAST_*`, feed + apply webhook). Spine binding `appcast` / `ENT-R619` mirrors status; firm entities get careers-slot scaffolding.
 - **MyBasePay:** Interim **admin backoffice bridge** for `ENT-R619` until October official API — see `docs/MYBASEPAY_INTERIM_BRIDGE.md`. Burden seed: spine migration `0012_mbp_burden_seed.sql` (`mbp_burden`). Keep `MYBASEPAY_LIVE=0`; create/sync adapters dry-run / fail-closed. Timesheets stay SoR in MBP.
+- **Dual path (intentional):** R619 keeps **Gusto** (employer payroll / W-2) **and** **MyBasePay** (EOR placement contractors) as separate bindings and LIVE gates — do not merge rails.
 
 ### MyBasePay connect status (2026-08-06)
 
