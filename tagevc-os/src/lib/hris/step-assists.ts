@@ -15,6 +15,10 @@ import { updateStepStatus } from '@/lib/hris/runs';
 import { startOnboarding } from '@/lib/shared-services/it-onboarding';
 import { startOffboarding } from '@/lib/shared-services/it-offboarding';
 import { runPartnerLifecycleHook } from '@/lib/partners/adapters';
+import {
+  isEmailSignatureStep,
+  runEmailSignatureAssist,
+} from '@/lib/hris/email-signature-step';
 
 export type StepAssistResult = {
   handled: boolean;
@@ -244,6 +248,9 @@ export async function dispatchHrisStepAssist(input: {
 
   if (key === 'bs.ms_email' || hook === 'graph_provision') {
     return runGraphJoinerAssist(emp);
+  }
+  if (isEmailSignatureStep({ step_key: key, system_hook: hook })) {
+    return runEmailSignatureAssist(emp);
   }
   if (key === 'bs.visionary_mailbox_access' || hook === 'mailbox_grant') {
     return runMailboxAssistForEmployee(emp);
