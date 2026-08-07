@@ -37,11 +37,31 @@ Code: `grantVisionaryMailboxFullAccess()` + `grantVisionaryMailboxForExistingEmp
 
 ---
 
+## Email signature (`sd.email_sig`)
+
+Onboarding step **Configure email signature & Teams background** is assisted via
+`email_signature` hook → `runEmailSignatureAssist()` (`src/lib/hris/email-signature-step.ts`).
+
+Builds entity-branded HTML (portfolio logo bar — parent + all siblings) from employee
+`entity_id`. **Graph cannot write Outlook signatures** — assist returns dry-run /
+NEED_HUMAN with EXO `Set-MailboxMessageConfiguration` steps. See `docs/EMAIL_SIGNATURES.md`.
+
+SQL: `supabase/phase_email_signature_onboarding.sql`
+
+| Variable | Purpose |
+|----------|---------|
+| `EMAIL_SIGNATURE_APPLY` | Set `1` to attempt live apply path (still NEED_HUMAN until EXO wired) |
+
+Do not apply to break-glass accounts. Bulk mailbox sweeps require Josh confirmation.
+
+---
+
 ## Human gates
 
 - Destructive access revoke: confirm in UI
 - DocuSign offer/NDA: explicit confirm (no silent send)
 - Graph create users: opt-in env flag
+- Org-wide email signature push: Josh confirmation + EXO admin
 
 ---
 
