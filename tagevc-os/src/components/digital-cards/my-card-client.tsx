@@ -72,6 +72,7 @@ export function MyCardClient({ personas: initial, contacts, userName }: Props) {
 
   const link = taggedCardUrl(persona.public_id, 'in_app');
   const company = entityDisplayName(persona.entity_id);
+  const newCount = contacts.filter((c) => c.status === 'new').length;
 
   async function copy(text: string, label: string) {
     try {
@@ -111,12 +112,25 @@ export function MyCardClient({ personas: initial, contacts, userName }: Props) {
             Live profile behind a stable QR — update once, share everywhere.
           </p>
         </div>
-        <Link
-          href="/settings/notifications"
-          className="text-sm text-muted-foreground underline-offset-4 hover:underline"
-        >
-          Settings
-        </Link>
+        <div className="flex flex-col items-end gap-2">
+          <Link
+            href="/my-card/contacts"
+            className="inline-flex items-center gap-2 rounded-lg border border-[#e0dcd2] bg-white px-3 py-1.5 text-sm font-medium text-[#3B4559] hover:bg-[#faf8f4]"
+          >
+            Network inbox
+            {newCount > 0 ? (
+              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#3B4559] px-1.5 text-[11px] font-semibold text-white">
+                {newCount > 99 ? '99+' : newCount}
+              </span>
+            ) : null}
+          </Link>
+          <Link
+            href="/settings/notifications"
+            className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+          >
+            Settings
+          </Link>
+        </div>
       </header>
 
       {personas.length > 1 ? (
@@ -248,6 +262,91 @@ export function MyCardClient({ personas: initial, contacts, userName }: Props) {
         />
       ) : null}
 
+      <section className="mt-10" id="network-inbox">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <h3 className="font-heading text-lg font-semibold text-[#3B4559]">
+              Network inbox
+              {newCount > 0 ? (
+                <span className="ml-2 align-middle text-sm font-normal text-muted-foreground">
+                  · {newCount} new
+                </span>
+              ) : null}
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              “Share my info” replies from your public card — owned by you.
+            </p>
+          </div>
+          <Link
+            href="/my-card/contacts"
+            className="text-sm font-medium text-[#3B4559] underline-offset-4 hover:underline"
+          >
+            View all
+          </Link>
+        </div>
+        <ul className="mt-4 divide-y divide-[#e8e4dc] rounded-xl border border-[#e0dcd2] bg-white">
+          {contacts.length === 0 ? (
+            <li className="px-4 py-8 text-center text-sm text-muted-foreground">
+              No exchanges yet. Share your QR — replies land here.
+            </li>
+          ) : (
+            contacts.slice(0, 8).map((c) => (
+              <li key={c.id}>
+                <Link
+                  href={`/my-card/contacts/${c.id}`}
+                  className="flex items-center justify-between gap-3 px-4 py-3.5 hover:bg-[#faf8f4]"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-[#3B4559]">
+                      {c.name}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {[c.title, c.company].filter(Boolean).join(' · ') ||
+                        c.email ||
+                        c.phone}
+                      {' · '}
+                      {c.source_channel}
+                    </p>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] text-[#3B4559] ${
+                      c.status === 'new'
+                        ? 'bg-[#3B4559] text-white'
+                        : 'bg-[#ece9e6]'
+                    }`}
+                  >
+                    {c.status}
+                  </span>
+                </Link>
+              </li>
+            ))
+          )}
+        </ul>
+        {contacts[0] ? (
+          <button
+            type="button"
+            className="mt-3 text-sm text-muted-foreground underline-offset-4 hover:underline"
+            onClick={() =>
+              startTransition(async () => {
+                const res = await draftThankYouNoteAction({
+                  contactName: contacts[0]!.name,
+                  company: contacts[0]!.company,
+                  context: contacts[0]!.their_notes,
+                });
+                if (res.ok) setDraft(res.draft);
+              })
+            }
+          >
+            Draft thank-you note (AI DRAFT — you send)
+          </button>
+        ) : null}
+        {draft ? (
+          <pre className="mt-3 whitespace-pre-wrap rounded-xl border border-[#e0dcd2] bg-[#faf8f4] p-4 text-sm text-[#3B4559]">
+            {draft}
+          </pre>
+        ) : null}
+      </section>
+
       <section className="mt-10">
         <h3 className="font-heading text-lg font-semibold text-[#3B4559]">
           Tagged QR downloads
@@ -282,80 +381,6 @@ export function MyCardClient({ personas: initial, contacts, userName }: Props) {
             );
           })}
         </ul>
-      </section>
-
-      <section className="mt-10">
-        <div className="flex items-end justify-between gap-3">
-          <div>
-            <h3 className="font-heading text-lg font-semibold text-[#3B4559]">
-              Network inbox
-            </h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              People who shared their info back — owned by you.
-            </p>
-          </div>
-          <Link
-            href="/my-card/contacts"
-            className="text-sm font-medium text-[#3B4559] underline-offset-4 hover:underline"
-          >
-            View all
-          </Link>
-        </div>
-        <ul className="mt-4 divide-y divide-[#e8e4dc] rounded-xl border border-[#e0dcd2] bg-white">
-          {contacts.length === 0 ? (
-            <li className="px-4 py-8 text-center text-sm text-muted-foreground">
-              No exchanges yet. Share your QR — replies land here.
-            </li>
-          ) : (
-            contacts.slice(0, 8).map((c) => (
-              <li key={c.id}>
-                <Link
-                  href={`/my-card/contacts/${c.id}`}
-                  className="flex items-center justify-between gap-3 px-4 py-3.5 hover:bg-[#faf8f4]"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-[#3B4559]">
-                      {c.name}
-                    </p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {[c.title, c.company].filter(Boolean).join(' · ') ||
-                        c.email ||
-                        c.phone}
-                      {' · '}
-                      {c.source_channel}
-                    </p>
-                  </div>
-                  <span className="shrink-0 rounded-full bg-[#ece9e6] px-2 py-0.5 text-[11px] text-[#3B4559]">
-                    {c.status}
-                  </span>
-                </Link>
-              </li>
-            ))
-          )}
-        </ul>
-        {contacts[0] ? (
-          <button
-            type="button"
-            className="mt-3 text-sm text-muted-foreground underline-offset-4 hover:underline"
-            onClick={() =>
-              startTransition(async () => {
-                const res = await draftThankYouNoteAction({
-                  contactName: contacts[0]!.name,
-                  company: contacts[0]!.company,
-                  context: contacts[0]!.their_notes,
-                });
-                if (res.ok) setDraft(res.draft);
-              })
-            }
-          >
-            Draft thank-you note (AI DRAFT — you send)
-          </button>
-        ) : null}
-        {draft ? (
-          <pre className="mt-3 whitespace-pre-wrap rounded-xl border border-[#e0dcd2] bg-[#faf8f4] p-4 text-sm text-[#3B4559]">
-            {draft}
-          </pre>
-        ) : null}
       </section>
 
       {qrOpen ? (

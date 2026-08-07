@@ -421,6 +421,22 @@ export async function listMyContacts(
   }
 }
 
+/** Count owner-inbox contacts still in `new` status (for sidebar badge). */
+export async function countMyNewContacts(userId: string): Promise<number> {
+  try {
+    const sb = await userClient();
+    const { count, error } = await sb
+      .from('os_network_contacts')
+      .select('id', { count: 'exact', head: true })
+      .eq('owner_user_id', userId)
+      .eq('status', 'new');
+    if (error || count == null) return 0;
+    return count;
+  } catch {
+    return 0;
+  }
+}
+
 export async function getMyContact(
   userId: string,
   contactId: string,
