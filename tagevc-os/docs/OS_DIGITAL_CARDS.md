@@ -1,6 +1,6 @@
 # Digital Business Cards (Tage OS spine)
 
-**Status:** DC1–DC9 shipped in code (phase98). Public host prefers `card.tagevc.com`; app-host path `/card/p/{public_id}` ships until DNS is live (`DIGITAL_CARD_HOST_READY=1`).
+**Status:** DC1–DC9 complete (phase98). Canonical host `card.tagevc.com` (`DIGITAL_CARD_HOST_READY=1`). App-host `/card/p/{public_id}` remains as fallback. QR images are self-hosted at `/api/card/qr/{public_id}`.
 
 Replaces reprinting paper cards. Live profile URL behind a stable QR/NFC URL. Recipients need **no app**.
 

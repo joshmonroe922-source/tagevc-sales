@@ -12,6 +12,7 @@ import {
   taggedCardUrl,
   appHostCardPathsEnabled,
 } from './urls';
+import { qrImageUrl } from './qr';
 import { suggestRouting, buildDedupeSuggestions } from './routing';
 import { buildExchangeIdempotencyKey } from './exchange';
 import { generatePublicId } from './public-id';
@@ -146,6 +147,13 @@ describe('QR / tagged URLs (cases 2–3)', () => {
     assert.equal(typeof appHostCardPathsEnabled(), 'boolean');
     const url = publicCardUrl('abcXYZ123456', { src: 'desk' });
     assert.match(url, /\/p\/abcXYZ123456/);
+  });
+
+  it('QR images are self-hosted (not api.qrserver.com)', () => {
+    const src = qrImageUrl('abcXYZ123456', 'linkedin', 640);
+    assert.match(src, /^\/api\/card\/qr\/abcXYZ123456/);
+    assert.match(src, /src=linkedin/);
+    assert.doesNotMatch(src, /qrserver/);
   });
 });
 

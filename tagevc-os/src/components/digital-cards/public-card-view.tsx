@@ -342,7 +342,7 @@ function BrandMark({
         <img
           src={card.logo_url}
           alt={card.company_name}
-          className="h-9 w-auto max-w-[160px] object-contain brightness-0 invert"
+          className="h-9 w-auto max-w-[160px] object-contain"
         />
       ) : (
         <span

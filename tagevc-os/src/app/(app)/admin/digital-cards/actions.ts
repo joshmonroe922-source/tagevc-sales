@@ -6,6 +6,7 @@ import {
   revokePersonasForUser,
   upsertTemplate,
 } from '@/lib/digital-cards/repo';
+import { provisionMissingDigitalCards } from '@/lib/digital-cards/lifecycle';
 import { defaultThemeForEntity } from '@/lib/digital-cards/theme';
 
 function canAdmin(role: string | undefined): boolean {
@@ -56,4 +57,16 @@ export async function forceRevokeUserCardsAction(userProfileId: string) {
   return result.ok
     ? { ok: true as const, count: result.count }
     : { ok: false as const, error: result.error };
+}
+
+export async function provisionMissingCardsAction() {
+  const ctx = await getSessionContext();
+  if (!canAdmin(ctx?.profile?.role)) {
+    return { ok: false as const, error: 'Not allowed' };
+  }
+  const result = await provisionMissingDigitalCards();
+  revalidatePath('/admin/digital-cards');
+  revalidatePath('/my-card');
+  if (!result.ok) return { ok: false as const, error: result.error };
+  return { ok: true as const, ...result.result };
 }
