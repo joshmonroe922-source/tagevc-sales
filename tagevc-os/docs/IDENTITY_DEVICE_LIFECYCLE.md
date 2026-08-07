@@ -24,7 +24,7 @@ Architecture SoT: `Technology Onboarding Process - Provisioning.xlsx` (sheets 01
 | Capability | Status |
 | --- | --- |
 | Code path company MDM + BYOD MAM | **LIVE-ready** (orchestrator + workers) |
-| Entra user create/disable/enable | **LIVE-ready gated** — Graph token OK + `User.ReadWrite.All`; enable with `MS_GRAPH_CREATE_USERS=1` + `IDENTITY_ENTITY_CUTOVER=ENT-FIRM,ENT-R619` after synth smoke |
+| Entra user create/disable/enable | **LIVE** (pilot) — `MS_GRAPH_CREATE_USERS=1` + `IDENTITY_ENTITY_CUTOVER=ENT-FIRM,ENT-R619`; synth UPN `synth.hire.msib0vuc@tagevc.com` |
 | Birthright entitlements | **LIVE-ready** (DB) |
 | ADE / ABM zero-touch | **Blocked NEED_HUMAN** — App Store Connect / ABM login |
 | CA / APP tenant policies | **Doc-ready** — apply in Entra/Intune = NEED_HUMAN |
@@ -127,14 +127,25 @@ Sheet 22: identity cutover before enforcing CA-003 hard require.
 - Blocked until ABM/App Store Connect session (portal currently login wall).
 - Tokens / ADE profiles stay NEED_HUMAN; workers remain dry-run for Autopilot/ADE assign.
 
+## ADE / ABM human checklist (Apple login wall)
+
+Do in order when App Store Connect / ABM session is available (agent cannot complete login MFA):
+
+1. Sign in to [Apple Business Manager](https://business.apple.com) under parent org.
+2. Prefer Tokens → MDM Server → assign **Microsoft Intune** (or confirm existing Intune MDM server).
+3. Settings → Device Management → download ADE/ABM public key tokens; upload in Intune → Devices → Enroll devices → Apple Enrollment.
+4. Create default ADE profile (Supervise, Require Entra enroll, company naming) for Mac + iOS cohorts.
+5. Assign profile to ADE devices / serials; smoke one corporate Mac zero-touch.
+
 ## NEED_HUMAN (remaining blockers)
 
 1. ~~**Entra admin consent**~~ — **DONE** (`User.ReadWrite.All` + Directory/GroupMember/Org/Intune device R/W Granted). PrivilegedOperations GUID still Not granted (optional wipe later)
 2. ~~**Graph client secret in Vercel**~~ — **DONE** (Production + Preview; local `.env.local` for smoke). Token client-credentials HTTP 200 with `User.ReadWrite.All`
-3. **Flip live create after synth smoke** — set `MS_GRAPH_CREATE_USERS=1` + `IDENTITY_ENTITY_CUTOVER=ENT-FIRM,ENT-R619` (redeploy)
-4. **Apple ADE / ABM tokens** — company zero-touch Mac/iOS (P3); App Store Connect login wall
-5. **Conditional Access / APP BYOD tenant apply** — checklist in this runbook; Security sign-off (P5 / P3b)
-6. **Break-glass sealed dual-control vault** — P5
-7. **M365 license pool confirmation** — P2 GBL
-8. **Remote Help helper licenses** — P8 ops
-9. **SCIM pilot app endpoint** — set `IDENTITY_SCIM_ENABLED=1` after product row ready
+3. ~~**Entity cutover + DIGEST on Vercel**~~ — **DONE** (`IDENTITY_ENTITY_CUTOVER=ENT-FIRM,ENT-R619`; `DIGEST_SECRET`/`CRON_SECRET` for machine smoke)
+4. ~~**Flip live create after synth smoke**~~ — **DONE** — `MS_GRAPH_CREATE_USERS=1` on Production+Preview; disposable UPN `synth.hire.msib0vuc@tagevc.com` (objectId `790ac798-738e-4d63-ba60-72620a117ce0`, accountEnabled=false)
+5. **Apple ADE / ABM tokens** — company zero-touch Mac/iOS (P3); App Store Connect / ABM login wall (checklist above)
+6. **Conditional Access / APP BYOD tenant apply** — CA-001…APP-02 checklist in this runbook; Security sign-off (P5 / P3b)
+7. **Break-glass sealed dual-control vault** — P5
+8. **M365 license pool confirmation** — P2 GBL
+9. **Remote Help helper licenses** — P8 ops
+10. **SCIM pilot app endpoint** — set `IDENTITY_SCIM_ENABLED=1` after product row ready

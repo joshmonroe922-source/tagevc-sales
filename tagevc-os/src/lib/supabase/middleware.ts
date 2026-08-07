@@ -14,7 +14,14 @@ export async function updateSession(request: NextRequest) {
     path.startsWith('/api/subsidiary/tickets') ||
     path.startsWith('/api/finance/ies/snapshot') ||
     path.startsWith('/api/presence') ||
+    // Identity machine-auth routes (Bearer DIGEST/CRON/HRIS secret in handlers).
+    // Session-gated: wipe-guard, remote-help, entity-bootstrap — keep cookie auth.
     path.startsWith('/api/identity/lifecycle') ||
+    path.startsWith('/api/identity/events') ||
+    path.startsWith('/api/identity/hris/') ||
+    path.startsWith('/api/identity/workers/') ||
+    path.startsWith('/api/identity/worker') ||
+    path.startsWith('/api/identity/fo24') ||
     path.startsWith('/api/shared-services/intake') ||
     path.startsWith('/api/rollups/ingest') ||
     path.startsWith('/api/deal-flow/website-intake') ||

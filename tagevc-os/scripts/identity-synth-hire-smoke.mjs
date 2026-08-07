@@ -32,7 +32,7 @@ if (!secret) {
 }
 
 const stamp = Date.now().toString(36);
-const employeeId = `00000000-0000-4000-8000-${stamp.padStart(12, '0').slice(-12)}`;
+const employeeId = crypto.randomUUID();
 const payload = {
   event_type: 'hris.employee.hired',
   entity_id: entityId,
@@ -44,6 +44,9 @@ const payload = {
     legal_last_name: `Hire${stamp.slice(-4)}`,
     preferred_name: `Synth Hire ${stamp.slice(-4)}`,
     work_email: `synth.hire.${stamp}@tagevc.com`,
+    personal_email: `synth.hire.${stamp}@example.com`,
+    primary_role_id: process.env.IDENTITY_SMOKE_ROLE_ID || 'ROLE-AE',
+    employment_type: 'FTE',
     job_title: 'Identity Smoke',
     start_date: new Date().toISOString().slice(0, 10),
     device_ownership: ownership,
@@ -57,6 +60,7 @@ async function main() {
       phase: 'publish',
       entity_id: entityId,
       employee_id: employeeId,
+      proposed_upn: payload.payload.work_email,
       device_ownership: ownership,
       live_hint: process.env.IDENTITY_SMOKE_LIVE === '1',
     }),
