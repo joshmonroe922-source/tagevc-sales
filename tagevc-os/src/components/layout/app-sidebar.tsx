@@ -594,6 +594,7 @@ function NavLink({
           <span className="block font-medium">{item.label}</span>
           {item.href === '/messages' ? <MessagesUnreadBadge /> : null}
           {item.href === '/activity' ? <ActivityUnreadBadge /> : null}
+          {item.href === '/my-card/contacts' ? <NetworkInboxBadge /> : null}
         </span>
         {item.description && !nested ? (
           <span className="mt-0.5 block text-xs opacity-70">

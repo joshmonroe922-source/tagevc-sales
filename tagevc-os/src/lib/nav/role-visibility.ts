@@ -16,7 +16,7 @@
  *   with top-level "Sourcing Platform" → `/deal-flow/re` (sourcer-assigned
  *   RE leads through completion/handoff).
  * - Visionary / Think Tank / Partner: BD default children are Lead Intake +
- *   Deal Flow only (sourcing tracks via Deal Flow hub).
+ *   Deal Flow + My Networking Contacts (sourcing tracks via Deal Flow hub).
  * - SSC operators: MAIN_NAV `hiddenForRoles` hides C-Suite / BD / Command
  *   Center / Assets / Firm; function children scoped (Counsel/Ops → Legal;
  *   Service Lead → led desk only, Finance default; ssc_* → own home).
