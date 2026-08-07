@@ -87,6 +87,42 @@ export type HrisTerminatedBody = {
   device_ownership?: DeviceOwnership;
 };
 
+export type HrisUpdatedBody = {
+  employee_id: string;
+  entity_id: string;
+  legal_first_name?: string;
+  legal_last_name?: string;
+  preferred_name?: string | null;
+  work_email?: string | null;
+  personal_email?: string | null;
+  manager_employee_id?: string | null;
+  location?: string | null;
+  job_title?: string | null;
+  /** When set, opens a mover/transfer case instead of attr-only patch. */
+  prior_entity_id?: string | null;
+};
+
+export type HrisRoleChangedBody = {
+  employee_id: string;
+  entity_id: string;
+  primary_role_id: string;
+  secondary_role_ids?: string[];
+  effective_date: string;
+  prior_primary_role_id?: string | null;
+  prior_entity_id?: string | null;
+  job_title?: string | null;
+};
+
+export type HrisCancelledHireBody = {
+  employee_id: string;
+  entity_id: string;
+  reason?: string | null;
+};
+
+export type HrisRehireBody = HrisHiredBody & {
+  prior_employee_id?: string | null;
+};
+
 export type WorkerCommand =
   | 'entra.user.upsert'
   | 'entra.user.disable'
@@ -102,6 +138,7 @@ export type WorkerCommand =
   | 'scim.user.set'
   | 'notify.send'
   | 'entitlement.materialize'
+  | 'entitlement.rematerialize'
   | 'entitlement.revoke_all';
 
 export type IdentityAuditAction =

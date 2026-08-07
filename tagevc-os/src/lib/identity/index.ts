@@ -8,6 +8,10 @@ export type {
   HrisEventType,
   HrisHiredBody,
   HrisTerminatedBody,
+  HrisUpdatedBody,
+  HrisRoleChangedBody,
+  HrisCancelledHireBody,
+  HrisRehireBody,
   WorkerCommand,
 } from '@/lib/identity/types';
 export { resolveDevicePath, assertNoHardwareForByod } from '@/lib/identity/device-path';
@@ -17,14 +21,23 @@ export {
   aiForbidList,
   classifyAiAction,
 } from '@/lib/identity/ai-policy';
+export { getIdentityFlags, assertFlagEnabled } from '@/lib/identity/flags';
 export {
   publishHrisEvent,
   validateHiredPayload,
   validateTerminatedPayload,
+  validateUpdatedPayload,
+  validateRoleChangedPayload,
+  validateCancelledHirePayload,
+  validateRehirePayload,
 } from '@/lib/identity/events';
 export {
   openJoinerCase,
   openLeaverCase,
+  openMoverCase,
+  openCancelledHireCase,
+  openRehireCase,
+  handleEmployeeUpdated,
   processHrisOutbox,
 } from '@/lib/identity/orchestrator';
 export { runIdentityWorkerBatch } from '@/lib/identity/workers/dispatch';
