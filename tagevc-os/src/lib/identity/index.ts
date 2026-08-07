@@ -23,6 +23,12 @@ export {
 } from '@/lib/identity/ai-policy';
 export { getIdentityFlags, assertFlagEnabled } from '@/lib/identity/flags';
 export {
+  getEntityCutoverAllowlist,
+  isEntityCutoverEnabled,
+  isGraphUserLiveEnabled,
+} from '@/lib/identity/flags';
+export type { IdentityFlags } from '@/lib/identity/flags';
+export {
   publishHrisEvent,
   validateHiredPayload,
   validateTerminatedPayload,
