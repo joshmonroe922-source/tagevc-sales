@@ -499,7 +499,7 @@ export async function openMoverCase(input: {
     .eq('id', input.role_changed.employee_id)
     .maybeSingle();
 
-  let vmEmpId =
+  const vmEmpId =
     (hrisRow?.vm_employee_id as string | null) ||
     `VM-${input.role_changed.employee_id.replace(/-/g, '').slice(0, 12)}`;
 
