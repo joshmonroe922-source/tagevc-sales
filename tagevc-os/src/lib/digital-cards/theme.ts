@@ -44,7 +44,7 @@ export function defaultThemeForEntity(entityId: string): DigitalCardTheme {
     primary: TAGE_NAVY,
     accent: TAGE_GOLD,
     surface: TAGE_SURFACE,
-    logo_url: logo.localPublicPath || logo.publicUrl,
+    logo_url: logo?.localPublicPath || logo?.publicUrl || undefined,
   };
 }
 
