@@ -24,7 +24,8 @@ SSC UI stays Tage-only. Do **not** drop `os_store_snapshots`.
 | App host (shipped) | `https://app.tagevc.com/card/p/{public_id}` |
 | Short alias | `/p/{public_id}` → redirects to `/card/p/...` |
 | Source tag | `?src=linkedin` (also `/l/linkedin`) |
-| My Card | `/my-card` |
+| My Card | `/my-card` (persona contact panel + Network inbox) |
+| Networking contacts | `/my-card/contacts` — also **BD → My Networking Contacts** |
 | Admin | `/admin/digital-cards` |
 | Exchange API | `POST /api/card/exchange` |
 | vCard | `GET /api/card/vcard/{public_id}?src=…` |
@@ -91,7 +92,7 @@ See **Click-test** section at the bottom of this file (also runnable manually).
 1. **Title edit / stable QR** — My Card → Edit title → Save → open public URL / scan QR → new title, same `public_id`.
 2. **Scan + tap** — QR image is an `<a href={tagged profile}>`; tap on phone opens same profile as a scan.
 3. **`?src=linkedin`** — open `/card/p/{id}?src=linkedin`, submit exchange → `os_digital_card_events` + contact `source_channel=linkedin`.
-4. **Exchange → inbox** — submit Share my info → `os_network_contacts` (owner = persona owner) + in-app notify → **App → sidebar My Card / Network inbox → contact**. URLs: `/my-card`, `/my-card/contacts`, `/my-card/contacts/{id}`.
+4. **Exchange → inbox** — submit Share my info → `os_network_contacts` (owner = persona owner) + in-app notify → **App → Business Development → My Networking Contacts → contact** (also My Card → Network inbox). URLs: `/my-card`, `/my-card/contacts`, `/my-card/contacts/{id}`.
 5. **Revoke** — HRIS revoke or Admin force revoke → public page shows calm “No longer with {Company}” only.
 6. **Recruit routing** — ENT-R619 contact with hiring/jobseek → Create Client Lead / Add General Interest (confirm dialog).
 7. **Non-owner edit** — second user cannot update another’s persona (RLS / action guard).

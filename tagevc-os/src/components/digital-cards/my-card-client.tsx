@@ -10,6 +10,7 @@ import { entityDisplayName } from '@/lib/entities/display-name';
 import { taggedCardUrl, nfcUrl } from '@/lib/digital-cards/urls';
 import { qrImageUrl, TAGGED_QR_SOURCES, qrDownloadFilename } from '@/lib/digital-cards/qr';
 import { TAGE_GOLD, TAGE_NAVY } from '@/lib/digital-cards/theme';
+import { PersonaContactPanel } from '@/components/digital-cards/persona-contact-panel';
 import {
   draftThankYouNoteAction,
   ensureMyCardAction,
@@ -29,9 +30,23 @@ export function MyCardClient({ personas: initial, contacts, userName }: Props) {
   );
   const [qrOpen, setQrOpen] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [editFocus, setEditFocus] = useState<string | undefined>(undefined);
   const [pending, startTransition] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
   const [draft, setDraft] = useState<string | null>(null);
+
+  function openEditor(focus?: string) {
+    setEditFocus(focus);
+    setEditing(true);
+    requestAnimationFrame(() => {
+      const el = document.getElementById('persona-editor');
+      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (focus) {
+        const field = document.getElementById(`edit-${focus}`);
+        field?.focus();
+      }
+    });
+  }
 
   const persona = useMemo(
     () => personas.find((p) => p.id === selectedId) || personas[0],
@@ -228,11 +243,15 @@ export function MyCardClient({ personas: initial, contacts, userName }: Props) {
           >
             Preview
           </a>
-          <ActionBtn onClick={() => setEditing((v) => !v)}>
+          <ActionBtn
+            onClick={() => (editing ? setEditing(false) : openEditor())}
+          >
             {editing ? 'Close editor' : 'Edit'}
           </ActionBtn>
         </div>
       </section>
+
+      <PersonaContactPanel persona={persona} onEdit={openEditor} />
 
       {msg ? (
         <p className="mt-3 text-sm text-[#3B4559]">{msg}</p>
@@ -242,6 +261,8 @@ export function MyCardClient({ personas: initial, contacts, userName }: Props) {
         <PersonaEditor
           persona={persona}
           pending={pending}
+          focusKey={editFocus}
+          onCancel={() => setEditing(false)}
           onSave={(patch) =>
             startTransition(async () => {
               const res = await updatePersonaAction({
@@ -255,7 +276,7 @@ export function MyCardClient({ personas: initial, contacts, userName }: Props) {
               setPersonas((prev) =>
                 prev.map((p) => (p.id === res.persona.id ? res.persona : p)),
               );
-              setMsg('Saved — same QR, live title');
+              setMsg('Saved — same QR, live profile');
               setEditing(false);
             })
           }
@@ -434,18 +455,27 @@ function ActionBtn({
 function PersonaEditor({
   persona,
   pending,
+  focusKey,
   onSave,
+  onCancel,
 }: {
   persona: DigitalCardPersona;
   pending: boolean;
+  focusKey?: string;
+  onCancel: () => void;
   onSave: (patch: {
     display_name: string;
     title: string;
     department: string;
     bio_short: string;
     website: string | null;
+    calendar_url: string | null;
+    booking_url: string | null;
     phones: DigitalCardPersona['phones'];
+    emails: DigitalCardPersona['emails'];
     socials: Record<string, string>;
+    photo_url: string | null;
+    cta_primary: { label: string; url: string };
     is_default: boolean;
     event_tag: string | null;
     event_tag_remaining: number | null;
@@ -456,10 +486,22 @@ function PersonaEditor({
   const [department, setDepartment] = useState(persona.department);
   const [bio, setBio] = useState(persona.bio_short);
   const [website, setWebsite] = useState(persona.website || '');
+  const [calendar, setCalendar] = useState(persona.calendar_url || '');
+  const [booking, setBooking] = useState(persona.booking_url || '');
+  const [photoUrl, setPhotoUrl] = useState(persona.photo_url || '');
+  const [workEmail, setWorkEmail] = useState(
+    persona.emails.find((e) => e.share)?.value ||
+      persona.emails[0]?.value ||
+      '',
+  );
   const [mobile, setMobile] = useState(
-    persona.phones.find((p) => p.share)?.value || '',
+    persona.phones.find((p) => p.share)?.value ||
+      persona.phones[0]?.value ||
+      '',
   );
   const [linkedin, setLinkedin] = useState(persona.socials.linkedin || '');
+  const [ctaLabel, setCtaLabel] = useState(persona.cta_primary?.label || '');
+  const [ctaUrl, setCtaUrl] = useState(persona.cta_primary?.url || '');
   const [isDefault, setIsDefault] = useState(persona.is_default);
   const [eventTag, setEventTag] = useState(persona.event_tag || '');
   const [eventN, setEventN] = useState(
@@ -468,19 +510,45 @@ function PersonaEditor({
 
   return (
     <form
-      className="mt-6 space-y-3 rounded-2xl border border-[#e0dcd2] bg-white p-5"
+      id="persona-editor"
+      className="mt-6 scroll-mt-6 space-y-3 rounded-2xl border border-[#e0dcd2] bg-white p-5"
       onSubmit={(e) => {
         e.preventDefault();
+        const priorEmails = persona.emails.filter(
+          (e) => e.value !== workEmail.trim(),
+        );
+        const priorPhones = persona.phones.filter(
+          (p) => p.value !== mobile.trim(),
+        );
         onSave({
           display_name: displayName,
           title,
           department,
           bio_short: bio,
           website: website || null,
-          phones: mobile
-            ? [{ label: 'Mobile', value: mobile, share: true }]
-            : [],
-          socials: linkedin ? { linkedin } : {},
+          calendar_url: calendar || null,
+          booking_url: booking || null,
+          photo_url: photoUrl || null,
+          emails: workEmail.trim()
+            ? [
+                { label: 'Work', value: workEmail.trim(), share: true },
+                ...priorEmails.map((e) => ({ ...e, share: false })),
+              ]
+            : priorEmails,
+          phones: mobile.trim()
+            ? [
+                { label: 'Mobile', value: mobile.trim(), share: true },
+                ...priorPhones.map((p) => ({ ...p, share: false })),
+              ]
+            : priorPhones,
+          socials: {
+            ...persona.socials,
+            linkedin: linkedin || undefined,
+          },
+          cta_primary: {
+            label: ctaLabel || persona.cta_primary?.label || '',
+            url: ctaUrl || persona.cta_primary?.url || '',
+          },
           is_default: isDefault,
           event_tag: eventTag.trim() || null,
           event_tag_remaining: eventTag.trim()
@@ -489,22 +557,112 @@ function PersonaEditor({
         });
       }}
     >
-      <h3 className="font-heading text-base font-semibold text-[#3B4559]">
-        Edit shareable fields
-      </h3>
-      <p className="text-xs text-muted-foreground">
-        Brand colors stay locked by entity. Title changes update the live page
-        — same QR / public_id.
-      </p>
-      <EditField label="Display name" value={displayName} onChange={setDisplayName} />
-      <EditField label="Title" value={title} onChange={setTitle} />
-      <EditField label="Department" value={department} onChange={setDepartment} />
-      <EditField label="Mobile (shareable)" value={mobile} onChange={setMobile} />
-      <EditField label="Website" value={website} onChange={setWebsite} />
-      <EditField label="LinkedIn URL" value={linkedin} onChange={setLinkedin} />
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="font-heading text-base font-semibold text-[#3B4559]">
+            Edit shareable fields
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            Brand colors stay locked by entity. Changes go live on the same QR
+            / public_id.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+        >
+          Cancel
+        </button>
+      </div>
+      <EditField
+        id="edit-display_name"
+        label="Display name"
+        value={displayName}
+        onChange={setDisplayName}
+        autoFocus={focusKey === 'display_name'}
+      />
+      <EditField
+        id="edit-title"
+        label="Title"
+        value={title}
+        onChange={setTitle}
+        autoFocus={focusKey === 'title'}
+      />
+      <EditField
+        id="edit-department"
+        label="Department"
+        value={department}
+        onChange={setDepartment}
+      />
+      <EditField
+        id="edit-photo"
+        label="Photo URL"
+        value={photoUrl}
+        onChange={setPhotoUrl}
+        autoFocus={focusKey === 'photo'}
+      />
+      <EditField
+        id="edit-emails"
+        label="Work email (shared)"
+        value={workEmail}
+        onChange={setWorkEmail}
+        autoFocus={focusKey === 'emails'}
+      />
+      <EditField
+        id="edit-phones"
+        label="Mobile (shared)"
+        value={mobile}
+        onChange={setMobile}
+        autoFocus={focusKey === 'phones'}
+      />
+      <EditField
+        id="edit-website"
+        label="Website"
+        value={website}
+        onChange={setWebsite}
+        autoFocus={focusKey === 'website'}
+      />
+      <EditField
+        id="edit-calendar"
+        label="Calendar URL"
+        value={calendar}
+        onChange={setCalendar}
+        autoFocus={focusKey === 'calendar'}
+      />
+      <EditField
+        id="edit-booking"
+        label="Booking URL"
+        value={booking}
+        onChange={setBooking}
+        autoFocus={focusKey === 'booking'}
+      />
+      <EditField
+        id="edit-socials"
+        label="LinkedIn URL"
+        value={linkedin}
+        onChange={setLinkedin}
+        autoFocus={focusKey === 'socials'}
+      />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <EditField
+          id="edit-cta"
+          label="CTA label"
+          value={ctaLabel}
+          onChange={setCtaLabel}
+          autoFocus={focusKey === 'cta'}
+        />
+        <EditField
+          id="edit-cta-url"
+          label="CTA URL"
+          value={ctaUrl}
+          onChange={setCtaUrl}
+        />
+      </div>
       <label className="block">
         <span className="mb-1 block text-xs text-muted-foreground">Short bio</span>
         <textarea
+          id="edit-bio"
           value={bio}
           onChange={(e) => setBio(e.target.value)}
           rows={3}
@@ -539,19 +697,25 @@ function PersonaEditor({
 }
 
 function EditField({
+  id,
   label,
   value,
   onChange,
+  autoFocus,
 }: {
+  id?: string;
   label: string;
   value: string;
   onChange: (v: string) => void;
+  autoFocus?: boolean;
 }) {
   return (
     <label className="block">
       <span className="mb-1 block text-xs text-muted-foreground">{label}</span>
       <input
+        id={id}
         value={value}
+        autoFocus={autoFocus}
         onChange={(e) => onChange(e.target.value)}
         className="w-full rounded-xl border border-[#e0dcd2] px-3 py-2 text-sm"
       />

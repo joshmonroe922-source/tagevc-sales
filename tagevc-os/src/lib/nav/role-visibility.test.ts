@@ -99,7 +99,7 @@ describe('Assets + COO / Subsidiary Leader nav gates', () => {
     ).toEqual(before);
   });
 
-  it('Visionary / Think Tank / Partner BD children are Lead Intake + Deal Flow only', () => {
+  it('Visionary / Think Tank / Partner BD children include Lead Intake, Deal Flow, My Networking Contacts', () => {
     for (const role of ['visionary', 'think_tank', 'partner'] as const) {
       const items = filterNavForRole(MAIN_NAV, {
         role,
@@ -110,7 +110,12 @@ describe('Assets + COO / Subsidiary Leader nav gates', () => {
       expect(bd?.children?.map((c) => c.label)).toEqual([
         'Lead Intake',
         'Deal Flow',
+        'My Networking Contacts',
       ]);
+      const networking = bd?.children?.find(
+        (c) => c.label === 'My Networking Contacts',
+      );
+      expect(networking?.href).toBe('/my-card/contacts');
       const flat = items.flatMap((i) => [
         i.label,
         ...(i.children?.map((c) => c.label) ?? []),
