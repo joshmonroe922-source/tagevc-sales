@@ -13,13 +13,35 @@ const CARD_HOST =
   process.env.DIGITAL_CARD_HOST?.replace(/\/$/, '') ||
   'https://card.tagevc.com';
 
-/** When true, use /card/p/{id} on app host (subdomain not ready). */
+function envFlag(
+  ...keys: Array<string | undefined>
+): string | undefined {
+  for (const key of keys) {
+    const v = key?.trim();
+    if (v) return v;
+  }
+  return undefined;
+}
+
+/** When true, use /card/p/{id} on app host (subdomain fallback). */
 export function appHostCardPathsEnabled(): boolean {
-  const flag = process.env.DIGITAL_CARD_USE_APP_HOST?.trim();
+  // Prefer NEXT_PUBLIC_* so client components (My Card) match server URLs.
+  const flag = envFlag(
+    process.env.NEXT_PUBLIC_DIGITAL_CARD_USE_APP_HOST,
+    process.env.DIGITAL_CARD_USE_APP_HOST,
+  );
   if (flag === '1' || flag === 'true') return true;
   if (flag === '0' || flag === 'false') return false;
-  // Default: app-host path until DNS for card.tagevc.com is confirmed live
-  return process.env.DIGITAL_CARD_HOST_READY !== '1';
+
+  const ready = envFlag(
+    process.env.NEXT_PUBLIC_DIGITAL_CARD_HOST_READY,
+    process.env.DIGITAL_CARD_HOST_READY,
+  );
+  if (ready === '1' || ready === 'true') return false;
+  if (ready === '0' || ready === 'false') return true;
+
+  // Default: canonical card.tagevc.com (DNS live). Opt into app-host via flag.
+  return false;
 }
 
 export function cardPublicBase(): string {

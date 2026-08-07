@@ -39,12 +39,13 @@ const COMPANY_SITES: Record<string, string> = {
 };
 
 export function defaultThemeForEntity(entityId: string): DigitalCardTheme {
-  const logo = getEntityLogo(entityId, 'primary', { surface: 'light' });
+  // Public card header is navy — prefer dark-surface logos (no CSS invert).
+  const logo = getEntityLogo(entityId, 'primary', { surface: 'dark' });
   return {
     primary: TAGE_NAVY,
     accent: TAGE_GOLD,
     surface: TAGE_SURFACE,
-    logo_url: logo?.localPublicPath || logo?.publicUrl || undefined,
+    logo_url: logo?.publicUrl || logo?.localPublicPath || undefined,
   };
 }
 

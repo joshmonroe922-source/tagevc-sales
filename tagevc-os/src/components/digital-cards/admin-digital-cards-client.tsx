@@ -5,6 +5,7 @@ import type { EntityCardTemplate } from '@/lib/digital-cards/types';
 import { entityDisplayName } from '@/lib/entities/display-name';
 import {
   forceRevokeUserCardsAction,
+  provisionMissingCardsAction,
   saveTemplateAction,
 } from '@/app/(app)/admin/digital-cards/actions';
 
@@ -19,6 +20,53 @@ export function AdminDigitalCardsClient({
 
   return (
     <div className="space-y-6">
+      <section className="rounded-2xl border border-[#e0dcd2] bg-white p-5">
+        <h2 className="font-heading text-lg font-semibold text-[#3B4559]">
+          Provision missing
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Activate a default digital card for portal users (and linked active
+          HRIS employees) who do not have one yet. Does not revoke anyone or
+          invent people.
+        </p>
+        <button
+          type="button"
+          disabled={pending}
+          className="mt-3 h-10 rounded-xl bg-[#3B4559] px-4 text-sm font-semibold text-white disabled:opacity-50"
+          onClick={() => {
+            startTransition(async () => {
+              const res = await provisionMissingCardsAction();
+              if (!res.ok) {
+                setMsg(res.error);
+                return;
+              }
+              const lines = [
+                `Activated ${res.activated.length}`,
+                res.skipped.length ? `· skipped ${res.skipped.length}` : null,
+                res.errors.length ? `· errors ${res.errors.length}` : null,
+              ].filter(Boolean);
+              const detail = [
+                ...res.activated.map(
+                  (a) =>
+                    `+ ${a.name} (${a.entity_id}) → ${a.public_id}${a.created ? '' : ' refreshed'}`,
+                ),
+                ...res.skipped.map(
+                  (s) => `· ${s.name}${s.email ? ` <${s.email}>` : ''}: ${s.reason}`,
+                ),
+                ...res.errors.map((e) => `! ${e.name}: ${e.error}`),
+              ];
+              setMsg(
+                [lines.join(' '), detail.slice(0, 12).join('\n')]
+                  .filter(Boolean)
+                  .join('\n'),
+              );
+            });
+          }}
+        >
+          Provision missing cards
+        </button>
+      </section>
+
       <section className="rounded-2xl border border-[#e0dcd2] bg-white p-5">
         <h2 className="font-heading text-lg font-semibold text-[#3B4559]">
           Entity templates

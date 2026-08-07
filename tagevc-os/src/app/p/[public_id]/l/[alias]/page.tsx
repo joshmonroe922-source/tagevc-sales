@@ -5,8 +5,8 @@ type PageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-/** Path alias → same card with source from alias (e.g. /l/linkedin). */
-export default async function PublicCardAliasPage({
+/** Path alias → same card with source from alias (e.g. /p/{id}/l/linkedin). */
+export default async function ShortPublicCardAliasPage({
   params,
   searchParams,
 }: PageProps) {
