@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { getSessionContext } from '@/lib/rbac/session';
 import {
   activatePersona,
+  countMyNewContacts,
   listMyPersonas,
   updateMyPersona,
   updateContactStatus,
@@ -108,6 +109,14 @@ export async function addGeneralInterestFromContactAction(input: {
   revalidatePath('/my-card');
   revalidatePath(`/my-card/contacts/${input.contactId}`);
   return result;
+}
+
+export async function getNewNetworkContactsCountAction() {
+  const ctx = await getSessionContext();
+  const userId = ctx?.profile?.id;
+  if (!userId) return { ok: false as const, count: 0 };
+  const count = await countMyNewContacts(userId);
+  return { ok: true as const, count };
 }
 
 export async function draftThankYouNoteAction(input: {

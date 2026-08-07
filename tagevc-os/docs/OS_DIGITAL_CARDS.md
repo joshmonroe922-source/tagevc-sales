@@ -91,7 +91,7 @@ See **Click-test** section at the bottom of this file (also runnable manually).
 1. **Title edit / stable QR** — My Card → Edit title → Save → open public URL / scan QR → new title, same `public_id`.
 2. **Scan + tap** — QR image is an `<a href={tagged profile}>`; tap on phone opens same profile as a scan.
 3. **`?src=linkedin`** — open `/card/p/{id}?src=linkedin`, submit exchange → `os_digital_card_events` + contact `source_channel=linkedin`.
-4. **Exchange → inbox** — submit Share my info → owner notification + contact under My Card → Network inbox.
+4. **Exchange → inbox** — submit Share my info → `os_network_contacts` (owner = persona owner) + in-app notify → **App → sidebar My Card / Network inbox → contact**. URLs: `/my-card`, `/my-card/contacts`, `/my-card/contacts/{id}`.
 5. **Revoke** — HRIS revoke or Admin force revoke → public page shows calm “No longer with {Company}” only.
 6. **Recruit routing** — ENT-R619 contact with hiring/jobseek → Create Client Lead / Add General Interest (confirm dialog).
 7. **Non-owner edit** — second user cannot update another’s persona (RLS / action guard).

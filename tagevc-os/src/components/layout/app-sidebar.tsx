@@ -22,6 +22,7 @@ import { LiveLookNavControl } from '@/components/layout/live-look-nav';
 import { MessagesUnreadBadge } from '@/components/messaging/messages-unread-badge';
 import { SidebarAvailabilityControl } from '@/components/messaging/sidebar-availability-control';
 import { ActivityUnreadBadge } from '@/components/layout/activity-unread-badge';
+import { NetworkInboxBadge } from '@/components/digital-cards/network-inbox-badge';
 import { createClient } from '@/lib/supabase/client';
 import { MAIN_NAV, type NavItem } from '@/lib/nav';
 import { filterNavForRole } from '@/lib/nav/role-visibility';
@@ -784,9 +785,24 @@ export function AppSidebar({
           href="/my-card"
           className={cn(
             'inline-flex h-8 w-full items-center justify-start gap-2 rounded-lg border border-sidebar-border bg-transparent px-3 text-sm text-sidebar-foreground hover:bg-sidebar-accent',
+            pathname === '/my-card' || pathname.startsWith('/my-card/')
+              ? 'bg-sidebar-accent'
+              : null,
           )}
         >
           My Card
+        </Link>
+        <Link
+          href="/my-card/contacts"
+          className={cn(
+            'inline-flex h-8 w-full items-center justify-start gap-2 rounded-lg border border-sidebar-border bg-transparent px-3 text-sm text-sidebar-foreground hover:bg-sidebar-accent',
+            pathname.startsWith('/my-card/contacts')
+              ? 'bg-sidebar-accent'
+              : null,
+          )}
+        >
+          Network inbox
+          <NetworkInboxBadge />
         </Link>
         <Button
           variant="outline"
