@@ -780,6 +780,14 @@ export function AppSidebar({
             ) : null}
           </div>
         </div>
+        <Link
+          href="/my-card"
+          className={cn(
+            'inline-flex h-8 w-full items-center justify-start gap-2 rounded-lg border border-sidebar-border bg-transparent px-3 text-sm text-sidebar-foreground hover:bg-sidebar-accent',
+          )}
+        >
+          My Card
+        </Link>
         <Button
           variant="outline"
           size="sm"

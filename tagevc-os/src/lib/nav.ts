@@ -526,6 +526,12 @@ export const MAIN_NAV: NavItem[] = [
             description: 'Fully loaded cost · budget curve',
           },
           {
+            module: 'admin',
+            href: '/admin/digital-cards',
+            label: 'Digital cards',
+            description: 'Templates · revoke · source insights',
+          },
+          {
             module: 'documents',
             href: '/documents',
             label: 'Document Library',

@@ -19,6 +19,10 @@ import {
   isEmailSignatureStep,
   runEmailSignatureAssist,
 } from '@/lib/hris/email-signature-step';
+import {
+  activateDigitalCardForEmployee,
+  revokeDigitalCardsForEmployee,
+} from '@/lib/digital-cards/lifecycle';
 
 export type StepAssistResult = {
   handled: boolean;
@@ -306,6 +310,31 @@ export async function dispatchHrisStepAssist(input: {
   }
   if (isGustoProvisionStep(input.step)) {
     return runGustoProvisionAssist(emp);
+  }
+  if (
+    hook === 'digital_card_activate' ||
+    key === 'sd.digital_card_activate'
+  ) {
+    const res = await activateDigitalCardForEmployee(emp);
+    return {
+      handled: true,
+      detail: res.detail,
+      evidence_note: res.detail,
+      evidence_url: res.public_id
+        ? `/my-card?activated=${encodeURIComponent(res.public_id)}`
+        : '/my-card',
+    };
+  }
+  if (
+    hook === 'digital_card_revoke' ||
+    key === 'ex.digital_card_revoke'
+  ) {
+    const res = await revokeDigitalCardsForEmployee(emp);
+    return {
+      handled: true,
+      detail: res.detail,
+      evidence_note: res.detail,
+    };
   }
 
   return { handled: false, detail: 'No assist for this step' };
