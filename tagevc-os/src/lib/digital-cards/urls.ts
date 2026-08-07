@@ -14,7 +14,7 @@ const CARD_HOST =
   'https://card.tagevc.com';
 
 /** When true, use /card/p/{id} on app host (subdomain not ready). */
-export function useAppHostCardPaths(): boolean {
+export function appHostCardPathsEnabled(): boolean {
   const flag = process.env.DIGITAL_CARD_USE_APP_HOST?.trim();
   if (flag === '1' || flag === 'true') return true;
   if (flag === '0' || flag === 'false') return false;
@@ -23,7 +23,7 @@ export function useAppHostCardPaths(): boolean {
 }
 
 export function cardPublicBase(): string {
-  if (useAppHostCardPaths()) {
+  if (appHostCardPathsEnabled()) {
     return `${APP_HOST}/card`;
   }
   return CARD_HOST;

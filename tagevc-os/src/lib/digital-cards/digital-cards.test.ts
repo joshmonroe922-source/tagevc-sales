@@ -10,7 +10,7 @@ import {
   parseSourceChannel,
   publicCardUrl,
   taggedCardUrl,
-  useAppHostCardPaths,
+  appHostCardPathsEnabled,
 } from './urls';
 import { suggestRouting, buildDedupeSuggestions } from './routing';
 import { buildExchangeIdempotencyKey } from './exchange';
@@ -143,7 +143,7 @@ describe('QR / tagged URLs (cases 2–3)', () => {
 
   it('app-host path is available when subdomain not ready', () => {
     // Default without DIGITAL_CARD_HOST_READY
-    assert.equal(typeof useAppHostCardPaths(), 'boolean');
+    assert.equal(typeof appHostCardPathsEnabled(), 'boolean');
     const url = publicCardUrl('abcXYZ123456', { src: 'desk' });
     assert.match(url, /\/p\/abcXYZ123456/);
   });
