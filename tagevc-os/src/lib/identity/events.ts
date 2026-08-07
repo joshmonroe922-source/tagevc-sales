@@ -6,10 +6,14 @@
 import { randomUUID } from 'crypto';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 import type {
+  HrisCancelledHireBody,
   HrisEventEnvelope,
   HrisEventType,
   HrisHiredBody,
+  HrisRehireBody,
+  HrisRoleChangedBody,
   HrisTerminatedBody,
+  HrisUpdatedBody,
 } from '@/lib/identity/types';
 
 export type PublishHrisEventInput = {
@@ -117,6 +121,97 @@ export function validateTerminatedPayload(
   };
 }
 
+export function validateUpdatedPayload(
+  body: Record<string, unknown>,
+): { ok: true; data: HrisUpdatedBody } | { ok: false; error: string } {
+  const missing = [
+    requireString(body.employee_id, 'employee_id'),
+    requireString(body.entity_id, 'entity_id'),
+  ].filter(Boolean);
+  if (missing.length) {
+    return { ok: false, error: `Missing required fields: ${missing.join(', ')}` };
+  }
+  return {
+    ok: true,
+    data: {
+      employee_id: String(body.employee_id),
+      entity_id: String(body.entity_id),
+      legal_first_name: (body.legal_first_name as string) ?? undefined,
+      legal_last_name: (body.legal_last_name as string) ?? undefined,
+      preferred_name: (body.preferred_name as string) ?? null,
+      work_email: (body.work_email as string) ?? null,
+      personal_email: (body.personal_email as string) ?? null,
+      manager_employee_id: (body.manager_employee_id as string) ?? null,
+      location: (body.location as string) ?? null,
+      job_title: (body.job_title as string) ?? null,
+      prior_entity_id: (body.prior_entity_id as string) ?? null,
+    },
+  };
+}
+
+export function validateRoleChangedPayload(
+  body: Record<string, unknown>,
+): { ok: true; data: HrisRoleChangedBody } | { ok: false; error: string } {
+  const missing = [
+    requireString(body.employee_id, 'employee_id'),
+    requireString(body.entity_id, 'entity_id'),
+    requireString(body.primary_role_id, 'primary_role_id'),
+    requireString(body.effective_date, 'effective_date'),
+  ].filter(Boolean);
+  if (missing.length) {
+    return { ok: false, error: `Missing required fields: ${missing.join(', ')}` };
+  }
+  return {
+    ok: true,
+    data: {
+      employee_id: String(body.employee_id),
+      entity_id: String(body.entity_id),
+      primary_role_id: String(body.primary_role_id),
+      secondary_role_ids: Array.isArray(body.secondary_role_ids)
+        ? (body.secondary_role_ids as string[])
+        : [],
+      effective_date: String(body.effective_date),
+      prior_primary_role_id: (body.prior_primary_role_id as string) ?? null,
+      prior_entity_id: (body.prior_entity_id as string) ?? null,
+      job_title: (body.job_title as string) ?? null,
+    },
+  };
+}
+
+export function validateCancelledHirePayload(
+  body: Record<string, unknown>,
+): { ok: true; data: HrisCancelledHireBody } | { ok: false; error: string } {
+  const missing = [
+    requireString(body.employee_id, 'employee_id'),
+    requireString(body.entity_id, 'entity_id'),
+  ].filter(Boolean);
+  if (missing.length) {
+    return { ok: false, error: `Missing required fields: ${missing.join(', ')}` };
+  }
+  return {
+    ok: true,
+    data: {
+      employee_id: String(body.employee_id),
+      entity_id: String(body.entity_id),
+      reason: (body.reason as string) ?? null,
+    },
+  };
+}
+
+export function validateRehirePayload(
+  body: Record<string, unknown>,
+): { ok: true; data: HrisRehireBody } | { ok: false; error: string } {
+  const hired = validateHiredPayload(body);
+  if (!hired.ok) return hired;
+  return {
+    ok: true,
+    data: {
+      ...hired.data,
+      prior_employee_id: (body.prior_employee_id as string) ?? null,
+    },
+  };
+}
+
 export function buildEnvelope(
   input: PublishHrisEventInput,
 ): HrisEventEnvelope & { payload: Record<string, unknown> } {
@@ -146,12 +241,30 @@ export async function publishHrisEvent(
     return { ok: false, error: 'entity_id required', code: 'entity_id_null' };
   }
 
-  if (input.event_type === 'hris.employee.hired') {
-    const v = validateHiredPayload(input.payload);
+  if (
+    input.event_type === 'hris.employee.hired' ||
+    input.event_type === 'hris.employee.rehire'
+  ) {
+    const v =
+      input.event_type === 'hris.employee.rehire'
+        ? validateRehirePayload(input.payload)
+        : validateHiredPayload(input.payload);
     if (!v.ok) return { ok: false, error: v.error, code: 'schema_invalid' };
   }
   if (input.event_type === 'hris.employee.terminated') {
     const v = validateTerminatedPayload(input.payload);
+    if (!v.ok) return { ok: false, error: v.error, code: 'schema_invalid' };
+  }
+  if (input.event_type === 'hris.employee.updated') {
+    const v = validateUpdatedPayload(input.payload);
+    if (!v.ok) return { ok: false, error: v.error, code: 'schema_invalid' };
+  }
+  if (input.event_type === 'hris.employee.role_changed') {
+    const v = validateRoleChangedPayload(input.payload);
+    if (!v.ok) return { ok: false, error: v.error, code: 'schema_invalid' };
+  }
+  if (input.event_type === 'hris.employee.cancelled_hire') {
+    const v = validateCancelledHirePayload(input.payload);
     if (!v.ok) return { ok: false, error: v.error, code: 'schema_invalid' };
   }
 

@@ -314,6 +314,93 @@ export async function handleEntraUserDisable(payload: {
   };
 }
 
+/** Re-enable / patch attrs for rehire or profile update (sheet 05). */
+export async function handleEntraUserEnable(payload: {
+  employee_id: string;
+  entity_id: string;
+  case_id: string;
+  correlation_id: string;
+  patch?: Record<string, unknown>;
+}): Promise<EntraJobResult> {
+  const sb = await createPersistClient();
+  const { data: emp } = await sb
+    .from('os_hris_employees')
+    .select('entra_object_id, upn')
+    .eq('id', payload.employee_id)
+    .maybeSingle();
+
+  if (!graphConfigured()) {
+    await sb
+      .from('os_hris_employees')
+      .update({ identity_status: 'enabled' })
+      .eq('id', payload.employee_id);
+    await writeIdentityAudit({
+      action: 'account_enable',
+      entity_id: payload.entity_id,
+      employee_id: payload.employee_id,
+      correlation_id: payload.correlation_id,
+      case_id: payload.case_id,
+      title: 'Entra enable dry-run',
+      after: payload.patch ?? {},
+      source_system: 'entra',
+      result: 'partial',
+    });
+    return {
+      ok: true,
+      skipped: true,
+      detail: 'Graph not configured — dry-run enable recorded',
+    };
+  }
+
+  const token = await getMsGraphToken();
+  if (!token.ok) return { ok: false, detail: token.detail };
+
+  const key = emp?.entra_object_id || emp?.upn;
+  if (!key) {
+    return { ok: false, detail: 'No entra_object_id/upn on employee' };
+  }
+
+  const body = {
+    accountEnabled: true,
+    ...(payload.patch ?? {}),
+  };
+  const res = await fetch(
+    `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(key)}`,
+    {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${token.token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    },
+  );
+
+  await sb
+    .from('os_hris_employees')
+    .update({ identity_status: 'enabled' })
+    .eq('id', payload.employee_id);
+
+  await writeIdentityAudit({
+    action: 'account_enable',
+    entity_id: payload.entity_id,
+    employee_id: payload.employee_id,
+    correlation_id: payload.correlation_id,
+    case_id: payload.case_id,
+    title: `Entra enable ${key}`,
+    after: { http: res.status, patch: payload.patch ?? {} },
+    source_system: 'entra',
+    result: res.ok ? 'success' : 'failure',
+  });
+
+  return {
+    ok: res.ok,
+    objectId: emp?.entra_object_id ?? null,
+    upn: emp?.upn ?? null,
+    detail: res.ok ? 'Enabled' : `HTTP ${res.status}`,
+  };
+}
+
 function cryptoRandom(): string {
   return Math.random().toString(36).slice(2, 12);
 }

@@ -6,6 +6,7 @@ import { randomUUID } from 'crypto';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 import {
   handleEntraUserDisable,
+  handleEntraUserEnable,
   handleEntraUserUpsert,
 } from '@/lib/identity/workers/entra';
 import {
@@ -17,9 +18,11 @@ import {
 } from '@/lib/identity/workers/intune';
 import {
   handleEntitlementMaterialize,
+  handleEntitlementRematerialize,
   handleEntitlementRevokeAll,
 } from '@/lib/identity/workers/entitlements';
 import { handleNotifySend } from '@/lib/identity/workers/notify';
+import { handleScimUserSet } from '@/lib/identity/workers/scim';
 import type { HrisHiredBody } from '@/lib/identity/types';
 import { assertAiActionAllowed } from '@/lib/identity/ai-policy';
 
@@ -99,6 +102,13 @@ async function dispatchOne(job: JobRow): Promise<{
       });
       return { ok: r.ok, result: r as unknown as Record<string, unknown>, error: r.ok ? undefined : r.detail };
     }
+    case 'entra.user.enable': {
+      const r = await handleEntraUserEnable({
+        ...base,
+        patch: (job.payload.patch as Record<string, unknown>) ?? undefined,
+      });
+      return { ok: r.ok, result: r as unknown as Record<string, unknown>, error: r.ok ? undefined : r.detail };
+    }
     case 'entitlement.materialize': {
       const r = await handleEntitlementMaterialize({
         ...base,
@@ -108,8 +118,25 @@ async function dispatchOne(job: JobRow): Promise<{
       });
       return { ok: r.ok, result: r as unknown as Record<string, unknown> };
     }
+    case 'entitlement.rematerialize': {
+      const r = await handleEntitlementRematerialize({
+        ...base,
+        primary_role_id: String(job.payload.primary_role_id ?? ''),
+        secondary_role_ids: (job.payload.secondary_role_ids as string[]) ?? [],
+      });
+      return { ok: r.ok, result: r as unknown as Record<string, unknown> };
+    }
     case 'entitlement.revoke_all': {
       const r = await handleEntitlementRevokeAll(base);
+      return { ok: r.ok, result: r as unknown as Record<string, unknown> };
+    }
+    case 'scim.user.set': {
+      const r = await handleScimUserSet({
+        ...base,
+        action:
+          job.payload.action === 'deprovision' ? 'deprovision' : 'provision',
+        product_ids: (job.payload.product_ids as string[]) ?? undefined,
+      });
       return { ok: r.ok, result: r as unknown as Record<string, unknown> };
     }
     case 'intune.byod.ensure_mam': {
