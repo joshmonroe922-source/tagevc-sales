@@ -62,7 +62,7 @@ export async function POST(request: Request) {
     }
   }
 
-  let ownership = body.device_ownership;
+  const ownership = body.device_ownership;
   if (!ownership && body.employee_id) {
     const sb = await createPersistClient();
     const { data } = await sb.rpc('identity_assert_wipe_allowed', {
