@@ -417,6 +417,13 @@ export const MAIN_NAV: NavItem[] = [
           },
           {
             module: 'shared_services',
+            href: '/shared-services/it/identity',
+            label: 'Identity lifecycle',
+            description: 'Joiner · leaver · Entra · BYOD MAM',
+            requiredPermission: 'read:it_assets',
+          },
+          {
+            module: 'shared_services',
             href: '/shared-services/it/activity',
             label: 'Activity log',
             description: 'Operational IT activity trail',

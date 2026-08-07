@@ -63,6 +63,17 @@ export const SS_FUNCTION_MODULES: SsHubModule[] = [
     docs: 'docs/PARTNER_SPINE.md',
   },
   {
+    id: 'identity_lifecycle',
+    href: '/shared-services/it/identity',
+    title: 'Identity + Device Lifecycle',
+    short: 'Identity',
+    service: 'IT',
+    status: 'live',
+    description:
+      'HRIS hire/term → Entra · birthright · company MDM vs BYOD MAM · audit.',
+    docs: 'docs/IDENTITY_DEVICE_LIFECYCLE.md',
+  },
+  {
     id: 'partner_stack',
     href: '/shared-services/it/technology-stack',
     title: 'Partner stack',

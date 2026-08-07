@@ -40,6 +40,18 @@ export async function GET(request: Request) {
   }
   try {
     const sb = await createPersistClient();
+    const primary = await sb.rpc('list_identity_lifecycle_control_center', {
+      p_limit: 50,
+    });
+    if (!primary.error && primary.data) {
+      return NextResponse.json({
+        ok: true,
+        source: auth.source,
+        money_auto_approve: false as const,
+        ...(primary.data as Record<string, unknown>),
+        revoke_first_order: leaverRevokeOrder(),
+      });
+    }
     const { data, error } = await sb.rpc(
       'list_identity_lifecycle_control_center_ms_p5',
       { p_limit: 50 },
@@ -51,12 +63,12 @@ export async function GET(request: Request) {
         money_auto_approve: false as const,
         contract_version: MS_P5_CONTRACT_VERSION,
         feed_status: 'missing' as const,
-        // TODO: apply phase_ms_p5_identity_lifecycle.sql
-        todo: 'TODO: apply phase_ms_p5 SQL for live control center',
+        todo: 'TODO: apply phase97_identity_device_lifecycle.sql',
         runs: [],
         failed_steps: [],
         revoke_first_order: leaverRevokeOrder(),
         rpc_error: error.message,
+        phase97_error: primary.error?.message,
       });
     }
     return NextResponse.json({

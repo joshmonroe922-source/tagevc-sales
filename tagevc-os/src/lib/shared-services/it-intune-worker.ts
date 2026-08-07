@@ -5,6 +5,16 @@ import {
   graphConfigured,
 } from '@/lib/shared-services/it-mdm';
 import { webhookUrl } from '@/lib/shared-services/slo-delivery';
+import { assertWipeAllowed } from '@/lib/identity/wipe-guard';
+
+/** Defense-in-depth: never factory-wipe personal_byod (sheet 07b G-BYOD-WIPE). */
+export function guardIntuneDestructiveAction(input: {
+  action: string;
+  device_ownership?: string | null;
+  enrollment_type?: string | null;
+}) {
+  return assertWipeAllowed(input);
+}
 
 const INTUNE_OPS_DESTINATION_KEY = 'ops_alerts';
 
