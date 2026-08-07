@@ -277,11 +277,30 @@ export const MAIN_NAV: NavItem[] = [
           ...HIDE_FOR_SSC,
         ],
       },
+      {
+        module: 'deal_flow_vc',
+        href: '/my-card/contacts',
+        label: 'My Networking Contacts',
+        description: 'Card exchange inbox · Share my info replies',
+        /**
+         * Public-card exchanges land in os_network_contacts (persona owner).
+         * Same list as My Card → Network inbox. Associate / sourcer BD is
+         * replaced by role transforms — they still reach this via My Card.
+         */
+        hiddenForRoles: [
+          'coo',
+          'associate',
+          'ma_associate',
+          're_sourcer',
+          ...HIDE_FOR_ADMIN,
+          ...HIDE_FOR_SSC,
+        ],
+      },
       /**
        * VC / M&A / RE sourcing links are not default BD children (Visionary /
-       * Think Tank / Partner see Lead Intake + Deal Flow only). Associate,
-       * M&A Associate, and Sourcer get those surfaces via role transforms in
-       * `applyRoleNavTransforms`.
+       * Think Tank / Partner see Lead Intake + Deal Flow + My Networking
+       * Contacts). Associate, M&A Associate, and Sourcer get sourcing surfaces
+       * via role transforms in `applyRoleNavTransforms`.
        */
     ],
   },
