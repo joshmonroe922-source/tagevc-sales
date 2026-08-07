@@ -42,41 +42,46 @@ async function withClient(fn) {
 }
 
 const file = 'supabase/phase97_identity_device_lifecycle.sql';
-const sql = fs.readFileSync(path.join(root, file), 'utf8');
+const abs = path.join(root, file);
+const sql = fs.readFileSync(abs, 'utf8');
 
 await withClient(async (client) => {
   console.log(`Applying ${file} (${sql.length} chars)…`);
   await client.query(sql);
   console.log(`OK ${file}`);
 
-  const tables = await client.query(`
+  const checks = await client.query(`
     select table_name
     from information_schema.tables
     where table_schema = 'public'
       and table_name in (
         'byod_registrations',
-        'identity_hris_outbox',
         'identity_worker_jobs',
-        'day1_kit_policies',
-        'identity_metrics',
-        'identity_activity_events',
-        'identity_remote_help_sessions',
-        'identity_entity_bootstrap_tasks',
+        'identity_hris_outbox',
         'integration_idempotency',
-        'os_it_asset_assignments',
+        'day1_kit_policies',
+        'identity_entity_bootstrap_tasks',
         'vm_lifecycle_case_steps'
       )
     order by table_name
   `);
   console.log(
     'Tables:',
-    tables.rows.map((r) => r.table_name).join(', ') || '(none)',
+    checks.rows.map((r) => r.table_name).join(', ') || '(none)',
   );
 
-  const wipe = await client.query(
-    `select public.identity_assert_wipe_allowed(null, 'mam_only', 'personal_byod') as g`,
+  const cols = await client.query(`
+    select column_name
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'os_hris_employees'
+      and column_name in ('device_ownership', 'identity_status', 'entra_object_id')
+    order by column_name
+  `);
+  console.log(
+    'HRIS cols:',
+    cols.rows.map((r) => r.column_name).join(', '),
   );
-  console.log('Wipe guard sample:', wipe.rows[0]?.g);
 });
 
 console.log('Done.');

@@ -13,30 +13,46 @@ export type EntitlementJobResult = {
   detail: string;
 };
 
-async function ensureVmEmployee(payload: {
+/** Resolve VM employee id — prefer HRIS projection link created by orchestrator. */
+async function resolveVmEmployeeId(payload: {
   employee_id: string;
   entity_id: string;
   name?: string;
   role_id?: string | null;
-}): Promise<void> {
+}): Promise<string> {
   const sb = await createPersistClient();
-  const { data: existing } = await sb
-    .from('vm_employees')
-    .select('id')
+  const { data: hris } = await sb
+    .from('os_hris_employees')
+    .select('vm_employee_id, full_name')
     .eq('id', payload.employee_id)
     .maybeSingle();
-  if (existing) return;
+
+  const vmEmpId =
+    (hris?.vm_employee_id as string | null) ||
+    `VM-${payload.employee_id.replace(/-/g, '').slice(0, 12)}`;
 
   await sb.from('vm_employees').upsert(
     {
-      id: payload.employee_id,
-      name: payload.name || `HRIS ${payload.employee_id.slice(0, 8)}`,
+      id: vmEmpId,
+      name:
+        payload.name ||
+        (hris?.full_name as string | undefined) ||
+        `HRIS ${payload.employee_id.slice(0, 8)}`,
       entity_id: payload.entity_id,
       role_id: payload.role_id ?? null,
       status: 'Active',
     },
     { onConflict: 'id' },
   );
+
+  if (!hris?.vm_employee_id) {
+    await sb
+      .from('os_hris_employees')
+      .update({ vm_employee_id: vmEmpId })
+      .eq('id', payload.employee_id);
+  }
+
+  return vmEmpId;
 }
 
 export async function handleEntitlementMaterialize(payload: {
@@ -53,7 +69,7 @@ export async function handleEntitlementMaterialize(payload: {
     ? `${payload.hired.legal_first_name ?? ''} ${payload.hired.legal_last_name ?? ''}`.trim()
     : undefined;
 
-  await ensureVmEmployee({
+  const vmEmpId = await resolveVmEmployeeId({
     employee_id: payload.employee_id,
     entity_id: payload.entity_id,
     name,
@@ -80,7 +96,7 @@ export async function handleEntitlementMaterialize(payload: {
   for (const p of products) {
     const { error } = await sb.from('vm_entitlements').upsert(
       {
-        emp_id: payload.employee_id,
+        emp_id: vmEmpId,
         product_id: p.product_id,
         assigned: true,
         source: 'birthright',
@@ -121,10 +137,14 @@ export async function handleEntitlementRevokeAll(payload: {
   correlation_id: string;
 }): Promise<EntitlementJobResult> {
   const sb = await createPersistClient();
+  const vmEmpId = await resolveVmEmployeeId({
+    employee_id: payload.employee_id,
+    entity_id: payload.entity_id,
+  });
   const { data: rows } = await sb
     .from('vm_entitlements')
     .select('product_id')
-    .eq('emp_id', payload.employee_id)
+    .eq('emp_id', vmEmpId)
     .eq('assigned', true);
 
   await sb
@@ -134,12 +154,12 @@ export async function handleEntitlementRevokeAll(payload: {
       provision_status: 'revoked',
       updated_at: new Date().toISOString(),
     })
-    .eq('emp_id', payload.employee_id);
+    .eq('emp_id', vmEmpId);
 
   await sb
     .from('vm_employees')
     .update({ status: 'Terminated' })
-    .eq('id', payload.employee_id);
+    .eq('id', vmEmpId);
 
   const revoked = rows?.length ?? 0;
   await writeIdentityAudit({

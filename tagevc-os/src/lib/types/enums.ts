@@ -235,6 +235,12 @@ export const FORBID_ACTIONS = [
   'credit_file_write',
   'secret_env_change',
   'data_deletion',
+  /** Identity+device sheet 20 — AI CTO never unilateral */
+  'identity_account_disable',
+  'identity_device_wipe',
+  'identity_break_glass',
+  'identity_unattended_remote_help',
+  'identity_bulk_audit_export',
 ] as const;
 export type ForbidAction = (typeof FORBID_ACTIONS)[number];
 

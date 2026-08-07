@@ -5,6 +5,7 @@ import {
   MS_P5_CONTRACT_VERSION,
   type LifecycleKind,
 } from '@/lib/multi-sub/lifecycle';
+import { IDENTITY_CONTRACT_VERSION } from '@/lib/identity/types';
 import { resolveCanonicalEntityId } from '@/lib/multi-sub/entity-registry';
 import { captureException } from '@/lib/observability';
 import { guardPermission } from '@/lib/rbac/session';
@@ -29,7 +30,7 @@ async function authorize(request: Request): Promise<
   return { ok: false, status: 403, error: gate.error };
 }
 
-/** Identity lifecycle control center (P5) — list + start joiner/mover/leaver. */
+/** Identity lifecycle control center — Prefer phase97 RPC; fall back to MS-P5. */
 export async function GET(request: Request) {
   const auth = await authorize(request);
   if (!auth.ok) {
@@ -40,18 +41,20 @@ export async function GET(request: Request) {
   }
   try {
     const sb = await createPersistClient();
-    const primary = await sb.rpc('list_identity_lifecycle_control_center', {
+    const phase97 = await sb.rpc('list_identity_lifecycle_control_center', {
       p_limit: 50,
     });
-    if (!primary.error && primary.data) {
+    if (!phase97.error && phase97.data) {
       return NextResponse.json({
         ok: true,
         source: auth.source,
         money_auto_approve: false as const,
-        ...(primary.data as Record<string, unknown>),
+        contract_version: IDENTITY_CONTRACT_VERSION,
         revoke_first_order: leaverRevokeOrder(),
+        ...(phase97.data as Record<string, unknown>),
       });
     }
+
     const { data, error } = await sb.rpc(
       'list_identity_lifecycle_control_center_ms_p5',
       { p_limit: 50 },
@@ -61,20 +64,22 @@ export async function GET(request: Request) {
         ok: true,
         source: auth.source,
         money_auto_approve: false as const,
-        contract_version: MS_P5_CONTRACT_VERSION,
+        contract_version: IDENTITY_CONTRACT_VERSION,
         feed_status: 'missing' as const,
-        todo: 'TODO: apply phase97_identity_device_lifecycle.sql',
+        todo: 'TODO: apply supabase/phase97_identity_device_lifecycle.sql',
         runs: [],
+        cases: [],
         failed_steps: [],
         revoke_first_order: leaverRevokeOrder(),
         rpc_error: error.message,
-        phase97_error: primary.error?.message,
+        phase97_error: phase97.error?.message,
       });
     }
     return NextResponse.json({
       ok: true,
       source: auth.source,
       money_auto_approve: false as const,
+      contract_version: MS_P5_CONTRACT_VERSION,
       ...(data as Record<string, unknown>),
       revoke_first_order: leaverRevokeOrder(),
     });
@@ -130,8 +135,6 @@ export async function POST(request: Request) {
       p_actor_id: body.actor_id ?? null,
     });
 
-    // Best-effort: sync messaging home membership when user_id known.
-    // Profile trigger also covers joiner/mover updates of entity_id/active.
     let messagingSync: unknown = null;
     const userId =
       typeof body.user_id === 'string' && body.user_id.length > 0
@@ -148,7 +151,6 @@ export async function POST(request: Request) {
     }
 
     if (error) {
-      // Fail-soft contract preview when SQL not applied
       const checklist = defaultLifecycleChecklist(kind, entity);
       return NextResponse.json({
         ok: true,
@@ -159,8 +161,8 @@ export async function POST(request: Request) {
         home_entity_id: entity,
         checklist,
         messaging_sync: messagingSync,
-        // TODO: apply phase_ms_p5 for durable runs
-        todo: 'TODO: apply phase_ms_p5 SQL — returning checklist preview only',
+        hint: 'Prefer HRIS events via POST /api/identity/events for production joiners',
+        todo: 'TODO: apply phase_ms_p5 / phase97 SQL — returning checklist preview only',
         rpc_error: error.message,
         source: auth.source,
       });

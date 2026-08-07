@@ -160,6 +160,59 @@ export const FORBID_LIST: ForbidRule[] = [
       'wipe production data',
     ],
   },
+  {
+    code: 'identity_account_disable',
+    label: 'Identity account disable/enable without approved case',
+    human_required: 'Tech SS / IT (approved leaver/joiner step)',
+    signals: [
+      'disable entra account',
+      'disable user account',
+      'enable break glass account',
+      'revoke all sessions permanently',
+    ],
+  },
+  {
+    code: 'identity_device_wipe',
+    label: 'Device wipe / factory reset (esp. BYOD)',
+    human_required: 'Tech SS human gate',
+    signals: [
+      'factory reset device',
+      'full wipe device',
+      'wipe personal device',
+      'factoryWipe',
+    ],
+  },
+  {
+    code: 'identity_break_glass',
+    label: 'Break-glass checkout or use',
+    human_required: 'Dual-control Security + Tech SS',
+    signals: [
+      'break glass',
+      'break-glass',
+      'emergency global admin',
+      'checkout breakglass',
+    ],
+  },
+  {
+    code: 'identity_unattended_remote_help',
+    label: 'Unattended Remote Help / covert screen control',
+    human_required: 'Forbidden in v1 — attended only',
+    signals: [
+      'unattended remote help',
+      'unattended remote control',
+      'silent remote access',
+    ],
+  },
+  {
+    code: 'identity_bulk_audit_export',
+    label: 'Bulk audit export across entities',
+    human_required: 'Parent auditor / Security',
+    signals: [
+      'export all audit entities',
+      'bulk audit export',
+      'cross-entity audit dump',
+    ],
+  },
 ];
 
 export function detectForbidHits(text: string): ForbidAction[] {
