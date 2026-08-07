@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   assertFlagEnabled,
   getIdentityFlags,
+  isEntityCutoverEnabled,
+  isGraphUserLiveEnabled,
 } from '@/lib/identity/flags';
 import {
   validateCancelledHirePayload,
@@ -16,6 +18,8 @@ describe('identity feature flags', () => {
     'IDENTITY_MOVER_ENABLED',
     'IDENTITY_SCIM_ENABLED',
     'IDENTITY_BYOD_ENABLED',
+    'IDENTITY_ENTITY_CUTOVER',
+    'MS_GRAPH_CREATE_USERS',
   ];
   const prior: Record<string, string | undefined> = {};
 
@@ -43,6 +47,20 @@ describe('identity feature flags', () => {
     snapshot();
     process.env.IDENTITY_JOINER_ENABLED = '0';
     expect(assertFlagEnabled('joiner').ok).toBe(false);
+  });
+
+  it('entity cutover allowlist gates Graph live', () => {
+    snapshot();
+    delete process.env.IDENTITY_ENTITY_CUTOVER;
+    delete process.env.MS_GRAPH_CREATE_USERS;
+    expect(isEntityCutoverEnabled('ENT-FIRM')).toBe(false);
+    expect(isGraphUserLiveEnabled('ENT-FIRM')).toBe(false);
+
+    process.env.IDENTITY_ENTITY_CUTOVER = 'ENT-FIRM,ENT-R619';
+    process.env.MS_GRAPH_CREATE_USERS = '1';
+    expect(isEntityCutoverEnabled('ENT-R619')).toBe(true);
+    expect(isGraphUserLiveEnabled('ENT-R619')).toBe(true);
+    expect(isGraphUserLiveEnabled('ENT-SIGNENT')).toBe(false);
   });
 });
 

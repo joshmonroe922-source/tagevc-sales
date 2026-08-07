@@ -9,6 +9,7 @@ import {
 } from '@/lib/shared-services/it-mdm';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 import { writeIdentityAudit } from '@/lib/identity/audit';
+import { isGraphUserLiveEnabled } from '@/lib/identity/flags';
 import type { HrisHiredBody } from '@/lib/identity/types';
 
 export type EntraJobResult = {
@@ -45,8 +46,15 @@ export async function handleEntraUserUpsert(payload: {
 
   const upn = proposedUpn(payload.hired, entity?.email_domain);
   const ownership = payload.hired.device_ownership;
+  const live = graphConfigured() && isGraphUserLiveEnabled(payload.entity_id);
 
-  if (!graphConfigured()) {
+  if (!live) {
+    const reason = !graphConfigured()
+      ? 'Graph not configured'
+      : !isGraphUserLiveEnabled(payload.entity_id)
+        ? 'entity cutover / MS_GRAPH_CREATE_USERS off'
+        : 'dry-run';
+
     await sb
       .from('os_hris_employees')
       .update({
@@ -66,6 +74,7 @@ export async function handleEntraUserUpsert(payload: {
         upn,
         device_ownership: ownership,
         mode: 'dry_run',
+        reason,
       },
       source_system: 'entra',
       result: 'partial',
@@ -91,7 +100,7 @@ export async function handleEntraUserUpsert(payload: {
       skipped: true,
       upn,
       objectId: null,
-      detail: 'Graph not configured — dry-run upsert recorded',
+      detail: `${reason} — dry-run upsert recorded`,
     };
   }
 
@@ -228,7 +237,9 @@ export async function handleEntraUserDisable(payload: {
     .eq('id', payload.employee_id)
     .maybeSingle();
 
-  if (!graphConfigured()) {
+  const live =
+    graphConfigured() && isGraphUserLiveEnabled(payload.entity_id);
+  if (!live) {
     await sb
       .from('os_hris_employees')
       .update({ identity_status: 'disabled' })
@@ -246,7 +257,7 @@ export async function handleEntraUserDisable(payload: {
     return {
       ok: true,
       skipped: true,
-      detail: 'Graph not configured — dry-run disable recorded',
+      detail: 'Graph live path off — dry-run disable recorded',
     };
   }
 
@@ -329,7 +340,9 @@ export async function handleEntraUserEnable(payload: {
     .eq('id', payload.employee_id)
     .maybeSingle();
 
-  if (!graphConfigured()) {
+  const live =
+    graphConfigured() && isGraphUserLiveEnabled(payload.entity_id);
+  if (!live) {
     await sb
       .from('os_hris_employees')
       .update({ identity_status: 'enabled' })
@@ -348,7 +361,7 @@ export async function handleEntraUserEnable(payload: {
     return {
       ok: true,
       skipped: true,
-      detail: 'Graph not configured — dry-run enable recorded',
+      detail: 'Graph live path off — dry-run enable recorded',
     };
   }
 
