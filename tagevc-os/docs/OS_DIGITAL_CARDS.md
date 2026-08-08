@@ -29,8 +29,51 @@ SSC UI stays Tage-only. Do **not** drop `os_store_snapshots`.
 | Admin | `/admin/digital-cards` |
 | Exchange API | `POST /api/card/exchange` |
 | vCard | `GET /api/card/vcard/{public_id}?src=…` |
+| Apple Wallet | `GET /api/card/wallet/apple/{public_id}` → `.pkpass` |
+| Google Wallet | `GET /api/card/wallet/google/{public_id}` → save redirect |
+| Wallet status | `GET /api/card/wallet/status` → `{ apple, google }` |
 
 Portal deep-link (Recruit / Instant NDA): point at `https://app.tagevc.com/my-card`.
+
+## Apple Wallet + Google Wallet
+
+Buttons on **public card** and **My Card**. Hidden when certs/env are missing (fail-soft).
+
+| Concern | Detail |
+| --- | --- |
+| QR / barcode message | Live profile URL with `?src=wallet` |
+| Apple | PassKit `.pkpass` via `passkit-generator` |
+| Google | Signed “Save to Google Wallet” JWT (Generic pass) |
+| Analytics | `os_digital_card_events` → `wallet_apple` / `wallet_google` (phase98b) |
+
+### Env (Vercel / `.env.local`)
+
+```bash
+# Apple — NEED_HUMAN: Pass Type ID + cert from Apple Developer
+APPLE_WALLET_PASS_TYPE_ID=pass.com.tagevc.card
+APPLE_WALLET_TEAM_ID=
+APPLE_WALLET_ORG_NAME=Tage VC
+APPLE_WALLET_SIGNER_CERT=     # PEM (\n ok)
+APPLE_WALLET_SIGNER_KEY=      # PEM
+APPLE_WALLET_SIGNER_KEY_PASSPHRASE=
+# APPLE_WALLET_WWDR_CERT=     # optional; G3 embedded
+
+# Google — NEED_HUMAN: Wallet API issuer + service account
+GOOGLE_WALLET_ISSUER_ID=
+GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL=
+GOOGLE_WALLET_SERVICE_ACCOUNT_PRIVATE_KEY=
+GOOGLE_WALLET_CLASS_SUFFIX=digital_card
+```
+
+Without these, `/api/card/wallet/status` returns `{ apple: false, google: false }` and UI omits buttons. Download/save routes return **503**.
+
+### Apply wallet event types
+
+```bash
+cd tagevc-os
+set -a && source .env.local && set +a
+node scripts/apply-phase98b-wallet-events.mjs
+```
 
 ## Data model (phase98)
 
@@ -99,3 +142,4 @@ See **Click-test** section at the bottom of this file (also runnable manually).
 8. **Spam controls** — fill honeypot `website` or hammer exchange → 400 / 429.
 9. **Pipelines intact** — website intake, careers Path A, general résumé unchanged.
 10. **Display names** — no primary `ENT-*` labels on public card or My Card.
+11. **Wallets (when env set)** — public card + My Card show Add to Apple / Google Wallet. Pass QR opens `?src=wallet`. Without certs, buttons absent and wallet APIs return 503.
