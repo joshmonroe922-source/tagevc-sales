@@ -233,3 +233,61 @@ describe('careers / intake pipelines untouched (case 9)', () => {
     assert.doesNotMatch(SQL, /drop\s+table\s+.*os_website_intake/i);
   });
 });
+
+describe('wallet passes (case 11)', () => {
+  it('wallet source tags live profile URL', () => {
+    const url = taggedCardUrl('XDMtQ4E3PJKn-tCo', 'wallet');
+    assert.match(url, /src=wallet/);
+    assert.match(url, /XDMtQ4E3PJKn-tCo/);
+  });
+
+  it('fail-soft when Apple/Google env unset', async () => {
+    const keys = [
+      'APPLE_WALLET_PASS_TYPE_ID',
+      'APPLE_WALLET_TEAM_ID',
+      'APPLE_WALLET_SIGNER_CERT',
+      'APPLE_WALLET_SIGNER_KEY',
+      'GOOGLE_WALLET_ISSUER_ID',
+      'GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL',
+      'GOOGLE_WALLET_SERVICE_ACCOUNT_PRIVATE_KEY',
+    ];
+    const prev = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+    for (const k of keys) delete process.env[k];
+
+    const { walletAvailability, buildApplePkPass, buildGoogleWalletSaveUrl } =
+      await import('./wallet');
+    const avail = walletAvailability();
+    assert.equal(avail.apple, false);
+    assert.equal(avail.google, false);
+
+    const card = toPublicCardPayload(samplePersona());
+    const apple = await buildApplePkPass(card);
+    assert.equal(apple.ok, false);
+    if (!apple.ok) assert.equal(apple.status, 503);
+
+    const google = buildGoogleWalletSaveUrl(card);
+    assert.equal(google.ok, false);
+    if (!google.ok) assert.equal(google.status, 503);
+
+    for (const [k, v] of Object.entries(prev)) {
+      if (v !== undefined) process.env[k] = v;
+    }
+  });
+
+  it('solid PNG fallback is a valid PNG', async () => {
+    const { solidPng } = await import('./wallet');
+    const buf = solidPng(29);
+    assert.equal(buf.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+  });
+
+  it('phase98b adds wallet event types', () => {
+    const sql = readFileSync(
+      join(process.cwd(), 'supabase/phase98b_digital_card_wallet_events.sql'),
+      'utf8',
+    );
+    assert.match(sql, /wallet_apple/);
+    assert.match(sql, /wallet_google/);
+    assert.doesNotMatch(sql, /drop\s+table/i);
+  });
+});
+

@@ -10,3 +10,4 @@ export * from './routing';
 export * from './repo';
 export * from './exchange';
 export * from './lifecycle';
+// Wallet (PassKit / Google) stays server-only — import from `@/lib/digital-cards/wallet`.
