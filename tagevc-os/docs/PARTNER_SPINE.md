@@ -47,10 +47,21 @@ os_partner_entity_bindings  ←── new entity create (provisionPartnerSpineFo
 
 1. Upserts bindings for every catalog partner (MyBasePay enabled only for recruiting-capable entities by default plan; R619 seeded enabled).
 2. Creates Marketing presence slots: `google_business`, `google_analytics`, `linkedin_company`.
-3. **Also provisions Vendor Management (Phase 90)** via `provisionVendorMgmtForEntity` — module enablement, entity alias, default cost centers.
-4. Records a provision event for BI/audit.
+3. **Seeds Digital Card entity template** via `ensureDigitalCardTemplate` (logo/colors/default CTA from brand SoT) so HRIS activate works for the new entity with zero portal work.
+4. **Also provisions Vendor Management (Phase 90)** via `provisionVendorMgmtForEntity` — module enablement, entity alias, default cost centers.
+5. Records a provision event for BI/audit.
 
 Wire this from subsidiary / entity create flows (and call manually for existing entities after SQL apply).
+
+### Adding an entity checklist (Digital Cards)
+
+When a new company is added to the OS entity registry:
+
+1. Add `ENTITY_REGISTRY_SEED` row (+ display name / logo SoT).
+2. Call `provisionPartnerSpineForEntity(newId)` (or Admin → Digital cards → Provision missing, which seeds registry templates).
+3. Confirm `os_digital_card_entity_templates` has the row; tweak CTA in Admin if needed.
+4. HRIS activate / provision uses home `entity_id` — no subsidiary portal feature work required for cards.
+5. Optional: add portal `/go/my-card` deep-links for CRM convenience (Recruit / Signent / Instant NDA pattern). Spine nav already exposes My Card + My Networking Contacts to every OS user.
 
 See `docs/VENDOR_MANAGEMENT.md` for the Shared Services Ops spend/license spine UI.
 

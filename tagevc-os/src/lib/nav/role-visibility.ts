@@ -17,6 +17,9 @@
  *   RE leads through completion/handoff).
  * - Visionary / Think Tank / Partner: BD default children are Lead Intake +
  *   Deal Flow + My Networking Contacts (sourcing tracks via Deal Flow hub).
+ * - My Networking Contacts is also a global top-level item (module
+ *   command_center) so COO / Admin / SSC / associates always see it — Digital
+ *   Cards are spine-native for every entity, not Recruit-only.
  * - SSC operators: MAIN_NAV `hiddenForRoles` hides C-Suite / BD / Command
  *   Center / Assets / Firm; function children scoped (Counsel/Ops → Legal;
  *   Service Lead → led desk only, Finance default; ssc_* → own home).

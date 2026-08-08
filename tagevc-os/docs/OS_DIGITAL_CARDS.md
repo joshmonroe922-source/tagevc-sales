@@ -16,6 +16,22 @@ Replaces reprinting paper cards. Live profile URL behind a stable QR/NFC URL. Re
 
 SSC UI stays Tage-only. Do **not** drop `os_store_snapshots`.
 
+## Spine bake (all users · all entities)
+
+Digital Cards are **spine-native**, not a Recruit-only feature.
+
+| Surface | Who sees it | Gate |
+| --- | --- | --- |
+| **My Card** | Every authenticated OS user (sidebar avatar panel) | Auth; empty state nudges Activate / Provision when no persona |
+| **My Networking Contacts** | Every authenticated OS user (global left-nav + BD child for Visionary / Think Tank / Partner) | Auth |
+| **Admin → Digital cards** | Visionary / Admin / COO / service lead / partner / counsel ops | Role |
+| **Provision missing** | Same admin roles | All `profiles.entity_id` + linked active HRIS — not Firm/R619 only |
+| **Entity templates** | Auto-seeded on entity provision + first activate + Admin provision | Brand SoT logo/colors + default CTA |
+
+Future entities: add to `ENTITY_REGISTRY_SEED`, run `provisionPartnerSpineForEntity` (calls `ensureDigitalCardTemplate`). HRIS `digital_card_activate` uses the employee’s home `entity_id`. No subsidiary portal work required for cards to work.
+
+See also **Adding an entity checklist** in `docs/PARTNER_SPINE.md`.
+
 ## URLs
 
 | Purpose | Path |
@@ -25,7 +41,7 @@ SSC UI stays Tage-only. Do **not** drop `os_store_snapshots`.
 | Short alias | `/p/{public_id}` → redirects to `/card/p/...` |
 | Source tag | `?src=linkedin` (also `/l/linkedin`) |
 | My Card | `/my-card` (persona contact panel + Network inbox) |
-| Networking contacts | `/my-card/contacts` — also **BD → My Networking Contacts** |
+| Networking contacts | `/my-card/contacts` — global nav + **BD → My Networking Contacts** |
 | Admin | `/admin/digital-cards` |
 | Exchange API | `POST /api/card/exchange` |
 | vCard | `GET /api/card/vcard/{public_id}?src=…` |
@@ -33,20 +49,49 @@ SSC UI stays Tage-only. Do **not** drop `os_store_snapshots`.
 | Google Wallet | `GET /api/card/wallet/google/{public_id}` → save redirect |
 | Wallet status | `GET /api/card/wallet/status` → `{ apple, google }` |
 
-### Where Recruit 619 users find it
+## Where users find it
 
-Digital Card lives on the Tage OS spine (`app.tagevc.com`), not as a Recruit-local CRM module — that is why it was not under portal.recruit619.com before. The Recruit portal now deep-links same-tab:
+Spine is the source of truth. Subsidiary portals deep-link same-tab for CRM convenience; they do **not** rebuild My Card.
 
-| In portal.recruit619.com | Nav path | Lands on |
+### Tage OS (`app.tagevc.com`) — all entities
+
+| Surface | Nav path | Lands on |
+| --- | --- | --- |
+| **My Card** | Sidebar avatar panel → **My Card** | `/my-card` |
+| **My Networking Contacts** | Left nav (global) → **My Networking Contacts** | `/my-card/contacts` |
+| **My Networking Contacts** | **Business Development → My Networking Contacts** (BD-visible roles) | `/my-card/contacts` |
+| **Admin templates / provision** | **Shared Services → Admin → Digital cards** | `/admin/digital-cards` |
+
+### Recruit 619 (`portal.recruit619.com`)
+
+| In portal | Nav path | Lands on |
 | --- | --- | --- |
 | **Digital Card** | **Leadership → Admin → Digital Card** | `https://app.tagevc.com/my-card` (via `/go/my-card`) |
 | **My Networking Contacts** | **Sales / Account Management → My Networking Contacts** | `https://app.tagevc.com/my-card/contacts` (via `/go/my-card/contacts`) |
 
-On Tage OS, networking contacts are also under **Business Development → My Networking Contacts**. Handoff URLs include `from=recruit619` + `return_to=` (portal origin allowlisted) so My Card / contacts show **← Back to Recruit 619 portal**.
+Handoff: `from=recruit619` + `return_to=` (allowlisted) → **← Back to Recruit 619 portal**. Command palette: Digital Card · My Networking Contacts.
+
+### Signent HR (`portal.signenthr.com`)
+
+| In portal | Nav path | Lands on |
+| --- | --- | --- |
+| **Digital Card** | **Admin → Digital Card** (nav item) | `https://app.tagevc.com/my-card` (via `/go/my-card`) |
+| **My Networking Contacts** | **Sales → My Networking Contacts** (nav item after Sales) | `https://app.tagevc.com/my-card/contacts` (via `/go/my-card/contacts`) |
+
+Handoff: `from=signent` + `return_to=https://portal.signenthr.com/…`. No command palette in this portal yet (NEED_HUMAN if desired).
+
+### Instant NDA (`portal.instantnda.us`)
+
+| In portal | Nav path | Lands on |
+| --- | --- | --- |
+| **Digital Card** | **Admin → Digital Card** (nav item near Admin) | `https://app.tagevc.com/my-card` (via `/go/my-card`) |
+| **My Networking Contacts** | **Sales → My Networking Contacts** | `https://app.tagevc.com/my-card/contacts` (via `/go/my-card/contacts`) |
+
+Handoff: `from=instantnda` + `return_to=https://portal.instantnda.us/…`. No command palette in this portal yet (NEED_HUMAN if desired).
 
 **SSO caveat:** Portal and spine share Google SSO when the same identity is provisioned on both. If the spine session is cold, Tage login appears first; after sign-in, `next=` preserves `/my-card` (or contacts). Browser Back also returns to the portal `/go/…` bridge (which redirects again).
 
-Portal deep-link (Instant NDA / other subsidiaries): same pattern — point at `https://app.tagevc.com/my-card` (optionally with `from` + `return_to`).
+**Return allowlist hosts:** `portal.recruit619.com`, `portal.signenthr.com`, `portal.instantnda.us` (+ legacy `portal.instantnda.com`), localhost.
 
 ## Apple Wallet + Google Wallet
 
@@ -112,6 +157,8 @@ node scripts/apply-phase98b-wallet-events.mjs
 | Activate digital business card | `digital_card_activate` / `sd.digital_card_activate` |
 | Revoke digital business card | `digital_card_revoke` / `ex.digital_card_revoke` |
 
+Activate uses the employee’s home `entity_id` (any subsidiary). Missing templates are auto-ensured on activate.
+
 ## Seed CTAs
 
 | Entity | CTA |
@@ -120,6 +167,7 @@ node scripts/apply-phase98b-wallet-events.mjs
 | Recruit 619 | Request talent / Find work |
 | Signent HR | Talk to HR |
 | Instant NDA | Send an NDA |
+| Future entity | `Visit {display name}` → marketing/portal URL when known |
 
 ## Apply SQL
 
@@ -148,7 +196,7 @@ See **Click-test** section at the bottom of this file (also runnable manually).
 1. **Title edit / stable QR** — My Card → Edit title → Save → open public URL / scan QR → new title, same `public_id`.
 2. **Scan + tap** — QR image is an `<a href={tagged profile}>`; tap on phone opens same profile as a scan.
 3. **`?src=linkedin`** — open `/card/p/{id}?src=linkedin`, submit exchange → `os_digital_card_events` + contact `source_channel=linkedin`.
-4. **Exchange → inbox** — submit Share my info → `os_network_contacts` (owner = persona owner) + in-app notify → **App → Business Development → My Networking Contacts → contact** (also My Card → Network inbox). URLs: `/my-card`, `/my-card/contacts`, `/my-card/contacts/{id}`.
+4. **Exchange → inbox** — submit Share my info → `os_network_contacts` (owner = persona owner) + in-app notify → **App → My Networking Contacts → contact** (also My Card → Network inbox). URLs: `/my-card`, `/my-card/contacts`, `/my-card/contacts/{id}`.
 5. **Revoke** — HRIS revoke or Admin force revoke → public page shows calm “No longer with {Company}” only.
 6. **Recruit routing** — ENT-R619 contact with hiring/jobseek → Create Client Lead / Add General Interest (confirm dialog).
 7. **Non-owner edit** — second user cannot update another’s persona (RLS / action guard).
@@ -156,3 +204,5 @@ See **Click-test** section at the bottom of this file (also runnable manually).
 9. **Pipelines intact** — website intake, careers Path A, general résumé unchanged.
 10. **Display names** — no primary `ENT-*` labels on public card or My Card.
 11. **Wallets (when env set)** — public card + My Card show Add to Apple / Google Wallet. Pass QR opens `?src=wallet`. Without certs, buttons absent and wallet APIs return 503.
+12. **All-entity access** — Signent / Instant NDA / Firm users see My Card + My Networking Contacts on spine without portal.
+13. **Portal handoff** — from each subsidiary `/go/my-card` → spine shows Back to portal banner.

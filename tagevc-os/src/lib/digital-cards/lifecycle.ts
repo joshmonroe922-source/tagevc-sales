@@ -4,7 +4,12 @@
 
 import type { HrisEmployee } from '@/lib/hris/types';
 import { createPersistClient } from '@/lib/supabase/persist-client';
-import { activatePersona, revokePersonasForUser } from './repo';
+import { ENTITY_REGISTRY_SEED } from '@/lib/multi-sub/entity-registry';
+import {
+  activatePersona,
+  ensureDigitalCardTemplate,
+  revokePersonasForUser,
+} from './repo';
 import { entityDisplayName } from '@/lib/entities/display-name';
 
 export async function activateDigitalCardForEmployee(
@@ -81,8 +86,30 @@ export type ProvisionMissingResult = {
 };
 
 /**
+ * Seed `os_digital_card_entity_templates` for every known registry entity
+ * (Firm + subsidiaries + any future codes added to ENTITY_REGISTRY_SEED).
+ */
+export async function seedDigitalCardTemplatesForRegistry(): Promise<{
+  seeded: string[];
+  errors: Array<{ entity_id: string; error: string }>;
+}> {
+  const seeded: string[] = [];
+  const errors: Array<{ entity_id: string; error: string }> = [];
+  for (const row of ENTITY_REGISTRY_SEED) {
+    const res = await ensureDigitalCardTemplate(row.entity_code);
+    if (!res.ok) {
+      errors.push({ entity_id: row.entity_code, error: res.error });
+      continue;
+    }
+    if (res.created) seeded.push(row.entity_code);
+  }
+  return { seeded, errors };
+}
+
+/**
  * Admin: activate a default persona for portal profiles / linked active HRIS
- * employees who are missing one. Never invents people. Never revokes.
+ * employees who are missing one — **all entities**, not Firm/R619 only.
+ * Never invents people. Never revokes. Seeds entity templates first.
  */
 export async function provisionMissingDigitalCards(): Promise<
   | { ok: true; result: ProvisionMissingResult }
@@ -93,6 +120,9 @@ export async function provisionMissingDigitalCards(): Promise<
     const activated: ProvisionMissingResult['activated'] = [];
     const skipped: ProvisionMissingResult['skipped'] = [];
     const errors: ProvisionMissingResult['errors'] = [];
+
+    // Ensure brand templates exist for registry entities before activate.
+    await seedDigitalCardTemplatesForRegistry();
 
     const { data: profiles, error: pe } = await sb
       .from('profiles')

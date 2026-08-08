@@ -72,6 +72,17 @@ export const MAIN_NAV: NavItem[] = [
     /** SSC operators skip Dashboard; Admin lands here for ops KPIs. */
     hiddenForRoles: HIDE_FOR_SSC,
   },
+  /**
+   * Global Digital Card networking inbox — every authenticated role.
+   * Also nested under Business Development for BD-visible personas.
+   * My Card itself lives on the sidebar avatar panel (not left-nav).
+   */
+  {
+    module: 'command_center',
+    href: '/my-card/contacts',
+    label: 'My Networking Contacts',
+    description: 'Card exchange inbox · Share my info replies',
+  },
   {
     module: 'portfolio',
     label: 'Assets',
@@ -283,9 +294,9 @@ export const MAIN_NAV: NavItem[] = [
         label: 'My Networking Contacts',
         description: 'Card exchange inbox · Share my info replies',
         /**
-         * Public-card exchanges land in os_network_contacts (persona owner).
-         * Same list as My Card → Network inbox. Associate / sourcer BD is
-         * replaced by role transforms — they still reach this via My Card.
+         * Same inbox as the global top-level item + My Card → Network.
+         * Keep under BD for Visionary / Think Tank / Partner discoverability.
+         * Roles that lose BD still have the global nav entry.
          */
         hiddenForRoles: [
           'coo',

@@ -7,7 +7,11 @@ import { createClient } from '@/lib/supabase/server';
 import { entityDisplayName } from '@/lib/entities/display-name';
 import { generatePublicId } from './public-id';
 import { mapContact, mapPersona, mapTemplate } from './mappers';
-import { defaultCtaForEntity, defaultThemeForEntity } from './theme';
+import {
+  companyWebsiteForEntity,
+  defaultCtaForEntity,
+  defaultThemeForEntity,
+} from './theme';
 import type {
   DigitalCardEventType,
   DigitalCardPersona,
@@ -56,9 +60,12 @@ export async function listTemplates(): Promise<EntityCardTemplate[]> {
 
 export async function upsertTemplate(
   input: Partial<EntityCardTemplate> & { entity_id: string },
+  opts?: { service?: boolean },
 ): Promise<{ ok: true; template: EntityCardTemplate } | { ok: false; error: string }> {
   try {
-    const sb = await createClient();
+    const sb = opts?.service
+      ? await createPersistClient({ mode: 'service' })
+      : await createClient();
     const { data, error } = await sb
       .from('os_digital_card_entity_templates')
       .upsert(
@@ -70,7 +77,8 @@ export async function upsertTemplate(
           required_share_fields: input.required_share_fields ?? ['work_email'],
           routing_defaults: input.routing_defaults ?? {},
           company_main_line: input.company_main_line ?? null,
-          company_website: input.company_website ?? null,
+          company_website:
+            input.company_website ?? companyWebsiteForEntity(input.entity_id),
           desk_public_id: input.desk_public_id ?? null,
         },
         { onConflict: 'entity_id' },
@@ -87,6 +95,41 @@ export async function upsertTemplate(
       error: e instanceof Error ? e.message : 'Template save failed',
     };
   }
+}
+
+/**
+ * Idempotent seed for a new/existing entity: logo + colors from brand SoT,
+ * default CTA from theme map (or “Visit {name}” fallback). Never overwrites
+ * an existing row’s CTA/theme unless `force` is set.
+ */
+export async function ensureDigitalCardTemplate(
+  entityId: string,
+  opts?: { force?: boolean },
+): Promise<
+  | { ok: true; template: EntityCardTemplate; created: boolean }
+  | { ok: false; error: string }
+> {
+  const id = entityId.trim();
+  if (!id) return { ok: false, error: 'entity_id required' };
+
+  const existing = await getTemplate(id, { service: true });
+  if (existing && !opts?.force) {
+    return { ok: true, template: existing, created: false };
+  }
+
+  const result = await upsertTemplate(
+    {
+      entity_id: id,
+      default_cta: defaultCtaForEntity(id),
+      locked_theme: defaultThemeForEntity(id),
+      company_website: companyWebsiteForEntity(id),
+      required_share_fields: ['work_email'],
+      routing_defaults: {},
+    },
+    { service: true },
+  );
+  if (!result.ok) return result;
+  return { ok: true, template: result.template, created: !existing };
 }
 
 export async function getPersonaByPublicId(
@@ -219,7 +262,9 @@ export async function activatePersona(
         .eq('is_default', true);
     }
 
-    const template = await getTemplate(input.entityId);
+    // Future entities: brand template appears on first activate without portal work.
+    await ensureDigitalCardTemplate(input.entityId);
+    const template = await getTemplate(input.entityId, { service: true });
     const publicId = generatePublicId();
     const emails: ShareableField[] = input.workEmail
       ? [{ label: 'Work', value: input.workEmail, share: true }]
