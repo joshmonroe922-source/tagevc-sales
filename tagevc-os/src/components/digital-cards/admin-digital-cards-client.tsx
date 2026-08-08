@@ -26,8 +26,9 @@ export function AdminDigitalCardsClient({
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Activate a default digital card for portal users (and linked active
-          HRIS employees) who do not have one yet. Does not revoke anyone or
-          invent people.
+          HRIS employees) across all entities who do not have one yet. Seeds
+          missing entity templates first. Does not revoke anyone or invent
+          people.
         </p>
         <button
           type="button"

@@ -5,6 +5,7 @@
  * Honest status: scaffold bindings ≠ live partner hooks executed.
  */
 
+import { ensureDigitalCardTemplate } from '@/lib/digital-cards/repo';
 import { entityDisplayName } from '@/lib/multi-sub/entity-registry';
 import {
   ensureEntityPartnerBindings,
@@ -54,6 +55,10 @@ export async function provisionPartnerSpineForEntity(
   const hooks = plan
     .map((p) => p.lifecycle_hook)
     .filter((h): h is string => Boolean(h));
+
+  // Digital Cards are spine-native: every new entity gets a brand template
+  // (logo/colors/default CTA) so HRIS activate works without portal feature work.
+  await ensureDigitalCardTemplate(entityId);
 
   const vendorMgmt = await provisionVendorMgmtForEntity(entityId);
 

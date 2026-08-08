@@ -116,6 +116,14 @@ describe('Assets + COO / Subsidiary Leader nav gates', () => {
         (c) => c.label === 'My Networking Contacts',
       );
       expect(networking?.href).toBe('/my-card/contacts');
+      // Global top-level entry for every authenticated role (spine bake).
+      expect(
+        items.some(
+          (i) =>
+            i.label === 'My Networking Contacts' &&
+            i.href === '/my-card/contacts',
+        ),
+      ).toBe(true);
       const flat = items.flatMap((i) => [
         i.label,
         ...(i.children?.map((c) => c.label) ?? []),
@@ -123,6 +131,34 @@ describe('Assets + COO / Subsidiary Leader nav gates', () => {
       expect(flat).not.toContain('VC Sourcing');
       expect(flat).not.toContain('M&A Sourcing');
       expect(flat).not.toContain('Sourcing Platform');
+    }
+  });
+
+  it('every role sees global My Networking Contacts (not Recruit-gated)', () => {
+    const roles = [
+      'visionary',
+      'coo',
+      'admin',
+      'ssc_hr',
+      'associate',
+      'ma_associate',
+      're_sourcer',
+      'sub_lead',
+      'service_lead',
+    ] as const;
+    for (const role of roles) {
+      const items = filterNavForRole(MAIN_NAV, {
+        role,
+        realRole: 'visionary',
+        entityId: 'ENT-FIRM',
+      });
+      expect(
+        items.some(
+          (i) =>
+            i.label === 'My Networking Contacts' &&
+            i.href === '/my-card/contacts',
+        ),
+      ).toBe(true);
     }
   });
 
@@ -284,8 +320,17 @@ describe('Assets + COO / Subsidiary Leader nav gates', () => {
     expect(admin?.children?.map((c) => c.label)).toEqual([
       'Org Chart',
       'Hire impact',
+      'Digital cards',
       'Document Library',
+      'CRM graph',
       'DocuSign',
+      'Signent clients',
+      'Enrichment',
+      'AI models',
+      'Website intake',
+      'Spine agents',
+      'W-9 / AP inbound',
+      'Forecasting',
       'Email analytics',
       'Period Checklists',
       'Audits',

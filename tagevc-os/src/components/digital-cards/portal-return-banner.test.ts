@@ -7,7 +7,9 @@ import { describe, it } from 'vitest';
  */
 const ALLOWED_RETURN_HOSTS = new Set([
   'portal.recruit619.com',
+  'portal.instantnda.us',
   'portal.instantnda.com',
+  'portal.signenthr.com',
   'localhost',
   '127.0.0.1',
 ]);
@@ -36,6 +38,17 @@ describe('portal return_to allowlist', () => {
     assert.equal(
       safeReturnHref('https://portal.recruit619.com/my-day'),
       'https://portal.recruit619.com/my-day',
+    );
+  });
+
+  it('allows Signent and Instant NDA portal https', () => {
+    assert.equal(
+      safeReturnHref('https://portal.signenthr.com/home'),
+      'https://portal.signenthr.com/home',
+    );
+    assert.equal(
+      safeReturnHref('https://portal.instantnda.us/home'),
+      'https://portal.instantnda.us/home',
     );
   });
 

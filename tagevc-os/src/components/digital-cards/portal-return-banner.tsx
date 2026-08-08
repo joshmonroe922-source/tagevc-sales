@@ -4,7 +4,9 @@ import { useMemo } from 'react';
 
 const ALLOWED_RETURN_HOSTS = new Set([
   'portal.recruit619.com',
-  'portal.instantnda.com',
+  'portal.instantnda.us',
+  'portal.instantnda.com', // legacy alias
+  'portal.signenthr.com',
   'localhost',
   '127.0.0.1',
 ]);
@@ -29,6 +31,7 @@ function labelForHost(href: string): string {
     const host = new URL(href).hostname;
     if (host.includes('recruit619')) return 'Recruit 619 portal';
     if (host.includes('instantnda')) return 'Instant NDA portal';
+    if (host.includes('signent')) return 'Signent HR portal';
     return 'portal';
   } catch {
     return 'portal';
