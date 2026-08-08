@@ -546,8 +546,13 @@ function PersonaEditor({
               ]
             : priorPhones,
           socials: {
-            ...persona.socials,
-            linkedin: linkedin || undefined,
+            ...(persona.socials.x ? { x: persona.socials.x } : {}),
+            ...(persona.socials.instagram
+              ? { instagram: persona.socials.instagram }
+              : {}),
+            ...(persona.socials.github ? { github: persona.socials.github } : {}),
+            ...(persona.socials.other ? { other: persona.socials.other } : {}),
+            ...(linkedin.trim() ? { linkedin: linkedin.trim() } : {}),
           },
           cta_primary: {
             label: ctaLabel || persona.cta_primary?.label || '',
