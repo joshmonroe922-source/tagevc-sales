@@ -24,7 +24,8 @@ SSC UI stays Tage-only. Do **not** drop `os_store_snapshots`.
 | App host (shipped) | `https://app.tagevc.com/card/p/{public_id}` |
 | Short alias | `/p/{public_id}` → redirects to `/card/p/...` |
 | Source tag | `?src=linkedin` (also `/l/linkedin`) |
-| My Card | `/my-card` |
+| My Card | `/my-card` (persona contact panel + Network inbox) |
+| Networking contacts | `/my-card/contacts` — also **BD → My Networking Contacts** |
 | Admin | `/admin/digital-cards` |
 | Exchange API | `POST /api/card/exchange` |
 | vCard | `GET /api/card/vcard/{public_id}?src=…` |

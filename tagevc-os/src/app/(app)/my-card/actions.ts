@@ -53,10 +53,13 @@ export async function updatePersonaAction(input: {
   department?: string;
   bio_short?: string;
   website?: string | null;
+  calendar_url?: string | null;
+  booking_url?: string | null;
   phones?: ShareableField[];
   emails?: ShareableField[];
   socials?: Record<string, string>;
   photo_url?: string | null;
+  cta_primary?: { label: string; url: string };
   is_default?: boolean;
   event_tag?: string | null;
   event_tag_remaining?: number | null;
