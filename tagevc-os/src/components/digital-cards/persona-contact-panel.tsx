@@ -68,7 +68,7 @@ export function PersonaContactPanel({ persona, onEdit }: Props) {
               <button
                 type="button"
                 onClick={() => onEdit('photo')}
-                className="flex size-16 shrink-0 flex-col items-center justify-center rounded-2xl border border-dashed border-[#cfc9bc] bg-[#faf8f4] text-center text-[10px] leading-tight text-muted-foreground hover:border-[#3B4559]/
+                className="flex size-16 shrink-0 flex-col items-center justify-center rounded-2xl border border-dashed border-[#cfc9bc] bg-[#faf8f4] text-center text-[10px] leading-tight text-muted-foreground hover:border-[#3B4559]"
               >
                 Add
                 <br />
@@ -87,7 +87,7 @@ export function PersonaContactPanel({ persona, onEdit }: Props) {
                 </p>
               </FieldRow>
               <FieldRow label="Title" onEdit={() => onEdit('title')}>
-                <p className="text-sm text-[#3B4559]/
+                <p className="text-sm text-[#3B4559]">
                   {persona.title || <EmptyHint>Add title</EmptyHint>}
                 </p>
               </FieldRow>
