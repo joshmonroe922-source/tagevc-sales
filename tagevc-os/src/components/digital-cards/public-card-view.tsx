@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from 'react';
 import type { PublicCardPayload } from '@/lib/digital-cards/types';
 import { qrImageUrl } from '@/lib/digital-cards/qr';
 import { ExchangeForm } from '@/components/digital-cards/exchange-form';
+import { WalletButtons } from '@/components/digital-cards/wallet-buttons';
 import { TAGE_GOLD, TAGE_NAVY } from '@/lib/digital-cards/theme';
 
 type Props = {
@@ -171,6 +172,12 @@ export function PublicCardView({ card, sourceChannel, entryPath }: Props) {
                   Share my info
                 </button>
               </div>
+
+              <WalletButtons
+                publicId={card.public_id}
+                variant="light"
+                className="mt-3"
+              />
 
               <div className="mt-5 flex items-start gap-4">
                 <a

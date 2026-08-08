@@ -10,6 +10,7 @@ import { entityDisplayName } from '@/lib/entities/display-name';
 import { taggedCardUrl, nfcUrl } from '@/lib/digital-cards/urls';
 import { qrImageUrl, TAGGED_QR_SOURCES, qrDownloadFilename } from '@/lib/digital-cards/qr';
 import { TAGE_GOLD, TAGE_NAVY } from '@/lib/digital-cards/theme';
+import { WalletButtons } from '@/components/digital-cards/wallet-buttons';
 import { PersonaContactPanel } from '@/components/digital-cards/persona-contact-panel';
 import {
   draftThankYouNoteAction,
@@ -248,6 +249,9 @@ export function MyCardClient({ personas: initial, contacts, userName }: Props) {
           >
             {editing ? 'Close editor' : 'Edit'}
           </ActionBtn>
+          {!persona.revoked_at ? (
+            <WalletButtons publicId={persona.public_id} variant="dark" />
+          ) : null}
         </div>
       </section>
 

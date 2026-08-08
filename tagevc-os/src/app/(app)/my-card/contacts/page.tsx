@@ -3,14 +3,24 @@ import { redirect } from 'next/navigation';
 import { getSessionContext } from '@/lib/rbac/session';
 import { listMyContacts } from '@/lib/digital-cards/repo';
 import { entityDisplayName } from '@/lib/entities/display-name';
+import { PortalReturnBanner } from '@/components/digital-cards/portal-return-banner';
 
-export default async function MyCardContactsPage() {
+export default async function MyCardContactsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const ctx = await getSessionContext();
   if (!ctx?.profile?.id) redirect('/login?next=/my-card/contacts');
   const contacts = await listMyContacts(ctx.profile.id, 100);
 
+  const sp = (await searchParams) ?? {};
+  const returnTo = typeof sp.return_to === 'string' ? sp.return_to : null;
+  const from = typeof sp.from === 'string' ? sp.from : null;
+
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
+      <PortalReturnBanner returnTo={returnTo} from={from} />
       <Link
         href="/my-card"
         className="text-sm text-muted-foreground underline-offset-4 hover:underline"

@@ -60,7 +60,9 @@ export type DigitalCardEventType =
   | 'save_vcard'
   | 'exchange_submit'
   | 'share_click'
-  | 'revoke_hit';
+  | 'revoke_hit'
+  | 'wallet_apple'
+  | 'wallet_google';
 
 export type DigitalCardPersona = {
   id: string;

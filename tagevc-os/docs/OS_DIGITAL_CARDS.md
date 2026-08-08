@@ -33,7 +33,20 @@ SSC UI stays Tage-only. Do **not** drop `os_store_snapshots`.
 | Google Wallet | `GET /api/card/wallet/google/{public_id}` → save redirect |
 | Wallet status | `GET /api/card/wallet/status` → `{ apple, google }` |
 
-Portal deep-link (Recruit / Instant NDA): point at `https://app.tagevc.com/my-card`.
+### Where Recruit 619 users find it
+
+Digital Card lives on the Tage OS spine (`app.tagevc.com`), not as a Recruit-local CRM module — that is why it was not under portal.recruit619.com before. The Recruit portal now deep-links same-tab:
+
+| In portal.recruit619.com | Nav path | Lands on |
+| --- | --- | --- |
+| **Digital Card** | **Leadership → Admin → Digital Card** | `https://app.tagevc.com/my-card` (via `/go/my-card`) |
+| **My Networking Contacts** | **Sales / Account Management → My Networking Contacts** | `https://app.tagevc.com/my-card/contacts` (via `/go/my-card/contacts`) |
+
+On Tage OS, networking contacts are also under **Business Development → My Networking Contacts**. Handoff URLs include `from=recruit619` + `return_to=` (portal origin allowlisted) so My Card / contacts show **← Back to Recruit 619 portal**.
+
+**SSO caveat:** Portal and spine share Google SSO when the same identity is provisioned on both. If the spine session is cold, Tage login appears first; after sign-in, `next=` preserves `/my-card` (or contacts). Browser Back also returns to the portal `/go/…` bridge (which redirects again).
+
+Portal deep-link (Instant NDA / other subsidiaries): same pattern — point at `https://app.tagevc.com/my-card` (optionally with `from` + `return_to`).
 
 ## Apple Wallet + Google Wallet
 
