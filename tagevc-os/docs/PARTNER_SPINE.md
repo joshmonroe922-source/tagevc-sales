@@ -12,7 +12,7 @@
 
 | Key | Owner (SS) | Scope | Status |
 |-----|------------|-------|--------|
-| `dialpad` | IT | All entities | Scaffolded — multi-office model + IDs: `docs/DIALPAD_MULTI_ENTITY.md`; manager coaching map: `docs/DIALPAD_ORG_HIERARCHY.md` |
+| `dialpad` | IT | All entities | **LIVE=1** + **hybrid CRM** (spine fan-out → R619 portal match/screen-pop/recap): `docs/DIALPAD_MULTI_ENTITY.md`; coaching: `docs/DIALPAD_ORG_HIERARCHY.md` |
 | `verified_first` | HR (+ Recruiting) | Tage HR · R619 · Signent | **Live spine** (phase80) — secrets pending; see `docs/VERIFIED_FIRST_SCREENING_SPINE.md` § Connect |
 | `mybasepay` | HR / Finance | Contractor EOR — **R619 first** | Interim admin bridge · LIVE=0 — `docs/MYBASEPAY_INTERIM_BRIDGE.md` |
 | `apollo` | Marketing | All entities → unified DB | Scaffolded |
@@ -160,7 +160,7 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/phase89_partner_spine.sql
 
 1. Apply `phase89_partner_spine.sql` (+ phase91 Signent tenancy, phase92 AP/W-9, **phase96 Gusto multi-entity**)
 2. DocuSign org JWT + Connect + per-entity `DOCUSIGN_ACCOUNT_ID_*`
-3. Dialpad: credits + 4 offices + 4×800 + API key/webhook — follow `docs/DIALPAD_MULTI_ENTITY.md`
+3. Dialpad: LIVE=1 — office bindings + event subscriptions registered — `docs/DIALPAD_MULTI_ENTITY.md`
 4. Verified First: Basic Auth username/password + webhook secret + package IDs now (CRM/SF not a blocker); set `VERIFIED_FIRST_LIVE=1` only after staging smoke — `docs/VERIFIED_FIRST_SCREENING_SPINE.md`
 5. MyBasePay account for R619 contractor placements
 6. Apollo API key
