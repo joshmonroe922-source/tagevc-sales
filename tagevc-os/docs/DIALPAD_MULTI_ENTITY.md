@@ -94,18 +94,37 @@ Projects:
 
 Optional hardening: add a **second** Dialpad webhook pointing directly at the portal URL (same secret) if fan-out latency or spine downtime is a concern.
 
-## NEED_HUMAN — Dialpad admin (AI enable for offices)
+## NEED_HUMAN — Dialpad admin leftovers
 
-These cannot be completed from API alone; Josh (or Dialpad admin) must confirm in Dialpad Admin:
+API cannot flip seat AI licenses / desktop screen-pop allow. Confirmed via API 2026-08-09:
 
-1. [ ] **AI seats / plan** — Live Coach, Playbooks, Recaps enabled for Recruit 619 office users who take calls
-2. [ ] **Per-office / per-user AI toggles** — R619 office (`5109894981558272`) agents have AI features on (not only company default)
-3. [ ] **Screen pop client** — Dialpad desktop/app allows screen pop URLs (browser open) for agents
-4. [ ] **Agent user map** — set `profiles.dialpad_user_id` (portal SQL phase99) and/or `DIALPAD_USER_MAP` for each recruiter’s Dialpad user id (Josh prove: `4721934169743360`)
-5. [x] **Portal env on Vercel** — `DIALPAD_API_KEY`, `DIALPAD_WEBHOOK_SECRET`, `DIALPAD_LIVE=1`, `FF_DIALPAD_WEBHOOKS=1`, `DIALPAD_USER_ID` (Josh), `DIALPAD_R619_OFFICE_ID` synced 2026-08-09
-6. [ ] **MFA / admin session** — when rotating keys or editing AI toggles
+| Check | Status |
+|-------|--------|
+| Company Call AI (`settings.has_callai`) | **true** |
+| Josh user license | `talk` only (not AI seat) — upgrade in Admin |
+| Lauren Dialpad user / portal profile | **not present** (only Josh in company users) |
+| Josh `profiles.dialpad_user_id` | **`4721934169743360`** |
+| Portal `DIALPAD_USER_MAP` | Josh → `516e364d-e27b-4c67-bcf4-ccd167d645a4` (Vercel prod+preview) |
+
+Still for Josh in Dialpad Admin UI:
+
+1. [ ] **AI seats** — assign Live Coach / Playbooks / Recaps (or AI-capable license) to Josh + future R619 agents
+2. [ ] **Office/user AI toggles** — confirm Recruit 619 office (`5109894981558272`) + shared/main lines use company Call AI
+3. [ ] **Screen pop client** — Dialpad desktop/app allows opening screen-pop URLs (browser) for agents
+4. [x] **Agent user map** — Josh mapped; add Lauren when she has a Dialpad user + portal profile
+5. [x] **Portal + OS env** — Dialpad LIVE secrets / fan-out / user map re-synced 2026-08-09; portal redeployed after sync
+6. [ ] **MFA** — only if Admin prompts while flipping AI / screen-pop
 
 No Salesforce cutover for Dialpad CRM.
+
+## Prove call (test plan)
+
+1. Ensure a CRM contact/candidate has a phone you can call from (E.164 match).
+2. Softphone as Josh (`+16193789360` / user `4721934169743360`).
+3. Inbound ring to Josh desk or R619 main (`+12094545611`) → expect portal screen pop to matched record.
+4. Use Dialpad live AI during call (once AI seat enabled); do **not** expect live RTA inside portal.
+5. Hang up → open `/engage/call-log` + session drawer → confirm session + AI recap text when Dialpad provides it.
+6. Optional: click-to-call from a people/candidate record.
 
 ## Connect checklist
 
@@ -115,9 +134,10 @@ No Salesforce cutover for Dialpad CRM.
 4. [x] Upsert `os_partner_entity_bindings` for `dialpad` with `office_id` per entity (`scripts/dialpad-bind-offices.sql`)
 5. [x] Register Dialpad event subscription → spine webhook URL (call + SMS)
 6. [x] Smoke (company/offices, bindings, webhook header + JWT ping) → `DIALPAD_LIVE=1` + redeploy; Engage shows Dialpad LIVE
-7. [x] Hybrid code: portal phone match + screen pop + ai_recap + spine fan-out (2026-08-09)
-8. [ ] NEED_HUMAN: AI enable for R619 office agents + `profiles.dialpad_user_id` / `DIALPAD_USER_MAP` for recruiters (portal secrets synced)
-9. [ ] Prove: inbound ring → CRM pop → hangup → recap on `/engage/call-log`
+7. [x] Hybrid code: portal phone match + screen pop + ai_recap + spine fan-out (PRs portal #73/#74, OS #36/#37)
+8. [x] Josh `dialpad_user_id` + `DIALPAD_USER_MAP` / env sync
+9. [ ] NEED_HUMAN: AI seat license + screen-pop client allow
+10. [ ] Prove: inbound ring → CRM pop → hangup → recap on `/engage/call-log`
 
 ## Recommendation
 
