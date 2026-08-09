@@ -14,6 +14,42 @@ function partnerKeys(): Set<string> {
   return new Set(PARTNER_CATALOG.map((p) => p.key));
 }
 
+/** Dialpad signs webhook bodies as HS256 JWT when a secret is configured. */
+function verifyHs256Jwt(token: string, secret: string): boolean {
+  const parts = token.trim().split('.');
+  if (parts.length !== 3) return false;
+  const [headerB64, payloadB64, sigB64] = parts;
+  try {
+    const headerJson = Buffer.from(headerB64, 'base64url').toString('utf8');
+    const header = JSON.parse(headerJson) as { alg?: string };
+    if (header.alg && header.alg !== 'HS256') return false;
+    const expected = createHmac('sha256', secret)
+      .update(`${headerB64}.${payloadB64}`)
+      .digest('base64url');
+    const a = Buffer.from(sigB64);
+    const b = Buffer.from(expected);
+    return a.length === b.length && timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
+}
+
+function decodeHs256JwtPayload(
+  token: string,
+): Record<string, unknown> | null {
+  const parts = token.trim().split('.');
+  if (parts.length !== 3) return null;
+  try {
+    const json = Buffer.from(parts[1], 'base64url').toString('utf8');
+    const payload = JSON.parse(json) as unknown;
+    return payload && typeof payload === 'object'
+      ? (payload as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 function verifySharedSecret(
   req: Request,
   body: string,
@@ -34,6 +70,10 @@ function verifySharedSecret(
     } catch {
       return false;
     }
+  }
+  // Dialpad event subscriptions POST a JWT body (no custom signature header).
+  if (secretEnv === 'DIALPAD_WEBHOOK_SECRET' && verifyHs256Jwt(body, secret)) {
+    return true;
   }
   return false;
 }
@@ -79,10 +119,21 @@ export async function POST(
   }
 
   let payload: Record<string, unknown> = {};
-  try {
-    payload = bodyText ? (JSON.parse(bodyText) as Record<string, unknown>) : {};
-  } catch {
-    payload = { raw: bodyText.slice(0, 2000) };
+  if (
+    key === 'dialpad' &&
+    secretEnv &&
+    process.env[secretEnv]?.trim() &&
+    verifyHs256Jwt(bodyText, process.env[secretEnv]!.trim())
+  ) {
+    payload = decodeHs256JwtPayload(bodyText) ?? {
+      raw: bodyText.slice(0, 2000),
+    };
+  } else {
+    try {
+      payload = bodyText ? (JSON.parse(bodyText) as Record<string, unknown>) : {};
+    } catch {
+      payload = { raw: bodyText.slice(0, 2000) };
+    }
   }
 
   let entityId =
