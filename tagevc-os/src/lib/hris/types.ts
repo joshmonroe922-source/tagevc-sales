@@ -86,6 +86,69 @@ export type HrisPayFrequency =
   | 'weekly'
   | 'hourly';
 
+export type HrisBonusFrequency =
+  | 'none'
+  | 'monthly'
+  | 'quarterly'
+  | 'semiannual'
+  | 'annual'
+  | 'one_time';
+
+/** `mbo` = tied to written MBOs, usually defined in the offer letter. */
+export type HrisBonusType =
+  | 'none'
+  | 'mbo'
+  | 'commission'
+  | 'discretionary'
+  | 'signing'
+  | 'retention'
+  | 'performance'
+  | 'other';
+
+export const HRIS_BONUS_FREQUENCY_LABELS: Record<HrisBonusFrequency, string> = {
+  none: 'None',
+  monthly: 'Monthly',
+  quarterly: 'Quarterly',
+  semiannual: 'Semi-annual',
+  annual: 'Annual',
+  one_time: 'One-time',
+};
+
+export const HRIS_BONUS_TYPE_LABELS: Record<HrisBonusType, string> = {
+  none: 'None',
+  mbo: 'MBO',
+  commission: 'Commission',
+  discretionary: 'Discretionary',
+  signing: 'Signing',
+  retention: 'Retention',
+  performance: 'Performance',
+  other: 'Other',
+};
+
+/** "$2,500 quarterly · MBO" — one-line summary for cards and tables. */
+export function bonusSummary(
+  emp: Pick<
+    HrisEmployee,
+    'bonus_amount' | 'bonus_currency' | 'bonus_frequency' | 'bonus_type'
+  >,
+): string | null {
+  if (emp.bonus_amount === null || emp.bonus_amount === undefined) return null;
+  const amount = new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: emp.bonus_currency || 'USD',
+    maximumFractionDigits: 0,
+  }).format(emp.bonus_amount);
+  const freq =
+    emp.bonus_frequency && emp.bonus_frequency !== 'none'
+      ? ` ${HRIS_BONUS_FREQUENCY_LABELS[emp.bonus_frequency].toLowerCase()}`
+      : '';
+  const type =
+    emp.bonus_type && emp.bonus_type !== 'none'
+      ? ` · ${HRIS_BONUS_TYPE_LABELS[emp.bonus_type]}`
+      : '';
+  return `${amount}${freq}${type}`;
+}
+
 export type HrisEmployee = {
   id: string;
   employee_key: string;
@@ -113,7 +176,17 @@ export type HrisEmployee = {
   comp_currency: string;
   comp_basis: HrisCompBasis;
   pay_frequency: HrisPayFrequency;
+  /** Variable comp — protected alongside base compensation. */
+  bonus_amount: number | null;
+  bonus_currency: string;
+  bonus_frequency: HrisBonusFrequency;
+  bonus_type: HrisBonusType;
+  bonus_notes: string;
   profile_id: string | null;
+  /** Entra/M365 identity, written by the joiner + identity lifecycle. */
+  entra_object_id: string | null;
+  upn: string | null;
+  identity_status: string;
   recruit_assignment: RecruitAssignment;
   notes: string;
   created_at: string;

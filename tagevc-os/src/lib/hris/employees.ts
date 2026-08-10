@@ -48,7 +48,19 @@ function mapEmployee(row: Record<string, unknown>): HrisEmployee {
     comp_basis: (row.comp_basis as HrisEmployee['comp_basis']) || 'salary',
     pay_frequency:
       (row.pay_frequency as HrisEmployee['pay_frequency']) || 'annual',
+    bonus_amount:
+      row.bonus_amount === null || row.bonus_amount === undefined
+        ? null
+        : Number(row.bonus_amount),
+    bonus_currency: String(row.bonus_currency ?? 'USD'),
+    bonus_frequency:
+      (row.bonus_frequency as HrisEmployee['bonus_frequency']) || 'none',
+    bonus_type: (row.bonus_type as HrisEmployee['bonus_type']) || 'none',
+    bonus_notes: String(row.bonus_notes ?? ''),
     profile_id: (row.profile_id as string) ?? null,
+    entra_object_id: (row.entra_object_id as string) ?? null,
+    upn: (row.upn as string) ?? null,
+    identity_status: String(row.identity_status ?? 'unknown'),
     recruit_assignment: recruit,
     notes: String(row.notes ?? ''),
     created_at: String(row.created_at),
@@ -97,6 +109,11 @@ export function redactEmployeeComp(emp: HrisEmployee): HrisEmployee {
     comp_currency: 'USD',
     comp_basis: 'salary',
     pay_frequency: 'annual',
+    bonus_amount: null,
+    bonus_currency: 'USD',
+    bonus_frequency: 'none',
+    bonus_type: 'none',
+    bonus_notes: '',
     notes: '',
   };
 }
@@ -168,6 +185,11 @@ export type CreateEmployeeInput = {
   comp_currency?: string;
   comp_basis?: HrisEmployee['comp_basis'];
   pay_frequency?: HrisEmployee['pay_frequency'];
+  bonus_amount?: number | null;
+  bonus_currency?: string;
+  bonus_frequency?: HrisEmployee['bonus_frequency'];
+  bonus_type?: HrisEmployee['bonus_type'];
+  bonus_notes?: string;
 };
 
 function slugKey(name: string, entityId: string): string {
@@ -253,6 +275,11 @@ export async function createEmployee(
       comp_currency: input.comp_currency ?? 'USD',
       comp_basis: input.comp_basis ?? 'salary',
       pay_frequency: input.pay_frequency ?? 'annual',
+      bonus_amount: input.bonus_amount ?? null,
+      bonus_currency: input.bonus_currency ?? 'USD',
+      bonus_frequency: input.bonus_frequency ?? 'none',
+      bonus_type: input.bonus_type ?? 'none',
+      bonus_notes: input.bonus_notes?.trim() ?? '',
     };
 
     const { data, error } = await sb
@@ -373,6 +400,11 @@ export async function updateEmployee(
       'comp_currency',
       'comp_basis',
       'pay_frequency',
+      'bonus_amount',
+      'bonus_currency',
+      'bonus_frequency',
+      'bonus_type',
+      'bonus_notes',
     ] as const) {
       if (patch[key] !== undefined) update[key] = patch[key];
     }

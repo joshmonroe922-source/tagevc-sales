@@ -8,7 +8,7 @@ import {
   nextMonday,
 } from './timing';
 import { buildRecruitAssignment, recruitPeopleHref } from './recruit-hook';
-import { templateSlugFor } from './runs';
+import { templateSlugCandidates, templateSlugFor } from './runs';
 
 describe('hris timing', () => {
   it('computes due dates from start_date offsets', () => {
@@ -114,6 +114,39 @@ describe('template slug', () => {
       'r619-offboarding-v1',
     );
   });
+
+  it('prefers an entity-specific template, then falls back to the shared one', () => {
+    expect(templateSlugCandidates('onboarding', 'ENT-SIGNENT')).toEqual([
+      'signent-onboarding-v1',
+      'r619-onboarding-v1',
+    ]);
+    expect(templateSlugCandidates('onboarding', 'ENT-INDA')).toEqual([
+      'inda-onboarding-v1',
+      'r619-onboarding-v1',
+    ]);
+    expect(templateSlugCandidates('offboarding', 'ENT-FIRM')).toEqual([
+      'firm-offboarding-v1',
+      'r619-offboarding-v1',
+    ]);
+  });
+
+  it('does not duplicate the slug for R619, whose template IS the shared one', () => {
+    expect(templateSlugCandidates('onboarding', 'ENT-R619')).toEqual([
+      'r619-onboarding-v1',
+    ]);
+  });
+
+  it('normalizes the legacy Instant NDA code', () => {
+    expect(templateSlugCandidates('onboarding', 'ENT-002')).toEqual(
+      templateSlugCandidates('onboarding', 'ENT-INDA'),
+    );
+  });
+
+  it('still resolves an unknown entity to the shared template', () => {
+    expect(templateSlugCandidates('onboarding', 'ENT-NEWCO')).toEqual([
+      'r619-onboarding-v1',
+    ]);
+  });
 });
 
 describe('phase72 access + manager filter', () => {
@@ -208,7 +241,15 @@ describe('phase72 access + manager filter', () => {
       comp_currency: 'USD',
       comp_basis: 'salary',
       pay_frequency: 'annual',
+      bonus_amount: 2500,
+      bonus_currency: 'USD',
+      bonus_frequency: 'quarterly',
+      bonus_type: 'mbo',
+      bonus_notes: 'MBOs per offer letter',
       profile_id: null,
+      entra_object_id: null,
+      upn: null,
+      identity_status: 'unknown',
       recruit_assignment: {},
       notes: 'secret',
       created_at: '',
@@ -216,6 +257,10 @@ describe('phase72 access + manager filter', () => {
     });
     expect(redacted.comp_amount).toBeNull();
     expect(redacted.notes).toBe('');
+    // Variable comp is just as sensitive as base pay.
+    expect(redacted.bonus_amount).toBeNull();
+    expect(redacted.bonus_frequency).toBe('none');
+    expect(redacted.bonus_notes).toBe('');
   });
 });
 
