@@ -25,6 +25,10 @@ import { ActivityUnreadBadge } from '@/components/layout/activity-unread-badge';
 import { NetworkInboxBadge } from '@/components/digital-cards/network-inbox-badge';
 import { createClient } from '@/lib/supabase/client';
 import { MAIN_NAV, type NavItem } from '@/lib/nav';
+import {
+  accordionSiblingLabels,
+  exclusiveAccordionToggle,
+} from '@/lib/nav/accordion';
 import { filterNavForRole } from '@/lib/nav/role-visibility';
 import {
   type AppRole,
@@ -410,11 +414,12 @@ function NavGroup({
   expanded: boolean;
   onToggle: () => void;
   accordion: Record<string, boolean>;
-  onToggleGroup: (label: string) => void;
+  onToggleGroup: (label: string, siblingLabels: string[]) => void;
   depth?: number;
 }) {
   const GroupIcon = ICONS[item.module] ?? Briefcase;
   const children = item.children ?? [];
+  const childGroupLabels = accordionSiblingLabels(children);
   const groupId = `nav-group-${item.label.replace(/\s+/g, '-').toLowerCase()}`;
   const nested = depth > 0;
   const active = item.href ? isNavActive(pathname, item.href) : false;
@@ -529,7 +534,7 @@ function NavGroup({
                 item={child}
                 pathname={pathname}
                 expanded={childExpanded}
-                onToggle={() => onToggleGroup(child.label)}
+                onToggle={() => onToggleGroup(child.label, childGroupLabels)}
                 accordion={accordion}
                 onToggleGroup={onToggleGroup}
                 depth={depth + 1}
@@ -673,9 +678,15 @@ export function AppSidebar({
     });
   }, [pathname, items, accordionReady]);
 
-  const toggleGroup = (label: string) => {
+  const topGroupLabels = useMemo(
+    () => accordionSiblingLabels(items),
+    [items],
+  );
+
+  /** User toggle: exclusive among siblings. Deep-link auto-open stays additive. */
+  const toggleGroup = (label: string, siblingLabels: string[]) => {
     setAccordion((prev) => {
-      const next = { ...prev, [label]: !prev[label] };
+      const next = exclusiveAccordionToggle(prev, label, siblingLabels);
       writeAccordionState(next);
       return next;
     });
@@ -734,7 +745,7 @@ export function AppSidebar({
                 item={item}
                 pathname={pathname}
                 expanded={expanded}
-                onToggle={() => toggleGroup(item.label)}
+                onToggle={() => toggleGroup(item.label, topGroupLabels)}
                 accordion={accordion}
                 onToggleGroup={toggleGroup}
               />
