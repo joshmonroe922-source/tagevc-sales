@@ -20,7 +20,7 @@ import { stopImpersonationAction } from '@/app/(app)/impersonation/actions';
 import { RoleSwitcher } from '@/components/layout/role-switcher';
 import { LiveLookNavControl } from '@/components/layout/live-look-nav';
 import { MessagesUnreadBadge } from '@/components/messaging/messages-unread-badge';
-import { SidebarAvailabilityControl } from '@/components/messaging/sidebar-availability-control';
+import { SidebarMessagingControl } from '@/components/messaging/sidebar-messaging-control';
 import { ActivityUnreadBadge } from '@/components/layout/activity-unread-badge';
 import { NetworkInboxBadge } from '@/components/digital-cards/network-inbox-badge';
 import { createClient } from '@/lib/supabase/client';
@@ -706,25 +706,8 @@ export function AppSidebar({
   return (
     <aside className={shellClass}>
       <div className="shrink-0 px-5 py-6">
-        <div className="mb-3 flex items-center gap-2">
-          <SidebarAvailabilityControl className="min-w-0 flex-1" />
-          <Link
-            href="/messages"
-            title="Messaging"
-            className={cn(
-              'inline-flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1',
-              'text-xs font-medium tracking-[0.14em] text-sidebar-foreground/70 uppercase',
-              'hover:bg-sidebar-accent/70 hover:text-sidebar-foreground',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring',
-              pathname === '/messages' || pathname.startsWith('/messages/')
-                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                : null,
-            )}
-          >
-            <MessageSquare className="size-3.5 shrink-0" aria-hidden />
-            <span>Messaging</span>
-            <MessagesUnreadBadge />
-          </Link>
+        <div className="mb-3">
+          <SidebarMessagingControl className="w-full" />
         </div>
         <p className="text-xs font-medium tracking-[0.18em] text-sidebar-foreground/60 uppercase">
           Tage VC

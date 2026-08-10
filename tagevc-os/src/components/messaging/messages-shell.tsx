@@ -760,10 +760,10 @@ export function MessagesShell({ initial }: Props) {
   );
 
   return (
-    <div className="-mx-6 -my-8 md:-mx-10 flex h-[calc(100dvh)] min-h-[28rem] flex-col border-t border-border bg-background md:flex-row">
+    <div className="flex h-full min-h-0 flex-1 flex-col border-t border-border bg-background md:flex-row">
       <aside
         className={cn(
-          'w-full shrink-0 flex-col border-r border-border bg-[#f7f5f2] md:max-w-xs',
+          'flex w-full shrink-0 flex-col border-r border-border bg-[#f7f5f2] md:w-80 md:max-w-none',
           selectedId ? 'hidden md:flex' : 'flex',
         )}
       >
@@ -859,7 +859,7 @@ export function MessagesShell({ initial }: Props) {
 
       <section
         className={cn(
-          'min-w-0 flex-1 flex-col',
+          'min-h-0 min-w-0 flex-1 flex-col',
           selectedId ? 'flex' : 'hidden md:flex',
         )}
       >
