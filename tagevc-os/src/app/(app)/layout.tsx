@@ -9,7 +9,6 @@ import { HelpDeskShell, AppTopBar } from '@/components/help-desk/help-desk-shell
 import { AppShellScrollLock } from '@/components/layout/app-shell-scroll-lock';
 import { MessagePresenceHost } from '@/components/messaging/message-presence-host';
 import { CmdKPalette } from '@/components/crm/cmd-k';
-import { JobProgressToast } from '@/components/crm/job-progress-toast';
 import { bootstrapDomainStores } from '@/lib/data/bootstrap';
 import { listRoleSwitcherRoles } from '@/lib/rbac/impersonation';
 import { getSessionContext } from '@/lib/rbac/session';
@@ -98,7 +97,6 @@ export default async function AppShellLayout({
           <MessagePresenceHost />
         </Suspense>
         <CmdKPalette />
-        <JobProgressToast />
       </div>
     </HelpDeskShell>
   );
