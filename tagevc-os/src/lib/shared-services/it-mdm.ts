@@ -1098,10 +1098,24 @@ export async function grantVisionaryMailboxFullAccess(input: {
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
+    // Verified against the live tenant 2026-08-10: Graph has no mailboxPermissions
+    // route, so this always 404/405s regardless of consent. Say so plainly rather
+    // than sending the operator to re-check app permissions that cannot help.
+    if (res.status === 404 || res.status === 405) {
+      return {
+        ok: false,
+        pending: true,
+        detail:
+          `Microsoft Graph cannot grant mailbox FullAccess (HTTP ${res.status} on beta/users/{id}/mailboxPermissions — no such route). ` +
+          `Run in Exchange Online instead: Add-MailboxPermission -Identity <user> -User ${visionaryUpn} ` +
+          `-AccessRights FullAccess -InheritanceType All. Needs an interactive admin session or ` +
+          `Exchange.ManageAsApp with a certificate.`,
+      };
+    }
     return {
       ok: false,
       pending: true,
-      detail: `Graph mailbox FullAccess HTTP ${res.status}: ${text.slice(0, 180)}. Confirm Exchange.ManageAsApp + admin consent.`,
+      detail: `Graph mailbox FullAccess HTTP ${res.status}: ${text.slice(0, 180)}.`,
     };
   }
 
@@ -1168,11 +1182,16 @@ export async function createOrUpdateGraphUserJoiner(input: {
     'Content-Type': 'application/json',
   };
 
+  // assignLicense fails with a 400 unless usageLocation is set first.
+  const usageLocation =
+    process.env.MS_GRAPH_JOINER_USAGE_LOCATION?.trim() || 'US';
+
   if (existingId) {
     const patch: Record<string, unknown> = {
       displayName: input.display_name,
       jobTitle: input.job_title || undefined,
       department: input.department || undefined,
+      usageLocation,
     };
     const res = await fetch(
       `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(existingId)}`,
@@ -1220,6 +1239,7 @@ export async function createOrUpdateGraphUserJoiner(input: {
     userPrincipalName: upn,
     jobTitle: input.job_title || undefined,
     department: input.department || undefined,
+    usageLocation,
     passwordProfile: {
       forceChangePasswordNextSignIn: true,
       password: tempPassword,
