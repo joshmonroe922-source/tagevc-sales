@@ -62,7 +62,7 @@ describe('phase71 live look + nav + mailbox', () => {
       }),
     ).toBe(false);
     expect(
-      canLiveLookTarget('dennis@recruit619.com', 'visionary_full'),
+      canLiveLookTarget('dennismccall@recruit619.com', 'visionary_full'),
     ).toBe(true);
   });
 
@@ -87,7 +87,7 @@ describe('phase71 live look + nav + mailbox', () => {
       canLiveLookTarget('joshmonroe@tagevc.com', 'think_tank_scoped'),
     ).toBe(false);
     expect(
-      canLiveLookTarget('dennis@recruit619.com', 'think_tank_scoped'),
+      canLiveLookTarget('dennismccall@recruit619.com', 'think_tank_scoped'),
     ).toBe(true);
     // Other Role Switcher personas denied
     expect(
@@ -211,8 +211,8 @@ describe('phase71 live look + nav + mailbox', () => {
     };
     const next = applyLiveLookToProfile(real, {
       profileId: '22222222-2222-2222-2222-222222222222',
-      email: 'dennis@recruit619.com',
-      fullName: 'Dennis',
+      email: 'dennismccall@recruit619.com',
+      fullName: 'Dennis McCall',
       role: 'sub_lead',
       entityId: 'ENT-R619',
     });

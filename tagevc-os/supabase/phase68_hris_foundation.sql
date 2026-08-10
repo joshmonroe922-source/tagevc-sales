@@ -598,8 +598,8 @@ begin
     onboarding_status, recruit_assignment, notes
   ) values (
     'dennis-vp-recruiting-r619',
-    'Dennis',
-    'dennis@recruit619.com',
+    'Dennis McCall',
+    'dennismccall@recruit619.com',
     '',
     '',
     'ENT-R619',

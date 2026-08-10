@@ -39,7 +39,7 @@ function samplePersona(
     display_name: 'Dennis Recruiter',
     title: 'VP Recruiting',
     department: 'Talent',
-    emails: [{ label: 'Work', value: 'dennis@recruit619.com', share: true }],
+    emails: [{ label: 'Work', value: 'dennismccall@recruit619.com', share: true }],
     phones: [{ label: 'Mobile', value: '619-555-0100', share: true }],
     website: null,
     calendar_url: null,
