@@ -1129,6 +1129,13 @@ export type GraphJoinerResult = MdmResult & {
   graph_user_id?: string;
   created?: boolean;
   updated?: boolean;
+  /** Resolved Microsoft sign-in name, for the joiner invite email. */
+  upn?: string;
+  /**
+   * Only set when this call created the account. Hand straight to the invite
+   * email — never persist it, log it, or put it in step evidence.
+   */
+  temp_password?: string;
 };
 
 /**
@@ -1217,6 +1224,7 @@ export async function createOrUpdateGraphUserJoiner(input: {
       ok: true,
       updated: true,
       graph_user_id: existingId,
+      upn: email,
       detail: `Updated existing Graph user ${email}`,
     };
   }
@@ -1269,6 +1277,8 @@ export async function createOrUpdateGraphUserJoiner(input: {
     ok: true,
     created: true,
     graph_user_id: graphUserId,
+    upn,
+    temp_password: tempPassword,
     detail: `Created Graph user ${upn}${graphUserId ? ` (${graphUserId})` : ''}`,
   };
 }

@@ -8,6 +8,11 @@ import {
   grantVisionaryMailboxFullAccess,
 } from '@/lib/shared-services/it-mdm';
 import { runVisionaryMailboxAssist } from '@/lib/hris/visionary-mailbox';
+import {
+  sendJoinerInvite,
+  type JoinerInviteResult,
+} from '@/lib/hris/joiner-invite';
+import { isDistroStep, runDistroAssist } from '@/lib/hris/distro-step';
 import { sendHrisStepViaDocuSign } from '@/lib/hris/docusign-step';
 import type { HrisEmployee, HrisProcessStep } from '@/lib/hris/types';
 import { addEmployeeLink, getEmployee } from '@/lib/hris/employees';
@@ -42,6 +47,25 @@ export async function runGraphJoinerAssist(
     department: emp.department,
     entity_id: emp.entity_id,
   });
+
+  // Hand the hire their own sign-in details instead of parking the temp
+  // password for a manual handoff.
+  let invite: JoinerInviteResult = {
+    sent: false,
+    detail: 'Invite not attempted — Graph joiner did not return a UPN',
+  };
+  if (result.ok && result.upn) {
+    invite = await sendJoinerInvite({
+      full_name: emp.full_name,
+      personal_email: emp.personal_email,
+      entity_id: emp.entity_id,
+      role_title: emp.role_title,
+      start_date: emp.start_date,
+      upn: result.upn,
+      temp_password: result.temp_password,
+    });
+  }
+
   await writeAuditEvent({
     action: 'hris_action',
     title: `Graph joiner · ${emp.full_name}`,
@@ -53,12 +77,17 @@ export async function runGraphJoinerAssist(
       skipped: result.skipped ?? false,
       detail: result.detail,
       graph_user_id: result.graph_user_id ?? null,
+      upn: result.upn ?? null,
+      invite_sent: invite.sent,
+      invite_detail: invite.detail,
     },
   });
+
+  const detail = `${result.detail} · ${invite.detail}`;
   return {
     handled: true,
-    detail: result.detail,
-    evidence_note: result.detail,
+    detail,
+    evidence_note: detail,
   };
 }
 
@@ -258,6 +287,19 @@ export async function dispatchHrisStepAssist(input: {
   }
   if (key === 'bs.visionary_mailbox_access' || hook === 'mailbox_grant') {
     return runMailboxAssistForEmployee(emp);
+  }
+  if (isDistroStep({ step_key: key, system_hook: hook })) {
+    const res = await runDistroAssist({
+      full_name: emp.full_name,
+      entity_id: emp.entity_id,
+      entra_object_id: emp.entra_object_id,
+      work_email: emp.work_email,
+    });
+    return {
+      handled: res.handled,
+      detail: res.detail,
+      evidence_note: res.evidence_note ?? res.detail,
+    };
   }
   if (
     hook === 'it_provision' &&

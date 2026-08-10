@@ -33,8 +33,13 @@ import { recruitPeopleHref } from '@/lib/hris/recruit-hook';
 import { isStepOverdue } from '@/lib/hris/timing';
 import type { HrisDocumentRow } from '@/lib/hris/documents';
 import {
+  bonusSummary,
   completionLabel,
   statusLabel,
+  HRIS_BONUS_FREQUENCY_LABELS,
+  HRIS_BONUS_TYPE_LABELS,
+  type HrisBonusFrequency,
+  type HrisBonusType,
   type HrisEmployee,
   type HrisEmployeeEvent,
   type HrisEmployeeLink,
@@ -338,6 +343,75 @@ export function HrisEmployeeDetailClient({
                         ))}
                       </select>
                     </div>
+                    <div className="sm:col-span-2">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        Bonus / variable comp (HR only)
+                      </p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="bonus_amount">Bonus amount (per period)</Label>
+                      <Input
+                        id="bonus_amount"
+                        name="bonus_amount"
+                        type="number"
+                        step="0.01"
+                        defaultValue={employee.bonus_amount ?? ''}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="bonus_currency">Bonus currency</Label>
+                      <Input
+                        id="bonus_currency"
+                        name="bonus_currency"
+                        defaultValue={employee.bonus_currency}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="bonus_frequency">Bonus frequency</Label>
+                      <select
+                        id="bonus_frequency"
+                        name="bonus_frequency"
+                        className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                        defaultValue={employee.bonus_frequency}
+                      >
+                        {(
+                          Object.keys(
+                            HRIS_BONUS_FREQUENCY_LABELS,
+                          ) as HrisBonusFrequency[]
+                        ).map((f) => (
+                          <option key={f} value={f}>
+                            {HRIS_BONUS_FREQUENCY_LABELS[f]}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="bonus_type">Bonus type</Label>
+                      <select
+                        id="bonus_type"
+                        name="bonus_type"
+                        className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                        defaultValue={employee.bonus_type}
+                      >
+                        {(
+                          Object.keys(HRIS_BONUS_TYPE_LABELS) as HrisBonusType[]
+                        ).map((t) => (
+                          <option key={t} value={t}>
+                            {HRIS_BONUS_TYPE_LABELS[t]}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label htmlFor="bonus_notes">
+                        Bonus basis (e.g. MBOs per offer letter)
+                      </Label>
+                      <Input
+                        id="bonus_notes"
+                        name="bonus_notes"
+                        defaultValue={employee.bonus_notes}
+                      />
+                    </div>
                   </>
                 ) : null}
                 <div className="space-y-1.5 sm:col-span-2">
@@ -364,6 +438,19 @@ export function HrisEmployeeDetailClient({
                   <dt className="text-muted-foreground">Manager</dt>
                   <dd>{employee.manager_name || '—'}</dd>
                 </div>
+                {canViewComp && bonusSummary(employee) ? (
+                  <div>
+                    <dt className="text-muted-foreground">Bonus</dt>
+                    <dd>
+                      {bonusSummary(employee)}
+                      {employee.bonus_notes ? (
+                        <span className="block text-xs text-muted-foreground">
+                          {employee.bonus_notes}
+                        </span>
+                      ) : null}
+                    </dd>
+                  </div>
+                ) : null}
               </dl>
             )}
           </CardContent>

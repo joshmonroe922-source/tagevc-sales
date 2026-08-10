@@ -123,6 +123,48 @@ export function isRegisteredSubsidiary(
   );
 }
 
+/** Registry row for an entity, resolving legacy aliases first. */
+export function entityRegistryEntry(entityId: string | null | undefined) {
+  const canon = resolveCanonicalEntityId(entityId);
+  if (!canon) return null;
+  return ENTITY_REGISTRY_SEED.find((e) => e.entity_code === canon) ?? null;
+}
+
+/**
+ * Where someone hired *into this entity* actually works.
+ *
+ * A Recruit 619 hire belongs on the Recruit 619 OS, not the Tage parent OS —
+ * pointing new hires at app.tagevc.com sends subsidiary staff to a surface
+ * their role cannot even see.
+ *
+ * `preferDesk` returns the day-to-day workspace (e.g. My Recruiting Desk)
+ * when the entity publishes one.
+ */
+export function entityOsUrl(
+  entityId: string | null | undefined,
+  opts?: { preferDesk?: boolean; appUrlFallback?: string },
+): string {
+  const fallbackBase = (opts?.appUrlFallback ?? 'https://app.tagevc.com').replace(
+    /\/$/,
+    '',
+  );
+  const entry = entityRegistryEntry(entityId);
+  if (!entry) {
+    const canon = resolveCanonicalEntityId(entityId);
+    // Unknown entity: entity-scoped page on the parent app beats a bare parent link.
+    return canon ? `${fallbackBase}/entities/${encodeURIComponent(canon)}` : fallbackBase;
+  }
+  if (opts?.preferDesk && entry.desk_url) return entry.desk_url;
+  return entry.portal_url || fallbackBase;
+}
+
+/** "Recruit 619 OS" / "Tage Venture Capital OS" — for links and button copy. */
+export function entityOsLabel(entityId: string | null | undefined): string {
+  const canon = resolveCanonicalEntityId(entityId);
+  if (!canon) return 'Tage OS';
+  return `${entityDisplayName(canon)} OS`;
+}
+
 export function parentVsSubsidiaryLabel(
   entityId: string | null | undefined,
 ): 'parent' | 'subsidiary' | 'unscoped' {

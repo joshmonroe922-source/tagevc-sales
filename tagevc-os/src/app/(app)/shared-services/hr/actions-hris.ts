@@ -37,6 +37,23 @@ export type HrisActionResult =
   | { ok: true; message: string; id?: string }
   | { ok: false; error: string };
 
+/** Bonus / variable comp fields — comp-gated, same as base compensation. */
+function readBonusFields(formData: FormData): Partial<CreateEmployeeInput> {
+  const amt = String(formData.get('bonus_amount') ?? '').trim();
+  return {
+    bonus_amount: amt ? Number(amt) : null,
+    bonus_currency:
+      String(formData.get('bonus_currency') ?? 'USD')
+        .trim()
+        .toUpperCase() || 'USD',
+    bonus_frequency: (String(formData.get('bonus_frequency') ?? 'none').trim() ||
+      'none') as CreateEmployeeInput['bonus_frequency'],
+    bonus_type: (String(formData.get('bonus_type') ?? 'none').trim() ||
+      'none') as CreateEmployeeInput['bonus_type'],
+    bonus_notes: String(formData.get('bonus_notes') ?? '').trim(),
+  };
+}
+
 export async function searchManagerCandidatesAction(
   query: string,
 ): Promise<
@@ -98,6 +115,7 @@ export async function createHrisEmployeeAction(
     input.pay_frequency = (String(
       formData.get('pay_frequency') ?? 'annual',
     ).trim() || 'annual') as CreateEmployeeInput['pay_frequency'];
+    Object.assign(input, readBonusFields(formData));
   }
 
   if (input.full_name.length < 2) {
@@ -161,6 +179,7 @@ export async function updateHrisEmployeeAction(
     patch.pay_frequency = (String(
       formData.get('pay_frequency') ?? 'annual',
     ).trim() || 'annual') as CreateEmployeeInput['pay_frequency'];
+    Object.assign(patch, readBonusFields(formData));
   }
 
   const res = await updateEmployee(employeeId, patch);

@@ -231,18 +231,28 @@ export async function sendPlatformEmail(
         resolveSharedMailboxUpn(input.entityId, role);
 
       const appToken = await getMsGraphAppToken();
+      // Having an app token does not mean we may send: Mail.Send is a separate
+      // application permission, so Graph can 403 here. Treat that as a transport
+      // failure and fall through to Resend rather than failing the whole send.
+      let graphError: string | null = null;
       if (appToken) {
-        await sendGraphMailAsUser({
-          accessToken: appToken,
-          userUpn: fromAddress,
-          subject: input.subject,
-          bodyHtml: html,
-          to,
-          saveToSentItems: true,
-          replyTo: input.replyTo ?? fromAddress,
-        });
-        provider = 'graph';
-      } else {
+        try {
+          await sendGraphMailAsUser({
+            accessToken: appToken,
+            userUpn: fromAddress,
+            subject: input.subject,
+            bodyHtml: html,
+            to,
+            saveToSentItems: true,
+            replyTo: input.replyTo ?? fromAddress,
+          });
+          provider = 'graph';
+        } catch (e) {
+          graphError = e instanceof Error ? e.message : 'Graph send failed';
+        }
+      }
+
+      if (!appToken || graphError) {
         const resend = await sendViaResend({
           from: fromAddress,
           to,
@@ -251,10 +261,18 @@ export async function sendPlatformEmail(
           text: input.bodyText,
           replyTo: input.replyTo ?? fromAddress,
         });
-        if (!resend.ok) return { ok: false, error: resend.error };
+        if (!resend.ok) {
+          return {
+            ok: false,
+            error: graphError
+              ? `Graph send failed (${graphError}); Resend fallback unavailable (${resend.error})`
+              : resend.error,
+          };
+        }
         provider = 'resend';
         resendId = resend.resendId;
         tags.transport_interim = 'resend_until_graph_shared_mailbox';
+        if (graphError) tags.graph_fallback_reason = graphError.slice(0, 200);
       }
     }
   } catch (e) {

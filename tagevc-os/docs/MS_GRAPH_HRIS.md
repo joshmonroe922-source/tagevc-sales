@@ -19,6 +19,81 @@ Code: `createOrUpdateGraphUserJoiner()` in `src/lib/shared-services/it-mdm.ts`
 
 ---
 
+## Joiner invite to the hire's personal email
+
+The joiner emails the new hire's **personal** address (`os_hris_employees.personal_email`)
+with their sign-in details, so nobody has to hand over a temp password out of band.
+Work mail is unreachable before first sign-in, which is why the personal address is used.
+
+| Variable | Purpose |
+|----------|---------|
+| `HRIS_JOINER_INVITE_EMAIL` | `0` / `false` / `off` disables. **Default on.** |
+
+What the hire receives:
+
+- Sign-in name (UPN)
+- Temp password when this run created the account, else a link to
+  `passwordreset.microsoftonline.com`
+- First sign-in steps: office.com → change password → MFA enrolment → Outlook/Teams check
+- Portal link, to sign in with **Continue with Microsoft**
+
+Transport: `sendPlatformEmail({ channel: 'system' })` — Graph shared mailbox, Resend fallback.
+Tracking is forced **off** so credentials are never pixel-tracked or written to CRM history.
+
+Guarantees:
+
+- Never throws. A missing/invalid personal email downgrades to a step-evidence note
+  telling IT to hand the details over manually; the joiner still succeeds.
+- The temp password is passed straight to the mail body. It is **not** persisted, logged,
+  or written into audit metadata or step evidence — only a masked recipient
+  (`b****@gmail.com`) and a sent/not-sent flag are recorded.
+
+Code: `src/lib/hris/joiner-invite.ts`, wired into `runGraphJoinerAssist()`
+in `src/lib/hris/step-assists.ts`. Tests: `src/lib/hris/joiner-invite.test.ts`.
+
+### Entity OS link — not the Tage parent
+
+The invite links the hire to **the OS of the entity that hired them** (a Recruit 619
+hire goes to the Recruit 619 OS). Linking everyone to `app.tagevc.com` sent
+subsidiary staff to a surface their role cannot see.
+
+Resolution: `entityOsUrl()` / `entityOsLabel()` in `@/lib/multi-sub/entity-registry`,
+driven by the entity registry, so new entities need no code change. Unknown entities
+fall back to an entity-scoped page on the parent app.
+
+### Instant NDA enterprise access
+
+Every entity — parent and subsidiaries — gets free Instant NDA enterprise accounts
+through its email domain, so the invite includes an Instant NDA section for all hires.
+Copy names the hiring entity and the hire's own domain, points at
+`https://app.instantnda.us` (native apps are not live yet), and asks them to use it
+for sensitive conversations. Instant NDA's own staff get "the product you are joining"
+framing instead of "free account we give you".
+
+Code: `src/lib/hris/instant-nda-access.ts`. Tests: `instant-nda-access.test.ts`.
+`buildInstantNdaEmail()` also sends the section standalone to already-onboarded staff.
+
+---
+
+## Outbound transport and the `Mail.Send` gap
+
+The Graph app registration holds `Mail.ReadWrite` but **not** `Mail.Send`, so
+`POST /users/{id}/sendMail` returns `403 ErrorAccessDenied`. Two mitigations:
+
+1. **Resend fallback** — `sendPlatformEmail({ channel: 'system' })` now treats a Graph
+   failure as a transport failure and retries through Resend instead of failing the
+   whole send. Needs `RESEND_API_KEY`.
+2. **Tenant mailbox delivery** — `deliverToTenantMailbox()` in
+   `src/lib/platform-email/tenant-mailbox-delivery.ts` writes a message straight into a
+   tenant mailbox's Inbox using `Mail.ReadWrite`. For recipients inside the tenant this
+   is equivalent to delivery (unread, in Inbox). It cannot reach external addresses, so
+   personal-email invites still need `Mail.Send` or Resend.
+
+To close the gap properly, grant the `Mail.Send` application permission to the Tage
+Graph app and admin-consent it.
+
+---
+
 ## Visionary mailbox FullAccess (`bs.visionary_mailbox_access`)
 
 Goal: Visionary (Josh) can **Open another mailbox** in Outlook for each hire.

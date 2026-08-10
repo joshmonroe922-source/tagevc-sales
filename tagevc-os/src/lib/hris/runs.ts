@@ -1,5 +1,6 @@
 /** Process run materialization, step updates, retiming. */
 
+import { resolveCanonicalEntityId } from '@/lib/multi-sub/entity-registry';
 import { createPersistClient } from '@/lib/supabase/persist-client';
 import { appendEmployeeEvent, getEmployee, updateEmployee } from './employees';
 import { completionPct, computeDueDate } from './timing';
@@ -58,16 +59,43 @@ function mapRun(row: Record<string, unknown>): HrisProcessRun {
   };
 }
 
+/**
+ * Slug prefix per entity, for entity-specific process templates.
+ * Adding a `signent-onboarding-v1` row is enough to route Signent hires to it —
+ * no code change needed.
+ */
+const ENTITY_TEMPLATE_PREFIX: Record<string, string> = {
+  'ENT-FIRM': 'firm',
+  'ENT-R619': 'r619',
+  'ENT-SIGNENT': 'signent',
+  'ENT-INDA': 'inda',
+};
+
+/**
+ * Templates to try, best match first.
+ *
+ * The r619-* templates are the shared Tage/R619 default (see their titles), so
+ * they stay as the final fallback until an entity publishes its own.
+ */
+export function templateSlugCandidates(
+  kind: HrisProcessKind,
+  entityId: string | null | undefined,
+): string[] {
+  const canon = resolveCanonicalEntityId(entityId) ?? '';
+  const prefix = ENTITY_TEMPLATE_PREFIX[canon];
+  const shared = kind === 'onboarding' ? 'r619-onboarding-v1' : 'r619-offboarding-v1';
+  const candidates: string[] = [];
+  if (prefix) candidates.push(`${prefix}-${kind}-v1`);
+  candidates.push(shared);
+  return [...new Set(candidates)];
+}
+
+/** Preferred template slug for an entity (may not exist yet — see candidates). */
 export function templateSlugFor(
   kind: HrisProcessKind,
-  entityId: string,
+  entityId: string | null | undefined,
 ): string {
-  if (kind === 'offboarding') {
-    return entityId === 'ENT-R619' || entityId === 'ENT-FIRM' || entityId === 'ENT-INDA'
-      ? 'r619-offboarding-v1'
-      : 'r619-offboarding-v1';
-  }
-  return 'r619-onboarding-v1';
+  return templateSlugCandidates(kind, entityId)[0];
 }
 
 export async function listRuns(opts?: {
@@ -234,15 +262,22 @@ export async function startProcessRun(input: {
       if (existing.run) return { ok: true, run: existing.run };
     }
 
-    const slug = templateSlugFor(input.kind, emp.entity_id);
-    const { data: tmpl, error: tmplErr } = await sb
+    // Take the entity's own template when it has one, else the shared default.
+    const candidates = templateSlugCandidates(input.kind, emp.entity_id);
+    const { data: tmplRows, error: tmplErr } = await sb
       .from('os_hris_process_templates')
       .select('id, slug')
-      .eq('slug', slug)
-      .eq('active', true)
-      .maybeSingle();
-    if (tmplErr || !tmpl) {
-      return { ok: false, error: tmplErr?.message ?? `Template ${slug} missing` };
+      .in('slug', candidates)
+      .eq('active', true);
+    if (tmplErr) return { ok: false, error: tmplErr.message };
+    const tmpl = candidates
+      .map((slug) => (tmplRows ?? []).find((r) => r.slug === slug))
+      .find(Boolean);
+    if (!tmpl) {
+      return {
+        ok: false,
+        error: `No active ${input.kind} template for ${emp.entity_id} (tried ${candidates.join(', ')})`,
+      };
     }
 
     const { data: tmplSteps, error: stepsErr } = await sb
@@ -323,7 +358,7 @@ export async function startProcessRun(input: {
       employee_id: emp.id,
       event_kind: 'run_started',
       summary: `${input.kind} run started`,
-      detail: { run_id: run.id, template: slug },
+      detail: { run_id: run.id, template: tmpl.slug },
       actor_id: input.actor_id,
     });
 
