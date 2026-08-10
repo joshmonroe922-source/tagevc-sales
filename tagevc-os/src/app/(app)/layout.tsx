@@ -7,6 +7,7 @@ import { MobileNavDrawer } from '@/components/layout/mobile-nav-drawer';
 import { TimezoneBootstrap } from '@/components/layout/timezone-bootstrap';
 import { HelpDeskShell, AppTopBar } from '@/components/help-desk/help-desk-shell';
 import { AppShellScrollLock } from '@/components/layout/app-shell-scroll-lock';
+import { AppMain } from '@/components/layout/app-main';
 import { MessagePresenceHost } from '@/components/messaging/message-presence-host';
 import { CmdKPalette } from '@/components/crm/cmd-k';
 import { bootstrapDomainStores } from '@/lib/data/bootstrap';
@@ -86,12 +87,7 @@ export default async function AppShellLayout({
           ) : session.impersonatingAs ? (
             <ImpersonationBanner role={session.impersonatingAs} />
           ) : null}
-          <main
-            data-scroll-restoration-root
-            className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain"
-          >
-            <div className="mx-auto max-w-6xl px-6 py-8 md:px-10">{children}</div>
-          </main>
+          <AppMain>{children}</AppMain>
         </div>
         <Suspense fallback={null}>
           <MessagePresenceHost />

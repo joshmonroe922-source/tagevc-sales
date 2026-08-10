@@ -37,3 +37,14 @@ Hard refresh should stay at the same scroll spot (best-effort if content height 
 - Portable twin: `src/lib/platform/shell/reload-scroll-restore.tsx` — copy on new clones
 - Hash URLs prefer the hash target over a saved Y
 
+## Messaging + presence (shared shell)
+
+Top-left **Messaging** control lives on shared `AppSidebar` (Tage + all subsidiary entity OS inherit automatically).
+
+- Primary click → `/messages`
+- Caret menu → Available / Do Not Disturb (green/red status dot on the control)
+- Component: `src/components/messaging/sidebar-messaging-control.tsx`
+- Portable twin: `src/lib/platform/shell/sidebar-messaging-control.tsx`
+
+`/messages` is full-bleed in the main pane (no `max-w-6xl`): `AppMain` + `AppContentFrame` in `(app)/layout.tsx`. Add future edge-to-edge tools via `FULL_BLEED_PREFIXES` in `src/lib/platform/shell/full-bleed-routes.ts`.
+
