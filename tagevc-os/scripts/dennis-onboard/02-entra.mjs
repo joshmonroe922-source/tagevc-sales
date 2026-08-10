@@ -17,8 +17,8 @@ import { graph, show } from './lib.mjs';
 const here = dirname(fileURLToPath(import.meta.url));
 const secretsDir = resolve(here, '../../.local-secrets');
 
-const UPN = 'dennis@recruit619.com';
-const DISPLAY_NAME = 'Dennis';
+const UPN = 'dennismccall@recruit619.com';
+const DISPLAY_NAME = 'Dennis McCall';
 const JOB_TITLE = 'VP of Recruiting';
 const DEPARTMENT = 'Recruiting';
 const COMPANY = 'Recruit 619';
@@ -53,7 +53,7 @@ if (!userId) {
     body: JSON.stringify({
       accountEnabled: true,
       displayName: DISPLAY_NAME,
-      mailNickname: 'dennis',
+      mailNickname: 'dennismccall',
       userPrincipalName: UPN,
       jobTitle: JOB_TITLE,
       department: DEPARTMENT,

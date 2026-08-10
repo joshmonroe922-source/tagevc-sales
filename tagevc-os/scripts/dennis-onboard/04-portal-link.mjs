@@ -1,7 +1,7 @@
 /**
  * Portal linkage for Dennis:
  *  1. apply phase99 linkage trigger
- *  2. pre-create the Supabase auth user for dennis@recruit619.com
+ *  2. pre-create the Supabase auth user for dennismccall@recruit619.com
  *  3. upsert the profile row (sub_lead / ENT-R619)
  *  4. stamp Entra identity back onto the HRIS employee record
  */
@@ -15,7 +15,7 @@ import { env } from './lib.mjs';
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '../..');
 
-const EMAIL = 'dennis@recruit619.com';
+const EMAIL = 'dennismccall@recruit619.com';
 const EMPLOYEE_ID = '3d7937db-34f1-4be1-82a6-21e84b2b26a7';
 const ENTRA_OBJECT_ID = '89fdd120-d221-4953-93a2-fc39a5f46983';
 const ROLE = 'sub_lead';
@@ -80,7 +80,7 @@ if (!authUserId) {
       email: EMAIL,
       email_confirm: true,
       user_metadata: {
-        full_name: 'Dennis',
+        full_name: 'Dennis McCall',
         role: ROLE,
         entity_id: ENTITY,
         provisioned_by: 'hris:dennis-vp-recruiting-r619',
@@ -100,7 +100,7 @@ if (!authUserId) {
 await withClient(async (c) => {
   await c.query(
     `insert into public.profiles (id, email, full_name, role, entity_id, job_title, active)
-     values ($1, $2, 'Dennis', $3::public.app_role, $4, 'VP of Recruiting', true)
+     values ($1, $2, 'Dennis McCall', $3::public.app_role, $4, 'VP of Recruiting', true)
      on conflict (id) do update set
        email = excluded.email,
        full_name = coalesce(nullif(btrim(public.profiles.full_name), ''), excluded.full_name),
@@ -115,7 +115,7 @@ await withClient(async (c) => {
     console.log('profiles.job_title absent — retrying without it');
     await c.query(
       `insert into public.profiles (id, email, full_name, role, entity_id, active)
-       values ($1, $2, 'Dennis', $3::public.app_role, $4, true)
+       values ($1, $2, 'Dennis McCall', $3::public.app_role, $4, true)
        on conflict (id) do update set
          email = excluded.email,
          role = excluded.role,

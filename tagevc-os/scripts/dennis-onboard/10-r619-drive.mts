@@ -27,7 +27,7 @@ const EMPLOYEE_ID = '3d7937db-34f1-4be1-82a6-21e84b2b26a7';
 const RUN_ID = '76ec8793-66d8-4a43-bfbe-1710f1054e5e';
 const PROFILE_ID = 'f8b5d2a2-cc29-4ec0-adc2-74e714cf0a1b';
 const ENTRA_ID = '89fdd120-d221-4953-93a2-fc39a5f46983';
-const LIVE_UPN = 'dennis@recruit619.com';
+const LIVE_UPN = 'dennismccall@recruit619.com';
 
 const { getEmployee, updateEmployee } = await import('@/lib/hris/employees');
 const { getRunWithSteps, updateStepStatus } = await import('@/lib/hris/runs');
@@ -191,7 +191,7 @@ const RECONCILE: Array<{ key: string; status: 'done' | 'na'; note: string }> = [
   {
     key: 'bs.hris_invite',
     status: 'done',
-    note: 'Welcome email with Tage OS / R619 portal access delivered to dennis@recruit619.com',
+    note: 'Welcome email with Tage OS / R619 portal access delivered to dennismccall@recruit619.com',
   },
 ];
 

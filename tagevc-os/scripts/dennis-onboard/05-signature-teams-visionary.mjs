@@ -20,9 +20,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '../..');
 
 const DENNIS_ID = '89fdd120-d221-4953-93a2-fc39a5f46983';
-const DENNIS_UPN = 'dennis@recruit619.com';
+const DENNIS_UPN = 'dennismccall@recruit619.com';
 const VISIONARY_UPN = 'joshmonroe@tagevc.com';
-const FULL_NAME = 'Dennis';
+const FULL_NAME = 'Dennis McCall';
 const JOB_TITLE = 'VP of Recruiting';
 const CDN = 'https://opdqybaatfbwkokbzwli.supabase.co/storage/v1/object/public/brand-assets/marketing-sot';
 const TEAMS_BG = `${CDN}/teams-backgrounds/ENT-R619/ENT-R619-recruit-619-teams-background.png`;
