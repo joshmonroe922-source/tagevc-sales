@@ -74,6 +74,15 @@ describe('UI/UX polish primitives', () => {
     assert.match(body, /motion-reduce:transition-none/);
   });
 
+  it('nav accordion uses exclusive sibling expand on user toggle', () => {
+    const body = readFileSync(
+      join(process.cwd(), 'src/components/layout/app-sidebar.tsx'),
+      'utf8',
+    );
+    assert.match(body, /exclusiveAccordionToggle/);
+    assert.match(body, /accordionSiblingLabels/);
+  });
+
   it('pins left sidebar to viewport while main scrolls', () => {
     const sidebar = readFileSync(
       join(process.cwd(), 'src/components/layout/app-sidebar.tsx'),
