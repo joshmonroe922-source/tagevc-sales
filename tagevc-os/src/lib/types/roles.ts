@@ -223,6 +223,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     'read:command_center',
     'read:messages',
     'write:messages',
+    'read:re_pipeline',
     'read:portfolio',
     'read:documents',
     'write:documents',
