@@ -16,6 +16,10 @@ import { qrImageUrl } from './qr';
 import { suggestRouting, buildDedupeSuggestions } from './routing';
 import { buildExchangeIdempotencyKey } from './exchange';
 import { generatePublicId } from './public-id';
+import {
+  DIGITAL_CARD_PHOTO_MAX_BYTES,
+  validateDigitalCardPhoto,
+} from './photo-upload-shared';
 import type { DigitalCardPersona } from './types';
 
 const SQL = readFileSync(
@@ -288,6 +292,30 @@ describe('wallet passes (case 11)', () => {
     assert.match(sql, /wallet_apple/);
     assert.match(sql, /wallet_google/);
     assert.doesNotMatch(sql, /drop\s+table/i);
+  });
+
+  it('validates digital card photo mime and size', () => {
+    assert.equal(
+      validateDigitalCardPhoto({
+        mimeType: 'image/jpeg',
+        sizeBytes: 1024,
+      }).ok,
+      true,
+    );
+    assert.equal(
+      validateDigitalCardPhoto({
+        mimeType: 'image/gif',
+        sizeBytes: 1024,
+      }).ok,
+      false,
+    );
+    assert.equal(
+      validateDigitalCardPhoto({
+        mimeType: 'image/png',
+        sizeBytes: DIGITAL_CARD_PHOTO_MAX_BYTES + 1,
+      }).ok,
+      false,
+    );
   });
 });
 

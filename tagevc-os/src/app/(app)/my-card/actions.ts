@@ -13,6 +13,7 @@ import {
   linkContactAsCandidateInterest,
   linkContactAsClientLead,
 } from '@/lib/digital-cards/exchange';
+import { uploadDigitalCardPhoto } from '@/lib/digital-cards/photo-upload';
 import type { ShareableField } from '@/lib/digital-cards/types';
 
 async function requireUser() {
@@ -70,6 +71,41 @@ export async function updatePersonaAction(input: {
   if (!result.ok) return { ok: false as const, error: result.error };
   revalidatePath('/my-card');
   return { ok: true as const, persona: result.persona };
+}
+
+/** Upload JPEG/PNG/WebP → `os-uploads` → set persona `photo_url`. Fail-soft. */
+export async function uploadPersonaPhotoAction(formData: FormData) {
+  try {
+    const { userId } = await requireUser();
+    const personaId = String(formData.get('personaId') ?? '').trim();
+    const file = formData.get('file');
+    if (!personaId) return { ok: false as const, error: 'Missing card' };
+    if (!(file instanceof File) || file.size <= 0) {
+      return { ok: false as const, error: 'Choose a photo file' };
+    }
+
+    const bytes = Buffer.from(await file.arrayBuffer());
+    const uploaded = await uploadDigitalCardPhoto({
+      userId,
+      personaId,
+      bytes,
+      mimeType: file.type || 'application/octet-stream',
+    });
+    if (!uploaded.ok) return { ok: false as const, error: uploaded.error };
+
+    const result = await updateMyPersona(userId, personaId, {
+      photo_url: uploaded.publicUrl,
+    });
+    if (!result.ok) return { ok: false as const, error: result.error };
+    revalidatePath('/my-card');
+    return {
+      ok: true as const,
+      persona: result.persona,
+      photo_url: uploaded.publicUrl,
+    };
+  } catch {
+    return { ok: false as const, error: 'Could not upload photo' };
+  }
 }
 
 export async function markContactFollowedUpAction(contactId: string) {

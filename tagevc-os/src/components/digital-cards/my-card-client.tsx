@@ -16,7 +16,12 @@ import {
   draftThankYouNoteAction,
   ensureMyCardAction,
   updatePersonaAction,
+  uploadPersonaPhotoAction,
 } from '@/app/(app)/my-card/actions';
+import {
+  DIGITAL_CARD_PHOTO_MAX_BYTES,
+  DIGITAL_CARD_PHOTO_MIME,
+} from '@/lib/digital-cards/photo-upload-shared';
 
 type Props = {
   personas: DigitalCardPersona[];
@@ -267,6 +272,11 @@ export function MyCardClient({ personas: initial, contacts, userName }: Props) {
           pending={pending}
           focusKey={editFocus}
           onCancel={() => setEditing(false)}
+          onPersonaUpdated={(next) => {
+            setPersonas((prev) =>
+              prev.map((p) => (p.id === next.id ? next : p)),
+            );
+          }}
           onSave={(patch) =>
             startTransition(async () => {
               const res = await updatePersonaAction({
@@ -462,11 +472,13 @@ function PersonaEditor({
   focusKey,
   onSave,
   onCancel,
+  onPersonaUpdated,
 }: {
   persona: DigitalCardPersona;
   pending: boolean;
   focusKey?: string;
   onCancel: () => void;
+  onPersonaUpdated: (persona: DigitalCardPersona) => void;
   onSave: (patch: {
     display_name: string;
     title: string;
@@ -493,6 +505,8 @@ function PersonaEditor({
   const [calendar, setCalendar] = useState(persona.calendar_url || '');
   const [booking, setBooking] = useState(persona.booking_url || '');
   const [photoUrl, setPhotoUrl] = useState(persona.photo_url || '');
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
   const [workEmail, setWorkEmail] = useState(
     persona.emails.find((e) => e.share)?.value ||
       persona.emails[0]?.value ||
@@ -511,6 +525,37 @@ function PersonaEditor({
   const [eventN, setEventN] = useState(
     String(persona.event_tag_remaining ?? 25),
   );
+
+  async function handlePhotoFile(file: File | null) {
+    if (!file) return;
+    setPhotoError(null);
+    if (file.size > DIGITAL_CARD_PHOTO_MAX_BYTES) {
+      setPhotoError('Photo must be 5 MB or smaller');
+      return;
+    }
+    const mime = (file.type || '').toLowerCase().split(';')[0]?.trim() || '';
+    if (!DIGITAL_CARD_PHOTO_MIME.has(mime)) {
+      setPhotoError('Use a JPEG, PNG, or WebP image');
+      return;
+    }
+    setPhotoBusy(true);
+    try {
+      const fd = new FormData();
+      fd.set('personaId', persona.id);
+      fd.set('file', file);
+      const res = await uploadPersonaPhotoAction(fd);
+      if (!res.ok) {
+        setPhotoError(res.error);
+        return;
+      }
+      setPhotoUrl(res.photo_url);
+      onPersonaUpdated(res.persona);
+    } catch {
+      setPhotoError('Could not upload photo');
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
 
   return (
     <form
@@ -604,13 +649,74 @@ function PersonaEditor({
         value={department}
         onChange={setDepartment}
       />
-      <EditField
-        id="edit-photo"
-        label="Photo URL"
-        value={photoUrl}
-        onChange={setPhotoUrl}
-        autoFocus={focusKey === 'photo'}
-      />
+      <div className="block">
+        <span className="mb-1 block text-xs text-muted-foreground">
+          Profile photo
+        </span>
+        <div className="flex flex-wrap items-center gap-3">
+          {photoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={photoUrl}
+              alt=""
+              className="h-14 w-14 rounded-full object-cover ring-1 ring-[#e0dcd2]"
+            />
+          ) : (
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#f3f0e8] text-xs text-muted-foreground ring-1 ring-[#e0dcd2]">
+              None
+            </div>
+          )}
+          <div className="min-w-0 flex-1 space-y-1">
+            <input
+              id="edit-photo"
+              type="file"
+              accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+              autoFocus={focusKey === 'photo'}
+              disabled={photoBusy || pending}
+              onChange={(e) => {
+                const file = e.target.files?.[0] ?? null;
+                e.target.value = '';
+                void handlePhotoFile(file);
+              }}
+              className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-[#3B4559] file:px-3 file:py-2 file:text-sm file:font-medium file:text-white disabled:opacity-60"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              JPEG, PNG, or WebP · up to 5 MB
+              {photoBusy ? ' · Uploading…' : ''}
+            </p>
+            {photoUrl ? (
+              <button
+                type="button"
+                disabled={photoBusy || pending}
+                className="text-xs text-muted-foreground underline-offset-4 hover:underline disabled:opacity-60"
+                onClick={() => {
+                  setPhotoError(null);
+                  setPhotoBusy(true);
+                  void updatePersonaAction({
+                    personaId: persona.id,
+                    photo_url: null,
+                  })
+                    .then((res) => {
+                      if (!res.ok) {
+                        setPhotoError(res.error);
+                        return;
+                      }
+                      setPhotoUrl('');
+                      onPersonaUpdated(res.persona);
+                    })
+                    .catch(() => setPhotoError('Could not remove photo'))
+                    .finally(() => setPhotoBusy(false));
+                }}
+              >
+                Remove photo
+              </button>
+            ) : null}
+          </div>
+        </div>
+        {photoError ? (
+          <p className="mt-1 text-xs text-red-600">{photoError}</p>
+        ) : null}
+      </div>
       <EditField
         id="edit-emails"
         label="Work email (shared)"
