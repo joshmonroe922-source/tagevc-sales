@@ -26,7 +26,7 @@ Additive on Phase 68 foundation + Phase 71 mailbox scaffold.
 Still open:
 
 1. Client org CRUD + RLS for Signent customer workforces (no invented seed data)
-2. Live Graph User.ReadWrite.All + Exchange.ManageAsApp admin consent in production
+2. Exchange app-only management: `User.ReadWrite.All` and `Exchange.ManageAsApp` are consented (2026-08-10); still needs an Exchange directory role on the service principal + a certificate credential — `docs/ENTRA_GRAPH_PERMISSIONS.md`
 3. Live DocuSign JWT for HRIS offer/NDA (mock works without secrets)
 4. Payroll / benefits providers + I-9 eVerify automation
 5. Recruit commission calc consuming protected comp fields

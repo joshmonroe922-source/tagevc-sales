@@ -17,7 +17,7 @@ Josh configured **send-from aliases** on `joshmonroe@tagevc.com` (tagevc.com). P
 | W-9 | `w-9@tagevc.com` | `M365_ALIAS_W9` |
 | Host | `joshmonroe@tagevc.com` | `M365_HOST_MAILBOX` |
 
-**Permission model:** Delegated `Mail.Send` + `Mail.ReadWrite` on app **Tage VC OS** (`905649ff-1aee-4683-87e0-5d6d2005aea5`). Application Mail.* deferred until true shared mailboxes.
+**Permission model:** Delegated **and Application** `Mail.Send` + `Mail.ReadWrite` on app **Tage VC OS** (`905649ff-1aee-4683-87e0-5d6d2005aea5`), all admin-consented (Application as of 2026-08-10). App-only sends work today; scope them with an Exchange application access policy when the mailbox set grows.
 
 See **`docs/M365_MAIL_SETUP.md`**. Later per-entity: `ap+r619@…` / shared mailboxes when volume requires it.
 

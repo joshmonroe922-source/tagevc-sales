@@ -231,9 +231,10 @@ export async function sendPlatformEmail(
         resolveSharedMailboxUpn(input.entityId, role);
 
       const appToken = await getMsGraphAppToken();
-      // Having an app token does not mean we may send: Mail.Send is a separate
-      // application permission, so Graph can 403 here. Treat that as a transport
-      // failure and fall through to Resend rather than failing the whole send.
+      // Mail.Send is granted, so Graph is the normal path. It can still fail on
+      // a specific mailbox (no send-as on the alias, Exchange application access
+      // policy, throttling), so treat that as a transport failure and fall
+      // through to Resend rather than failing the whole send.
       let graphError: string | null = null;
       if (appToken) {
         try {

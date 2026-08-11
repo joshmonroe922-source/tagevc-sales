@@ -118,7 +118,7 @@ export const M365_ALIAS_JOSH_NOTES = {
     'All aliases deliver into joshmonroe@tagevc.com inbox — fine now; shared mailboxes later',
   stillNeed: [
     'Confirm exact W-9 SMTP (w-9@tagevc.com vs w9@tagevc.com) in M365 admin',
-    'Azure app Mail.Send + Mail.Read (+ admin consent); send-as on aliases',
+    'Send-as on each alias (app Mail.Send + Mail.ReadWrite are consented)',
     'Graph subscription or poller on host mailbox filtering by To:',
     'Per-entity aliases later (R619, Signent, Instant NDA)',
   ],

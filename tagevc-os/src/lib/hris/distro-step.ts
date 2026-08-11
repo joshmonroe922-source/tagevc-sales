@@ -8,9 +8,12 @@
  * Group resolution, in order:
  *   1. Explicit id from `MS_GRAPH_DISTRO_GROUP_IDS` (e.g. "ENT-R619=<guid>,ENT-FIRM=<guid>")
  *   2. Directory lookup by the entity's display name (e.g. "Recruit 619 …")
+ *   3. Create one, only when `MS_GRAPH_CREATE_DISTRO_GROUPS` is on
  *
- * Creating groups needs `Group.ReadWrite.All`, which the app does not hold, so a
- * missing group is reported as a configuration gap rather than silently passing.
+ * `Group.ReadWrite.All` has been held since 2026-08-10, so step 3 is possible. It
+ * stays opt-in because it writes a new mail-enabled group into the tenant directory;
+ * with the flag off a missing group is still reported as a configuration gap rather
+ * than silently passing.
  */
 
 import { entityDisplayName } from '@/lib/entities/display-name';
@@ -23,7 +26,7 @@ export type EntityDistroGroup = {
   id: string;
   displayName: string;
   mail: string | null;
-  source: 'env' | 'directory';
+  source: 'env' | 'directory' | 'created';
 };
 
 export type DistroAssistResult = {
@@ -44,6 +47,22 @@ export function parseDistroGroupEnv(raw: string | undefined): Record<string, str
     if (entity && id) out[entity] = id;
   }
   return out;
+}
+
+/** Opt-in: writing a new group into the tenant directory needs an explicit yes. */
+export function distroGroupCreateEnabled(): boolean {
+  const raw = (process.env.MS_GRAPH_CREATE_DISTRO_GROUPS ?? '').trim().toLowerCase();
+  return raw === '1' || raw === 'true' || raw === 'on';
+}
+
+/** Entra rejects spaces and most punctuation in `mailNickname`. */
+export function distroGroupMailNickname(company: string): string {
+  const slug = company
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 54);
+  return `${slug || 'entity'}-all`;
 }
 
 export function isDistroStep(input: {
@@ -98,6 +117,53 @@ export async function resolveEntityDistroGroup(
   };
 }
 
+/**
+ * Create the entity's distro group as a Microsoft 365 (Unified) group — the only
+ * mail-enabled group type Graph can create. Distribution lists and mail-enabled
+ * security groups are Exchange-only.
+ */
+export async function createEntityDistroGroup(
+  entityId: string | null | undefined,
+  token: string,
+): Promise<{ ok: true; group: EntityDistroGroup } | { ok: false; error: string }> {
+  const canon = resolveCanonicalEntityId(entityId);
+  const company = canon ? entityDisplayName(canon, '') : '';
+  if (!company) return { ok: false, error: `No display name for entity ${entityId ?? 'null'}` };
+
+  const displayName = `${company} All`;
+  const res = await fetch('https://graph.microsoft.com/v1.0/groups', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      displayName,
+      description: `All ${company} staff — created by Tage OS onboarding`,
+      mailNickname: distroGroupMailNickname(company),
+      mailEnabled: true,
+      securityEnabled: false,
+      groupTypes: ['Unified'],
+      visibility: 'Private',
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    return { ok: false, error: `Graph create group HTTP ${res.status} ${text.slice(0, 200)}` };
+  }
+  const g = (await res.json()) as { id: string; displayName: string; mail?: string | null };
+  return {
+    ok: true,
+    group: {
+      id: g.id,
+      displayName: g.displayName || displayName,
+      mail: g.mail ?? null,
+      source: 'created',
+    },
+  };
+}
+
 /** Add the hire to their entity distro group. Idempotent, fail-soft. */
 export async function runDistroAssist(emp: {
   full_name: string;
@@ -112,12 +178,20 @@ export async function runDistroAssist(emp: {
   if (!tok.ok) return { handled: true, joined: false, detail: tok.detail };
 
   const company = entityDisplayName(emp.entity_id, emp.entity_id);
-  const group = await resolveEntityDistroGroup(emp.entity_id, tok.token);
+  let group = await resolveEntityDistroGroup(emp.entity_id, tok.token);
+  if (!group && distroGroupCreateEnabled()) {
+    const created = await createEntityDistroGroup(emp.entity_id, tok.token);
+    if (!created.ok) {
+      const detail = `No distribution group for ${company} and creating one failed: ${created.error}`;
+      return { handled: true, joined: false, detail, evidence_note: detail };
+    }
+    group = created.group;
+  }
   if (!group) {
     const detail =
       `No distribution group found for ${company}. ` +
       `Create one (e.g. "${company} All") and set MS_GRAPH_DISTRO_GROUP_IDS, ` +
-      `or grant Group.ReadWrite.All so Tage can create it.`;
+      `or set MS_GRAPH_CREATE_DISTRO_GROUPS=1 to let Tage create it.`;
     return { handled: true, joined: false, detail, evidence_note: detail };
   }
 
@@ -174,6 +248,8 @@ export async function runDistroAssist(emp: {
     return { handled: true, joined: false, detail, evidence_note: detail };
   }
 
-  const detail = `Added to ${group.displayName}${group.mail ? ` (${group.mail})` : ''} for ${company}`;
+  const detail =
+    `Added to ${group.displayName}${group.mail ? ` (${group.mail})` : ''} for ${company}` +
+    (group.source === 'created' ? ' — group created by Tage OS' : '');
   return { handled: true, joined: true, detail, evidence_note: detail };
 }
