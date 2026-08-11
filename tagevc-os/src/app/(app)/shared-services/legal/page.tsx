@@ -14,7 +14,11 @@ export default async function LegalFunctionHomePage({ searchParams }: Props) {
   const entityParam = params.entity?.trim() ?? '';
   const ctx = await getSessionContext();
   const firmWide = ctx
-    ? isFirmWideAccess(ctx.profile.role, ctx.profile.entity_id)
+    ? isFirmWideAccess(
+        ctx.profile.role,
+        ctx.profile.entity_id,
+        ctx.activeEntityOs,
+      )
     : false;
   const entityId = firmWide
     ? entityParam || null

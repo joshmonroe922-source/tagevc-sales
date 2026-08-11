@@ -27,6 +27,34 @@ describe('Assets + COO / Subsidiary Leader nav gates', () => {
     expect(childLabels).toEqual(['Businesses', 'Real Estate']);
   });
 
+  it('collapses Assets to the selected company while Visionary works in an entity OS', () => {
+    const items = filterNavForRole(MAIN_NAV, {
+      role: 'visionary',
+      realRole: 'visionary',
+      entityId: 'ENT-R619',
+      activeEntityOs: 'ENT-R619',
+    });
+    const labels = items.map((i) => i.label);
+    expect(labels).not.toContain('Assets');
+    expect(labels).toContain('Recruit 619');
+    // Visionary keeps their own IA — only entity scope narrows.
+    expect(labels).toContain('Command Center');
+
+    const company = items.find((i) => i.label === 'Recruit 619');
+    expect(company?.href).toBe('/entities/ENT-R619');
+    expect(company?.children).toBeUndefined();
+  });
+
+  it('keeps the multi-company Assets accordion at the parent OS', () => {
+    const items = filterNavForRole(MAIN_NAV, {
+      role: 'visionary',
+      realRole: 'visionary',
+      entityId: 'ENT-FIRM',
+      activeEntityOs: null,
+    });
+    expect(items.map((i) => i.label)).toContain('Assets');
+  });
+
   it('replaces Assets with led entity for Subsidiary Leader (not multi-company)', () => {
     const items = filterNavForRole(MAIN_NAV, {
       role: 'sub_lead',

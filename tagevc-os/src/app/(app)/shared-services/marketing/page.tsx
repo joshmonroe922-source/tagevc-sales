@@ -59,7 +59,11 @@ export default async function MarketingModulePage({
     paidDaysRaw === 7 || paidDaysRaw === 90 ? paidDaysRaw : 30;
   const ctx = await getSessionContext();
   const firmWide = ctx
-    ? isFirmWideAccess(ctx.profile.role, ctx.profile.entity_id)
+    ? isFirmWideAccess(
+        ctx.profile.role,
+        ctx.profile.entity_id,
+        ctx.activeEntityOs,
+      )
     : false;
   const entityParam =
     typeof sp.entity === 'string' ? sp.entity.trim() : '';

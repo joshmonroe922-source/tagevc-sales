@@ -36,16 +36,19 @@ async function scopeFilter() {
       role: null as null,
       entityId: null as string | null,
       parentByEntityId,
+      activeEntityOs: null as string | null,
     };
   }
   return {
     firmWide: isFirmWideAccess(
       session.profile.role,
       session.profile.entity_id,
+      session.activeEntityOs,
     ),
     role: session.profile.role,
     entityId: session.profile.entity_id,
     parentByEntityId,
+    activeEntityOs: session.activeEntityOs,
   };
 }
 
@@ -60,6 +63,7 @@ function filterCompanies(
       scope.entityId,
       c.entity_id,
       scope.parentByEntityId,
+      scope.activeEntityOs,
     ),
   );
 }
@@ -75,6 +79,7 @@ function filterEntities(
       scope.entityId,
       e.entity_id,
       scope.parentByEntityId,
+      scope.activeEntityOs,
     ),
   );
 }
@@ -90,6 +95,7 @@ function filterPnl(
       scope.entityId,
       r.entity_id,
       scope.parentByEntityId,
+      scope.activeEntityOs,
     ),
   );
 }

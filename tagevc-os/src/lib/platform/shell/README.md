@@ -28,3 +28,17 @@ copy `src/lib/platform/af/` the same way. See `docs/TAGE_VC_AF.md`.
 - Mount drawer children only while open (`open ? children : null`) to avoid dual-sidebar realtime channel crashes
 
 | `reload-scroll-restore.tsx` | `components/layout/reload-scroll-restore.tsx` + mount in root `app/layout.tsx`; mark `<main data-scroll-restoration>` |
+
+## Sidebar brand block / Entity OS switcher
+
+`entity-os-brand.tsx` (`ShellEntityOsBrand`) is the portable twin of the Tage
+sidebar brand header. It renders the two brand lines and, when the host passes
+`onSelect` plus two or more options, turns them into an operating-system
+dropdown.
+
+- Single-OS portals: pass one option (or omit `onSelect`) → static brand lines.
+- Cross-entity operators: pass the option list + an `onSelect` wired to the
+  portal's own server action, and gate it on the portal's firm-wide role.
+
+Never let a portal show the switcher to a role that was hired into one entity.
+See `docs/OS_ENTITY_SWITCHER.md`.

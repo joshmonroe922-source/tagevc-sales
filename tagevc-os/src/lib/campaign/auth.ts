@@ -75,7 +75,11 @@ export async function requireCampaignAuth(
   await requirePermission('read:marketing');
   const ctx = await getSessionContext();
   if (!ctx) throw new Error('Unauthorized');
-  const firmWide = isFirmWideAccess(ctx.profile.role, ctx.profile.entity_id);
+  const firmWide = isFirmWideAccess(
+    ctx.profile.role,
+    ctx.profile.entity_id,
+    ctx.activeEntityOs,
+  );
   const headerOverride = req?.headers.get('x-entity-id')?.trim();
   const optsOverride = opts?.entityOverride?.trim();
   const entityId =

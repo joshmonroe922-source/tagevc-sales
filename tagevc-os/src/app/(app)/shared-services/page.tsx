@@ -67,7 +67,11 @@ export default async function SharedServicesPage({ searchParams }: Props) {
     if (landing && landing !== '/shared-services') redirect(landing);
   }
   const firmWide = ctx
-    ? isFirmWideAccess(ctx.profile.role, ctx.profile.entity_id)
+    ? isFirmWideAccess(
+        ctx.profile.role,
+        ctx.profile.entity_id,
+        ctx.activeEntityOs,
+      )
     : false;
 
   // Best-effort: ensure current+next monthly instances, audits, escalations (parallel)

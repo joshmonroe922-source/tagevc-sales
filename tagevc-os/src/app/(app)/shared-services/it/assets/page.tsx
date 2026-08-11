@@ -59,7 +59,11 @@ export default async function ItAssetsModulePage() {
 
   const ctxEarly = await getSessionContext();
   const firmWideEarly = ctxEarly
-    ? isFirmWideAccess(ctxEarly.profile.role, ctxEarly.profile.entity_id)
+    ? isFirmWideAccess(
+        ctxEarly.profile.role,
+        ctxEarly.profile.entity_id,
+        ctxEarly.activeEntityOs,
+      )
     : false;
   const phase57EntityId = firmWideEarly
     ? null
@@ -164,7 +168,11 @@ export default async function ItAssetsModulePage() {
     ? roleHasPermission(ctx.profile.role, 'action:intune_manual_review')
     : false;
   const firmWide = ctx
-    ? isFirmWideAccess(ctx.profile.role, ctx.profile.entity_id)
+    ? isFirmWideAccess(
+        ctx.profile.role,
+        ctx.profile.entity_id,
+        ctx.activeEntityOs,
+      )
     : false;
   if (!firmWide && ctx?.profile.entity_id) {
     intune.rows = intune.rows.filter(

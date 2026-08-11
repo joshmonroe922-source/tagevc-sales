@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { AppSidebar } from '@/components/layout/app-sidebar';
+import { EntityOsBanner } from '@/components/layout/entity-os-banner';
 import { ImpersonationBanner } from '@/components/layout/impersonation-banner';
 import { LiveLookBanner } from '@/components/layout/live-look-banner';
 import { MobileNavDrawer } from '@/components/layout/mobile-nav-drawer';
@@ -11,6 +12,11 @@ import { AppMain } from '@/components/layout/app-main';
 import { MessagePresenceHost } from '@/components/messaging/message-presence-host';
 import { CmdKPalette } from '@/components/crm/cmd-k';
 import { bootstrapDomainStores } from '@/lib/data/bootstrap';
+import {
+  canSwitchEntityOs,
+  entityOsLabel,
+  listEntityOsOptions,
+} from '@/lib/rbac/entity-os';
 import { listRoleSwitcherRoles } from '@/lib/rbac/impersonation';
 import { getSessionContext } from '@/lib/rbac/session';
 import { countMyUnreadNotifications } from '@/lib/data/activity';
@@ -34,6 +40,11 @@ export default async function AppShellLayout({
   await bootstrapDomainStores();
 
   const canImpersonate = session.realRole === 'visionary';
+  const canSwitchOs = canSwitchEntityOs({
+    realRole: session.realRole,
+    impersonatingAs: session.impersonatingAs,
+    liveLookActive: session.liveLookActive,
+  });
   const [unread, desktopPrefs, suggestionCount, activeOrgSlug] =
     await Promise.all([
       countMyUnreadNotifications(),
@@ -52,6 +63,9 @@ export default async function AppShellLayout({
     impersonatableRoles: canImpersonate ? listRoleSwitcherRoles() : [],
     liveLookActive: session.liveLookActive,
     entityId: session.profile.entity_id,
+    entityOsOptions: canSwitchOs ? listEntityOsOptions() : [],
+    activeEntityOs: session.activeEntityOs,
+    canSwitchEntityOs: canSwitchOs,
   };
 
   return (
@@ -86,6 +100,8 @@ export default async function AppShellLayout({
             />
           ) : session.impersonatingAs ? (
             <ImpersonationBanner role={session.impersonatingAs} />
+          ) : session.activeEntityOs ? (
+            <EntityOsBanner label={entityOsLabel(session.activeEntityOs)} />
           ) : null}
           <AppMain>{children}</AppMain>
         </div>

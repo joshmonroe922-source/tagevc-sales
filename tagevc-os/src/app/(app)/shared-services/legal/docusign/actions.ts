@@ -82,6 +82,8 @@ export async function proposeDocuSignManualReviewAction(input: {
       gate.profile.role,
       gate.profile.entity_id,
       intent.entity_id,
+      undefined,
+      gate.activeEntityOs,
     )
   ) {
     return {
@@ -163,6 +165,8 @@ export async function reviewDocuSignManualReviewAction(input: {
       gate.profile.role,
       gate.profile.entity_id,
       resolution.entity_id,
+      undefined,
+      gate.activeEntityOs,
     )
   ) {
     return {
@@ -278,16 +282,24 @@ export async function proposeDocuSignMappingReviewAction(input: {
   if (
     (!currentEntityId &&
       !targetEntityId &&
-      !isFirmWideAccess(gate.profile.role, gate.profile.entity_id)) ||
+      !isFirmWideAccess(
+        gate.profile.role,
+        gate.profile.entity_id,
+        gate.activeEntityOs,
+      )) ||
     !canAccessEntityId(
       gate.profile.role,
       gate.profile.entity_id,
       currentEntityId ?? targetEntityId,
+      undefined,
+      gate.activeEntityOs,
     ) ||
     !canAccessEntityId(
       gate.profile.role,
       gate.profile.entity_id,
       targetEntityId,
+      undefined,
+      gate.activeEntityOs,
     )
   ) {
     return {
@@ -366,6 +378,8 @@ export async function reviewDocuSignMappingReviewAction(input: {
       gate.profile.role,
       gate.profile.entity_id,
       resolution.entity_id,
+      undefined,
+      gate.activeEntityOs,
     )
   ) {
     return {
@@ -414,8 +428,9 @@ async function envelopeScopeError(
   role: AppRole,
   profileEntityId: string | null | undefined,
   envelopeId: string,
+  activeEntityOs?: string | null,
 ): Promise<string | null> {
-  if (isFirmWideAccess(role, profileEntityId)) return null;
+  if (isFirmWideAccess(role, profileEntityId, activeEntityOs)) return null;
   const sb = await createPersistClient();
   const { data } = await sb
     .from('os_docusign_envelopes')
@@ -424,7 +439,7 @@ async function envelopeScopeError(
     .maybeSingle();
   const entityId = (data?.entity_id as string | null) ?? null;
   return entityId &&
-    canAccessEntityId(role, profileEntityId, entityId)
+    canAccessEntityId(role, profileEntityId, entityId, undefined, activeEntityOs)
     ? null
     : entityScopeDeniedMessage(entityId || 'unmapped');
 }
@@ -602,6 +617,8 @@ export async function reviewArchiveQuarantineAction(input: {
       gate.profile.role,
       gate.profile.entity_id,
       row.entity_id,
+      undefined,
+      gate.activeEntityOs,
     )
   ) {
     return {
@@ -674,6 +691,7 @@ export async function voidEnvelopeAction(
     gate.profile.role,
     gate.profile.entity_id,
     id,
+    gate.activeEntityOs,
   );
   if (scopeError) return { ok: false, error: scopeError };
   if (!voidReason) {
@@ -929,11 +947,17 @@ export async function createReplacementEnvelopeAction(input: {
   }
   if (
     (!sourceContext.entity_id &&
-      !isFirmWideAccess(gate.profile.role, gate.profile.entity_id)) ||
+      !isFirmWideAccess(
+        gate.profile.role,
+        gate.profile.entity_id,
+        gate.activeEntityOs,
+      )) ||
     !canAccessEntityId(
       gate.profile.role,
       gate.profile.entity_id,
       sourceContext.entity_id,
+      undefined,
+      gate.activeEntityOs,
     )
   ) {
     return {
@@ -1109,6 +1133,7 @@ export async function remindEnvelopeAction(
     gate.profile.role,
     gate.profile.entity_id,
     id,
+    gate.activeEntityOs,
   );
   if (scopeError) return { ok: false, error: scopeError };
 
@@ -1224,11 +1249,17 @@ export async function sendFromTemplateRolesAction(input: {
   }
   if (
     (!entityId &&
-      !isFirmWideAccess(gate.profile.role, gate.profile.entity_id)) ||
+      !isFirmWideAccess(
+        gate.profile.role,
+        gate.profile.entity_id,
+        gate.activeEntityOs,
+      )) ||
     !canAccessEntityId(
       gate.profile.role,
       gate.profile.entity_id,
       entityId,
+      undefined,
+      gate.activeEntityOs,
     )
   ) {
     return {
@@ -1315,6 +1346,7 @@ export async function emailCocAction(
     gate.profile.role,
     gate.profile.entity_id,
     id,
+    gate.activeEntityOs,
   );
   if (scopeError) return { ok: false, error: scopeError };
   const { emailCertificateOfCompletion } = await import(
@@ -1340,6 +1372,7 @@ export async function scheduleRemindersAction(
     gate.profile.role,
     gate.profile.entity_id,
     id,
+    gate.activeEntityOs,
   );
   if (scopeError) return { ok: false, error: scopeError };
   const { enqueueEnvelopeReminders } = await import(

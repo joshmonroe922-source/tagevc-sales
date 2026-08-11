@@ -19,7 +19,11 @@ export default async function EngageAnalyticsPage({
   await requirePermission('read:marketing');
   const ctx = await getSessionContext();
   const firmWide = ctx
-    ? isFirmWideAccess(ctx.profile.role, ctx.profile.entity_id)
+    ? isFirmWideAccess(
+        ctx.profile.role,
+        ctx.profile.entity_id,
+        ctx.activeEntityOs,
+      )
     : false;
 
   const sp = (await searchParams) ?? {};

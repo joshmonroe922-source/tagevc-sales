@@ -10,7 +10,11 @@ export async function resolveAfEntityParam(
     typeof params.entity === 'string' ? params.entity.trim() : '';
   const ctx = await getSessionContext();
   const firmWide = ctx
-    ? isFirmWideAccess(ctx.profile.role, ctx.profile.entity_id)
+    ? isFirmWideAccess(
+        ctx.profile.role,
+        ctx.profile.entity_id,
+        ctx.activeEntityOs,
+      )
     : false;
   const entityId = firmWide
     ? entityParam || null

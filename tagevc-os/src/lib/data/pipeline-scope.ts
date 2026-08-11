@@ -46,6 +46,8 @@ export type PipelineScope = {
   profileFullName: string | null;
   parentByEntityId: EntityParentIndex;
   nullMode: ReturnType<typeof getPipelineNullEntityMode>;
+  /** Entity OS lock — keeps row checks narrowed for firm-wide operators. */
+  activeEntityOs: string | null;
 };
 
 export async function getPipelineScope(): Promise<PipelineScope> {
@@ -63,18 +65,21 @@ export async function getPipelineScope(): Promise<PipelineScope> {
       profileFullName: null,
       parentByEntityId,
       nullMode,
+      activeEntityOs: null,
     };
   }
   return {
     firmWide: isFirmWideAccess(
       session.profile.role,
       session.profile.entity_id,
+      session.activeEntityOs,
     ),
     role: session.profile.role,
     entityId: session.profile.entity_id,
     profileFullName: session.profile.full_name,
     parentByEntityId,
     nullMode,
+    activeEntityOs: session.activeEntityOs,
   };
 }
 
@@ -89,6 +94,7 @@ function allow(
     rowEntityId,
     scope.parentByEntityId,
     scope.nullMode,
+    scope.activeEntityOs,
   );
 }
 

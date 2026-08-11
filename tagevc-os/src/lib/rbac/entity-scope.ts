@@ -1,3 +1,4 @@
+import { isEntityOsScoped } from '@/lib/rbac/entity-os';
 import type { AppRole } from '@/lib/types/roles';
 
 const FIRM_WIDE_ROLES: readonly AppRole[] = [
@@ -28,13 +29,21 @@ export function getPipelineNullEntityMode(): PipelineNullEntityMode {
   return raw === 'soft' ? 'soft' : 'hide';
 }
 
-/** Firm-wide operators (or unset / ENT-FIRM profile) see all entities. */
+/**
+ * Firm-wide operators (or unset / ENT-FIRM profile) see all entities.
+ *
+ * `activeEntityOs` is the Entity OS switcher lock (Visionary only). While it
+ * is set, a firm-wide operator is deliberately narrowed to that subsidiary's
+ * operating system, so firm-wide reads are off until they exit.
+ */
 export function isFirmWideAccess(
   role: AppRole,
   entityId: string | null | undefined,
+  activeEntityOs?: string | null,
 ): boolean {
   // Subsidiary Leader is always single-company scoped (never firm-wide).
   if (role === 'sub_lead') return false;
+  if (isEntityOsScoped(activeEntityOs)) return false;
   if (FIRM_WIDE_ROLES.includes(role)) return true;
   if (!entityId || entityId === 'ENT-FIRM') return true;
   return false;
@@ -49,8 +58,9 @@ export function canAccessEntityId(
   profileEntityId: string | null | undefined,
   targetEntityId: string | null | undefined,
   parentByEntityId?: EntityParentIndex,
+  activeEntityOs?: string | null,
 ): boolean {
-  if (isFirmWideAccess(role, profileEntityId)) return true;
+  if (isFirmWideAccess(role, profileEntityId, activeEntityOs)) return true;
   if (!targetEntityId) return true; // unscoped rows (master-data soft)
   if (!profileEntityId) return false;
   if (profileEntityId === targetEntityId) return true;
@@ -71,8 +81,9 @@ export function canAccessPipelineEntity(
   rowEntityId: string | null | undefined,
   parentByEntityId?: EntityParentIndex,
   nullMode: PipelineNullEntityMode = getPipelineNullEntityMode(),
+  activeEntityOs?: string | null,
 ): boolean {
-  if (isFirmWideAccess(role, profileEntityId)) return true;
+  if (isFirmWideAccess(role, profileEntityId, activeEntityOs)) return true;
   if (!rowEntityId) {
     return nullMode === 'soft';
   }
@@ -81,6 +92,7 @@ export function canAccessPipelineEntity(
     profileEntityId,
     rowEntityId,
     parentByEntityId,
+    activeEntityOs,
   );
 }
 

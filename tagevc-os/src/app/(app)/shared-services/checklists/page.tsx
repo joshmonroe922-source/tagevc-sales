@@ -59,7 +59,11 @@ export default async function SscChecklistsPage({ searchParams }: Props) {
   const params = (await searchParams) ?? {};
   const ctx = await getSessionContext();
   const firmWide = ctx
-    ? isFirmWideAccess(ctx.profile.role, ctx.profile.entity_id)
+    ? isFirmWideAccess(
+        ctx.profile.role,
+        ctx.profile.entity_id,
+        ctx.activeEntityOs,
+      )
     : false;
 
   let scope = parseScope(firstParam(params.scope));

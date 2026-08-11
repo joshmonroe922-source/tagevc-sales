@@ -41,8 +41,12 @@
 import {
   resolveSubsidiaryLeaderEntityId,
 } from '@/lib/entities/assignment-lead';
-import { entityDisplayName } from '@/lib/entities/display-name';
+import {
+  entityDisplayName,
+  normalizeEntityId,
+} from '@/lib/entities/display-name';
 import type { NavItem } from '@/lib/nav';
+import { isEntityOsScoped } from '@/lib/rbac/entity-os';
 import {
   isVisionaryBreadthRole,
   isVisionaryExclusiveRole,
@@ -57,6 +61,12 @@ export type NavFilterContext = {
   liveLookActive?: boolean;
   /** Effective profile entity id — drives Subsidiary Leader nav label. */
   entityId?: string | null;
+  /**
+   * Entity OS switcher lock (Visionary only). While set, the multi-company
+   * Assets accordion collapses to that entity's overview — same shape a
+   * Subsidiary Leader sees for their own company.
+   */
+  activeEntityOs?: string | null;
 };
 
 export function filterNavForRole(
@@ -157,6 +167,20 @@ export function applyRoleNavTransforms(
         href: `/entities/${ledId}`,
         label: ledName,
         description: 'Your company overview',
+      };
+    });
+  }
+
+  if (isEntityOsScoped(ctx.activeEntityOs)) {
+    const osId = normalizeEntityId(ctx.activeEntityOs);
+    const osName = entityDisplayName(osId);
+    return items.map((item) => {
+      if (!isMultiCompanyAssetsNavItem(item)) return item;
+      return {
+        module: 'portfolio',
+        href: `/entities/${osId}`,
+        label: osName,
+        description: 'Company overview for this operating system',
       };
     });
   }

@@ -62,8 +62,14 @@ export function buildVmAuthzFromSession(opts: {
   email?: string | null;
   adminRoleId?: VmAdminRoleId | null;
   adminEntityScope?: string | null;
+  /** Entity OS lock — narrows a firm-wide operator to one company. */
+  activeEntityOs?: string | null;
 }): VmAuthzContext {
-  const firmWide = isFirmWideAccess(opts.role as AppRole, opts.entityId);
+  const firmWide = isFirmWideAccess(
+    opts.role as AppRole,
+    opts.entityId,
+    opts.activeEntityOs,
+  );
   if (opts.adminRoleId && BASE_MATRIX[opts.adminRoleId]) {
     return {
       roleId: opts.adminRoleId,

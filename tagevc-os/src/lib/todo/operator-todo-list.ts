@@ -144,7 +144,11 @@ async function collectSscTodos(
   const role = session.profile.role;
   if (!roleHasPermission(role, 'read:shared_services')) return [];
 
-  const firmWide = isFirmWideAccess(role, session.profile.entity_id);
+  const firmWide = isFirmWideAccess(
+    role,
+    session.profile.entity_id,
+    session.activeEntityOs,
+  );
   const entityId = firmWide ? null : (session.profile.entity_id ?? null);
   const functions = sscFunctionsForRole(role);
   const out: OperatorTodoItem[] = [];

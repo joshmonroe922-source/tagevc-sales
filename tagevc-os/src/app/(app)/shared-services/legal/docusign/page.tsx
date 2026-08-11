@@ -128,7 +128,11 @@ export default async function DocuSignModulePage({
     ? roleHasPermission(ctx.profile.role, 'action:docusign_manual_review')
     : false;
   const firmWide = ctx
-    ? isFirmWideAccess(ctx.profile.role, ctx.profile.entity_id)
+    ? isFirmWideAccess(
+        ctx.profile.role,
+        ctx.profile.entity_id,
+        ctx.activeEntityOs,
+      )
     : false;
   const [
     events,
