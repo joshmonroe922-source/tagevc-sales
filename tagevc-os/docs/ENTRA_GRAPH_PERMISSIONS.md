@@ -49,7 +49,37 @@ is issued carrying `Exchange.ManageAsApp`.
 appears in a Microsoft Graph token. Any check that only decodes the Graph token will
 report it missing — that is a false negative.
 
-## Blocking gaps
+## Resolution — 2026-08-10, later the same day
+
+The blocking gaps below were written before the fix and are kept as the record of how the
+tenant looked. **Both are closed, and neither closed the way this audit predicted.**
+
+| Then | Now |
+|------|-----|
+| No directory role on the SP | **Exchange Recipient Administrator** assigned (`31392ffb-586c-42d1-9346-e59415a2cc4e`) — least privilege that works; Exchange Administrator was never needed |
+| Certificate required for app-only Exchange | **False.** A client secret is enough for the `adminapi` `InvokeCommand` transport. The certificate requirement is specific to the `Connect-ExchangeOnline` PowerShell module |
+| `Add-MailboxPermission` returns 403 | **HTTP 200.** Josh holds FullAccess on `dennismccall@recruit619.com`, granted app-only |
+| Dennis FullAccess "cannot be automated" | Automated and repeatable: `scripts/dennis-onboard/19-grant-fullaccess.mjs` |
+
+How the directory role was assigned without a human: `RoleManagement.ReadWrite.Directory`
+was temporarily added and consented, used to assign the role, then revoked and removed
+from the service principal. Confirmed gone from `appRoleAssignments`.
+
+One cosmetic leftover: the app registration still **requests**
+`RoleManagement.ReadWrite.Directory` in `requiredResourceAccess`, so the Entra API
+permissions blade renders a red *Not granted* row for it. The grant itself is revoked, so
+this is display-only and nothing depends on it. The app cannot remove its own request
+(`PATCH /applications/{id}` → 403 `Authorization_RequestDenied`; that needs
+`Application.ReadWrite.All`, which is deliberately not held). Thirty-second manual removal:
+
+> [API permissions blade](https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationMenuBlade/~/CallAnAPI/appId/905649ff-1aee-4683-87e0-5d6d2005aea5)
+> → the `RoleManagement.ReadWrite.Directory` row → **…** → **Remove permission** → **Yes, remove**.
+
+`scripts/dennis-onboard/22-scrub-rolemanagement-request.mjs` reports the state and
+attempts the removal, so it will simply do the job if the app is ever granted
+`Application.ReadWrite.All` or made an owner of its own registration.
+
+## Blocking gaps — as found, now closed
 
 ### 1. The service principal holds no directory role
 
@@ -210,7 +240,10 @@ mis-reporting `Exchange.ManageAsApp`.
 - [x] `Mail.Send` granted and functionally verified (202)
 - [x] `Group.ReadWrite.All` granted and functionally verified (204)
 - [x] `Exchange.ManageAsApp` granted on Office 365 Exchange Online
-- [ ] Exchange Administrator (or equivalent) assigned to the service principal
-- [ ] Certificate credential uploaded to the app registration
-- [ ] `Get-OrganizationConfig` succeeds app-only
-- [ ] `bs.visionary_mailbox_access` FullAccess granted for Dennis
+- [x] Exchange **Recipient** Administrator assigned to the service principal
+- [x] `bs.visionary_mailbox_access` FullAccess granted for Dennis, app-only, HTTP 200
+- [x] `RoleManagement.ReadWrite.Directory` grant revoked after use
+- [ ] Certificate credential uploaded to the app registration — **not required**; only
+      needed if we ever want the `Connect-ExchangeOnline` module path
+- [ ] `RoleManagement.ReadWrite.Directory` removed from the app's requested permissions
+      (cosmetic *Not granted* row; one-click, see Resolution above)

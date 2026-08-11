@@ -21,27 +21,34 @@ Automation is **assist** — fail-soft if Graph is not configured; the step stay
 | `MS_GRAPH_VISIONARY_MAILBOX_UPN` | Default `joshmonroe@tagevc.com` |
 | `MS_GRAPH_GRANT_VISIONARY_MAILBOX` | Set `1` to attempt live grants |
 
-## Entra app permissions — state as of 2026-08-10
+## Entra app permissions — app-only automation is live (2026-08-10)
 
 - **`Exchange.ManageAsApp` (Application): granted and admin-consented.** Note it sits on
   the **Office 365 Exchange Online** resource (`00000002-0000-0ff1-ce00-000000000000`),
   not Microsoft Graph, so it never appears in a Graph token — a Graph-token-only check
   will wrongly report it missing.
+- **Exchange Recipient Administrator** directory role is assigned to the service
+  principal. This is the least-privilege role that works; Exchange Administrator is not
+  needed. Without *some* directory role, Exchange RBAC has nothing to authorise against
+  and every app-only admin call returns 403.
 - **Microsoft Graph cannot do this at all.** There is no `mailboxPermissions` route;
   `POST /beta/users/{id}/mailboxPermissions` 404/405s regardless of consent. Exchange
   Online is the only path.
+- **No certificate is required.** A client secret is enough for the `adminapi`
+  `InvokeCommand` transport. The certificate requirement applies only to the
+  `Connect-ExchangeOnline` PowerShell module, which the app does not use.
 
-Two gaps remain before app-only automation can work — both need a human:
+That combination is standing capability — the next hire's mailbox step grants itself with
+no interactive session. Details and reproduction: **`docs/ENTRA_GRAPH_PERMISSIONS.md`**.
 
-1. **No directory role on the service principal.** Exchange Administrator is activated in
-   the tenant but has zero members, so Exchange RBAC has nothing to authorise against and
-   every app-only admin call returns 403.
-2. **No certificate credential on the app registration** (`keyCredentials: []`, client
-   secrets only). `Connect-ExchangeOnline` app-only auth requires a certificate.
+Repeatable script:
 
-Details and reproduction: **`docs/ENTRA_GRAPH_PERMISSIONS.md`**.
+```bash
+node scripts/dennis-onboard/19-grant-fullaccess.mjs <mailbox> [visionary-upn]
+node scripts/dennis-onboard/20-verify-and-close.mjs   # read-only audit
+```
 
-Interactive path (works today, ~30s for the Visionary):
+Manual fallback, if Exchange is refusing the app for some reason:
 
 ```powershell
 Connect-ExchangeOnline -UserPrincipalName joshmonroe@tagevc.com
