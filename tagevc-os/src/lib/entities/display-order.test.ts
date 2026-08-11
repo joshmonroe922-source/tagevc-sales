@@ -210,7 +210,8 @@ describe('main nav IA (post Assets + SSC accordion)', () => {
     expect(labels.indexOf('Command Center')).toBe(7);
     expect(labels.indexOf('Grow')).toBe(8);
     expect(labels.indexOf('Personal')).toBe(9);
-    expect(labels.indexOf('Message Center')).toBe(10);
+    // Messaging is the sidebar brand-header control, not a left-nav item.
+    expect(labels).not.toContain('Message Center');
     expect(labels).not.toContain('To Do List');
     expect(labels).not.toContain('Portfolio');
     expect(labels).not.toContain('Entities');

@@ -732,13 +732,8 @@ export const MAIN_NAV: NavItem[] = [
       },
     ],
   },
-  {
-    module: 'messages',
-    href: '/messages',
-    label: 'Message Center',
-    description: 'Direct messages · groups',
-  },
-
+  // Messaging is the sidebar brand-header control (SidebarMessagingControl),
+  // not a left-nav item — same on every subsidiary and future entity OS.
 ];
 
 export function flattenNavItems(items: NavItem[] = MAIN_NAV): NavItem[] {

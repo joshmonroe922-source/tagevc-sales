@@ -336,7 +336,8 @@ describe('Assets + COO / Subsidiary Leader nav gates', () => {
     expect(labels).toContain('Home');
     expect(labels).toContain('Dashboard');
     expect(labels).toContain('Shared Services');
-    expect(labels).toContain('Message Center');
+    // Messaging lives in the sidebar brand header, not the left nav.
+    expect(labels).not.toContain('Message Center');
     expect(labels).not.toContain('Help Desk');
     expect(labels).not.toContain('SSC Task List');
 

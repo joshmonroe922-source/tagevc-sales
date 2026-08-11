@@ -9,6 +9,9 @@
  *
  * UX: primary opens /messages; caret sets Available / Do Not Disturb; live
  * green/red status dot on the control.
+ *
+ * Subsidiary portals that have no local chat point `href` at the Tage Message
+ * Center and set `external` so the desk stays open in the current tab.
  */
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -26,6 +29,7 @@ export type ShellAvailability = 'available' | 'dnd';
 
 export function ShellSidebarMessagingControl({
   href = '/messages',
+  external = false,
   status,
   source = 'manual',
   pending = false,
@@ -34,6 +38,8 @@ export function ShellSidebarMessagingControl({
   className,
 }: {
   href?: string;
+  /** Cross-origin Message Center — opens a new tab and never lights active. */
+  external?: boolean;
   status: ShellAvailability;
   source?: 'manual' | 'calendar';
   pending?: boolean;
@@ -42,7 +48,34 @@ export function ShellSidebarMessagingControl({
   className?: string;
 }) {
   const pathname = usePathname();
-  const active = pathname === href || pathname.startsWith(`${href}/`);
+  const active =
+    !external && (pathname === href || pathname.startsWith(`${href}/`));
+
+  const primaryClassName = cn(
+    'inline-flex min-w-0 flex-1 items-center gap-1.5 px-2 py-1',
+    'text-xs font-medium tracking-[0.14em] uppercase',
+    active
+      ? 'text-sidebar-accent-foreground'
+      : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground',
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring',
+  );
+
+  const primaryContent = (
+    <>
+      <span className="relative shrink-0">
+        <MessageSquare className="size-3.5" aria-hidden />
+        <span
+          className={cn(
+            'absolute -top-0.5 -right-0.5 size-2 rounded-full ring-2 ring-sidebar',
+            status === 'available' ? 'bg-emerald-500' : 'bg-red-500',
+          )}
+          aria-hidden
+        />
+      </span>
+      <span className="min-w-0 truncate">Messaging</span>
+      {unreadBadge}
+    </>
+  );
 
   return (
     <div
@@ -54,31 +87,21 @@ export function ShellSidebarMessagingControl({
       role="group"
       aria-label="Messaging and availability"
     >
-      <Link
-        href={href}
-        title="Messaging"
-        className={cn(
-          'inline-flex min-w-0 flex-1 items-center gap-1.5 px-2 py-1',
-          'text-xs font-medium tracking-[0.14em] uppercase',
-          active
-            ? 'text-sidebar-accent-foreground'
-            : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring',
-        )}
-      >
-        <span className="relative shrink-0">
-          <MessageSquare className="size-3.5" aria-hidden />
-          <span
-            className={cn(
-              'absolute -top-0.5 -right-0.5 size-2 rounded-full ring-2 ring-sidebar',
-              status === 'available' ? 'bg-emerald-500' : 'bg-red-500',
-            )}
-            aria-hidden
-          />
-        </span>
-        <span className="min-w-0 truncate">Messaging</span>
-        {unreadBadge}
-      </Link>
+      {external ? (
+        <a
+          href={href}
+          target="_blank"
+          rel="noreferrer"
+          title="Messaging"
+          className={primaryClassName}
+        >
+          {primaryContent}
+        </a>
+      ) : (
+        <Link href={href} title="Messaging" className={primaryClassName}>
+          {primaryContent}
+        </Link>
+      )}
       <DropdownMenu>
         <DropdownMenuTrigger
           type="button"

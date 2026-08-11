@@ -53,6 +53,51 @@ src/lib/nav.ts                                # no Help Desk left-nav item
 
 Reference implementations also live under `src/lib/platform/shell/` (portable twins).
 
+## Messaging control (required on every entity OS)
+
+Every entity OS (Tage + current subsidiaries + **future clones**) ships one **Messaging** split control in the `AppSidebar` brand header, above the nav.
+
+| Control | Behavior |
+| --- | --- |
+| **Primary** | `Messaging` label + `MessageSquare` icon with a live green/red presence dot. Opens the Message Center. |
+| **Caret** | Dropdown radio group: **Available** (green) / **Do Not Disturb** (red). Writes through to shared presence. |
+| **Polling** | Refresh availability every 30s so the dot matches `app.tagevc.com`. |
+| **Left nav** | **No** `Message Center` / `Messages` item. This control is the only entry point. |
+
+Subsidiary portals are separate Next apps — nothing is inherited from Tage. Copy the portable twin and wire the portal's own presence transport.
+
+| Surface | `href` | `external` | Presence transport |
+| --- | --- | --- | --- |
+| Tage OS | `/messages` | no | `getMyAvailabilityAction` / `setMyAvailabilityAction` |
+| Subsidiary portal (no local chat) | `tageMessagesUrl()` | **yes** | `POST /api/tage-presence` proxy (`TAGE_PRESENCE_SECRET`) |
+
+`external` renders an `<a target="_blank" rel="noreferrer">` and never lights the active state, so the recruiter's desk stays open behind the Message Center.
+
+### Copy targets (scaffold)
+
+```
+src/lib/platform/shell/sidebar-messaging-control.tsx   # portable twin (href · external · status · onSelect)
+src/components/messaging/sidebar-messaging-control.tsx # portal wiring (presence transport)
+src/components/ui/dropdown-menu.tsx                    # Base UI menu primitive
+src/app/api/tage-presence/route.ts                     # presence proxy (subsidiaries only)
+```
+
+Reference implementation: Recruit 619 (`recruit619-portal`).
+
+Nav + shell smoke:
+
+```ts
+// Messaging is chrome, not nav
+assert.ok(!MAIN_NAV.some((n) => n.href === '/messages'));
+// Control sits in the brand header, above the nav
+assert.match(sidebar, /SidebarMessagingControl/);
+assert.ok(sidebar.indexOf('SidebarMessagingControl') < sidebar.indexOf('<nav'));
+// Split control ships both presence states
+assert.match(twin, /bg-emerald-500/);
+assert.match(twin, /bg-red-500/);
+assert.match(twin, /DropdownMenuRadioGroup/);
+```
+
 ## Reload scroll restore (required)
 
 Hard refresh keeps scroll position on the same path. Soft route changes still jump to top. Hash links win over saved Y.

@@ -34,7 +34,8 @@ describe('home nav (tage)', () => {
       true,
     );
     expect(flat.some((n) => n.href === '/help-desk')).toBe(false);
-    expect(flat.some((n) => n.href === '/messages')).toBe(true);
+    // Messaging is the sidebar brand-header control, not a left-nav item.
+    expect(flat.some((n) => n.href === '/messages')).toBe(false);
     expect(flat.some((n) => n.href === '/think-tank')).toBe(false);
   });
 });
