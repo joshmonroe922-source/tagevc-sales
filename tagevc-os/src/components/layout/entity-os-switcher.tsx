@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { Fragment, useState, useTransition } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
 import {
   exitEntityOsAction,
@@ -10,6 +10,7 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -88,21 +89,23 @@ export function EntityOsSwitcher({
           <ChevronDown className="mt-1 size-4 shrink-0 text-sidebar-foreground/60 transition-transform group-data-[popup-open]:rotate-180" />
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-64" align="start">
-          <DropdownMenuLabel>Operating system</DropdownMenuLabel>
-          {options.map((option, index) => (
-            <div key={option.entityId}>
-              {index === 1 ? <DropdownMenuSeparator /> : null}
-              <DropdownMenuItem
-                onClick={() => select(option.entityId)}
-                className="justify-between"
-              >
-                <span className="min-w-0 truncate">{option.label}</span>
-                {option.entityId === activeId ? (
-                  <Check className="size-4 shrink-0" />
-                ) : null}
-              </DropdownMenuItem>
-            </div>
-          ))}
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>Operating system</DropdownMenuLabel>
+            {options.map((option, index) => (
+              <Fragment key={option.entityId}>
+                {index === 1 ? <DropdownMenuSeparator /> : null}
+                <DropdownMenuItem
+                  onClick={() => select(option.entityId)}
+                  className="justify-between"
+                >
+                  <span className="min-w-0 truncate">{option.label}</span>
+                  {option.entityId === activeId ? (
+                    <Check className="size-4 shrink-0" />
+                  ) : null}
+                </DropdownMenuItem>
+              </Fragment>
+            ))}
+          </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
       {error ? (

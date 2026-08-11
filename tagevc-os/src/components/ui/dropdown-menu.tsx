@@ -49,8 +49,19 @@ function DropdownMenuContent({
   )
 }
 
+/**
+ * Base UI's `Menu.GroupLabel` throws when it has no `Menu.Group` ancestor,
+ * which crashes the whole tree the moment the popup opens. Track grouping
+ * ourselves so a standalone label degrades to a plain heading instead.
+ */
+const DropdownMenuGroupContext = React.createContext(false)
+
 function DropdownMenuGroup({ ...props }: MenuPrimitive.Group.Props) {
-  return <MenuPrimitive.Group data-slot="dropdown-menu-group" {...props} />
+  return (
+    <DropdownMenuGroupContext.Provider value={true}>
+      <MenuPrimitive.Group data-slot="dropdown-menu-group" {...props} />
+    </DropdownMenuGroupContext.Provider>
+  )
 }
 
 function DropdownMenuLabel({
@@ -60,14 +71,31 @@ function DropdownMenuLabel({
 }: MenuPrimitive.GroupLabel.Props & {
   inset?: boolean
 }) {
+  const inGroup = React.useContext(DropdownMenuGroupContext)
+  const labelClassName = cn(
+    "px-1.5 py-1 text-xs font-medium text-muted-foreground data-inset:pl-7",
+    className
+  )
+
+  if (!inGroup) {
+    const domProps = { ...props }
+    delete domProps.render
+    return (
+      <div
+        data-slot="dropdown-menu-label"
+        data-inset={inset}
+        role="presentation"
+        className={labelClassName}
+        {...(domProps as React.ComponentProps<"div">)}
+      />
+    )
+  }
+
   return (
     <MenuPrimitive.GroupLabel
       data-slot="dropdown-menu-label"
       data-inset={inset}
-      className={cn(
-        "px-1.5 py-1 text-xs font-medium text-muted-foreground data-inset:pl-7",
-        className
-      )}
+      className={labelClassName}
       {...props}
     />
   )
@@ -181,10 +209,12 @@ function DropdownMenuCheckboxItem({
 
 function DropdownMenuRadioGroup({ ...props }: MenuPrimitive.RadioGroup.Props) {
   return (
-    <MenuPrimitive.RadioGroup
-      data-slot="dropdown-menu-radio-group"
-      {...props}
-    />
+    <DropdownMenuGroupContext.Provider value={true}>
+      <MenuPrimitive.RadioGroup
+        data-slot="dropdown-menu-radio-group"
+        {...props}
+      />
+    </DropdownMenuGroupContext.Provider>
   )
 }
 

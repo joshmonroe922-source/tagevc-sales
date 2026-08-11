@@ -1,9 +1,11 @@
 'use client';
 
+import { Fragment } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -74,21 +76,23 @@ export function ShellEntityOsBrand({
           <ChevronDown className="mt-1 size-4 shrink-0 text-sidebar-foreground/60 transition-transform group-data-[popup-open]:rotate-180" />
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-64" align="start">
-          <DropdownMenuLabel>Operating system</DropdownMenuLabel>
-          {options.map((option, index) => (
-            <div key={option.entityId}>
-              {index === 1 ? <DropdownMenuSeparator /> : null}
-              <DropdownMenuItem
-                onClick={() => onSelect(option.entityId)}
-                className="justify-between"
-              >
-                <span className="min-w-0 truncate">{option.label}</span>
-                {option.entityId === activeEntityId ? (
-                  <Check className="size-4 shrink-0" />
-                ) : null}
-              </DropdownMenuItem>
-            </div>
-          ))}
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>Operating system</DropdownMenuLabel>
+            {options.map((option, index) => (
+              <Fragment key={option.entityId}>
+                {index === 1 ? <DropdownMenuSeparator /> : null}
+                <DropdownMenuItem
+                  onClick={() => onSelect(option.entityId)}
+                  className="justify-between"
+                >
+                  <span className="min-w-0 truncate">{option.label}</span>
+                  {option.entityId === activeEntityId ? (
+                    <Check className="size-4 shrink-0" />
+                  ) : null}
+                </DropdownMenuItem>
+              </Fragment>
+            ))}
+          </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
       {error ? (
