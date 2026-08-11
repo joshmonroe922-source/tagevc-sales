@@ -21,9 +21,9 @@ export function graphConfigured(): boolean {
   );
 }
 
-export async function getMsGraphToken(): Promise<
-  { ok: true; token: string } | { ok: false; detail: string }
-> {
+export async function getMsGraphToken(
+  scope = 'https://graph.microsoft.com/.default',
+): Promise<{ ok: true; token: string } | { ok: false; detail: string }> {
   const tenant = process.env.MS_GRAPH_TENANT_ID!.trim();
   const clientId = process.env.MS_GRAPH_CLIENT_ID!.trim();
   const clientSecret = process.env.MS_GRAPH_CLIENT_SECRET!.trim();
@@ -31,7 +31,7 @@ export async function getMsGraphToken(): Promise<
     const body = new URLSearchParams({
       client_id: clientId,
       client_secret: clientSecret,
-      scope: 'https://graph.microsoft.com/.default',
+      scope,
       grant_type: 'client_credentials',
     });
     const res = await fetch(
@@ -1021,15 +1021,61 @@ export async function applyGraphMailboxOffboarding(input: {
   };
 }
 
+const EXCHANGE_ONLINE_SCOPE = 'https://outlook.office365.com/.default';
+
+/**
+ * Run one Exchange Online cmdlet app-only, over the same REST transport that
+ * `Connect-ExchangeOnline` uses underneath.
+ *
+ * This needs `Exchange.ManageAsApp` (on the Office 365 Exchange Online resource,
+ * not Graph) *and* a directory role for Exchange RBAC to authorise against. The
+ * app role alone returns 403 on every cmdlet.
+ */
+async function invokeExchangeCmdlet(
+  cmdlet: string,
+  parameters: Record<string, unknown>,
+  anchorMailbox: string,
+): Promise<{ ok: boolean; status: number; body: string }> {
+  const tenant = process.env.MS_GRAPH_TENANT_ID!.trim();
+  const tok = await getMsGraphToken(EXCHANGE_ONLINE_SCOPE);
+  if (!tok.ok) return { ok: false, status: 0, body: tok.detail };
+
+  const res = await fetch(
+    `https://outlook.office365.com/adminapi/beta/${tenant}/InvokeCommand`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${tok.token}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        // Exchange rejects the compressed response this transport negotiates by default.
+        'Accept-Encoding': 'identity',
+        'X-CmdletName': cmdlet,
+        'X-AnchorMailbox': `UPN:${anchorMailbox}`,
+      },
+      body: JSON.stringify({
+        CmdletInput: { CmdletName: cmdlet, Parameters: parameters },
+      }),
+    },
+  );
+  const body = await res.text().catch(() => '');
+  return { ok: res.ok, status: res.status, body };
+}
+
 /**
  * Grant Visionary "Read and manage" (FullAccess) on a user mailbox so Outlook
  * "Open another mailbox" works. Fail-soft when Graph is not configured.
  *
  * FullAccess is an Exchange Online concept — Microsoft Graph exposes no route for
- * it, so this cannot succeed today no matter what is consented. `Exchange.ManageAsApp`
- * is granted (on Office 365 Exchange Online, not Graph), but the service principal
- * also needs an Exchange directory role and a certificate credential before
- * app-only `Add-MailboxPermission` works. Until then the step is a human task.
+ * it (`beta/users/{id}/mailboxPermissions` 404/405s regardless of consent), so
+ * this goes through the Exchange Online `adminapi` transport instead. Verified
+ * working app-only on 2026-08-10 with a client secret; the certificate that
+ * `Connect-ExchangeOnline` demands is only needed for the PowerShell module path.
+ *
+ * Standing tenant requirements, both in place:
+ * - `Exchange.ManageAsApp` app role on Office 365 Exchange Online
+ * - Exchange Recipient Administrator directory role on the service principal
+ *   (least privilege that works — Exchange Administrator is not needed)
  *
  * Env:
  * - MS_GRAPH_* (tenant/client/secret)
@@ -1055,10 +1101,9 @@ export async function grantVisionaryMailboxFullAccess(input: {
       skipped: true,
       pending: true,
       detail:
-        `Checklist step visible. MS_GRAPH_GRANT_VISIONARY_MAILBOX=1 enables the live attempt, but it cannot ` +
-        `succeed yet: Graph has no mailboxPermissions route, and app-only Exchange Online needs an Exchange ` +
-        `directory role plus a certificate on the app registration. Grant it in Exchange Online instead: ` +
-        `Add-MailboxPermission -Identity <user> -User ${visionaryUpn} -AccessRights FullAccess -InheritanceType All.`,
+        `Checklist step visible. Set MS_GRAPH_GRANT_VISIONARY_MAILBOX=1 to grant it automatically ` +
+        `through Exchange Online. By hand: Add-MailboxPermission -Identity <user> -User ${visionaryUpn} ` +
+        `-AccessRights FullAccess -InheritanceType All.`,
     };
   }
   if (!graphConfigured()) {
@@ -1085,49 +1130,51 @@ export async function grantVisionaryMailboxFullAccess(input: {
     };
   }
 
-  // Graph beta mailbox permission grant (FullAccess ≈ Read and manage)
-  const res = await fetch(
-    `https://graph.microsoft.com/beta/users/${encodeURIComponent(targetId)}/mailboxPermissions`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${tok.token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        emailAddress: { address: visionaryUpn },
-        accessRights: ['fullAccess'],
-        isInherited: false,
-      }),
-    },
-  );
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    // Verified against the live tenant 2026-08-10: Graph has no mailboxPermissions
-    // route, so this always 404/405s regardless of consent. Say so plainly rather
-    // than sending the operator to re-check app permissions that cannot help.
-    if (res.status === 404 || res.status === 405) {
-      return {
-        ok: false,
-        pending: true,
-        detail:
-          `Microsoft Graph cannot grant mailbox FullAccess (HTTP ${res.status} on beta/users/{id}/mailboxPermissions — no such route). ` +
-          `Run in Exchange Online instead: Add-MailboxPermission -Identity <user> -User ${visionaryUpn} ` +
-          `-AccessRights FullAccess -InheritanceType All. Needs an interactive admin session or ` +
-          `Exchange.ManageAsApp with a certificate.`,
-      };
-    }
+  const mailbox = (input.email || '').trim();
+  if (!mailbox) {
     return {
       ok: false,
       pending: true,
-      detail: `Graph mailbox FullAccess HTTP ${res.status}: ${text.slice(0, 180)}.`,
+      detail: 'No mailbox address to grant against — keep checklist step open for IT',
     };
   }
 
+  const res = await invokeExchangeCmdlet(
+    'Add-MailboxPermission',
+    {
+      Identity: mailbox,
+      User: visionaryUpn,
+      AccessRights: 'FullAccess',
+      InheritanceType: 'All',
+    },
+    mailbox,
+  );
+
+  if (res.ok) {
+    return {
+      ok: true,
+      detail: `Granted FullAccess (Read and manage) on ${mailbox} to ${visionaryUpn} via Exchange Online`,
+    };
+  }
+
+  // A brand-new mailbox is not always provisioned by the time the joiner runs, and
+  // Exchange takes up to a minute to honour a freshly assigned directory role.
+  // Both surface here as a retryable failure, so keep the step open rather than
+  // sending IT to re-check consent that is already correct.
+  if (res.status === 403) {
+    return {
+      ok: false,
+      pending: true,
+      detail:
+        `Exchange Online refused the grant (403). The service principal needs the Exchange Recipient ` +
+        `Administrator directory role; propagation can take ~30s after assignment. Retry, or run ` +
+        `Add-MailboxPermission -Identity ${mailbox} -User ${visionaryUpn} -AccessRights FullAccess -InheritanceType All.`,
+    };
+  }
   return {
-    ok: true,
-    detail: `Granted FullAccess (Read and manage) on mailbox to ${visionaryUpn}`,
+    ok: false,
+    pending: true,
+    detail: `Exchange Add-MailboxPermission HTTP ${res.status}: ${res.body.slice(0, 180)}.`,
   };
 }
 
