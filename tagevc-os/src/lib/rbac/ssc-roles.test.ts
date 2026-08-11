@@ -121,8 +121,11 @@ describe('SSC Role Switcher + nav scope', () => {
       expect.arrayContaining(['Tage VC A&F', 'Admin', 'Ticket Portal']),
     );
     expect(sscChildrenFor('ssc_finance')).not.toContain('Legal');
+    // The A&F desk keeps its own Admin-parked A&F links; other desks must not.
     expect(adminChildrenFor('ssc_finance')).toEqual([
       'Document Library',
+      'W-9 / AP inbound',
+      'Forecasting',
       'Period Checklists',
       'Audits',
     ]);
@@ -164,6 +167,7 @@ describe('SSC Role Switcher + nav scope', () => {
     expect(visionaryIt?.children?.map((c) => c.label)).toEqual([
       'Partner stack',
       'Mobile launch',
+      'Identity lifecycle',
       'Activity log',
       'Audit log',
     ]);
@@ -184,6 +188,7 @@ describe('SSC Role Switcher + nav scope', () => {
     expect(itDesk?.children?.map((c) => c.label)).toEqual([
       'Partner stack',
       'Mobile launch',
+      'Identity lifecycle',
       'Activity log',
     ]);
     expect(itDesk?.children?.[0]?.href).toBe(
@@ -199,6 +204,8 @@ describe('SSC Role Switcher + nav scope', () => {
     );
     expect(adminChildrenFor('service_lead')).toEqual([
       'Document Library',
+      'W-9 / AP inbound',
+      'Forecasting',
       'Period Checklists',
       'Audits',
     ]);

@@ -572,6 +572,12 @@ export const MAIN_NAV: NavItem[] = [
             href: '/shared-services/crm',
             label: 'CRM graph',
             description: 'Accounts · contacts · hierarchy · ⌘K',
+            /**
+             * Firm-wide surface parked under Admin. The `module: 'admin'` siblings
+             * are already invisible to SSC desks; these `shared_services` ones
+             * would otherwise slip past that gate.
+             */
+            hiddenForRoles: [...HIDE_FOR_SSC],
           },
           {
             module: 'shared_services',
@@ -586,6 +592,7 @@ export const MAIN_NAV: NavItem[] = [
             href: '/shared-services/signent/clients',
             label: 'Signent clients',
             description: 'Sales convert · client_org · ops seams',
+            hiddenForRoles: [...HIDE_FOR_SSC],
           },
           {
             module: 'admin',
@@ -616,12 +623,15 @@ export const MAIN_NAV: NavItem[] = [
             href: '/shared-services/af/accounting/w9-campaigns',
             label: 'W-9 / AP inbound',
             description: 'Outstanding W-9 · mailbox poll',
+            /** A&F surface; other single-function SSC desks have no business here. */
+            hiddenForRoles: sscRolesHiddenFromFunction('Finance'),
           },
           {
             module: 'shared_services',
             href: '/shared-services/af/finance/forecasts',
             label: 'Forecasting',
             description: '13-week cash · expense horizon',
+            hiddenForRoles: sscRolesHiddenFromFunction('Finance'),
           },
           {
             module: 'admin',

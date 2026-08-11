@@ -90,10 +90,12 @@ describe('AI C-Suite role config', () => {
 
 describe('C-Suite nav Visionary-only', () => {
   it('places C-Suite after Assets (under Home/Dashboard) with children', () => {
+    // Relative order, not adjacency — My Networking Contacts sits between
+    // Dashboard and Assets and more global inboxes may follow it.
     const labels = MAIN_NAV.map((n) => n.label);
-    expect(labels.indexOf('Dashboard')).toBe(labels.indexOf('Home') + 1);
-    expect(labels.indexOf('Assets')).toBe(labels.indexOf('Dashboard') + 1);
-    expect(labels.indexOf('C-Suite')).toBe(labels.indexOf('Assets') + 1);
+    expect(labels.indexOf('Home')).toBeLessThan(labels.indexOf('Dashboard'));
+    expect(labels.indexOf('Dashboard')).toBeLessThan(labels.indexOf('Assets'));
+    expect(labels.indexOf('Assets')).toBeLessThan(labels.indexOf('C-Suite'));
     const cs = MAIN_NAV.find((n) => n.label === 'C-Suite');
     expect(cs?.visionaryOnly).toBe(true);
     expect(cs?.hideDuringLiveLook).toBe(true);

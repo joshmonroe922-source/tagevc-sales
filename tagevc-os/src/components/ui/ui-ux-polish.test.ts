@@ -99,9 +99,16 @@ describe('UI/UX polish primitives', () => {
       'utf8',
     );
     assert.match(layout, /h-dvh max-h-dvh/);
-    assert.match(layout, /overflow-y-auto/);
     assert.match(layout, /overflow-hidden/);
     assert.match(layout, /MobileNavDrawer/);
+
+    // The main scroller moved into AppMain so full-bleed tools can opt out of it.
+    const main = readFileSync(
+      join(process.cwd(), 'src/components/layout/app-main.tsx'),
+      'utf8',
+    );
+    assert.match(layout, /<AppMain>/);
+    assert.match(main, /overflow-y-auto/);
   });
 
   it('ships phone Menu drawer in AppTopBar below md', () => {
@@ -128,7 +135,7 @@ describe('UI/UX polish primitives', () => {
       'utf8',
     );
     assert.match(shell, /order-3 md:order-1/);
-    assert.match(shell, /order-1 md:order-3/);
+    assert.match(shell, /order-1 md:order-4/);
   });
 
   it('ships Cards | List on Dashboard and Command Center boards', () => {
