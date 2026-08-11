@@ -2,10 +2,11 @@
  * 1. Email Dennis his Instant NDA enterprise access, with a copy to Josh.
  * 2. Set Dennis's manager_profile_id (HRIS + portal profile) to Josh.
  *
- * Outbound Graph sendMail is 403 until Mail.Send is consented, so internal
- * delivery goes straight into each tenant Inbox via Mail.ReadWrite. A real BCC
- * is not possible that way, so Josh gets his own copy of the same message —
- * same outcome, and it is visible in his Inbox rather than hidden.
+ * Written before Mail.Send was consented (2026-08-10), so delivery goes straight
+ * into each tenant Inbox via Mail.ReadWrite. A real BCC is not possible that way,
+ * so Josh gets his own copy of the same message — same outcome, and it is visible
+ * in his Inbox rather than hidden. Both recipients are internal, so there is no
+ * reason to rewrite this onto sendMail.
  *
  *   npm exec --yes tsx@4 -- scripts/dennis-onboard/14-instant-nda-and-manager.mts
  *   npm exec --yes tsx@4 -- scripts/dennis-onboard/14-instant-nda-and-manager.mts --apply

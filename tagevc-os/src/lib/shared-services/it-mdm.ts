@@ -1025,9 +1025,12 @@ export async function applyGraphMailboxOffboarding(input: {
  * Grant Visionary "Read and manage" (FullAccess) on a user mailbox so Outlook
  * "Open another mailbox" works. Fail-soft when Graph is not configured.
  *
- * Required Entra app permissions (admin consent):
- * - Exchange.ManageAsApp (application) + Exchange Online role assignment, OR
- * - MailboxSettings.ReadWrite is NOT sufficient for FullAccess
+ * FullAccess is an Exchange Online concept — Microsoft Graph exposes no route for
+ * it, so this cannot succeed today no matter what is consented. `Exchange.ManageAsApp`
+ * is granted (on Office 365 Exchange Online, not Graph), but the service principal
+ * also needs an Exchange directory role and a certificate credential before
+ * app-only `Add-MailboxPermission` works. Until then the step is a human task.
+ *
  * Env:
  * - MS_GRAPH_* (tenant/client/secret)
  * - MS_GRAPH_VISIONARY_MAILBOX_UPN (default joshmonroe@tagevc.com)
@@ -1052,7 +1055,10 @@ export async function grantVisionaryMailboxFullAccess(input: {
       skipped: true,
       pending: true,
       detail:
-        'Checklist step visible. Set MS_GRAPH_GRANT_VISIONARY_MAILBOX=1 and Graph Exchange.ManageAsApp to auto-grant FullAccess.',
+        `Checklist step visible. MS_GRAPH_GRANT_VISIONARY_MAILBOX=1 enables the live attempt, but it cannot ` +
+        `succeed yet: Graph has no mailboxPermissions route, and app-only Exchange Online needs an Exchange ` +
+        `directory role plus a certificate on the app registration. Grant it in Exchange Online instead: ` +
+        `Add-MailboxPermission -Identity <user> -User ${visionaryUpn} -AccessRights FullAccess -InheritanceType All.`,
     };
   }
   if (!graphConfigured()) {

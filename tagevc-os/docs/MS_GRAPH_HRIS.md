@@ -75,22 +75,46 @@ Code: `src/lib/hris/instant-nda-access.ts`. Tests: `instant-nda-access.test.ts`.
 
 ---
 
-## Outbound transport and the `Mail.Send` gap
+## Outbound transport
 
-The Graph app registration holds `Mail.ReadWrite` but **not** `Mail.Send`, so
-`POST /users/{id}/sendMail` returns `403 ErrorAccessDenied`. Two mitigations:
+The Graph app registration holds the **`Mail.Send`** application permission
+(admin-consented 2026-08-10), verified live: `POST /users/{id}/sendMail` returns
+`202`. Graph is the primary transport for `sendPlatformEmail({ channel: 'system' })`,
+including personal-email invites to external addresses.
 
-1. **Resend fallback** — `sendPlatformEmail({ channel: 'system' })` now treats a Graph
-   failure as a transport failure and retries through Resend instead of failing the
-   whole send. Needs `RESEND_API_KEY`.
+Two supporting paths remain, no longer as permission workarounds:
+
+1. **Resend fallback** — `sendPlatformEmail({ channel: 'system' })` treats a Graph send
+   failure as a transport failure and retries through Resend rather than failing the
+   whole send. Still worth keeping for per-mailbox failures (missing send-as on an
+   alias, Exchange application access policy, throttling). Needs `RESEND_API_KEY`.
 2. **Tenant mailbox delivery** — `deliverToTenantMailbox()` in
    `src/lib/platform-email/tenant-mailbox-delivery.ts` writes a message straight into a
-   tenant mailbox's Inbox using `Mail.ReadWrite`. For recipients inside the tenant this
-   is equivalent to delivery (unread, in Inbox). It cannot reach external addresses, so
-   personal-email invites still need `Mail.Send` or Resend.
+   tenant mailbox's Inbox using `Mail.ReadWrite`, so internal-only notices can land
+   unread in an Inbox without an SMTP hop. Tenant mailboxes only.
 
-To close the gap properly, grant the `Mail.Send` application permission to the Tage
-Graph app and admin-consent it.
+Full permission inventory: **`docs/ENTRA_GRAPH_PERMISSIONS.md`**.
+
+---
+
+## Distribution group (`sd.distro`)
+
+Adds the hire to their **entity's** group, not just tenant-wide All Company.
+
+| Variable | Purpose |
+|----------|---------|
+| `MS_GRAPH_DISTRO_GROUP_IDS` | `ENT-R619=<guid>,ENT-FIRM=<guid>` — skips the name lookup |
+| `MS_GRAPH_CREATE_DISTRO_GROUPS` | Set `1` to create the group when none exists. **Default off.** |
+
+`Group.ReadWrite.All` is granted (2026-08-10), so creation works. It stays opt-in because
+it writes a new group into the tenant directory; with the flag off a missing group is
+reported as a configuration gap and the step stays open for IT.
+
+Graph can only create **Microsoft 365 (Unified)** groups. Distribution lists and
+mail-enabled security groups are Exchange-only, so an existing DL must be wired up
+through `MS_GRAPH_DISTRO_GROUP_IDS` rather than recreated.
+
+Code: `src/lib/hris/distro-step.ts`. Tests: `distro-step.test.ts`.
 
 ---
 
@@ -103,7 +127,12 @@ Goal: Visionary (Josh) can **Open another mailbox** in Outlook for each hire.
 | `MS_GRAPH_VISIONARY_MAILBOX_UPN` | Default `joshmonroe@tagevc.com` |
 | `MS_GRAPH_GRANT_VISIONARY_MAILBOX` | Set `1` to attempt live grants |
 
-**Entra:** `Exchange.ManageAsApp` (application) + admin consent / Exchange role assignment.
+**Entra:** `Exchange.ManageAsApp` is granted and admin-consented (on the **Office 365
+Exchange Online** resource, not Graph). Still blocked: the service principal holds no
+Exchange directory role and the app registration has no certificate credential, so
+app-only Exchange calls return 403. Graph itself has no `mailboxPermissions` route, so
+this stays an interactive `Add-MailboxPermission` until both gaps close — see
+`docs/ENTRA_GRAPH_PERMISSIONS.md`.
 
 Existing employees: HR/IT can run the mailbox grant pass from server action
 `grantExistingMailboxAction` (fail-soft per user).

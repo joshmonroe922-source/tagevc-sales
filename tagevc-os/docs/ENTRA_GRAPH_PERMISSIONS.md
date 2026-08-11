@@ -169,7 +169,8 @@ inference, not a verified result — the certificate is still required for the s
 
 ## Repo claims contradicted by this audit
 
-Listed for reconciliation; **not edited by this audit**.
+All corrected in the same change that landed this file — kept here as the record of what
+was wrong and why, so a future reader can tell a deliberate correction from a regression.
 
 | File · line | Stale claim | Reality |
 |-------------|-------------|---------|

@@ -2,13 +2,13 @@
  * Last-resort internal delivery: write a message straight into a tenant
  * mailbox's Inbox via Graph.
  *
- * Sending mail needs the `Mail.Send` application permission. Until that is
- * consented, outbound sends 403 — but `Mail.ReadWrite` (which the app does hold)
- * can create a message inside a mailbox we own. For recipients inside the tenant
- * that is functionally the same as delivery: it lands unread in their Inbox.
+ * `Mail.Send` has been granted since 2026-08-10, so normal outbound sending via
+ * `sendPlatformEmail()` is the preferred path. This remains useful when a message
+ * should appear in a tenant Inbox without leaving the tenant at all: `Mail.ReadWrite`
+ * creates the message directly, so it lands unread in the Inbox with no SMTP hop.
  *
  * Only works for tenant mailboxes. External addresses (personal Gmail, clients)
- * still require Mail.Send or Resend.
+ * must go through `sendPlatformEmail()`.
  */
 
 import { getMsGraphToken, graphConfigured } from '@/lib/shared-services/it-mdm';

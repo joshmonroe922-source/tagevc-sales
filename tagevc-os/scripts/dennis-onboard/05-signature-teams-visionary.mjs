@@ -7,8 +7,9 @@
  *  D. Drop a welcome message straight into his Inbox carrying both, so the
  *     signature and background are in his hands the moment he signs in.
  *
- * Graph has no API for Outlook signatures or Teams backgrounds, so delivery
- * into the mailbox is the live path available without Exchange.ManageAsApp.
+ * Graph has no API for Outlook signatures or Teams backgrounds, and app-only
+ * Exchange Online still 403s despite Exchange.ManageAsApp being granted, so
+ * delivery into the mailbox is the only live path.
  */
 
 import { writeFileSync, mkdirSync, readFileSync } from 'node:fs';

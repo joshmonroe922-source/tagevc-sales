@@ -139,11 +139,12 @@ await setStep(
   [
     'Attempted live and failed — this is a platform limitation, not a config miss.',
     'POST https://graph.microsoft.com/beta/users/{id}/mailboxPermissions returned HTTP 405 Request_BadRequest ("Specified HTTP method is not allowed for the request target"): the endpoint grantVisionaryMailboxFullAccess() calls does not exist in Microsoft Graph.',
-    'Graph app roles currently held: Mail.ReadWrite, User.ReadWrite.All, Directory.Read.All, GroupMember.ReadWrite.All, Organization.Read.All, DeviceManagementManagedDevices.ReadWrite.All. Exchange.ManageAsApp is NOT granted.',
+    'Graph app roles currently held: Mail.Send, Mail.ReadWrite, Group.ReadWrite.All, User.ReadWrite.All, Directory.Read.All, GroupMember.ReadWrite.All, Organization.Read.All, DeviceManagementManagedDevices.ReadWrite.All.',
+    'Exchange.ManageAsApp is granted too, but on the Office 365 Exchange Online resource rather than Microsoft Graph, so it never shows up in a Graph token.',
     'FullAccess can only be granted through Exchange Online. Fastest path (Visionary, ~30s):',
     '  Connect-ExchangeOnline -UserPrincipalName joshmonroe@tagevc.com',
     '  Add-MailboxPermission -Identity dennismccall@recruit619.com -User joshmonroe@tagevc.com -AccessRights FullAccess -InheritanceType All',
-    'Requires interactive MFA, so it cannot be automated with the current app-only credentials.',
+    'Not yet automatable, but consent is no longer the reason: the service principal holds no Exchange Administrator directory role and the app registration has no certificate credential, so Exchange returns 403 on every app-only admin call. See docs/ENTRA_GRAPH_PERMISSIONS.md.',
   ].join('\n'),
   'https://admin.exchange.microsoft.com/#/mailboxes',
 );
