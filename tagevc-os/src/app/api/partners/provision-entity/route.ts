@@ -21,7 +21,11 @@ export async function POST(req: Request) {
     const ctx = await getSessionContext();
     if (
       ctx &&
-      isFirmWideAccess(ctx.profile.role, ctx.profile.entity_id)
+      isFirmWideAccess(
+        ctx.profile.role,
+        ctx.profile.entity_id,
+        ctx.activeEntityOs,
+      )
     ) {
       authorized = true;
     }

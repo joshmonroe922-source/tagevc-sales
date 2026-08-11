@@ -15,7 +15,11 @@ export async function dryRunPresenceImportAction(
   await requirePermission('write:marketing');
   const ctx = await getSessionContext();
   if (!ctx) return { ok: false, error: 'Not signed in' };
-  const firmWide = isFirmWideAccess(ctx.profile.role, ctx.profile.entity_id);
+  const firmWide = isFirmWideAccess(
+    ctx.profile.role,
+    ctx.profile.entity_id,
+    ctx.activeEntityOs,
+  );
   const entityId =
     String(formData.get('entity_id') || '').trim() ||
     (firmWide ? 'ENT-FIRM' : ctx.profile.entity_id);

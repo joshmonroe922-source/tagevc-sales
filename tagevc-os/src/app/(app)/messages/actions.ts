@@ -110,6 +110,8 @@ async function assertCrossEntityMessagingAllowed(input: {
   kind: 'dm' | 'channel' | 'group';
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const supabase = await createClient();
+  // Deliberately ignores the Entity OS lock: messaging reach follows the
+  // person, not the operating system they happen to be working in.
   const firmWide = isFirmWideAccess(input.actorRole, input.actorEntityId);
 
   const rpc = await supabase.rpc('can_cross_entity_message_ms_p3', {

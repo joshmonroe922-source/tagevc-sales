@@ -12,7 +12,11 @@ export default async function MobileAppStoreLaunchPage() {
   await requirePermission('read:it_assets');
   const ctx = await getSessionContext();
   const firmWide = ctx
-    ? isFirmWideAccess(ctx.profile.role, ctx.profile.entity_id)
+    ? isFirmWideAccess(
+        ctx.profile.role,
+        ctx.profile.entity_id,
+        ctx.activeEntityOs,
+      )
     : false;
   const entityId = firmWide ? null : (ctx?.profile.entity_id ?? null);
 

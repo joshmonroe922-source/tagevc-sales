@@ -17,6 +17,7 @@ import {
   Ticket,
 } from 'lucide-react';
 import { stopImpersonationAction } from '@/app/(app)/impersonation/actions';
+import { EntityOsSwitcher } from '@/components/layout/entity-os-switcher';
 import { RoleSwitcher } from '@/components/layout/role-switcher';
 import { LiveLookNavControl } from '@/components/layout/live-look-nav';
 import { MessagesUnreadBadge } from '@/components/messaging/messages-unread-badge';
@@ -30,6 +31,10 @@ import {
   exclusiveAccordionToggle,
 } from '@/lib/nav/accordion';
 import { filterNavForRole } from '@/lib/nav/role-visibility';
+import {
+  entityOsShortLabel,
+  type EntityOsOption,
+} from '@/lib/rbac/entity-os';
 import {
   type AppRole,
   APP_ROLE_LABELS,
@@ -68,6 +73,11 @@ type Props = {
   liveLookActive?: boolean;
   /** Effective profile entity — labels Subsidiary Leader company nav. */
   entityId?: string | null;
+  /** Entity OS switcher (Visionary only) — empty for single-OS users. */
+  entityOsOptions?: EntityOsOption[];
+  /** Subsidiary OS currently being worked in, or null for the parent OS. */
+  activeEntityOs?: string | null;
+  canSwitchEntityOs?: boolean;
 };
 
 function isNavActive(pathname: string, href: string): boolean {
@@ -623,6 +633,9 @@ export function AppSidebar({
   impersonatableRoles,
   liveLookActive = false,
   entityId = null,
+  entityOsOptions = [],
+  activeEntityOs = null,
+  canSwitchEntityOs = false,
   variant = 'desktop',
 }: Props & { variant?: SidebarVariant }) {
   const pathname = usePathname();
@@ -634,8 +647,9 @@ export function AppSidebar({
         realRole,
         liveLookActive,
         entityId,
+        activeEntityOs,
       }),
-    [role, realRole, liveLookActive, entityId],
+    [role, realRole, liveLookActive, entityId, activeEntityOs],
   );
   const showSwitcher =
     realRole === 'visionary' &&
@@ -720,12 +734,12 @@ export function AppSidebar({
         <div className="mb-3">
           <SidebarMessagingControl className="w-full" />
         </div>
-        <p className="text-xs font-medium tracking-[0.18em] text-sidebar-foreground/60 uppercase">
-          Tage VC
-        </p>
-        <h1 className="mt-1 font-heading text-lg font-semibold tracking-tight text-sidebar-foreground">
-          Operating System
-        </h1>
+        <EntityOsSwitcher
+          options={entityOsOptions}
+          active={activeEntityOs ?? null}
+          canSwitch={canSwitchEntityOs}
+          fallbackLabel={entityOsShortLabel(entityId ?? null)}
+        />
       </div>
 
       <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-3 pb-4">

@@ -18,6 +18,21 @@
 
 See also: `docs/OS_ENTITY_SELECT_ORDER.md`.
 
+## Entity OS switcher (sidebar brand block)
+
+The sidebar brand header is an operating-system switcher, **Visionary only**.
+Everyone else sees the static brand line of their one OS.
+
+- Gate: `canSwitchEntityOs({ realRole, impersonatingAs, liveLookActive })` from
+  `@/lib/rbac/entity-os` — never re-derive this inline.
+- Active lock: `SessionContext.activeEntityOs` (cookie `tagevc_entity_os`).
+- **Any new `isFirmWideAccess` / `canAccessEntityId` / `canAccessPipelineEntity`
+  call must pass `activeEntityOs`**, or a firm-wide operator working inside a
+  subsidiary will silently keep seeing firm-wide rows.
+- Scope narrows only — it can never widen past the real profile.
+
+See `docs/OS_ENTITY_SWITCHER.md`.
+
 ## Engage analytics (Marketing)
 
 Firm rollup: `/shared-services/marketing/engage`

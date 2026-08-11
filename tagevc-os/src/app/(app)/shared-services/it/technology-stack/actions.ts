@@ -18,7 +18,13 @@ async function requireFirmWrite() {
   await requirePermission('write:it_assets');
   const ctx = await getSessionContext();
   if (!ctx) return { ok: false as const, error: 'Not signed in' };
-  if (!isFirmWideAccess(ctx.profile.role, ctx.profile.entity_id)) {
+  if (
+    !isFirmWideAccess(
+      ctx.profile.role,
+      ctx.profile.entity_id,
+      ctx.activeEntityOs,
+    )
+  ) {
     return {
       ok: false as const,
       error: 'Firm-wide access required to write contracts',

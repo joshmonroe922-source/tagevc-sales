@@ -21,6 +21,8 @@ import {
   isJoshMonroeLiveLookEmail,
   liveLookViewerMode,
 } from '@/lib/live-look/access';
+import { canSwitchEntityOs } from '@/lib/rbac/entity-os';
+import { readEntityOsCookie } from '@/lib/rbac/entity-os-cookie';
 import { resolveSubsidiaryLeaderEntityId } from '@/lib/entities/assignment-lead';
 import {
   isLaurenMonroeEmail,
@@ -51,6 +53,11 @@ export type SessionContext = {
   liveLookTarget: LiveLookTarget | null;
   /** True when Live Look is active — all writes must be denied. */
   liveLookActive: boolean;
+  /**
+   * Subsidiary OS the firm-wide operator is working inside (Entity OS
+   * switcher). Null = parent OS / firm-wide. Narrows scope only.
+   */
+  activeEntityOs: string | null;
 };
 
 function isDevBypass() {
@@ -231,12 +238,24 @@ export async function getSessionContext(): Promise<SessionContext | null> {
     };
   }
 
+  // Entity OS switcher: firm-wide Visionary working inside a subsidiary OS.
+  // Role is unchanged (still Visionary) — only entity scope + shell branding
+  // narrow, so this can never widen access beyond the real profile.
+  let activeEntityOs: string | null = null;
+  if (canSwitchEntityOs({ realRole, impersonatingAs, liveLookActive })) {
+    activeEntityOs = await readEntityOsCookie();
+    if (activeEntityOs) {
+      profile = { ...profile, entity_id: activeEntityOs };
+    }
+  }
+
   return {
     profile,
     realRole,
     impersonatingAs,
     liveLookTarget,
     liveLookActive,
+    activeEntityOs,
   };
 }
 
@@ -291,7 +310,10 @@ export async function requirePermission(permission: Permission) {
 /** Soft permission check for server actions (returns error string). */
 export async function guardPermission(
   permission: Permission,
-): Promise<{ ok: true; profile: Profile } | { ok: false; error: string }> {
+): Promise<
+  | { ok: true; profile: Profile; activeEntityOs: string | null }
+  | { ok: false; error: string }
+> {
   const ctx = await getSessionContext();
   if (!ctx) return { ok: false, error: 'Not signed in' };
   if (ctx.liveLookActive) {
@@ -303,7 +325,7 @@ export async function guardPermission(
   if (!roleHasPermission(ctx.profile.role, permission)) {
     return { ok: false, error: 'You do not have permission for this action' };
   }
-  return { ok: true, profile: ctx.profile };
+  return { ok: true, profile: ctx.profile, activeEntityOs: ctx.activeEntityOs };
 }
 
 /** True when Visionary is actively viewing as another role. */

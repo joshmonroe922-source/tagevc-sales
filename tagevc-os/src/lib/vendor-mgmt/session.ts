@@ -48,7 +48,11 @@ export async function requireVmSession(
   }
 
   const adminRole = osRoleToVmAdminRole(role);
-  const firmWide = isFirmWideAccess(ctx.profile.role, ctx.profile.entity_id);
+  const firmWide = isFirmWideAccess(
+    ctx.profile.role,
+    ctx.profile.entity_id,
+    ctx.activeEntityOs,
+  );
   const profileEntityId = ctx.profile.entity_id ?? null;
 
   if (!vmHasPermission(adminRole, 'login_portal')) {
