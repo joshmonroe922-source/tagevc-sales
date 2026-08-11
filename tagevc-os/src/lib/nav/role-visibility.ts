@@ -25,8 +25,9 @@
  *   Service Lead → led desk only, Finance default; ssc_* → own home).
  * - Admin: hides C-Suite / BD / Command Center / Assets / Firm; keeps
  *   Dashboard (ops KPIs), Shared Services → Ticket Portal / Admin
- *   (Document Library + DocuSign nested under Admin), Message Center.
- *   Help Desk is via Create Ticket dropdown (not left nav). To Do List
+ *   (Document Library + DocuSign nested under Admin).
+ *   Messaging is the sidebar brand-header control and Help Desk is via the
+ *   Create Ticket dropdown — neither is left nav. To Do List
  *   (`/to-do`) is left-nav for operator work (not tickets). Lands on `/dashboard`.
  * - `visionaryOnly` follows the *effective* role so Role Switcher hides
  *   C-Suite / Investments / Net Worth when viewing as COO, SSC, or sub_lead.
@@ -132,7 +133,7 @@ function upsertBdNavItem(items: NavItem[], replacement: NavItem): NavItem[] {
   if (found) return mapped;
 
   const insertAt = mapped.findIndex((i) =>
-    ['Command Center', 'Shared Services', 'Message Center'].includes(i.label),
+    ['Command Center', 'Shared Services'].includes(i.label),
   );
   if (insertAt === -1) return [...mapped, replacement];
   return [

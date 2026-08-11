@@ -90,7 +90,8 @@ describe('SSC Role Switcher + nav scope', () => {
       expect(labels).not.toContain('Firm');
       expect(labels).not.toContain('Dashboard');
       expect(labels).toContain('Shared Services');
-      expect(labels).toContain('Message Center');
+      // Messaging lives in the sidebar brand header, not the left nav.
+      expect(labels).not.toContain('Message Center');
       expect(labels).toContain('Home');
     },
   );
