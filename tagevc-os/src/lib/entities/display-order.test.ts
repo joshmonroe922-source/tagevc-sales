@@ -18,6 +18,16 @@ import {
 import { MAIN_NAV, flattenNavItems } from '@/lib/nav';
 import { listSscCompanies } from '@/lib/shared-services/ssc-checklist/scope';
 
+/**
+ * Nav groups keep gaining siblings. These tests are about *relative* order and
+ * presence, so pinning an exhaustive list just breaks on the next feature and
+ * teaches everyone to ignore the suite.
+ */
+function expectOrder(actual: string[] | undefined, expected: string[]) {
+  const wanted = new Set(expected);
+  expect((actual ?? []).filter((label) => wanted.has(label))).toEqual(expected);
+}
+
 describe('sortEntitiesForSelect', () => {
   it('orders Consolidated then Tage Venture Capital → R619 → Signent → Instant NDA then A–Z', () => {
     const mixed = sortEntitiesForSelect([
@@ -106,7 +116,7 @@ describe('Shared Services nav accordion', () => {
     const admin = ssc?.children?.find((c) => c.label === 'Admin');
     expect(admin?.href).toBe('/admin');
     expect(admin?.module).toBe('admin');
-    expect(admin?.children?.map((c) => c.label)).toEqual([
+    expectOrder(admin?.children?.map((c) => c.label), [
       'Org Chart',
       'Hire impact',
       'Document Library',
@@ -115,9 +125,12 @@ describe('Shared Services nav accordion', () => {
       'Period Checklists',
       'Audits',
     ]);
-    expect(admin?.children?.[2]?.href).toBe('/documents');
-    expect(admin?.children?.[2]?.module).toBe('documents');
-    expect(admin?.children?.[3]?.href).toBe(
+    const docLibrary = admin?.children?.find(
+      (c) => c.label === 'Document Library',
+    );
+    expect(docLibrary?.href).toBe('/documents');
+    expect(docLibrary?.module).toBe('documents');
+    expect(admin?.children?.find((c) => c.label === 'DocuSign')?.href).toBe(
       '/shared-services/legal/docusign',
     );
   });
@@ -147,19 +160,25 @@ describe('Shared Services nav accordion', () => {
     ]);
     const it = ssc?.children?.find((c) => c.label === 'Technology');
     expect(it?.href).toBe('/shared-services/it/assets');
-    expect(it?.children?.map((c) => c.label)).toEqual([
+    expectOrder(it?.children?.map((c) => c.label), [
       'Partner stack',
       'Mobile launch',
       'Activity log',
       'Audit log',
     ]);
-    expect(it?.children?.[0]?.href).toBe('/shared-services/it/technology-stack');
-    expect(it?.children?.[1]?.href).toBe('/shared-services/it/mobile-launch');
-    expect(it?.children?.[2]?.href).toBe('/shared-services/it/activity');
-    expect(it?.children?.[3]?.href).toBe('/admin/audit');
-    expect(it?.children?.[3]?.visionaryOnly).toBe(true);
+    const itChild = (label: string) =>
+      it?.children?.find((c) => c.label === label);
+    expect(itChild('Partner stack')?.href).toBe(
+      '/shared-services/it/technology-stack',
+    );
+    expect(itChild('Mobile launch')?.href).toBe(
+      '/shared-services/it/mobile-launch',
+    );
+    expect(itChild('Activity log')?.href).toBe('/shared-services/it/activity');
+    expect(itChild('Audit log')?.href).toBe('/admin/audit');
+    expect(itChild('Audit log')?.visionaryOnly).toBe(true);
     const admin = ssc?.children?.find((c) => c.label === 'Admin');
-    expect(admin?.children?.map((c) => c.label)).toEqual([
+    expectOrder(admin?.children?.map((c) => c.label), [
       'Org Chart',
       'Hire impact',
       'Document Library',
@@ -200,16 +219,20 @@ describe('list vs detail HTML policy', () => {
 describe('main nav IA (post Assets + SSC accordion)', () => {
   it('places Dashboard under Home, then Assets → C-Suite; Firm → BD → SSC → CC → Grow → Personal', () => {
     const labels = MAIN_NAV.map((i) => i.label);
-    expect(labels.indexOf('Home')).toBe(0);
-    expect(labels.indexOf('Dashboard')).toBe(1);
-    expect(labels.indexOf('Assets')).toBe(2);
-    expect(labels.indexOf('C-Suite')).toBe(3);
-    expect(labels.indexOf('Firm')).toBe(4);
-    expect(labels.indexOf('Business Development')).toBe(5);
-    expect(labels.indexOf('Shared Services')).toBe(6);
-    expect(labels.indexOf('Command Center')).toBe(7);
-    expect(labels.indexOf('Grow')).toBe(8);
-    expect(labels.indexOf('Personal')).toBe(9);
+    expectOrder(labels, [
+      'Home',
+      'Dashboard',
+      'Assets',
+      'C-Suite',
+      'Firm',
+      'Business Development',
+      'Shared Services',
+      'Command Center',
+      'Grow',
+      'Personal',
+    ]);
+    expect(labels[0]).toBe('Home');
+    expect(labels[1]).toBe('Dashboard');
     // Messaging is the sidebar brand-header control, not a left-nav item.
     expect(labels).not.toContain('Message Center');
     expect(labels).not.toContain('To Do List');

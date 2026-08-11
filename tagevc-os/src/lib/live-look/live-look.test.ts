@@ -138,6 +138,7 @@ describe('phase71 live look + nav + mailbox', () => {
     expect(bd?.children?.map((c) => c.label)).toEqual([
       'Lead Intake',
       'Deal Flow',
+      'My Networking Contacts',
     ]);
     const assets = items.find((i) => i.label === 'Assets');
     expect(assets?.children?.map((c) => c.label)).toEqual([
