@@ -67,3 +67,13 @@ Subsidiary portals (Recruit 619, Instant NDA, Signent HR, future clones) are **s
 
 `/messages` is full-bleed in the main pane (no `max-w-6xl`): `AppMain` + `AppContentFrame` in `(app)/layout.tsx`. Add future edge-to-edge tools via `FULL_BLEED_PREFIXES` in `src/lib/platform/shell/full-bleed-routes.ts`.
 
+## Think Tank (multi-thread + uploads)
+
+Named AI threads persist in UDL (`os_think_tank_*`), scoped by **user + `portal_key` + `entity_os`**. Refresh / New thread must show the list — never wipe history. PDF/DOCX uploads are thread-only context (`os-think-tank` bucket).
+
+- Portable twin: `src/lib/platform/think-tank/` — **copy into each new OS**
+- Tage Entity OS switcher: pass `activeEntityOs` into Think Tank scope (`thinkTankEntityOs`) so R619-OS threads do not leak into Tage VC OS
+- Home pages: mount `<ThinkTankClient />` without awaiting desk load (don’t block TTFB)
+
+See `docs/THINK_TANK.md` and `docs/SUBSIDIARY_OS_SHELL.md` § Think Tank.
+

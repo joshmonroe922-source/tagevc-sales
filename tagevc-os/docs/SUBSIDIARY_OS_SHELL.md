@@ -98,6 +98,30 @@ assert.match(twin, /bg-red-500/);
 assert.match(twin, /DropdownMenuRadioGroup/);
 ```
 
+## Think Tank (required on every entity OS that has AI chat)
+
+Every OS with Think Tank (Tage, Recruit 619, Instant NDA, Signent HR, **future clones**) ships the same desk:
+
+| Capability | Behavior |
+| --- | --- |
+| **Thread list** | Survives refresh and “New thread”. History is never deleted. |
+| **Switch / rename** | Multiple concurrent named threads (per report, strategy, personal execution). |
+| **Upload** | PDF/DOCX/TXT on the **active thread only**; extracted text is AI context for that thread. |
+| **Persistence** | Shared UDL + RLS (`profile_id = auth.uid()`). Scope by `portal_key` + `entity_os`. |
+
+Do **not** leak Recruit 619 portal threads into Tage (or vice versa). Tage Entity OS lock further splits `entity_os`.
+
+### Copy targets (scaffold)
+
+```
+src/lib/platform/think-tank/          # portable twin (types, scope, threads, attachments, desk UI)
+src/lib/think-tank/service.ts         # portal_key + prompts + LLM wiring
+src/components/think-tank/ThinkTankClient.tsx
+supabase/phase107_think_tank_threads.sql   # apply ONCE on shared UDL
+```
+
+Home TTFB: do not `await loadThinkTank()` in the server page — hydrate the desk on the client.
+
 ## Reload scroll restore (required)
 
 Hard refresh keeps scroll position on the same path. Soft route changes still jump to top. Hash links win over saved Y.
