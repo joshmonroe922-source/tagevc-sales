@@ -29,6 +29,10 @@ copy `src/lib/platform/af/` the same way. See `docs/TAGE_VC_AF.md`.
 
 | `reload-scroll-restore.tsx` | `components/layout/reload-scroll-restore.tsx` + mount in root `app/layout.tsx`; mark `<main data-scroll-restoration>` |
 
+## Think Tank (AI desk)
+
+Copy `src/lib/platform/think-tank/` into each new OS. Multi-thread persistence + document upload. SQL once on shared UDL (`phase107_think_tank_threads.sql`). See `docs/THINK_TANK.md`.
+
 ## Sidebar brand block / Entity OS switcher
 
 `entity-os-brand.tsx` (`ShellEntityOsBrand`) is the portable twin of the Tage

@@ -1,8 +1,8 @@
 import { ThinkTankClient } from '@/components/think-tank/ThinkTankClient';
 import { HomeBriefingCard } from '@/components/home/home-briefing-card';
-import { loadThinkTank } from '@/app/(app)/think-tank/actions';
 import { generateHomeBriefing } from '@/lib/home/briefing';
 import { getSessionContext } from '@/lib/rbac/session';
+import { thinkTankRoleBand } from '@/lib/think-tank/prompts';
 import { APP_ROLE_LABELS } from '@/lib/types/roles';
 import { entityDisplayName } from '@/lib/entities/display-name';
 
@@ -10,10 +10,9 @@ export default async function HomePage() {
   const session = await getSessionContext();
   if (!session) return null;
 
-  const [briefing, thinkTank] = await Promise.all([
-    generateHomeBriefing(session),
-    loadThinkTank(),
-  ]);
+  // Briefing only — Think Tank hydrates client-side so TTFB never waits on
+  // thread scans or attachment reads (Entity OS lock still applies in actions).
+  const briefing = await generateHomeBriefing(session);
 
   return (
     <div className="space-y-8">
@@ -34,9 +33,12 @@ export default async function HomePage() {
       <HomeBriefingCard initial={briefing} />
 
       <ThinkTankClient
-        initialMessages={thinkTank.messages}
-        roleBand={thinkTank.roleBand}
-        viewAsLabel={thinkTank.viewAsLabel}
+        roleBand={thinkTankRoleBand(session.realRole)}
+        viewAsLabel={
+          session.impersonatingAs
+            ? APP_ROLE_LABELS[session.impersonatingAs]
+            : null
+        }
         compact
       />
     </div>

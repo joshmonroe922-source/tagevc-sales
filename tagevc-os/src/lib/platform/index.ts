@@ -12,6 +12,9 @@
  *
  * Cards | List: see `view-mode/` + `docs/SUBSIDIARY_OS_SHELL.md` § Cards | List.
  * New card sections must use ViewModeLayout / ModuleLinkBoard / MetricCardBoard.
+ *
+ * Think Tank (named threads + document upload): copy `think-tank/` into each
+ * new OS. See `docs/THINK_TANK.md` and `docs/SUBSIDIARY_OS_SHELL.md` § Think Tank.
  */
 export {
   DEFAULT_REPORTING_PERIODS,
