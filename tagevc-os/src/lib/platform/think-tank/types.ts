@@ -25,12 +25,68 @@ export const THINK_TANK_ALLOWED_EXTENSIONS = [
   '.pdf',
   '.doc',
   '.docx',
+  '.xls',
+  '.xlsx',
+  '.csv',
   '.txt',
   '.md',
-  '.csv',
   '.html',
   '.htm',
 ] as const;
+
+export const THINK_TANK_ALLOWED_MIMES = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/plain',
+  'text/markdown',
+  'text/csv',
+  'text/html',
+  'application/csv',
+] as const;
+
+/** Browsers often omit MIME or send a generic zip/OLE type for Office files. */
+const THINK_TANK_GENERIC_MIMES = new Set([
+  '',
+  'application/octet-stream',
+  'binary/octet-stream',
+  'application/zip',
+  'application/x-zip-compressed',
+  'application/vnd.ms-office',
+]);
+
+export const THINK_TANK_FILE_ACCEPT = [
+  '.pdf',
+  '.doc',
+  '.docx',
+  '.xls',
+  '.xlsx',
+  '.csv',
+  '.txt',
+  '.md',
+  '.html',
+  '.htm',
+  ...THINK_TANK_ALLOWED_MIMES,
+].join(',');
+
+export function thinkTankFileExtension(fileName: string): string | null {
+  const base = (fileName.split(/[/\\]/).pop() ?? '').toLowerCase();
+  const match = base.match(/(\.[a-z0-9]+)$/);
+  if (!match) return null;
+  return (THINK_TANK_ALLOWED_EXTENSIONS as readonly string[]).includes(match[1])
+    ? match[1]
+    : null;
+}
+
+/** Server-side gate: allowed extension AND (allowed or generic MIME). */
+export function isThinkTankAllowedFile(fileName: string, mimeType: string): boolean {
+  if (!thinkTankFileExtension(fileName)) return false;
+  const mime = (mimeType || '').toLowerCase().split(';')[0].trim();
+  if (THINK_TANK_GENERIC_MIMES.has(mime)) return true;
+  return (THINK_TANK_ALLOWED_MIMES as readonly string[]).includes(mime);
+}
 
 export type ThinkTankThreadDto = {
   id: string;

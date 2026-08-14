@@ -41,7 +41,7 @@ export function ThinkTankClient({
         intro:
           'Your personal operating advisor for Tage VC. Advice uses live firm context (funnel, tickets, portfolio). Name threads per report, strategy, or personal execution. Documents stay on that thread only. You remain the decision-maker — Think Tank does not execute privileged actions.',
         emptyHint:
-          'Ask what to win today: deal actions, Shared Services backlog, portfolio risks, or approvals due. Or attach a PDF/DOCX for this thread.',
+          'Ask what to win today: deal actions, Shared Services backlog, portfolio risks, or approvals due. Or attach a PDF, Word, or Excel file for this thread.',
         chips: [
           'What should I win today?',
           'Where am I behind on goals this week?',
