@@ -15,9 +15,9 @@ See also: `docs/THINK_TANK.md`, `docs/SUBSIDIARY_OS_SHELL.md`.
 | `scope.ts` | `thinkTankEntityOs` — portal + Entity OS isolation |
 | `threads.ts` | list / create / rename / send (UDL tables) |
 | `attachments.ts` | upload / list / extract text (`os-think-tank` bucket) |
-| `extract-text.ts` | PDF / DOCX / TXT harvest (no extra deps) |
+| `extract-text.ts` | PDF / Word / Excel / CSV / TXT harvest (no extra deps) |
 | `think-tank-desk.tsx` | UI: thread list, switch, rename, attach |
-| `think-tank-threads.sql` | same DDL as Tage `supabase/phase107_think_tank_threads.sql` |
+| `think-tank-threads.sql` | same DDL as Tage `supabase/phase107_think_tank_threads.sql` (+ Word/Excel MIME) |
 
 SQL is applied **once** on the shared UDL DB (`opdqybaatfbwkokbzwli`). Do not
 re-apply per portal. Do not invent a second thread table.
@@ -61,8 +61,8 @@ removeThinkTankAttachment(attachmentId: string)
 - **Thread list** on refresh / new thread (history is never wiped).
 - **New thread** creates an empty named thread; old threads stay.
 - **Rename** (pencil) — e.g. “Alex desk”, “Strategy”, “Personal execution”.
-- **Attach** PDF/DOCX/TXT to the **active thread only**; text is extracted into
-  that thread’s Grok/Claude context.
+- **Attach** PDF/Word/Excel/CSV/TXT to the **active thread only**; text (and a
+  capped spreadsheet dump) is extracted into that thread’s Grok/Claude context.
 
 ## Future clone portal_key
 

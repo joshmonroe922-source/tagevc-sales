@@ -69,7 +69,7 @@ Subsidiary portals (Recruit 619, Instant NDA, Signent HR, future clones) are **s
 
 ## Think Tank (multi-thread + uploads)
 
-Named AI threads persist in UDL (`os_think_tank_*`), scoped by **user + `portal_key` + `entity_os`**. Refresh / New thread must show the list — never wipe history. PDF/DOCX uploads are thread-only context (`os-think-tank` bucket).
+Named AI threads persist in UDL (`os_think_tank_*`), scoped by **user + `portal_key` + `entity_os`**. Refresh / New thread must show the list — never wipe history. PDF/Word/Excel uploads are thread-only context (`os-think-tank` bucket).
 
 - Portable twin: `src/lib/platform/think-tank/` — **copy into each new OS**
 - Tage Entity OS switcher: pass `activeEntityOs` into Think Tank scope (`thinkTankEntityOs`) so R619-OS threads do not leak into Tage VC OS

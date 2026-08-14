@@ -11,7 +11,7 @@
 | Persistent personal thread | **Many named threads** per user + portal + entity OS |
 | Role-aware system prompts | Live portal context collectors per subsidiary OS |
 | Fail soft without key | Real-user thread under Visionary view-as |
-| — | PDF/DOCX/TXT upload as **thread-only** AI context |
+| — | PDF/Word/Excel/CSV/TXT upload as **thread-only** AI context |
 
 ## Data model (Tage UDL)
 - `os_think_tank_conversations` — `(portal_key, profile_id, entity_os)` scoped; **no** unique one-thread constraint
@@ -26,7 +26,7 @@ portal_key slugs: `tage` | `r619` | `inda` | `signent` | future clones
 
 Copy `src/lib/platform/think-tank/` into the new OS. See that folder’s `README.md` and `docs/SUBSIDIARY_OS_SHELL.md` § Think Tank.
 
-SQL once on shared UDL: `supabase/phase107_think_tank_threads.sql`.
+SQL once on shared UDL: `supabase/phase107_think_tank_threads.sql`. Word/Excel bucket MIME: `supabase/phase108_think_tank_office_mimes.sql`.
 
 ## API surface (each portal)
 - `loadThinkTankDeskAction(conversationId?)` — thread list + active messages/attachments
@@ -46,14 +46,14 @@ SQL once on shared UDL: `supabase/phase107_think_tank_threads.sql`.
 | Signent HR | `/think-tank` → `/home` | Home |
 | Tage VC | `/think-tank` → `/home` | Home |
 
-Thread list (left): switch, **New thread** (does not wipe history), rename. Attach PDF/DOCX to the active thread only.
+Thread list (left): switch, **New thread** (does not wipe history), rename. Attach PDF, Word (`.doc`/`.docx`), Excel (`.xls`/`.xlsx`), or CSV to the active thread only. Spreadsheets are turned into a capped sheet-name + cell dump for the model.
 
 ## Env
 `XAI_API_KEY` (or `GROK_API_KEY`), optional `XAI_MODEL` (default `grok-3-mini`), `XAI_BASE_URL`
 
 ## Deploy checklist
-1. Apply SQL once on the shared UDL DB: `tagevc-os/supabase/phase107_think_tank_threads.sql`.
+1. Apply SQL once on the shared UDL DB: `tagevc-os/supabase/phase107_think_tank_threads.sql`. Word/Excel MIME allowlist: `phase108_think_tank_office_mimes.sql`.
 2. Set `XAI_API_KEY` in each portal Vercel env (Preview + Production). Optional: `XAI_MODEL`, `XAI_BASE_URL`.
-3. Smoke: open Home Think Tank, send a chip prompt, **New thread**, switch back, refresh — history remains. Upload a PDF and ask about it.
+3. Smoke: open Home Think Tank, send a chip prompt, **New thread**, switch back, refresh — history remains. Upload a PDF, `.docx`, and `.xlsx` and ask about each file.
 4. Visionary Entity OS: threads in Recruit 619 OS stay out of Tage VC OS.
 5. Visionary view-as: thread stays on the real Visionary profile (advise-only; no privileged actions).

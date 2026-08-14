@@ -110,11 +110,16 @@ values (
     'application/pdf',
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'text/plain',
     'text/markdown',
     'text/csv',
     'text/html',
-    'application/octet-stream'
+    'application/csv',
+    'application/octet-stream',
+    'application/zip',
+    'application/vnd.ms-office'
   ]
 )
 on conflict (id) do update set

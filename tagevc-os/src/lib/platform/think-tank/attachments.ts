@@ -6,12 +6,12 @@ import { createClient } from '@/lib/supabase/server';
 import { extractDocumentText } from '@/lib/platform/think-tank/extract-text';
 import { suggestThinkTankTitle } from '@/lib/platform/think-tank/scope';
 import {
-  THINK_TANK_ALLOWED_EXTENSIONS,
   THINK_TANK_ATTACHMENT_CONTEXT_CHARS,
   THINK_TANK_BUCKET,
   THINK_TANK_DEFAULT_TITLE,
   THINK_TANK_MAX_ATTACHMENTS,
   THINK_TANK_MAX_FILE_BYTES,
+  isThinkTankAllowedFile,
   type ThinkTankAttachmentDto,
 } from '@/lib/platform/think-tank/types';
 
@@ -29,22 +29,33 @@ type AttachmentRow = {
 };
 
 function allowedFile(fileName: string, mimeType: string): boolean {
-  const lower = fileName.toLowerCase();
-  if (THINK_TANK_ALLOWED_EXTENSIONS.some((ext) => lower.endsWith(ext))) return true;
-  return [
-    'application/pdf',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'text/plain',
-    'text/markdown',
-    'text/csv',
-    'text/html',
-  ].includes(mimeType);
+  return isThinkTankAllowedFile(fileName, mimeType);
 }
 
 function safeFileName(name: string): string {
   const base = name.replace(/[^\w.\-]+/g, '_').replace(/_+/g, '_').slice(0, 80);
   return base || 'document';
+}
+
+/** Bucket allowlist may lag app code; octet-stream is always accepted. */
+function storageContentType(mimeType: string): string {
+  const mime = (mimeType || '').toLowerCase().split(';')[0].trim();
+  if (
+    mime === 'application/pdf' ||
+    mime === 'application/msword' ||
+    mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+    mime === 'application/vnd.ms-excel' ||
+    mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+    mime === 'text/plain' ||
+    mime === 'text/markdown' ||
+    mime === 'text/csv' ||
+    mime === 'text/html' ||
+    mime === 'application/csv' ||
+    mime === 'application/octet-stream'
+  ) {
+    return mime;
+  }
+  return 'application/octet-stream';
 }
 
 async function ownedConversationId(opts: {
@@ -149,7 +160,9 @@ export async function uploadThinkTankAttachment(opts: {
   | { error: string }
 > {
   if (!allowedFile(opts.file.name, opts.file.type || '')) {
-    return { error: 'Upload a PDF, DOC, DOCX, TXT, MD, CSV, or HTML file.' };
+    return {
+      error: 'Upload a PDF, Word (DOC/DOCX), Excel (XLS/XLSX), CSV, TXT, MD, or HTML file.',
+    };
   }
   if (opts.file.size > THINK_TANK_MAX_FILE_BYTES) {
     return { error: 'File must be under 10MB.' };
@@ -204,12 +217,19 @@ export async function uploadThinkTankAttachment(opts: {
   });
   const path = `${opts.profileId}/${opts.portalKey}/${conversationId}/${crypto.randomUUID()}_${safeFileName(opts.file.name)}`;
 
-  const { error: upErr } = await supabase.storage
+  let { error: upErr } = await supabase.storage
     .from(THINK_TANK_BUCKET)
     .upload(path, bytes, {
-      contentType: opts.file.type || 'application/octet-stream',
+      contentType: storageContentType(opts.file.type),
       upsert: false,
     });
+  if (upErr) {
+    const retry = await supabase.storage.from(THINK_TANK_BUCKET).upload(path, bytes, {
+      contentType: 'application/octet-stream',
+      upsert: false,
+    });
+    upErr = retry.error;
+  }
   if (upErr) return { error: upErr.message };
 
   const { data, error } = await supabase

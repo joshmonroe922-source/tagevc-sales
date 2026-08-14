@@ -11,12 +11,13 @@ import { Check, Paperclip, Pencil, Plus, RefreshCw, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { thinkTankLastThreadKey } from '@/lib/platform/think-tank/scope';
-import type {
-  ThinkTankAttachmentDto,
-  ThinkTankDeskState,
-  ThinkTankMessageDto,
-  ThinkTankSendResult,
-  ThinkTankThreadDto,
+import {
+  THINK_TANK_FILE_ACCEPT,
+  type ThinkTankAttachmentDto,
+  type ThinkTankDeskState,
+  type ThinkTankMessageDto,
+  type ThinkTankSendResult,
+  type ThinkTankThreadDto,
 } from '@/lib/platform/think-tank/types';
 import { cn } from '@/lib/utils';
 
@@ -542,7 +543,7 @@ export function ThinkTankDesk({
                 ref={fileRef}
                 type="file"
                 className="sr-only"
-                accept=".pdf,.doc,.docx,.txt,.md,.csv,.html,.htm,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/html,text/csv,text/markdown"
+                accept={THINK_TANK_FILE_ACCEPT}
                 onChange={(e) => onPickFile(e.target.files?.[0])}
               />
               <Button
@@ -566,7 +567,7 @@ export function ThinkTankDesk({
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            Enter to send · Shift+Enter for a new line · PDF/DOCX stay on this thread only
+            Enter to send · Shift+Enter for a new line · Word and Excel stay on this thread only
           </p>
         </div>
       </div>
