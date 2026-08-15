@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { crc32 } from 'node:zlib';
+import { crc32, deflateSync } from 'node:zlib';
 
 import { extractDocumentText } from './extract-text';
 import { isThinkTankAllowedFile, THINK_TANK_FILE_ACCEPT } from './types';
@@ -72,6 +72,54 @@ function sampleXlsx(sheetCount = 2): Uint8Array {
   return makeStoredZip(files);
 }
 
+function makeTextPdf(pages: string[], opts?: { flate?: boolean }): Uint8Array {
+  const escape = (s: string) =>
+    s.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+  const catalogId = 1;
+  const pagesId = 2;
+  const fontId = 3;
+  const contentIds = pages.map((_, i) => 4 + i * 2);
+  const pageIds = pages.map((_, i) => 5 + i * 2);
+  const maxId = 3 + pages.length * 2;
+  const objs = new Map<number, string>();
+  objs.set(catalogId, `<< /Type /Catalog /Pages ${pagesId} 0 R >>`);
+  objs.set(
+    pagesId,
+    `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(' ')}] /Count ${pages.length} >>`,
+  );
+  objs.set(fontId, `<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>`);
+  for (let i = 0; i < pages.length; i++) {
+    const raw = `BT /F1 18 Tf 72 720 Td (${escape(pages[i] || ' ')}) Tj ET`;
+    if (opts?.flate) {
+      const compressed = deflateSync(Buffer.from(raw, 'latin1'));
+      objs.set(
+        contentIds[i],
+        `<< /Length ${compressed.length} /Filter /FlateDecode >>\nstream\n${compressed.toString('latin1')}\nendstream`,
+      );
+    } else {
+      objs.set(contentIds[i], `<< /Length ${raw.length} >>\nstream\n${raw}\nendstream`);
+    }
+    objs.set(
+      pageIds[i],
+      `<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 612 792] /Contents ${contentIds[i]} 0 R /Resources << /Font << /F1 ${fontId} 0 R >> >> >>`,
+    );
+  }
+  let body = '%PDF-1.4\n';
+  const offsets = new Map<number, number>();
+  for (let id = 1; id <= maxId; id++) {
+    offsets.set(id, Buffer.byteLength(body, 'latin1'));
+    body += `${id} 0 obj\n${objs.get(id)}\nendobj\n`;
+  }
+  const xrefPos = Buffer.byteLength(body, 'latin1');
+  body += `xref\n0 ${maxId + 1}\n`;
+  body += '0000000000 65535 f \n';
+  for (let id = 1; id <= maxId; id++) {
+    body += `${String(offsets.get(id)).padStart(10, '0')} 00000 n \n`;
+  }
+  body += `trailer\n<< /Size ${maxId + 1} /Root ${catalogId} 0 R >>\nstartxref\n${xrefPos}\n%%EOF\n`;
+  return Buffer.from(body, 'latin1');
+}
+
 describe('isThinkTankAllowedFile', () => {
   it('requires an allowed extension and an allowed or generic MIME', () => {
     assert.equal(
@@ -88,6 +136,8 @@ describe('isThinkTankAllowedFile', () => {
     assert.equal(isThinkTankAllowedFile('grid.csv', 'text/plain'), true);
     assert.equal(isThinkTankAllowedFile('notes.exe', 'application/pdf'), false);
     assert.equal(isThinkTankAllowedFile('model.xlsx', 'image/png'), false);
+    assert.equal(isThinkTankAllowedFile('brief.pdf', 'application/pdf'), true);
+    assert.match(THINK_TANK_FILE_ACCEPT, /\.pdf/);
     assert.match(THINK_TANK_FILE_ACCEPT, /\.xlsx/);
     assert.match(THINK_TANK_FILE_ACCEPT, /\.xls/);
     assert.match(THINK_TANK_FILE_ACCEPT, /\.doc/);
@@ -95,8 +145,8 @@ describe('isThinkTankAllowedFile', () => {
 });
 
 describe('extractDocumentText', () => {
-  it('extracts sheet names and cells from xlsx', () => {
-    const result = extractDocumentText({ fileName: 'model.xlsx', bytes: sampleXlsx() });
+  it('extracts sheet names and cells from xlsx', async () => {
+    const result = await extractDocumentText({ fileName: 'model.xlsx', bytes: sampleXlsx() });
     assert.equal(result.method, 'xlsx-ooxml');
     assert.match(result.text ?? '', /## Sheet: Revenue/);
     assert.match(result.text ?? '', /Acme Corp/);
@@ -105,15 +155,15 @@ describe('extractDocumentText', () => {
     assert.match(result.text ?? '', /Note 2/);
   });
 
-  it('caps extra sheets and notes truncation', () => {
-    const result = extractDocumentText({ fileName: 'wide.xlsx', bytes: sampleXlsx(10) });
+  it('caps extra sheets and notes truncation', async () => {
+    const result = await extractDocumentText({ fileName: 'wide.xlsx', bytes: sampleXlsx(10) });
     assert.match(result.text ?? '', /\[truncated: showing first 8 sheets\]/);
     assert.equal((result.text ?? '').includes('Extra9'), false);
   });
 
-  it('caps csv rows', () => {
+  it('caps csv rows', async () => {
     const rows = ['h1,h2', ...Array.from({ length: 250 }, (_, i) => `${i},x`)];
-    const result = extractDocumentText({
+    const result = await extractDocumentText({
       fileName: 'dump.csv',
       bytes: new TextEncoder().encode(rows.join('\n')),
     });
@@ -122,24 +172,56 @@ describe('extractDocumentText', () => {
     assert.match(result.text ?? '', /h1,h2/);
   });
 
-  it('reads docx document.xml', () => {
+  it('reads docx document.xml', async () => {
     const bytes = makeStoredZip({
       'word/document.xml': `<w:document><w:body><w:p><w:t>Hello Think Tank</w:t></w:p><w:p><w:t>Second paragraph</w:t></w:p></w:body></w:document>`,
     });
-    const result = extractDocumentText({ fileName: 'brief.docx', bytes });
+    const result = await extractDocumentText({ fileName: 'brief.docx', bytes });
     assert.equal(result.method, 'docx-ooxml');
     assert.match(result.text ?? '', /Hello Think Tank/);
     assert.match(result.text ?? '', /Second paragraph/);
   });
 
-  it('dumps readable ascii from legacy xls', () => {
+  it('dumps readable ascii from legacy xls', async () => {
     const payload = Buffer.concat([
       Buffer.from('not-a-zip'),
       Buffer.from('Q1 Revenue\nAcme 1500\nBeta 900\n'),
     ]);
-    const result = extractDocumentText({ fileName: 'legacy.xls', bytes: payload });
+    const result = await extractDocumentText({ fileName: 'legacy.xls', bytes: payload });
     assert.equal(result.method, 'xls-dump');
     assert.match(result.text ?? '', /Acme 1500/);
     assert.match(result.text ?? '', /layout may be approximate/);
+  });
+
+  it('extracts a text layer from a PDF', async () => {
+    const result = await extractDocumentText({
+      fileName: 'brief.pdf',
+      bytes: makeTextPdf(['Hello Think Tank page 1 unique phrase']),
+    });
+    assert.equal(result.method, 'pdf-unpdf');
+    assert.match(result.text ?? '', /## Page 1/);
+    assert.match(result.text ?? '', /Hello Think Tank page 1 unique phrase/);
+  });
+
+  it('caps extra PDF pages', async () => {
+    const pages = Array.from({ length: 25 }, (_, i) => `Page body ${i + 1} with enough letters`);
+    const result = await extractDocumentText({
+      fileName: 'long.pdf',
+      bytes: makeTextPdf(pages),
+    });
+    assert.match(result.text ?? '', /## Page 1/);
+    assert.match(result.text ?? '', /Page body 1/);
+    assert.match(result.text ?? '', /\[truncated: first 20 of 25 pages\]/);
+    assert.equal((result.text ?? '').includes('Page body 21'), false);
+  });
+
+  it('notes when a PDF has no text layer', async () => {
+    const result = await extractDocumentText({
+      fileName: 'scan.pdf',
+      bytes: makeTextPdf(['']),
+    });
+    assert.equal(result.method, 'pdf-unpdf');
+    assert.equal(result.text, null);
+    assert.match(result.error ?? '', /no extractable text layer/i);
   });
 });

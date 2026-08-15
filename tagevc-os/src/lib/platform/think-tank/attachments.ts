@@ -211,7 +211,7 @@ export async function uploadThinkTankAttachment(opts: {
   }
 
   const bytes = new Uint8Array(await opts.file.arrayBuffer());
-  const extracted = extractDocumentText({
+  const extracted = await extractDocumentText({
     fileName: opts.file.name,
     bytes,
   });

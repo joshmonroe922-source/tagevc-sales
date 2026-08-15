@@ -2,16 +2,22 @@
  * Plain-text extraction for Think Tank thread documents (PDF/Word/Excel/TXT/…).
  * Portable twin — copy with the rest of `src/lib/platform/think-tank/`.
  *
- * TXT/HTML/CSV are exact. DOCX/XLSX are read from the OOXML zip; PDF content
- * streams are inflated before scanning. Legacy .doc/.xls get a text dump.
- * Spreadsheets include sheet names and a capped cell dump so tokens stay bounded.
+ * TXT/HTML/CSV are exact. DOCX/XLSX are read from the OOXML zip. PDFs use
+ * unpdf (serverless PDF.js) so compressed / object-stream files actually
+ * yield a text layer — the old FlateDecode scrape missed most real PDFs.
+ * Legacy .doc/.xls get a text dump. Spreadsheets cap sheets/rows; PDFs cap
+ * pages so tokens stay bounded. Image-only scans get a no-text-layer note.
  */
-import { inflateRawSync, inflateSync } from 'node:zlib';
+import { inflateRawSync } from 'node:zlib';
+import { extractText } from 'unpdf';
 
 const MAX_CHARS = 40_000;
 const MAX_SHEETS = 8;
 const MAX_ROWS = 200;
 const MAX_COLS = 40;
+const MAX_PDF_PAGES = 20;
+const MIN_PDF_LETTERS = 12;
+const PDF_EXTRACT_MS = 20_000;
 const MAX_ZIP_ENTRY = 8 * 1024 * 1024;
 const MAX_ZIP_TOTAL = 32 * 1024 * 1024;
 const MAX_ZIP_FILES = 256;
@@ -366,159 +372,66 @@ function extractCsvText(bytes: Uint8Array): string | null {
   return `${kept}\n\n[truncated: first ${MAX_ROWS} rows]`.slice(0, MAX_CHARS);
 }
 
-function decodePdfLiteral(src: string): string {
-  let out = '';
-  for (let i = 0; i < src.length; i++) {
-    const ch = src[i];
-    if (ch !== '\\') {
-      out += ch;
-      continue;
-    }
-    const next = src[++i];
-    if (next === undefined) break;
-    if (next >= '0' && next <= '7') {
-      let oct = next;
-      while (oct.length < 3 && src[i + 1] >= '0' && src[i + 1] <= '7') {
-        oct += src[++i];
-      }
-      out += String.fromCharCode(parseInt(oct, 8));
-      continue;
-    }
-    switch (next) {
-      case 'n':
-        out += '\n';
-        break;
-      case 'r':
-        out += '\r';
-        break;
-      case 't':
-        out += '\t';
-        break;
-      case 'b':
-        out += '\b';
-        break;
-      case 'f':
-        out += '\f';
-        break;
-      case '\n':
-        break;
-      default:
-        out += next;
-    }
-  }
-  return out;
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(label)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
 }
 
-function textFromContentStream(content: string): string {
-  let out = '';
-  let i = 0;
-  while (i < content.length) {
-    const ch = content[i];
+const NO_TEXT_LAYER =
+  'This PDF has no extractable text layer (likely a scan or image). Upload a text PDF, Word, Excel, or .txt export.';
 
-    if (ch === '(') {
-      let depth = 1;
-      let j = i + 1;
-      let literal = '';
-      while (j < content.length && depth > 0) {
-        const c = content[j];
-        if (c === '\\') {
-          literal += c + (content[j + 1] ?? '');
-          j += 2;
-          continue;
-        }
-        if (c === '(') depth++;
-        else if (c === ')') {
-          depth--;
-          if (depth === 0) break;
-        }
-        literal += c;
-        j++;
-      }
-      out += decodePdfLiteral(literal);
-      i = j + 1;
-      continue;
-    }
-
-    if (ch === '<' && content[i + 1] !== '<') {
-      const end = content.indexOf('>', i);
-      if (end > i) {
-        const hex = content.slice(i + 1, end).replace(/[^0-9a-fA-F]/g, '');
-        if (hex.length >= 4) {
-          for (let h = 0; h + 1 < hex.length; h += 2) {
-            const code = parseInt(hex.slice(h, h + 2), 16);
-            if (code >= 32 || code === 10 || code === 9) {
-              out += String.fromCharCode(code);
-            }
-          }
-        }
-        i = end + 1;
-        continue;
-      }
-    }
-
-    if (
-      (ch === 'T' &&
-        (content[i + 1] === 'd' || content[i + 1] === 'D' || content[i + 1] === '*')) ||
-      (ch === 'E' && content[i + 1] === 'T')
-    ) {
-      out += '\n';
-      i += 2;
-      continue;
-    }
-    i++;
-  }
-  return out;
-}
-
-function extractPdfText(bytes: Uint8Array): string | null {
-  const buf = Buffer.from(bytes);
-  const latin = buf.toString('latin1');
-  let collected = '';
-
-  const streamRe = /stream\r?\n?/g;
-  let match: RegExpExecArray | null;
-  while ((match = streamRe.exec(latin)) !== null) {
-    const start = match.index + match[0].length;
-    const end = latin.indexOf('endstream', start);
-    if (end < 0) continue;
-    streamRe.lastIndex = end;
-
-    const slice = buf.subarray(start, end);
-    const dict = latin.slice(Math.max(0, match.index - 400), match.index);
-    let data: Buffer | null = null;
-
-    if (/FlateDecode/.test(dict)) {
-      try {
-        data = inflateSync(slice);
-      } catch {
-        try {
-          data = inflateRawSync(slice);
-        } catch {
-          data = null;
-        }
-      }
-    } else if (
-      !/DCTDecode|JPXDecode|CCITTFaxDecode|JBIG2Decode|RunLengthDecode|ASCII85Decode|LZWDecode/.test(
-        dict,
-      )
-    ) {
-      data = Buffer.from(slice);
-    }
-    if (!data) continue;
-
-    const content = data.toString('latin1');
-    if (!/\bTj\b|\bTJ\b|\bTd\b|\bTf\b/.test(content)) continue;
-    collected += `${textFromContentStream(content)}\n`;
+async function extractPdfText(bytes: Uint8Array): Promise<{
+  text: string | null;
+  error?: string;
+}> {
+  const data = Uint8Array.from(bytes);
+  const extracted = await extractText(data, { mergePages: false });
+  const totalPages = Number(extracted.totalPages ?? 0);
+  if (totalPages < 1) {
+    return { text: null, error: 'Could not read this PDF.' };
   }
 
-  const text = tidy(collected);
-  return text.length >= 40 ? text.slice(0, MAX_CHARS) : null;
+  const pages = Array.isArray(extracted.text) ? extracted.text : [extracted.text];
+  const pageLimit = Math.min(totalPages, pages.length, MAX_PDF_PAGES);
+  const parts: string[] = [];
+  let chars = 0;
+  let bodyLetters = 0;
+  for (let i = 0; i < pageLimit; i++) {
+    const pageText = tidy(pages[i] ?? '');
+    bodyLetters += (pageText.match(/[A-Za-z0-9]/g) ?? []).length;
+    const block = `## Page ${i + 1}\n${pageText || '(empty)'}`;
+    parts.push(block);
+    chars += block.length;
+    if (chars >= MAX_CHARS) break;
+  }
+
+  if (bodyLetters < MIN_PDF_LETTERS) {
+    return { text: null, error: NO_TEXT_LAYER };
+  }
+
+  let text = tidy(parts.join('\n\n'));
+  const usedPages = parts.length;
+  if (totalPages > usedPages || text.length > MAX_CHARS) {
+    text = `${text.slice(0, MAX_CHARS)}\n\n[truncated: first ${usedPages} of ${totalPages} pages]`;
+  }
+  return { text: text.slice(0, MAX_CHARS) };
 }
 
-export function extractDocumentText(input: {
+export async function extractDocumentText(input: {
   fileName: string;
   bytes: Uint8Array;
-}): { text: string | null; method: string; error?: string } {
+}): Promise<{ text: string | null; method: string; error?: string }> {
   const name = input.fileName.toLowerCase();
 
   try {
@@ -591,15 +504,30 @@ export function extractDocumentText(input: {
     }
 
     if (name.endsWith('.pdf')) {
-      const text = extractPdfText(input.bytes);
-      return text
-        ? { text, method: 'pdf-stream' }
-        : {
+      try {
+        const pdf = await withTimeout(
+          extractPdfText(input.bytes),
+          PDF_EXTRACT_MS,
+          'PDF extract timed out.',
+        );
+        return pdf.text
+          ? { text: pdf.text, method: 'pdf-unpdf' }
+          : {
+              text: null,
+              method: 'pdf-unpdf',
+              error: pdf.error ?? NO_TEXT_LAYER,
+            };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Could not extract PDF text.';
+        if (/password|encrypt/i.test(message)) {
+          return {
             text: null,
-            method: 'pdf-stream',
-            error:
-              'Could not extract PDF text — this looks like a scanned/image PDF. Upload a text PDF, Word, Excel, or .txt export.',
+            method: 'pdf-unpdf',
+            error: 'This PDF is password-protected. Upload an unlocked copy.',
           };
+        }
+        return { text: null, method: 'pdf-unpdf', error: message };
+      }
     }
 
     const fallback = tidy(decodeUtf8(input.bytes).replace(/\0/g, ''));
