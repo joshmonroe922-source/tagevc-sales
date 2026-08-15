@@ -46,7 +46,7 @@ SQL once on shared UDL: `supabase/phase107_think_tank_threads.sql`. Word/Excel b
 | Signent HR | `/think-tank` → `/home` | Home |
 | Tage VC | `/think-tank` → `/home` | Home |
 
-Thread list (left): switch, **New thread** (does not wipe history), rename. Attach PDF, Word (`.doc`/`.docx`), Excel (`.xls`/`.xlsx`), or CSV to the active thread only. Spreadsheets are turned into a capped sheet-name + cell dump for the model.
+Thread list (left): switch, **New thread** (does not wipe history), rename. Attach PDF, Word (`.doc`/`.docx`), Excel (`.xls`/`.xlsx`), or CSV to the active thread only. PDFs are parsed with `unpdf` (serverless PDF.js) — first 20 pages / 40k chars — so FlateDecode and object-stream files yield a real text layer. Scanned/image-only PDFs get a no-text-layer note rather than empty context. Spreadsheets are turned into a capped sheet-name + cell dump for the model.
 
 ## Env
 `XAI_API_KEY` (or `GROK_API_KEY`), optional `XAI_MODEL` (default `grok-3-mini`), `XAI_BASE_URL`

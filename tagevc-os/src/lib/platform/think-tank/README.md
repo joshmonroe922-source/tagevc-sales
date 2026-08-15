@@ -15,7 +15,7 @@ See also: `docs/THINK_TANK.md`, `docs/SUBSIDIARY_OS_SHELL.md`.
 | `scope.ts` | `thinkTankEntityOs` — portal + Entity OS isolation |
 | `threads.ts` | list / create / rename / send (UDL tables) |
 | `attachments.ts` | upload / list / extract text (`os-think-tank` bucket) |
-| `extract-text.ts` | PDF / Word / Excel / CSV / TXT harvest (no extra deps) |
+| `extract-text.ts` | PDF via unpdf (serverless PDF.js) / Word / Excel / CSV / TXT harvest |
 | `think-tank-desk.tsx` | UI: thread list, switch, rename, attach |
 | `think-tank-threads.sql` | same DDL as Tage `supabase/phase107_think_tank_threads.sql` (+ Word/Excel MIME) |
 
@@ -61,8 +61,10 @@ removeThinkTankAttachment(attachmentId: string)
 - **Thread list** on refresh / new thread (history is never wiped).
 - **New thread** creates an empty named thread; old threads stay.
 - **Rename** (pencil) — e.g. “Alex desk”, “Strategy”, “Personal execution”.
-- **Attach** PDF/Word/Excel/CSV/TXT to the **active thread only**; text (and a
-  capped spreadsheet dump) is extracted into that thread’s Grok/Claude context.
+- **Attach** PDF/Word/Excel/CSV/TXT to the **active thread only**. PDF text is
+  extracted with `unpdf` (first 20 pages / 40k chars). Spreadsheets become a
+  capped sheet-name + cell dump. Image-only scans get a no-text-layer note
+  instead of fake content. Clones must `npm install unpdf`.
 
 ## Future clone portal_key
 

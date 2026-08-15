@@ -1,4 +1,4 @@
-import { crc32 } from 'node:zlib';
+import { crc32, deflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 
 import { extractDocumentText } from '@/lib/platform/think-tank/extract-text';
@@ -74,6 +74,49 @@ function sampleXlsx(sheetCount = 2): Uint8Array {
   return makeStoredZip(files);
 }
 
+function pdfObj(id: number, body: Buffer): Buffer {
+  return Buffer.concat([Buffer.from(`${id} 0 obj\n`, 'latin1'), body, Buffer.from('\nendobj\n', 'latin1')]);
+}
+
+function makeTextPdf(text: string, flate = false): Uint8Array {
+  const escaped = text.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+  const raw = Buffer.from(`BT /F1 18 Tf 72 720 Td (${escaped}) Tj ET`, 'latin1');
+  const streamBody = flate ? deflateSync(raw) : raw;
+  const filter = flate ? ' /Filter /FlateDecode' : '';
+  const content = Buffer.concat([
+    Buffer.from(`<< /Length ${streamBody.length}${filter} >>\nstream\n`, 'latin1'),
+    streamBody,
+    Buffer.from('\nendstream', 'latin1'),
+  ]);
+  const parts = [
+    Buffer.from('%PDF-1.4\n', 'latin1'),
+    pdfObj(1, Buffer.from('<< /Type /Catalog /Pages 2 0 R >>', 'latin1')),
+    pdfObj(2, Buffer.from('<< /Type /Pages /Kids [5 0 R] /Count 1 >>', 'latin1')),
+    pdfObj(3, Buffer.from('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>', 'latin1')),
+    pdfObj(4, content),
+    pdfObj(
+      5,
+      Buffer.from(
+        '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 3 0 R >> >> >>',
+        'latin1',
+      ),
+    ),
+  ];
+  const offsets: number[] = [];
+  let pos = 0;
+  for (const part of parts) {
+    offsets.push(pos);
+    pos += part.length;
+  }
+  const xrefPos = pos;
+  let xref = `xref\n0 6\n0000000000 65535 f \n`;
+  for (let i = 1; i <= 5; i++) {
+    xref += `${String(offsets[i]).padStart(10, '0')} 00000 n \n`;
+  }
+  xref += `trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xrefPos}\n%%EOF\n`;
+  return Buffer.concat([...parts, Buffer.from(xref, 'latin1')]);
+}
+
 describe('think-tank office extract (vitest)', () => {
   it('allows Word and Excel by extension + MIME', () => {
     expect(
@@ -83,15 +126,47 @@ describe('think-tank office extract (vitest)', () => {
       ),
     ).toBe(true);
     expect(isThinkTankAllowedFile('memo.doc', 'application/msword')).toBe(true);
+    expect(isThinkTankAllowedFile('brief.pdf', 'application/pdf')).toBe(true);
     expect(isThinkTankAllowedFile('notes.exe', 'application/pdf')).toBe(false);
     expect(THINK_TANK_FILE_ACCEPT).toContain('.xlsx');
+    expect(THINK_TANK_FILE_ACCEPT).toContain('.pdf');
   });
 
-  it('extracts xlsx sheet names and cells', () => {
-    const result = extractDocumentText({ fileName: 'model.xlsx', bytes: sampleXlsx() });
+  it('extracts xlsx sheet names and cells', async () => {
+    const result = await extractDocumentText({ fileName: 'model.xlsx', bytes: sampleXlsx() });
     expect(result.method).toBe('xlsx-ooxml');
     expect(result.text).toContain('## Sheet: Revenue');
     expect(result.text).toContain('Acme Corp');
     expect(result.text).toContain('1500');
+  });
+
+  it('extracts PDF text via unpdf', async () => {
+    const result = await extractDocumentText({
+      fileName: 'brief.pdf',
+      bytes: makeTextPdf('Hello Think Tank page 1 unique phrase'),
+    });
+    expect(result.error).toBeUndefined();
+    expect(result.method).toBe('pdf-unpdf');
+    expect(result.text).toContain('## Page 1');
+    expect(result.text).toContain('Hello Think Tank page 1 unique phrase');
+  });
+
+  it('extracts FlateDecode PDF streams', async () => {
+    const result = await extractDocumentText({
+      fileName: 'compressed.pdf',
+      bytes: makeTextPdf('Hello Think Tank page 1 unique phrase', true),
+    });
+    expect(result.error).toBeUndefined();
+    expect(result.text).toContain('Hello Think Tank page 1 unique phrase');
+  });
+
+  it('notes when a PDF has no text layer', async () => {
+    const result = await extractDocumentText({
+      fileName: 'scan.pdf',
+      bytes: makeTextPdf(''),
+    });
+    expect(result.method).toBe('pdf-unpdf');
+    expect(result.text).toBeNull();
+    expect(result.error).toMatch(/no extractable text layer/i);
   });
 });
