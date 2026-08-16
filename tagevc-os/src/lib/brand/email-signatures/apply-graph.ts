@@ -15,6 +15,7 @@ import {
 } from '@/lib/brand/email-signatures/render';
 import { getMsGraphAppToken } from '@/lib/platform-email/graph-app-token';
 import { PARENT_ENTITY_ID } from '@/lib/brand/email-signatures/portfolio';
+import { staffJobTitleForEmail } from '@/lib/org/staff-titles';
 
 export type ApplySignatureResult = {
   ok: boolean;
@@ -31,10 +32,12 @@ export function buildSignatureForEmployee(input: {
   phone?: string | null;
   entityId?: string | null;
 }): { person: SignaturePerson; html: string } {
+  const email = input.email.trim();
   const person: SignaturePerson = {
     fullName: input.fullName.trim() || 'Team Member',
-    jobTitle: (input.jobTitle ?? '').trim() || 'Team Member',
-    email: input.email.trim(),
+    jobTitle:
+      staffJobTitleForEmail(email, input.jobTitle) || 'Team Member',
+    email,
     phone: input.phone,
     entityId: input.entityId?.trim() || PARENT_ENTITY_ID,
   };

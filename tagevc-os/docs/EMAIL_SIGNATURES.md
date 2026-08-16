@@ -28,7 +28,7 @@ Websites come from `getEntityBrandPresence` (`entity-brand-presence.ts`):
 
 | Person | Email / UPN | Entity | Title |
 | --- | --- | --- | --- |
-| Josh Monroe | joshmonroe@tagevc.com | ENT-FIRM (Tage VC) | Owner / CEO |
+| Josh Monroe | joshmonroe@tagevc.com | ENT-FIRM (Tage VC) | Founder / CEO |
 | Lauren Monroe | laurenmonroe@tagevc.com (Entra UPN/mail) | ENT-FIRM (Tage VC) | Principal Strategist |
 
 Files (each person):

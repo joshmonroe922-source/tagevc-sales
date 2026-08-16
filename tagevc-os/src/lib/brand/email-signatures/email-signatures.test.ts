@@ -42,12 +42,13 @@ describe('email signature portfolio bar', () => {
   it('renders Josh parent signature with portfolio links', () => {
     const html = renderEmailSignatureHtml({
       fullName: 'Josh Monroe',
-      jobTitle: 'Owner / CEO',
+      jobTitle: 'Founder / CEO',
       email: 'joshmonroe@tagevc.com',
       entityId: 'ENT-FIRM',
       companyLine: 'Tage VC',
     });
     expect(html).toContain('Josh Monroe');
+    expect(html).toContain('Founder / CEO');
     expect(html).toContain('Our companies');
     expect(html).toContain('tagevc.com');
     expect(html).toContain('recruit619.com');
@@ -55,7 +56,7 @@ describe('email signature portfolio bar', () => {
     expect(html).toContain('instantnda.us');
     expect(renderEmailSignatureFragment({
       fullName: 'Josh Monroe',
-      jobTitle: 'Owner / CEO',
+      jobTitle: 'Founder / CEO',
       email: 'joshmonroe@tagevc.com',
       entityId: 'ENT-FIRM',
     })).not.toContain('<!DOCTYPE');

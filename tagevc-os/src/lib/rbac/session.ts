@@ -25,8 +25,10 @@ import { canSwitchEntityOs } from '@/lib/rbac/entity-os';
 import { readEntityOsCookie } from '@/lib/rbac/entity-os-cookie';
 import { resolveSubsidiaryLeaderEntityId } from '@/lib/entities/assignment-lead';
 import {
+  isJoshMonroeEmail,
   isLaurenMonroeEmail,
-  LAUREN_MONROE_JOB_TITLE,
+  JOSH_MONROE_JOB_TITLE,
+  staffJobTitleForEmail,
 } from '@/lib/org/staff-titles';
 
 const DEV_PROFILE: Profile = {
@@ -36,7 +38,7 @@ const DEV_PROFILE: Profile = {
   role: 'visionary',
   entity_id: 'ENT-FIRM',
   avatar_url: null,
-  job_title: 'Owner / CEO',
+  job_title: JOSH_MONROE_JOB_TITLE,
   active: true,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
@@ -104,18 +106,22 @@ export async function getRealProfile(): Promise<Profile | null> {
   if (data) {
     const profile = data as Profile;
     if (!profile.active) return null;
-    // Ensure Lauren's display title when profile exists without job_title set.
+    const canonical = staffJobTitleForEmail(profile.email, null);
+    // Keep Josh / Lauren display titles canonical when profile row drifts.
     if (
-      isLaurenMonroeEmail(profile.email) &&
-      !(profile.job_title ?? '').trim()
+      canonical &&
+      (profile.job_title ?? '').trim() !== canonical &&
+      (isJoshMonroeEmail(profile.email) ||
+        (isLaurenMonroeEmail(profile.email) &&
+          !(profile.job_title ?? '').trim()))
     ) {
       const patched = {
         ...profile,
-        job_title: LAUREN_MONROE_JOB_TITLE,
+        job_title: canonical,
       };
       void supabase
         .from('profiles')
-        .update({ job_title: LAUREN_MONROE_JOB_TITLE })
+        .update({ job_title: canonical })
         .eq('id', profile.id);
       return patched;
     }
@@ -133,9 +139,7 @@ export async function getRealProfile(): Promise<Profile | null> {
     role: (normalizeRole(user.user_metadata?.role) ?? 'associate') as AppRole,
     entity_id: null,
     avatar_url: user.user_metadata?.avatar_url ?? null,
-    job_title: isLaurenMonroeEmail(user.email)
-      ? LAUREN_MONROE_JOB_TITLE
-      : null,
+    job_title: staffJobTitleForEmail(user.email, null),
     active: true,
   };
 

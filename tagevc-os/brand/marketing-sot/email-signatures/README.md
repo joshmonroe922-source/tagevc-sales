@@ -2,7 +2,7 @@
 
 ## Ready now
 
-- **Josh Monroe** (Owner / CEO) — `joshmonroe@tagevc.com` / ENT-FIRM
+- **Josh Monroe** (Founder / CEO) — `joshmonroe@tagevc.com` / ENT-FIRM
 - **Lauren Monroe** (Principal Strategist) — `laurenmonroe@tagevc.com` / ENT-FIRM
 
 1. Open `{Name} Email Signature.html` in Chrome/Safari (double-click).

@@ -133,7 +133,7 @@ export const DEFAULT_MERGE_FIELDS: MergeField[] = [
     group: 'Owner',
     insert_token: '{{owner.title}}',
     sensitive: false,
-    sample_value: 'Owner / CEO',
+    sample_value: 'Founder / CEO',
   },
   {
     object: 'context',
