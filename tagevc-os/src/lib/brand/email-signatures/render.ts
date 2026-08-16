@@ -147,7 +147,7 @@ function escapeAttr(s: string): string {
 export const KNOWN_SIGNATURE_PEOPLE: SignaturePerson[] = [
   {
     fullName: 'Josh Monroe',
-    jobTitle: 'Owner / CEO',
+    jobTitle: 'Founder / CEO',
     email: 'joshmonroe@tagevc.com',
     entityId: 'ENT-FIRM',
     companyLine: 'Tage VC',

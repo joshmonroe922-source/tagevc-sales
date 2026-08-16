@@ -120,7 +120,7 @@ const SOT = path.join(REPO, 'brand/marketing-sot/email-signatures');
 const people = [
   {
     fullName: 'Josh Monroe',
-    jobTitle: 'Owner / CEO',
+    jobTitle: 'Founder / CEO',
     email: 'joshmonroe@tagevc.com',
     companyLine: 'Tage VC',
     entityId: 'ENT-FIRM',
@@ -172,7 +172,7 @@ const readme = `# Email Signatures
 
 ## Ready now
 
-- **Josh Monroe** (Owner / CEO) — \`joshmonroe@tagevc.com\` / ENT-FIRM
+- **Josh Monroe** (Founder / CEO) — \`joshmonroe@tagevc.com\` / ENT-FIRM
 - **Lauren Monroe** (Principal Strategist) — \`laurenmonroe@tagevc.com\` / ENT-FIRM
 
 1. Open \`{Name} Email Signature.html\` in Chrome/Safari (double-click).
