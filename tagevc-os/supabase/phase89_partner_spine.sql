@@ -39,8 +39,6 @@ values
    'E-signature org accounts', 'docs/PARTNER_SPINE.md#docusign', true, true),
   ('linkedin_recruiter', 'LinkedIn Recruiter', 'Recruiting', 'recruit_primary', 'scaffolded',
    'Two-way recruiter sync', 'docs/PARTNER_SPINE.md#linkedin-recruiter', true, true),
-  ('appcast', 'Appcast', 'Recruiting', 'all_entities', 'live',
-   'Job publishing', 'docs/PARTNER_SPINE.md#appcast', true, true),
   ('google_business', 'Google Business Profile', 'Marketing', 'all_entities', 'scaffolded',
    'Local presence pages', 'docs/PARTNER_SPINE.md#google-business', true, true),
   ('google_analytics', 'Google Analytics (GA4)', 'Marketing', 'all_entities', 'scaffolded',

@@ -11,7 +11,6 @@ export type PartnerKey =
   | 'gusto'
   | 'docusign'
   | 'linkedin_recruiter'
-  | 'appcast'
   | 'google_business'
   | 'google_analytics'
   | 'linkedin_company';
@@ -271,32 +270,6 @@ export const PARTNER_CATALOG: PartnerDefinition[] = [
     biFeed: true,
     importSupported: true,
     status: 'scaffolded',
-  },
-  {
-    key: 'appcast',
-    label: 'Appcast',
-    summary:
-      'Job publishing — careers/internal for all entities; Recruit 619 client fills now.',
-    ownerSs: 'Recruiting',
-    coOwners: ['Marketing'],
-    scope: 'all_entities',
-    capabilities: ['job_publish'],
-    envKeys: [
-      'APPCAST_API_KEY',
-      'APPCAST_EMPLOYER_ID',
-      'APPCAST_WEBHOOK_SECRET',
-      'APPCAST_LIVE',
-    ],
-    liveFlag: 'APPCAST_LIVE',
-    webhookPath: '/api/partners/appcast/webhook',
-    docsPath: 'docs/PARTNER_SPINE.md#appcast',
-    lifecycleHooks: {
-      entityCreate: 'ensure_appcast_employer_binding',
-    },
-    implementNow: ['ENT-R619', 'all'],
-    biFeed: true,
-    importSupported: true,
-    status: 'live',
   },
   {
     key: 'google_business',

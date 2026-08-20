@@ -19,7 +19,6 @@
 | `gusto` | Finance / HR | Internal payroll + commissions | Scaffolded — **multi-company:** `docs/GUSTO_MULTI_ENTITY.md` |
 | `docusign` | Legal | Org per entity | **Live** (existing) |
 | `linkedin_recruiter` | Recruiting | R619 primary; all later | Scaffolded |
-| `appcast` | Recruiting / Marketing | All careers; **R619 live path** | Live @ R619 |
 | `google_business` | **Marketing** | All entities | Scaffolded |
 | `google_analytics` | **Marketing** | All entities (GA4) | Scaffolded |
 | `linkedin_company` | **Marketing** | All entities (Company Pages) | Scaffolded |
@@ -116,9 +115,9 @@ Flow (scaffold):
 3. If `GUSTO_LIVE=1` + **entity-resolved** token/company UUID → push payroll (stub records `gusto_ref`).
 4. Else dry-run only.
 
-## Appcast / MyBasePay @ Recruit 619
+## JobTarget / MyBasePay @ Recruit 619
 
-- **Appcast:** Already live-path on `recruit619-portal` (`APPCAST_*`, feed + apply webhook). Spine binding `appcast` / `ENT-R619` mirrors status; firm entities get careers-slot scaffolding.
+- **JobTarget:** Planned replacement for job board postings + programmatic apply-back-to-CRM on `recruit619-portal`. Appcast scaffolding removed 2026-08; wire JobTarget when credentials land.
 - **MyBasePay:** Interim **admin backoffice bridge** for `ENT-R619` until October official API — see `docs/MYBASEPAY_INTERIM_BRIDGE.md`. Burden seed: spine migration `0012_mbp_burden_seed.sql` (`mbp_burden`). Keep `MYBASEPAY_LIVE=0`; create/sync adapters dry-run / fail-closed. Timesheets stay SoR in MBP.
 - **Dual path (intentional):** R619 keeps **Gusto** (employer payroll / W-2) **and** **MyBasePay** (EOR placement contractors) as separate bindings and LIVE gates — do not merge rails.
 
@@ -166,7 +165,7 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/phase89_partner_spine.sql
 6. Apollo API key
 7. Gusto per-entity company UUID + OAuth (see `docs/GUSTO_MULTI_ENTITY.md`); commissions after payroll mapping
 8. LinkedIn Recruiter developer app (account coming)
-9. Appcast employer credentials (confirm R619 env)
+9. JobTarget credentials (when contract lands — replaces Appcast)
 10. Google Business Profile API OAuth
 11. GA4 properties per entity + service account
 12. LinkedIn Company Page org URNs + OAuth

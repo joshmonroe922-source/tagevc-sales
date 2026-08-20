@@ -1109,7 +1109,7 @@ Docs: `docs/OS_PHASE57.md`
 Marketing production hardening on `/shared-services/marketing`. Approval SLA
 reliability, publishing controls, entity brand-voice enforcement,
 campaign/performance dashboards, and Recruit acquisition intelligence
-(Appcast/careers fail-soft) for `ENT-R619`. Money-impacting publish stays
+(job boards / careers fail-soft) for `ENT-R619`. Money-impacting publish stays
 dual-approved; never auto-approves money; never executes publish from the
 gate. Extends existing revenue phase surfaces.
 
@@ -1165,7 +1165,7 @@ Docs: `docs/OS_PHASE61.md`
 
 - Audit, evidence, and admin export pack (Phase 62)
 - Wire live IES feed for Phase 55 KPIs
-- Wire live Recruit/Appcast feed for Phase 53/58 freshness
+- Wire live Recruit job board feed (JobTarget planned) for Phase 53/58 freshness
 - Continue Stage 4e soak; do not drop snapshots
 - User admin
 

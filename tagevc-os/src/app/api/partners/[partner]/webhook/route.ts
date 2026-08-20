@@ -82,7 +82,6 @@ const SECRET_ENV: Partial<Record<PartnerKey, string>> = {
   dialpad: 'DIALPAD_WEBHOOK_SECRET',
   mybasepay: 'MYBASEPAY_WEBHOOK_SECRET',
   gusto: 'GUSTO_WEBHOOK_SECRET',
-  appcast: 'APPCAST_WEBHOOK_SECRET',
   verified_first: 'VERIFIED_FIRST_WEBHOOK_SECRET',
 };
 
