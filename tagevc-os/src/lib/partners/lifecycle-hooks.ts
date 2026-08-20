@@ -89,8 +89,6 @@ function humanizePartnerHook(id: string): string {
       'Ensure DocuSign account binding (entity create)',
     ensure_linkedin_recruiter_seat_pool:
       'Ensure LinkedIn Recruiter seat pool (entity create)',
-    ensure_appcast_employer_binding:
-      'Ensure Appcast employer binding (entity create)',
     ensure_google_business_location_slot:
       'Ensure Google Business location slot (entity create)',
     ensure_ga4_property_binding: 'Ensure GA4 property binding (entity create)',

@@ -297,8 +297,8 @@ export async function recordRecruitAcquisitionIntakePhase58(input: {
           detail: {
             contract_version: PHASE58_MARKETING_CONTRACT_VERSION,
             money_auto_approved: false,
-            // TODO: wire Appcast/careers feed for ENT-R619
-            todo: 'TODO: wire Appcast/careers feed for ENT-R619',
+            // TODO: wire JobTarget/job boards feed for ENT-R619
+            todo: 'TODO: wire JobTarget/job boards feed for ENT-R619',
           },
         },
       },

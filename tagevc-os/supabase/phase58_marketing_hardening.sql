@@ -283,14 +283,14 @@ create trigger os_mkt_perf_p58_no_truncate
   for each statement execute function public.reject_marketing_phase58_mutation();
 
 -- ---------------------------------------------------------------------------
--- Recruit acquisition intelligence (Appcast / careers) — ENT-R619 first.
+-- Recruit acquisition intelligence (job boards / careers) — ENT-R619 first.
 -- ---------------------------------------------------------------------------
 create table if not exists public.os_marketing_recruit_acquisition_phase58_events (
   event_id uuid primary key default gen_random_uuid(),
   entity_id text not null
     check (entity_id ~ '^ENT-[A-Z0-9-]{1,32}$'),
   source_kind text not null
-    check (source_kind in ('appcast','careers','combined','manual_stub')),
+    check (source_kind in ('job_board','careers','combined','manual_stub')),
   applications integer not null default 0 check (applications >= 0),
   clicks integer not null default 0 check (clicks >= 0),
   spend_observe numeric(14,2)
@@ -830,7 +830,7 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
--- Record Recruit acquisition intake stub (Appcast/careers) — observe only.
+-- Record Recruit acquisition intake stub (job boards / careers) — observe only.
 -- ---------------------------------------------------------------------------
 create or replace function public.record_recruit_acquisition_intake_phase58(
   p_payload jsonb
@@ -864,7 +864,7 @@ begin
   if v_source is null then
     v_source := 'manual_stub';
   end if;
-  if v_source not in ('appcast','careers','combined','manual_stub') then
+  if v_source not in ('job_board','careers','combined','manual_stub') then
     raise exception 'Invalid source_kind for Phase 58 recruit acquisition';
   end if;
   if v_feed is null then
@@ -904,7 +904,7 @@ begin
       'money_auto_approved',false,
       'todo', case
         when v_feed = 'missing'
-          then 'TODO: wire Appcast/careers feed for ENT-R619'
+          then 'TODO: wire job boards / careers feed for ENT-R619'
         else null
       end
     ),
@@ -932,7 +932,7 @@ begin
         'contract_version','phase58-v1',
         'source_kind', v_source,
         'money_auto_approved', false,
-        'todo', 'TODO: wire Appcast/careers feed for ENT-R619'
+        'todo', 'TODO: wire job boards / careers feed for ENT-R619'
       )
     ) on conflict (window_key) do nothing;
   end if;
@@ -1315,7 +1315,7 @@ begin
       'money_auto_approved',false,
       'todo', case
         when v_acq_status = 'missing'
-          then 'TODO: wire Appcast/careers feed for ENT-R619'
+          then 'TODO: wire job boards / careers feed for ENT-R619'
         else null
       end
     ),
@@ -1378,7 +1378,7 @@ begin
       jsonb_build_object(
         'contract_version','phase58-v1',
         'money_auto_approved', false,
-        'todo', 'TODO: wire Appcast/careers feed for ENT-R619'
+        'todo', 'TODO: wire job boards / careers feed for ENT-R619'
       )
     ) on conflict (window_key) do nothing;
   end if;
@@ -1640,7 +1640,7 @@ begin
       'recruit_acquisition', v_acq_events,
       'recent_alerts', v_ops_alerts,
       'entity_filter_hint', 'ENT-R619',
-      'todo', 'Refresh Marketing hardening board; wire Appcast/careers for ENT-R619',
+      'todo', 'Refresh Marketing hardening board; wire job boards / careers for ENT-R619',
       'money_auto_approved', false,
       'publish_executed', false,
       'dual_approve_required', true,

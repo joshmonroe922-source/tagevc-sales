@@ -134,7 +134,7 @@ export function MarketingHardeningPhase58Client({
       }
       setReport(result.report);
       setMessage(
-        'Recruit acquisition stub recorded (fail-soft; TODO wire Appcast/careers).',
+        'Recruit acquisition stub recorded (fail-soft; TODO wire JobTarget/job boards).',
       );
       router.refresh();
     });
@@ -184,7 +184,7 @@ export function MarketingHardeningPhase58Client({
         <CardDescription>
           Approval SLA reliability, publishing controls, entity brand-voice
           enforcement, campaign/performance dashboards, and Recruit acquisition
-          intelligence (Appcast/careers) for ENT-R619. Extends existing revenue
+          intelligence (job boards / careers) for ENT-R619. Extends existing revenue
           phase surfaces; money-impacting actions stay dual-approved.
         </CardDescription>
       </CardHeader>
@@ -280,19 +280,19 @@ export function MarketingHardeningPhase58Client({
                 disabled={pending}
                 onClick={recordRecruitStub}
               >
-                Record Appcast/careers stub
+                Record job boards / careers stub
               </Button>
             ) : null}
           </div>
           <p className="text-xs text-muted-foreground">
             Feed · {boardStatusLabel(String(report.recruit_feed_status))} ·
             applications {report.recruit_applications} · clicks{' '}
-            {report.recruit_clicks}. Fail-soft when Appcast/careers feed is
+            {report.recruit_clicks}. Fail-soft when job board feed is
             absent.
           </p>
           {report.recruit_acquisition.length === 0 ? (
             <p className="text-xs text-muted-foreground">
-              TODO · wire Appcast/careers feed for ENT-R619
+              TODO · wire JobTarget/job boards feed for ENT-R619
             </p>
           ) : (
             <ul className="space-y-1 text-xs">

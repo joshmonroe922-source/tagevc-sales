@@ -182,30 +182,6 @@ export async function linkedinRecruiterSyncStub(_input: {
   };
 }
 
-export async function appcastPublishStub(_input: {
-  entityId: string;
-  jobId: string;
-}): Promise<AdapterResult> {
-  const status = partnerConnectionStatus('appcast');
-  if (status === 'scaffold') {
-    return {
-      ok: true,
-      dryRun: true,
-      status: 'dry_run',
-      message:
-        'Appcast publish lives primarily on Recruit 619 portal feed; spine tracks enablement.',
-    };
-  }
-  return {
-    ok: true,
-    dryRun: !liveFlag('APPCAST_LIVE'),
-    status: liveFlag('APPCAST_LIVE') ? 'live_ok' : 'dry_run',
-    message: liveFlag('APPCAST_LIVE')
-      ? 'Appcast LIVE — use R619 /api/integrations/appcast paths.'
-      : 'Appcast dry-run — APPCAST_LIVE≠1.',
-  };
-}
-
 export async function marketingPresenceImportStub(
   kind: Extract<
     PartnerKey,
@@ -439,11 +415,6 @@ export async function runPartnerLifecycleHook(
       return apolloImportCompany({
         entityId: input.entityId,
         domain: input.domain ?? 'example.com',
-      });
-    case 'ensure_appcast_employer_binding':
-      return appcastPublishStub({
-        entityId: input.entityId,
-        jobId: input.jobId ?? 'entity-create',
       });
     case 'ensure_linkedin_recruiter_seat_pool':
       return linkedinRecruiterSyncStub({ entityId: input.entityId });

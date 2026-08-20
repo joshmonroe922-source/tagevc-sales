@@ -59,7 +59,7 @@ describe('Phase 58 Marketing production hardening', () => {
     expect(sql).toContain('publish_executed');
     expect(sql).toContain('never_auto_approve_money');
     expect(sql).toContain('ENT-R619');
-    expect(sql).toContain('appcast');
+    expect(sql).toContain('job_board');
     expect(sql).toContain('careers');
     expect(sql).toContain('Marketing Phase 58 evidence is append-only');
     expect(sql).not.toMatch(/if\s+case\s+when/i);
@@ -130,7 +130,7 @@ describe('Phase 58 Marketing production hardening', () => {
     expect(report.contract_version).toBe(PHASE58_MARKETING_CONTRACT_VERSION);
     expect(report.entity_filter_hint).toBe(PHASE58_ENTITY_FILTER_HINT);
     expect(report.recruit_feed_status).toBe('missing');
-    expect(report.todo).toMatch(/Appcast|careers|ENT-R619/i);
+    expect(report.todo).toMatch(/JobTarget|job boards|careers|ENT-R619/i);
     expect(formatReliabilityPct(null)).toBe('—');
     expect(formatReliabilityPct(95)).toBe('95%');
     expect(boardStatusLabel('partial')).toBe('Partial');
@@ -201,7 +201,7 @@ describe('Phase 58 Marketing production hardening', () => {
     expect(ui).toContain('dual');
     expect(ui).toContain('Never auto-approve money');
     expect(ui).toContain('ENT-R619');
-    expect(ui).toContain('Appcast');
+    expect(ui).toContain('job boards');
     expect(ui).toContain('Recruit acquisition');
 
     expect(modules).toContain("href: '/shared-services/marketing'");

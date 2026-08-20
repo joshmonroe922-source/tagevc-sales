@@ -31,7 +31,7 @@
 | Recruit 619 | Pipeline stage automation | **AUTO** desk tasks, alerts, send-out stamp (`src/lib/modules/pipeline/stage-automation.ts`) | **AUTO** task spawn; **DRAFT** AI copy | Low | Triggered from `src/app/(app)/candidates/actions.ts` | P2 |
 | Recruit 619 | AI assist drafts | **DRAFT** only (`[AI draft — review before use]` in `src/lib/modules/ai/assist.ts`) | Stay **DRAFT** | Low | Grok via `src/lib/think-tank/llm.ts` | — |
 | Recruit 619 | Candidate dedupe | **AUTO** merge suggestion ≥0.85; gray zone **Manual** (`src/lib/modules/candidates/dedupe.ts`) | **DRAFT** auto-merge preview; **AUTO** link only at ≥0.95 after review window | Med | `AUTO_MATCH_THRESHOLD = 0.85` | P1 |
-| Recruit 619 | Appcast feed + apply | **AUTO** XML feed + HMAC webhook (`src/app/api/integrations/appcast/*`) | **AUTO** ingest; **DRAFT** duplicate candidate review | Low | `docs/APPCAST_OPS.md` | P2 |
+| Recruit 619 | Job board feed + apply (JobTarget planned) | **Removed** Appcast scaffolding 2026-08; wire JobTarget when credentials land | **AUTO** ingest target; **DRAFT** duplicate candidate review | Low | Replaces `docs/APPCAST_OPS.md` | P2 |
 | Recruit 619 | Shared Services tickets | **Manual** user submit; webhook **AUTO** if env set (`src/lib/modules/shared-services/tickets.ts`, `webhook.ts`) | **AUTO** webhook + Tage diagnose; **DRAFT** for legal/finance subjects | Low | Env: `TAGE_SS_WEBHOOK_URL` → Tage `/api/shared-services/intake` (`docs/PHASE35.md`) | P0 |
 | Recruit 619 | Help desk / SS panels | **Manual** create; deep links to Tage (`src/components/shared-services/ss-ticket-panel.tsx`, `/help-desk`) | Same as SS tickets | Low | `src/app/(app)/shared-services/actions.ts` | P0 |
 | Recruit 619 | Tage rollups push | **Manual** POST; stub without env (`src/app/api/integrations/tage/rollups/route.ts`, `docs/TAGE_ROLLUPS.md`) | **AUTO** scheduled POST to Tage ingest | Low | Set `TAGE_ROLLUP_API_URL`, `TAGE_ROLLUP_SECRET`; add Vercel cron on portal | P0 |
@@ -78,7 +78,7 @@
 | Automation | Trigger | Entry point |
 |------------|---------|-------------|
 | Pipeline stage → desk tasks / alerts / AI draft hook | User stage advance | `src/lib/modules/pipeline/stage-automation.ts` |
-| Appcast job feed + signed apply webhook | External | `src/app/api/integrations/appcast/` |
+| Job board feed + signed apply webhook (JobTarget planned) | External | TBD — Appcast removed 2026-08 |
 | AI draft generation (review required) | User | `src/lib/modules/ai/assist.ts` |
 | Dedupe scoring (auto-match tier) | Import/merge flows | `src/lib/modules/candidates/dedupe.ts` |
 | SS ticket → Tage webhook | On ticket create (if env) | `src/lib/modules/shared-services/webhook.ts` |

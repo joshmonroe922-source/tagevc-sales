@@ -1,7 +1,7 @@
 /**
  * Phase 58 — Marketing Production Hardening contracts + stubs.
  * Money-impacting publish: propose + dual-approve only; never auto-approve money.
- * Recruit acquisition (Appcast/careers) fail-soft stubs for ENT-R619.
+ * Recruit acquisition (job boards / careers) fail-soft stubs for ENT-R619.
  */
 
 export const PHASE58_MARKETING_CONTRACT_VERSION = 'phase58-v1' as const;
@@ -115,8 +115,8 @@ export function emptyMarketingHardeningPhase58Report(
     recruit_acquisition: [],
     recent_alerts: [],
     entity_filter_hint: PHASE58_ENTITY_FILTER_HINT,
-    // TODO: Refresh board; wire Appcast/careers for ENT-R619.
-    todo: 'Refresh Marketing hardening board; wire Appcast/careers for ENT-R619',
+    // TODO: Refresh board; wire JobTarget/job boards for ENT-R619.
+    todo: 'Refresh Marketing hardening board; wire JobTarget/job boards for ENT-R619',
     money_auto_approved: false,
     publish_executed: false,
     dual_approve_required: true,

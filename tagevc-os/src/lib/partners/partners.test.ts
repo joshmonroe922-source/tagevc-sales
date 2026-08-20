@@ -22,7 +22,6 @@ describe('partner spine catalog', () => {
     expect(keys).toContain('linkedin_company');
     expect(keys).toContain('dialpad');
     expect(keys).toContain('mybasepay');
-    expect(keys).toContain('appcast');
   });
 
   it('routes marketing presence to Marketing SS UI', () => {

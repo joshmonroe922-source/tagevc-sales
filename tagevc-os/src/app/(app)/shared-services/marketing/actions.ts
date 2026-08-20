@@ -1510,7 +1510,7 @@ export async function approveMarketingPublishPhase58Action(
 const recruitIntakeSchema = z.object({
   entityId: z.string().nullable().optional(),
   sourceKind: z
-    .enum(['appcast', 'careers', 'combined', 'manual_stub'])
+    .enum(['job_board', 'careers', 'combined', 'manual_stub'])
     .optional(),
   applications: z.number().int().min(0).optional(),
   clicks: z.number().int().min(0).optional(),
