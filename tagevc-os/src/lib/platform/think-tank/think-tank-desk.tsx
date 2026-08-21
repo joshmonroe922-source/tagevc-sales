@@ -89,11 +89,15 @@ export function ThinkTankDesk({
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
   const [pending, startTransition] = useTransition();
-  const bottomRef = useRef<HTMLDivElement | null>(null);
+  const messagesPanelRef = useRef<HTMLDivElement | null>(null);
+  const followMessagesRef = useRef(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (!followMessagesRef.current) return;
+    const panel = messagesPanelRef.current;
+    if (!panel) return;
+    panel.scrollTop = panel.scrollHeight;
   }, [messages, pending, attachments.length]);
 
   useEffect(() => {
@@ -166,6 +170,7 @@ export function ThinkTankDesk({
 
   function onSelectThread(id: string) {
     if (id === activeId || pending) return;
+    followMessagesRef.current = false;
     setError(null);
     rememberThread(id);
     startTransition(async () => {
@@ -175,6 +180,7 @@ export function ThinkTankDesk({
   }
 
   function onNewThread() {
+    followMessagesRef.current = false;
     setError(null);
     startTransition(async () => {
       const result = await actions.createThread();
@@ -220,6 +226,7 @@ export function ThinkTankDesk({
   function onSend() {
     const text = draft.trim();
     if (!text || pending) return;
+    followMessagesRef.current = true;
     setError(null);
     setSetupHint(null);
     setDraft('');
@@ -467,7 +474,8 @@ export function ThinkTankDesk({
           ) : null}
 
           <div
-            className="max-h-[min(32rem,55vh)] space-y-3 overflow-y-auto rounded-md bg-muted/40 p-3"
+            ref={messagesPanelRef}
+            className="max-h-[min(32rem,55vh)] space-y-3 overflow-y-auto overscroll-contain rounded-md bg-muted/40 p-3"
             role="log"
             aria-live="polite"
           >
@@ -518,7 +526,6 @@ export function ThinkTankDesk({
                 Thinking…
               </div>
             ) : null}
-            <div ref={bottomRef} />
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
