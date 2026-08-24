@@ -91,6 +91,7 @@ Do **not** `supabase db push` these until Josh reviews the SQL.
      (`CREATE INDEX CONCURRENTLY` — run each statement alone; cannot live in a txn)
 2. **OS graph CRM** (`accounts` / `contacts` / `recruit_job_reqs`):
    - Transactional: `tagevc-os/supabase/migrations/spine/0013_crm_full_text_search.sql`
+   - Chunked backfill (re-run until 0): `tagevc-os/supabase/phase109_crm_full_text_search_backfill.sql`
    - Concurrent companion: `tagevc-os/supabase/phase109_crm_full_text_search_indexes_concurrent.sql`
 
 If you already applied GIN inside the transactional file, skip the matching concurrent statements.

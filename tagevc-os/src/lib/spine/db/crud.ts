@@ -302,11 +302,44 @@ export type SearchHit = {
   href: string;
 };
 
+/** Unranked fallback when ranked RPCs are not applied yet. */
 const FTS_OPTS = { type: 'websearch' as const, config: 'english' };
 
 function toWebsearchQuery(raw: string): string | null {
   const q = raw.trim().replace(/[%\\]/g, ' ').replace(/\s+/g, ' ').trim();
   return q.length >= 2 ? q : null;
+}
+
+function isMissingRpcError(error: unknown): boolean {
+  const msg =
+    error && typeof error === 'object' && 'message' in error
+      ? String((error as { message: unknown }).message)
+      : String(error ?? '');
+  return /could not find the function|schema cache|does not exist/i.test(msg);
+}
+
+function orderByIdList<T extends { id: string }>(rows: T[], ids: string[]): T[] {
+  const map = new Map(rows.map((r) => [r.id, r]));
+  const out: T[] = [];
+  for (const id of ids) {
+    const row = map.get(id);
+    if (row) out.push(row);
+  }
+  return out;
+}
+
+async function rankedIdsOrNull(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sb: { rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: any }> },
+  rpcName: string,
+  args: Record<string, unknown>,
+): Promise<string[] | null> {
+  const { data, error } = await sb.rpc(rpcName, args);
+  if (error) {
+    if (isMissingRpcError(error)) return null;
+    throw error;
+  }
+  return ((data ?? []) as Array<{ id: string }>).map((r) => String(r.id));
 }
 
 export async function searchGraph(
@@ -340,48 +373,142 @@ export async function searchGraph(
       contactIds = (cLinks.data ?? []).map((r) => String(r.contact_id));
     }
 
-    const accountQ = sb
-      .from('accounts')
-      .select('id, name, canonical_domain')
-      .textSearch('search_vector', query, FTS_OPTS)
-      .limit(rowLimit);
-    const contactQ = sb
-      .from('contacts')
-      .select('id, full_name, primary_email, title')
-      .textSearch('search_vector', query, FTS_OPTS)
-      .limit(rowLimit);
-    let jobQ = sb
-      .from('recruit_job_reqs')
-      .select('id, title, req_number, location, account_id')
-      .textSearch('search_vector', query, FTS_OPTS)
-      .limit(rowLimit);
-    if (orgId) jobQ = jobQ.eq('org_id', orgId);
+    // Empty org scope → no hits for accounts/contacts.
+    if (accountIds && accountIds.length === 0 && contactIds && contactIds.length === 0) {
+      const jobRankedEmpty = await rankedIdsOrNull(sb, 'search_recruit_job_reqs_ranked', {
+        p_query: query,
+        p_limit: rowLimit,
+        p_org_id: orgId,
+      });
+      if (jobRankedEmpty && jobRankedEmpty.length === 0) return { hits: [] };
+    }
 
-    const [accounts, contacts, jobs] = await Promise.all([
-      accountIds && accountIds.length
-        ? accountQ.in('id', accountIds)
-        : accountIds
-          ? Promise.resolve({ data: [] as Array<{
-              id: string;
-              name: string;
-              canonical_domain: string | null;
-            }> })
-          : accountQ,
-      contactIds && contactIds.length
-        ? contactQ.in('id', contactIds)
-        : contactIds
-          ? Promise.resolve({ data: [] as Array<{
-              id: string;
-              full_name: string;
-              primary_email: string | null;
-              title: string | null;
-            }> })
-          : contactQ,
-      jobQ,
+    // Empty org scope → no hits for accounts/contacts.
+    if (accountIds && accountIds.length === 0 && contactIds && contactIds.length === 0) {
+      const jobRankedEmpty = await rankedIdsOrNull(sb, 'search_recruit_job_reqs_ranked', {
+        p_query: query,
+        p_limit: rowLimit,
+        p_org_id: orgId,
+      });
+      if (jobRankedEmpty && jobRankedEmpty.length === 0) return { hits: [] };
+    }
+
+    const [accountRanked, contactRanked, jobRanked] = await Promise.all([
+      accountIds && accountIds.length === 0
+        ? Promise.resolve([] as string[])
+        : rankedIdsOrNull(sb, 'search_accounts_ranked', {
+            p_query: query,
+            p_limit: rowLimit,
+            p_ids: accountIds,
+          }),
+      contactIds && contactIds.length === 0
+        ? Promise.resolve([] as string[])
+        : rankedIdsOrNull(sb, 'search_contacts_ranked', {
+            p_query: query,
+            p_limit: rowLimit,
+            p_ids: contactIds,
+          }),
+      rankedIdsOrNull(sb, 'search_recruit_job_reqs_ranked', {
+        p_query: query,
+        p_limit: rowLimit,
+        p_org_id: orgId,
+      }),
     ]);
 
+    const useRanked =
+      accountRanked !== null && contactRanked !== null && jobRanked !== null;
+
+    let accountsData: Array<{
+      id: string;
+      name: string;
+      canonical_domain: string | null;
+    }> = [];
+    let contactsData: Array<{
+      id: string;
+      full_name: string;
+      primary_email: string | null;
+      title: string | null;
+    }> = [];
+    let jobsData: Array<{
+      id: string;
+      title: string;
+      req_number: string | null;
+      location: string | null;
+      account_id: string | null;
+    }> = [];
+
+    if (useRanked) {
+      const [accounts, contacts, jobs] = await Promise.all([
+        accountRanked!.length
+          ? sb
+              .from('accounts')
+              .select('id, name, canonical_domain')
+              .in('id', accountRanked!)
+          : Promise.resolve({ data: [] as typeof accountsData }),
+        contactRanked!.length
+          ? sb
+              .from('contacts')
+              .select('id, full_name, primary_email, title')
+              .in('id', contactRanked!)
+          : Promise.resolve({ data: [] as typeof contactsData }),
+        jobRanked!.length
+          ? sb
+              .from('recruit_job_reqs')
+              .select('id, title, req_number, location, account_id')
+              .in('id', jobRanked!)
+          : Promise.resolve({ data: [] as typeof jobsData }),
+      ]);
+      accountsData = orderByIdList(
+        (accounts.data ?? []) as typeof accountsData,
+        accountRanked!,
+      );
+      contactsData = orderByIdList(
+        (contacts.data ?? []) as typeof contactsData,
+        contactRanked!,
+      );
+      jobsData = orderByIdList(
+        (jobs.data ?? []) as typeof jobsData,
+        jobRanked!,
+      );
+    } else {
+      // Unranked .textSearch fallback until phase109 RPCs are applied.
+      const accountQ = sb
+        .from('accounts')
+        .select('id, name, canonical_domain')
+        .textSearch('search_vector', query, FTS_OPTS)
+        .limit(rowLimit);
+      const contactQ = sb
+        .from('contacts')
+        .select('id, full_name, primary_email, title')
+        .textSearch('search_vector', query, FTS_OPTS)
+        .limit(rowLimit);
+      let jobQ = sb
+        .from('recruit_job_reqs')
+        .select('id, title, req_number, location, account_id')
+        .textSearch('search_vector', query, FTS_OPTS)
+        .limit(rowLimit);
+      if (orgId) jobQ = jobQ.eq('org_id', orgId);
+
+      const [accounts, contacts, jobs] = await Promise.all([
+        accountIds && accountIds.length
+          ? accountQ.in('id', accountIds)
+          : accountIds
+            ? Promise.resolve({ data: [] as typeof accountsData })
+            : accountQ,
+        contactIds && contactIds.length
+          ? contactQ.in('id', contactIds)
+          : contactIds
+            ? Promise.resolve({ data: [] as typeof contactsData })
+            : contactQ,
+        jobQ,
+      ]);
+      accountsData = (accounts.data ?? []) as typeof accountsData;
+      contactsData = (contacts.data ?? []) as typeof contactsData;
+      jobsData = (jobs.data ?? []) as typeof jobsData;
+    }
+
     const hits: SearchHit[] = [];
-    for (const a of accounts.data ?? []) {
+    for (const a of accountsData) {
       hits.push({
         type: 'account',
         id: a.id,
@@ -390,7 +517,7 @@ export async function searchGraph(
         href: `/shared-services/crm/accounts/${a.id}`,
       });
     }
-    for (const c of contacts.data ?? []) {
+    for (const c of contactsData) {
       hits.push({
         type: 'contact',
         id: c.id,
@@ -399,7 +526,7 @@ export async function searchGraph(
         href: `/shared-services/crm/contacts/${c.id}`,
       });
     }
-    for (const j of jobs.data ?? []) {
+    for (const j of jobsData) {
       hits.push({
         type: 'job',
         id: j.id,

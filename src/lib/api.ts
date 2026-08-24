@@ -1,5 +1,11 @@
 import { requireSupabase, supabase } from './supabase';
-import { TEXT_SEARCH_OPTS, searchLimit, toWebsearchQuery } from './textSearch';
+import {
+  TEXT_SEARCH_OPTS,
+  orderByIdList,
+  rankedSearchIds,
+  searchLimit,
+  toWebsearchQuery,
+} from './textSearch';
 import type {
   CreateTaskResult,
   DealPath,
@@ -20,11 +26,30 @@ export async function listLeads(opts?: {
   limit?: number;
 }): Promise<SalesLead[]> {
   const fts = toWebsearchQuery(opts?.q ?? '');
-  let query = requireSupabase()
+  const sb = requireSupabase();
+  const limit = searchLimit(opts?.limit, Boolean(fts));
+
+  if (fts) {
+    const ids = await rankedSearchIds(sb, 'search_sales_leads_ranked', {
+      p_query: fts,
+      p_limit: limit,
+    });
+    if (ids) {
+      if (ids.length === 0) return [];
+      const { data, error } = await sb
+        .from('sales_leads')
+        .select(LEAD_SELECT)
+        .in('id', ids);
+      if (error) throw error;
+      return orderByIdList((data ?? []) as SalesLead[], ids);
+    }
+  }
+
+  let query = sb
     .from('sales_leads')
     .select(LEAD_SELECT)
     .order('created_at', { ascending: false })
-    .limit(searchLimit(opts?.limit, Boolean(fts)));
+    .limit(limit);
 
   if (fts) {
     query = query.textSearch('search_vector', fts, TEXT_SEARCH_OPTS);

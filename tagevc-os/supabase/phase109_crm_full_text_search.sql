@@ -1,25 +1,11 @@
 -- phase109_crm_full_text_search.sql
 -- Hand-apply twin of migrations/spine/0013_crm_full_text_search.sql
 -- Paste into Supabase SQL editor after review. Then run
--- phase109_crm_full_text_search_indexes_concurrent.sql outside a transaction.
+-- phase109_crm_full_text_search_backfill.sql (chunked, re-run until 0) and
+-- optionally phase109_crm_full_text_search_indexes_concurrent.sql.
 --
 -- NOT APPLIED TO PRODUCTION. Awaiting Josh sign-off.
-
--- 0013_crm_full_text_search — production-safe FTS hardening (transaction OK)
--- Requires spine 0011 (job desk columns + jobs view).
---
--- Context: accounts/contacts already have search_vector + GIN from 0002/0003 /
--- phase94. This migration:
---   1) Widens weighted fields (email/phone/skills/HQ/website/jobs)
---   2) Adds search_vector to recruit_job_reqs (jobs view)
---   3) Backfills NULL / stale vectors
---   4) Adds filter B-tree indexes via CREATE INDEX IF NOT EXISTS (txn-safe)
---
--- GIN / large indexes that should use CONCURRENTLY on a live DB:
---   → apply supabase/phase109_crm_full_text_search_indexes_concurrent.sql
---     in the Supabase SQL editor (NOT via a transactional migrate runner).
-
--- Prerequisites: phase94 / spine 0002–0007; ideally 0011 (skills, req_number, …).
+-- Backup / revert: tag checkpoint/before-fts-optimization (do not move).
 
 -- Defensive columns if 0011 not yet applied
 alter table public.contacts
@@ -49,26 +35,106 @@ as $$
   );
 $$;
 
+-- ─── shared vector builders (triggers + chunked backfill) ────────────────────
+create or replace function public.accounts_compute_search_vector(
+  p_name text,
+  p_canonical_domain text,
+  p_legal_name text,
+  p_website text,
+  p_industry text,
+  p_hq_city text,
+  p_hq_state text,
+  p_hq_country text,
+  p_description text
+)
+returns tsvector
+language sql
+immutable
+as $$
+  select
+    setweight(to_tsvector('english', coalesce(p_name, '')), 'A') ||
+    setweight(to_tsvector('english', coalesce(p_canonical_domain, '')), 'A') ||
+    setweight(to_tsvector('english', coalesce(p_legal_name, '')), 'B') ||
+    setweight(to_tsvector('english', coalesce(p_website, '')), 'B') ||
+    setweight(to_tsvector('english', coalesce(p_industry, '')), 'C') ||
+    setweight(
+      to_tsvector(
+        'english',
+        trim(both ' ' from concat_ws(' ', p_hq_city, p_hq_state, p_hq_country))
+      ),
+      'C'
+    ) ||
+    setweight(to_tsvector('english', coalesce(p_description, '')), 'D');
+$$;
+
+create or replace function public.contacts_compute_search_vector(
+  p_full_name text,
+  p_first_name text,
+  p_last_name text,
+  p_primary_email text,
+  p_emails jsonb,
+  p_phones jsonb,
+  p_title text,
+  p_department text,
+  p_seniority text,
+  p_location text,
+  p_skills text[],
+  p_linkedin_url text
+)
+returns tsvector
+language sql
+immutable
+as $$
+  select
+    setweight(to_tsvector('english', coalesce(p_full_name, '')), 'A') ||
+    setweight(to_tsvector('english', coalesce(p_first_name, '')), 'A') ||
+    setweight(to_tsvector('english', coalesce(p_last_name, '')), 'A') ||
+    setweight(to_tsvector('english', coalesce(p_primary_email, '')), 'A') ||
+    setweight(to_tsvector('english', public.spine_jsonb_text_values(p_emails)), 'A') ||
+    setweight(to_tsvector('english', coalesce(p_title, '')), 'B') ||
+    setweight(to_tsvector('english', coalesce(p_department, '')), 'B') ||
+    setweight(to_tsvector('english', coalesce(p_seniority, '')), 'B') ||
+    setweight(to_tsvector('english', public.spine_jsonb_text_values(p_phones)), 'C') ||
+    setweight(to_tsvector('english', coalesce(p_location, '')), 'C') ||
+    setweight(to_tsvector('english', coalesce(array_to_string(p_skills, ' '), '')), 'D') ||
+    setweight(to_tsvector('english', coalesce(p_linkedin_url, '')), 'D');
+$$;
+
+create or replace function public.recruit_job_reqs_compute_search_vector(
+  p_title text,
+  p_req_number text,
+  p_location text,
+  p_employment_type text,
+  p_status text,
+  p_req_skills text[],
+  p_description text,
+  p_notes text
+)
+returns tsvector
+language sql
+immutable
+as $$
+  select
+    setweight(to_tsvector('english', coalesce(p_title, '')), 'A') ||
+    setweight(to_tsvector('english', coalesce(p_req_number, '')), 'A') ||
+    setweight(to_tsvector('english', coalesce(p_location, '')), 'B') ||
+    setweight(to_tsvector('english', coalesce(p_employment_type, '')), 'C') ||
+    setweight(to_tsvector('english', coalesce(p_status, '')), 'C') ||
+    setweight(to_tsvector('english', coalesce(array_to_string(p_req_skills, ' '), '')), 'C') ||
+    setweight(to_tsvector('english', coalesce(p_description, '')), 'D') ||
+    setweight(to_tsvector('english', coalesce(p_notes, '')), 'D');
+$$;
+
 -- ─── accounts: richer weights ────────────────────────────────────────────────
 create or replace function public.accounts_rebuild_search_vector()
 returns trigger
 language plpgsql
 as $$
 begin
-  new.search_vector :=
-    setweight(to_tsvector('english', coalesce(new.name, '')), 'A') ||
-    setweight(to_tsvector('english', coalesce(new.canonical_domain, '')), 'A') ||
-    setweight(to_tsvector('english', coalesce(new.legal_name, '')), 'B') ||
-    setweight(to_tsvector('english', coalesce(new.website, '')), 'B') ||
-    setweight(to_tsvector('english', coalesce(new.industry, '')), 'C') ||
-    setweight(
-      to_tsvector(
-        'english',
-        trim(both ' ' from concat_ws(' ', new.hq_city, new.hq_state, new.hq_country))
-      ),
-      'C'
-    ) ||
-    setweight(to_tsvector('english', coalesce(new.description, '')), 'D');
+  new.search_vector := public.accounts_compute_search_vector(
+    new.name, new.canonical_domain, new.legal_name, new.website,
+    new.industry, new.hq_city, new.hq_state, new.hq_country, new.description
+  );
   return new;
 end;
 $$;
@@ -86,28 +152,12 @@ create or replace function public.contacts_rebuild_search_vector()
 returns trigger
 language plpgsql
 as $$
-declare
-  phone_text text;
-  email_extra text;
-  skills_text text;
 begin
-  phone_text := public.spine_jsonb_text_values(new.phones);
-  email_extra := public.spine_jsonb_text_values(new.emails);
-  skills_text := coalesce(array_to_string(new.skills, ' '), '');
-
-  new.search_vector :=
-    setweight(to_tsvector('english', coalesce(new.full_name, '')), 'A') ||
-    setweight(to_tsvector('english', coalesce(new.first_name, '')), 'A') ||
-    setweight(to_tsvector('english', coalesce(new.last_name, '')), 'A') ||
-    setweight(to_tsvector('english', coalesce(new.primary_email, '')), 'A') ||
-    setweight(to_tsvector('english', email_extra), 'A') ||
-    setweight(to_tsvector('english', coalesce(new.title, '')), 'B') ||
-    setweight(to_tsvector('english', coalesce(new.department, '')), 'B') ||
-    setweight(to_tsvector('english', coalesce(new.seniority, '')), 'B') ||
-    setweight(to_tsvector('english', phone_text), 'C') ||
-    setweight(to_tsvector('english', coalesce(new.location, '')), 'C') ||
-    setweight(to_tsvector('english', skills_text), 'D') ||
-    setweight(to_tsvector('english', coalesce(new.linkedin_url, '')), 'D');
+  new.search_vector := public.contacts_compute_search_vector(
+    new.full_name, new.first_name, new.last_name, new.primary_email,
+    new.emails, new.phones, new.title, new.department, new.seniority,
+    new.location, new.skills, new.linkedin_url
+  );
   return new;
 end;
 $$;
@@ -129,15 +179,10 @@ returns trigger
 language plpgsql
 as $$
 begin
-  new.search_vector :=
-    setweight(to_tsvector('english', coalesce(new.title, '')), 'A') ||
-    setweight(to_tsvector('english', coalesce(new.req_number, '')), 'A') ||
-    setweight(to_tsvector('english', coalesce(new.location, '')), 'B') ||
-    setweight(to_tsvector('english', coalesce(new.employment_type, '')), 'C') ||
-    setweight(to_tsvector('english', coalesce(new.status, '')), 'C') ||
-    setweight(to_tsvector('english', coalesce(array_to_string(new.req_skills, ' '), '')), 'C') ||
-    setweight(to_tsvector('english', coalesce(new.description, '')), 'D') ||
-    setweight(to_tsvector('english', coalesce(new.notes, '')), 'D');
+  new.search_vector := public.recruit_job_reqs_compute_search_vector(
+    new.title, new.req_number, new.location, new.employment_type,
+    new.status, new.req_skills, new.description, new.notes
+  );
   return new;
 end;
 $$;
@@ -154,53 +199,31 @@ create trigger recruit_job_reqs_search_vector_trg
 create or replace view public.jobs as
   select * from public.recruit_job_reqs;
 
--- ─── backfill (batch-friendly; safe to re-run) ───────────────────────────────
-update public.accounts
-set search_vector =
-  setweight(to_tsvector('english', coalesce(name, '')), 'A') ||
-  setweight(to_tsvector('english', coalesce(canonical_domain, '')), 'A') ||
-  setweight(to_tsvector('english', coalesce(legal_name, '')), 'B') ||
-  setweight(to_tsvector('english', coalesce(website, '')), 'B') ||
-  setweight(to_tsvector('english', coalesce(industry, '')), 'C') ||
-  setweight(
-    to_tsvector(
-      'english',
-      trim(both ' ' from concat_ws(' ', hq_city, hq_state, hq_country))
-    ),
-    'C'
-  ) ||
-  setweight(to_tsvector('english', coalesce(description, '')), 'D')
-;
-
-update public.contacts
-set search_vector =
-  setweight(to_tsvector('english', coalesce(full_name, '')), 'A') ||
-  setweight(to_tsvector('english', coalesce(first_name, '')), 'A') ||
-  setweight(to_tsvector('english', coalesce(last_name, '')), 'A') ||
-  setweight(to_tsvector('english', coalesce(primary_email, '')), 'A') ||
-  setweight(to_tsvector('english', public.spine_jsonb_text_values(emails)), 'A') ||
-  setweight(to_tsvector('english', coalesce(title, '')), 'B') ||
-  setweight(to_tsvector('english', coalesce(department, '')), 'B') ||
-  setweight(to_tsvector('english', coalesce(seniority, '')), 'B') ||
-  setweight(to_tsvector('english', public.spine_jsonb_text_values(phones)), 'C') ||
-  setweight(to_tsvector('english', coalesce(location, '')), 'C') ||
-  setweight(to_tsvector('english', coalesce(array_to_string(skills, ' '), '')), 'D') ||
-  setweight(to_tsvector('english', coalesce(linkedin_url, '')), 'D')
-;
-
-update public.recruit_job_reqs
-set search_vector =
-  setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
-  setweight(to_tsvector('english', coalesce(req_number, '')), 'A') ||
-  setweight(to_tsvector('english', coalesce(location, '')), 'B') ||
-  setweight(to_tsvector('english', coalesce(employment_type, '')), 'C') ||
-  setweight(to_tsvector('english', coalesce(status, '')), 'C') ||
-  setweight(to_tsvector('english', coalesce(array_to_string(req_skills, ' '), '')), 'C') ||
-  setweight(to_tsvector('english', coalesce(description, '')), 'D') ||
-  setweight(to_tsvector('english', coalesce(notes, '')), 'D')
-;
+-- ─── GIN names: *_search_vector_idx (rename is instant; no rebuild) ──────────
+do $$
+declare
+  rec record;
+begin
+  for rec in
+    select * from (values
+      ('accounts_search', 'accounts_search_vector_idx'),
+      ('contacts_search', 'contacts_search_vector_idx'),
+      ('recruit_job_reqs_search', 'recruit_job_reqs_search_vector_idx')
+    ) as t(old_name, new_name)
+  loop
+    if to_regclass('public.' || rec.old_name) is not null
+       and to_regclass('public.' || rec.new_name) is null then
+      execute format('alter index public.%I rename to %I', rec.old_name, rec.new_name);
+    elsif to_regclass('public.' || rec.old_name) is not null
+       and to_regclass('public.' || rec.new_name) is not null then
+      execute format('drop index public.%I', rec.old_name);
+    end if;
+  end loop;
+end $$;
 
 -- ─── txn-safe filter indexes (IF NOT EXISTS) ─────────────────────────────────
+-- Prefer the concurrent script on large prod tables if these take locks.
+
 create index if not exists accounts_created_at_idx
   on public.accounts (created_at desc);
 
@@ -227,5 +250,114 @@ create index if not exists recruit_job_reqs_created_at_idx
 create index if not exists recruit_job_reqs_account_created_idx
   on public.recruit_job_reqs (account_id, created_at desc);
 
-create index if not exists recruit_job_reqs_search
+-- GIN (txn-safe create; skip on a live DB and use the concurrent script)
+create index if not exists accounts_search_vector_idx
+  on public.accounts using gin (search_vector);
+
+create index if not exists contacts_search_vector_idx
+  on public.contacts using gin (search_vector);
+
+create index if not exists recruit_job_reqs_search_vector_idx
   on public.recruit_job_reqs using gin (search_vector);
+
+-- ─── Ranked search RPCs (default for Cmd-K; .textSearch remains available) ───
+create or replace function public.search_accounts_ranked(
+  p_query text,
+  p_limit int default 20,
+  p_ids uuid[] default null
+)
+returns table (id uuid, name text, canonical_domain text, rank real)
+language sql
+stable
+security invoker
+set search_path = public
+as $$
+  with q as (
+    select websearch_to_tsquery('english', trim(coalesce(p_query, ''))) as tsq
+  )
+  select
+    a.id,
+    a.name,
+    a.canonical_domain,
+    ts_rank_cd(a.search_vector, q.tsq) as rank
+  from public.accounts a, q
+  where length(trim(coalesce(p_query, ''))) >= 2
+    and q.tsq <> ''::tsquery
+    and a.search_vector @@ q.tsq
+    and (p_ids is null or a.id = any(p_ids))
+  order by 4 desc, a.name asc nulls last
+  limit greatest(1, least(coalesce(p_limit, 20), 40));
+$$;
+
+create or replace function public.search_contacts_ranked(
+  p_query text,
+  p_limit int default 20,
+  p_ids uuid[] default null
+)
+returns table (id uuid, full_name text, primary_email text, title text, rank real)
+language sql
+stable
+security invoker
+set search_path = public
+as $$
+  with q as (
+    select websearch_to_tsquery('english', trim(coalesce(p_query, ''))) as tsq
+  )
+  select
+    c.id,
+    c.full_name,
+    c.primary_email,
+    c.title,
+    ts_rank_cd(c.search_vector, q.tsq) as rank
+  from public.contacts c, q
+  where length(trim(coalesce(p_query, ''))) >= 2
+    and q.tsq <> ''::tsquery
+    and c.search_vector @@ q.tsq
+    and (p_ids is null or c.id = any(p_ids))
+  order by 5 desc, c.full_name asc nulls last
+  limit greatest(1, least(coalesce(p_limit, 20), 40));
+$$;
+
+create or replace function public.search_recruit_job_reqs_ranked(
+  p_query text,
+  p_limit int default 20,
+  p_org_id uuid default null
+)
+returns table (
+  id uuid,
+  title text,
+  req_number text,
+  location text,
+  account_id uuid,
+  rank real
+)
+language sql
+stable
+security invoker
+set search_path = public
+as $$
+  with q as (
+    select websearch_to_tsquery('english', trim(coalesce(p_query, ''))) as tsq
+  )
+  select
+    j.id,
+    j.title,
+    j.req_number,
+    j.location,
+    j.account_id,
+    ts_rank_cd(j.search_vector, q.tsq) as rank
+  from public.recruit_job_reqs j, q
+  where length(trim(coalesce(p_query, ''))) >= 2
+    and q.tsq <> ''::tsquery
+    and j.search_vector @@ q.tsq
+    and (p_org_id is null or j.org_id = p_org_id)
+  order by 6 desc, j.title asc nulls last
+  limit greatest(1, least(coalesce(p_limit, 20), 40));
+$$;
+
+grant execute on function public.search_accounts_ranked(text, int, uuid[])
+  to authenticated, service_role;
+grant execute on function public.search_contacts_ranked(text, int, uuid[])
+  to authenticated, service_role;
+grant execute on function public.search_recruit_job_reqs_ranked(text, int, uuid)
+  to authenticated, service_role;
