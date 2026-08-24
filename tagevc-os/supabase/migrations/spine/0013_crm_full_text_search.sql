@@ -66,19 +66,19 @@ language sql
 immutable
 as $$
   select
-    setweight(to_tsvector('english', coalesce(p_name, '')), 'A') ||
-    setweight(to_tsvector('english', coalesce(p_canonical_domain, '')), 'A') ||
-    setweight(to_tsvector('english', coalesce(p_legal_name, '')), 'B') ||
-    setweight(to_tsvector('english', coalesce(p_website, '')), 'B') ||
-    setweight(to_tsvector('english', coalesce(p_industry, '')), 'C') ||
+    setweight(to_tsvector('english'::regconfig, coalesce(p_name, '')), 'A') ||
+    setweight(to_tsvector('english'::regconfig, coalesce(p_canonical_domain, '')), 'A') ||
+    setweight(to_tsvector('english'::regconfig, coalesce(p_legal_name, '')), 'B') ||
+    setweight(to_tsvector('english'::regconfig, coalesce(p_website, '')), 'B') ||
+    setweight(to_tsvector('english'::regconfig, coalesce(p_industry, '')), 'C') ||
     setweight(
       to_tsvector(
-        'english',
+        'english'::regconfig,
         trim(both ' ' from concat_ws(' ', p_hq_city, p_hq_state, p_hq_country))
       ),
       'C'
     ) ||
-    setweight(to_tsvector('english', coalesce(p_description, '')), 'D');
+    setweight(to_tsvector('english'::regconfig, coalesce(p_description, '')), 'D');
 $$;
 
 create or replace function public.contacts_compute_search_vector(
@@ -100,18 +100,18 @@ language sql
 immutable
 as $$
   select
-    setweight(to_tsvector('english', coalesce(p_full_name, '')), 'A') ||
-    setweight(to_tsvector('english', coalesce(p_first_name, '')), 'A') ||
-    setweight(to_tsvector('english', coalesce(p_last_name, '')), 'A') ||
-    setweight(to_tsvector('english', coalesce(p_primary_email, '')), 'A') ||
-    setweight(to_tsvector('english', public.spine_jsonb_text_values(p_emails)), 'A') ||
-    setweight(to_tsvector('english', coalesce(p_title, '')), 'B') ||
-    setweight(to_tsvector('english', coalesce(p_department, '')), 'B') ||
-    setweight(to_tsvector('english', coalesce(p_seniority, '')), 'B') ||
-    setweight(to_tsvector('english', public.spine_jsonb_text_values(p_phones)), 'C') ||
-    setweight(to_tsvector('english', coalesce(p_location, '')), 'C') ||
-    setweight(to_tsvector('english', coalesce(array_to_string(p_skills, ' '), '')), 'D') ||
-    setweight(to_tsvector('english', coalesce(p_linkedin_url, '')), 'D');
+    setweight(to_tsvector('english'::regconfig, coalesce(p_full_name, '')), 'A') ||
+    setweight(to_tsvector('english'::regconfig, coalesce(p_first_name, '')), 'A') ||
+    setweight(to_tsvector('english'::regconfig, coalesce(p_last_name, '')), 'A') ||
+    setweight(to_tsvector('english'::regconfig, coalesce(p_primary_email, '')), 'A') ||
+    setweight(to_tsvector('english'::regconfig, public.spine_jsonb_text_values(p_emails)), 'A') ||
+    setweight(to_tsvector('english'::regconfig, coalesce(p_title, '')), 'B') ||
+    setweight(to_tsvector('english'::regconfig, coalesce(p_department, '')), 'B') ||
+    setweight(to_tsvector('english'::regconfig, coalesce(p_seniority, '')), 'B') ||
+    setweight(to_tsvector('english'::regconfig, public.spine_jsonb_text_values(p_phones)), 'C') ||
+    setweight(to_tsvector('english'::regconfig, coalesce(p_location, '')), 'C') ||
+    setweight(to_tsvector('english'::regconfig, coalesce(array_to_string(p_skills, ' '), '')), 'D') ||
+    setweight(to_tsvector('english'::regconfig, coalesce(p_linkedin_url, '')), 'D');
 $$;
 
 create or replace function public.recruit_job_reqs_compute_search_vector(
@@ -129,14 +129,14 @@ language sql
 immutable
 as $$
   select
-    setweight(to_tsvector('english', coalesce(p_title, '')), 'A') ||
-    setweight(to_tsvector('english', coalesce(p_req_number, '')), 'A') ||
-    setweight(to_tsvector('english', coalesce(p_location, '')), 'B') ||
-    setweight(to_tsvector('english', coalesce(p_employment_type, '')), 'C') ||
-    setweight(to_tsvector('english', coalesce(p_status, '')), 'C') ||
-    setweight(to_tsvector('english', coalesce(array_to_string(p_req_skills, ' '), '')), 'C') ||
-    setweight(to_tsvector('english', coalesce(p_description, '')), 'D') ||
-    setweight(to_tsvector('english', coalesce(p_notes, '')), 'D');
+    setweight(to_tsvector('english'::regconfig, coalesce(p_title, '')), 'A') ||
+    setweight(to_tsvector('english'::regconfig, coalesce(p_req_number, '')), 'A') ||
+    setweight(to_tsvector('english'::regconfig, coalesce(p_location, '')), 'B') ||
+    setweight(to_tsvector('english'::regconfig, coalesce(p_employment_type, '')), 'C') ||
+    setweight(to_tsvector('english'::regconfig, coalesce(p_status, '')), 'C') ||
+    setweight(to_tsvector('english'::regconfig, coalesce(array_to_string(p_req_skills, ' '), '')), 'C') ||
+    setweight(to_tsvector('english'::regconfig, coalesce(p_description, '')), 'D') ||
+    setweight(to_tsvector('english'::regconfig, coalesce(p_notes, '')), 'D');
 $$;
 
 -- ─── accounts: richer weights ────────────────────────────────────────────────

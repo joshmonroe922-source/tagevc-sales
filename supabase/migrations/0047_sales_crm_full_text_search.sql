@@ -9,17 +9,28 @@
 -- run supabase/scripts/0047_sales_crm_search_indexes_concurrent.sql in the
 -- SQL editor as separate statements (CONCURRENTLY cannot run inside a txn).
 
+-- array_to_string is STABLE; generated columns require IMMUTABLE expressions.
+-- Thin wrapper matches OS spine helpers (marked immutable for generated/trigger use).
+create or replace function public.sales_text_array_join(arr text[], sep text)
+returns text
+language sql
+immutable
+parallel safe
+as $$
+  select coalesce(array_to_string(arr, sep), '');
+$$;
+
 -- ─── sales_contacts: name/email A, company/title B, phone C, notes D ─────────
 alter table public.sales_contacts
   add column if not exists search_vector tsvector
   generated always as (
     setweight(to_tsvector('english', coalesce(full_name, '')), 'A') ||
     setweight(to_tsvector('english', coalesce(primary_email, '')), 'A') ||
-    setweight(to_tsvector('english', coalesce(array_to_string(emails, ' '), '')), 'A') ||
+    setweight(to_tsvector('english', public.sales_text_array_join(emails, ' ')), 'A') ||
     setweight(to_tsvector('english', coalesce(company, '')), 'B') ||
     setweight(to_tsvector('english', coalesce(title, '')), 'B') ||
     setweight(to_tsvector('simple', coalesce(primary_phone, '')), 'C') ||
-    setweight(to_tsvector('simple', coalesce(array_to_string(phones, ' '), '')), 'C') ||
+    setweight(to_tsvector('simple', public.sales_text_array_join(phones, ' ')), 'C') ||
     setweight(to_tsvector('english', coalesce(notes, '')), 'D')
   ) stored;
 
