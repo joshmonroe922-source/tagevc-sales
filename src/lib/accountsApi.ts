@@ -1,4 +1,5 @@
 import { requireSupabase } from './supabase';
+import { TEXT_SEARCH_OPTS, searchLimit, toWebsearchQuery } from './textSearch';
 import type { AccountType, SalesAccount, SalesContact, SalesLead } from './types';
 
 export type CreateAccountInput = {
@@ -13,25 +14,27 @@ export type UpdateAccountInput = Partial<Omit<CreateAccountInput, 'created_by'>>
   archived_at?: string | null;
 };
 
+const ACCOUNT_SELECT =
+  'id, name, website, account_type, notes, created_by, archived_at, created_at, updated_at';
+
 export async function listAccounts(opts?: {
   q?: string;
   includeArchived?: boolean;
   limit?: number;
 }): Promise<SalesAccount[]> {
+  const fts = toWebsearchQuery(opts?.q ?? '');
   let query = requireSupabase()
     .from('sales_accounts')
-    .select('*')
+    .select(ACCOUNT_SELECT)
     .order('name', { ascending: true })
-    .limit(opts?.limit ?? 200);
+    .limit(searchLimit(opts?.limit, Boolean(fts)));
 
   if (!opts?.includeArchived) {
     query = query.is('archived_at', null);
   }
 
-  const q = opts?.q?.trim();
-  if (q) {
-    const pattern = `%${q}%`;
-    query = query.or(`name.ilike.${pattern},website.ilike.${pattern}`);
+  if (fts) {
+    query = query.textSearch('search_vector', fts, TEXT_SEARCH_OPTS);
   }
 
   const { data, error } = await query;

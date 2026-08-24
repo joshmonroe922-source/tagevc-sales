@@ -1,4 +1,5 @@
 import { requireSupabase } from './supabase';
+import { TEXT_SEARCH_OPTS, toWebsearchQuery } from './textSearch';
 import {
   TICKET_ATTACHMENTS_BUCKET,
   type PortalTicket,
@@ -91,7 +92,8 @@ export async function listTickets(
     if (Number.isFinite(asNum) && asNum > 0 && String(asNum) === s.replace(/^#/, '')) {
       q = q.eq('ticket_number', asNum);
     } else {
-      q = q.or(`title.ilike.%${s}%,description.ilike.%${s}%`);
+      const fts = toWebsearchQuery(s);
+      if (fts) q = q.textSearch('search_vector', fts, TEXT_SEARCH_OPTS);
     }
   }
 

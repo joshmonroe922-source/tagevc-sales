@@ -1,4 +1,5 @@
 import { requireSupabase } from './supabase';
+import { TEXT_SEARCH_OPTS, searchLimit, toWebsearchQuery } from './textSearch';
 import type { LeadActivity, SalesContact, SalesLead } from './types';
 
 export type CreateContactInput = {
@@ -59,11 +60,12 @@ export async function listContacts(opts?: {
   includeArchived?: boolean;
   limit?: number;
 }): Promise<SalesContact[]> {
+  const fts = toWebsearchQuery(opts?.q ?? '');
   let query = requireSupabase()
     .from('sales_contacts')
     .select(CONTACT_SELECT)
     .order('full_name', { ascending: true })
-    .limit(opts?.limit ?? 200);
+    .limit(searchLimit(opts?.limit, Boolean(fts)));
 
   if (!opts?.includeArchived) {
     query = query.is('archived_at', null);
@@ -72,12 +74,8 @@ export async function listContacts(opts?: {
     query = query.eq('account_id', opts.accountId);
   }
 
-  const q = opts?.q?.trim();
-  if (q) {
-    const pattern = `%${q}%`;
-    query = query.or(
-      `full_name.ilike.${pattern},primary_email.ilike.${pattern},primary_phone.ilike.${pattern},company.ilike.${pattern}`,
-    );
+  if (fts) {
+    query = query.textSearch('search_vector', fts, TEXT_SEARCH_OPTS);
   }
 
   const { data, error } = await query;

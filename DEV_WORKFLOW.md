@@ -81,6 +81,20 @@ See `SETUP_CALENDAR.md`, `SETUP_EMAIL.md`, etc. for function-specific deploy lis
 
 **Order:** migrations → edge functions → frontend `npm run deploy`.
 
+### CRM full-text search (0047 + OS 0013) — review before apply
+
+Do **not** `supabase db push` these until Josh reviews the SQL.
+
+1. **Sales CRM** (`sales_contacts` / `sales_accounts` / `sales_leads` / `portal_tickets`):
+   - Transactional: `supabase/migrations/0047_sales_crm_full_text_search.sql`
+   - Optional zero-downtime GIN: `supabase/scripts/0047_sales_crm_search_indexes_concurrent.sql`
+     (`CREATE INDEX CONCURRENTLY` — run each statement alone; cannot live in a txn)
+2. **OS graph CRM** (`accounts` / `contacts` / `recruit_job_reqs`):
+   - Transactional: `tagevc-os/supabase/migrations/spine/0013_crm_full_text_search.sql`
+   - Concurrent companion: `tagevc-os/supabase/phase109_crm_full_text_search_indexes_concurrent.sql`
+
+If you already applied GIN inside the transactional file, skip the matching concurrent statements.
+
 ---
 
 ## Deploy commands

@@ -295,24 +295,30 @@ export async function patchContactAsUser(input: {
 }
 
 export type SearchHit = {
-  type: 'account' | 'contact';
+  type: 'account' | 'contact' | 'job';
   id: string;
   label: string;
   sublabel: string | null;
   href: string;
 };
 
+const FTS_OPTS = { type: 'websearch' as const, config: 'english' };
+
+function toWebsearchQuery(raw: string): string | null {
+  const q = raw.trim().replace(/[%\\]/g, ' ').replace(/\s+/g, ' ').trim();
+  return q.length >= 2 ? q : null;
+}
+
 export async function searchGraph(
   q: string,
   limit = 20,
 ): Promise<{ hits: SearchHit[]; error?: string }> {
-  const query = q.trim();
-  if (query.length < 2) return { hits: [] };
+  const query = toWebsearchQuery(q);
+  if (!query) return { hits: [] };
+  const rowLimit = Math.min(Math.max(limit, 1), 40);
   try {
     const sb = await createPersistClient({ mode: 'service' });
     const orgId = await resolveOrgIdBySlug(await getActiveOrgSlug());
-    const safe = query.replace(/[%_,.()]/g, ' ').trim();
-    const like = `%${safe}%`;
 
     // Org-scoped via link tables (app-level isolation until JWT claims RLS).
     let accountIds: string[] | null = null;
@@ -337,15 +343,21 @@ export async function searchGraph(
     const accountQ = sb
       .from('accounts')
       .select('id, name, canonical_domain')
-      .ilike('name', like)
-      .limit(limit);
+      .textSearch('search_vector', query, FTS_OPTS)
+      .limit(rowLimit);
     const contactQ = sb
       .from('contacts')
       .select('id, full_name, primary_email, title')
-      .or(`full_name.ilike.%${safe}%,title.ilike.%${safe}%`)
-      .limit(limit);
+      .textSearch('search_vector', query, FTS_OPTS)
+      .limit(rowLimit);
+    let jobQ = sb
+      .from('recruit_job_reqs')
+      .select('id, title, req_number, location, account_id')
+      .textSearch('search_vector', query, FTS_OPTS)
+      .limit(rowLimit);
+    if (orgId) jobQ = jobQ.eq('org_id', orgId);
 
-    const [accounts, contacts] = await Promise.all([
+    const [accounts, contacts, jobs] = await Promise.all([
       accountIds && accountIds.length
         ? accountQ.in('id', accountIds)
         : accountIds
@@ -365,6 +377,7 @@ export async function searchGraph(
               title: string | null;
             }> })
           : contactQ,
+      jobQ,
     ]);
 
     const hits: SearchHit[] = [];
@@ -386,7 +399,18 @@ export async function searchGraph(
         href: `/shared-services/crm/contacts/${c.id}`,
       });
     }
-    return { hits: hits.slice(0, limit) };
+    for (const j of jobs.data ?? []) {
+      hits.push({
+        type: 'job',
+        id: j.id,
+        label: j.title,
+        sublabel: [j.req_number, j.location].filter(Boolean).join(' · ') || null,
+        href: j.account_id
+          ? `/shared-services/crm/accounts/${j.account_id}`
+          : '/shared-services/crm',
+      });
+    }
+    return { hits: hits.slice(0, rowLimit) };
   } catch (e) {
     return {
       hits: [],

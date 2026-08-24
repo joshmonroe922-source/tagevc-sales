@@ -173,9 +173,12 @@ describe('T13–T16 hiring manager / search / copilot / kill switch', () => {
     expect(schema).toContain('hiring_manager_locked');
   });
 
-  it('T14: search includes title partial match path', () => {
+  it('T14: search uses weighted tsvector websearch', () => {
     const crud = read('src/lib/spine/db/crud.ts');
-    expect(crud).toContain('title.ilike');
+    expect(crud).toContain("textSearch('search_vector'");
+    expect(crud).toContain("type: 'websearch'");
+    expect(crud).toContain("config: 'english'");
+    expect(crud).toContain('recruit_job_reqs');
   });
 
   it('T15: copilot denies send_email and allows jobs.enqueue', () => {

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 type Hit = {
-  type: 'account' | 'contact';
+  type: 'account' | 'contact' | 'job';
   id: string;
   label: string;
   sublabel: string | null;
@@ -145,7 +145,7 @@ export function CmdKPalette() {
             autoFocus
             value={q}
             onChange={(e) => void runSearch(e.target.value)}
-            placeholder="Search accounts, contacts… (⌘K)"
+            placeholder="Search accounts, contacts, jobs… (⌘K)"
             className="w-full bg-transparent py-2 text-sm outline-none"
           />
         </div>
