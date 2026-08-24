@@ -1,9 +1,10 @@
--- phase109_crm_full_text_search.sql — SQL Editor paste twin of
---   supabase/migrations/spine/0013_crm_full_text_search.sql
--- Do not apply to production until reviewed.
--- After this succeeds, optionally run (outside a transaction):
---   supabase/phase109_crm_full_text_search_indexes_concurrent.sql
+-- phase109_crm_full_text_search.sql
+-- Hand-apply twin of migrations/spine/0013_crm_full_text_search.sql
+-- Paste into Supabase SQL editor after review. Then run
+-- phase109_crm_full_text_search_indexes_concurrent.sql outside a transaction.
 --
+-- NOT APPLIED TO PRODUCTION. Awaiting Josh sign-off.
+
 -- 0013_crm_full_text_search — production-safe FTS hardening (transaction OK)
 -- Requires spine 0011 (job desk columns + jobs view).
 --
@@ -17,8 +18,7 @@
 -- GIN / large indexes that should use CONCURRENTLY on a live DB:
 --   → apply supabase/phase109_crm_full_text_search_indexes_concurrent.sql
 --     in the Supabase SQL editor (NOT via a transactional migrate runner).
---
--- DO NOT apply to production until reviewed. Awaiting Josh sign-off.
+
 -- Prerequisites: phase94 / spine 0002–0007; ideally 0011 (skills, req_number, …).
 
 -- Defensive columns if 0011 not yet applied
@@ -170,7 +170,7 @@ set search_vector =
     'C'
   ) ||
   setweight(to_tsvector('english', coalesce(description, '')), 'D')
-; -- refresh all rows so new weights apply (CRM-sized tables)
+;
 
 update public.contacts
 set search_vector =
@@ -201,8 +201,6 @@ set search_vector =
 ;
 
 -- ─── txn-safe filter indexes (IF NOT EXISTS) ─────────────────────────────────
--- Prefer the concurrent script on large prod tables if these take locks.
-
 create index if not exists accounts_created_at_idx
   on public.accounts (created_at desc);
 
@@ -229,6 +227,5 @@ create index if not exists recruit_job_reqs_created_at_idx
 create index if not exists recruit_job_reqs_account_created_idx
   on public.recruit_job_reqs (account_id, created_at desc);
 
--- GIN on jobs search_vector (txn-safe create; use concurrent script if lock risk)
 create index if not exists recruit_job_reqs_search
   on public.recruit_job_reqs using gin (search_vector);

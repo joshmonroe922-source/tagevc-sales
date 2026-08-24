@@ -34,4 +34,4 @@ Website form → OS intake API → deal-flow lead
 - Subsidiary website forms (Signent / INDA / R619) → org slug mapping
 - Qualification agent drafts on lead
 - CRM UI pages under Shared Services / BD for graph accounts
-- Cmd-K search over `search_vector` (C9)
+- Cmd-K search over `search_vector` (C9) — code ready; apply phase109 SQL after review (see `docs/CRM_FULL_TEXT_SEARCH.md`)
