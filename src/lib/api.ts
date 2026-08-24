@@ -41,7 +41,7 @@ export async function listLeads(opts?: {
         .select(LEAD_SELECT)
         .in('id', ids);
       if (error) throw error;
-      return orderByIdList((data ?? []) as SalesLead[], ids);
+      return orderByIdList((data ?? []) as unknown as SalesLead[], ids);
     }
   }
 
@@ -57,7 +57,7 @@ export async function listLeads(opts?: {
 
   const { data, error } = await query;
   if (error) throw error;
-  return (data ?? []) as SalesLead[];
+  return (data ?? []) as unknown as SalesLead[];
 }
 
 export async function getLead(id: string): Promise<SalesLead | null> {
@@ -67,7 +67,7 @@ export async function getLead(id: string): Promise<SalesLead | null> {
     .eq('id', id)
     .maybeSingle();
   if (error) throw error;
-  return data as SalesLead | null;
+  return data as unknown as SalesLead | null;
 }
 
 export type CreateLeadInput = {
@@ -150,7 +150,7 @@ export async function createLead(input: CreateLeadInput): Promise<SalesLead> {
     }
   }
 
-  return data as SalesLead;
+  return data as unknown as SalesLead;
 }
 
 export async function updateLeadViaEdge(
