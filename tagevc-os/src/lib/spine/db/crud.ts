@@ -318,30 +318,6 @@ function isMissingRpcError(error: unknown): boolean {
   return /could not find the function|schema cache|does not exist/i.test(msg);
 }
 
-function orderByIdList<T extends { id: string }>(rows: T[], ids: string[]): T[] {
-  const map = new Map(rows.map((r) => [r.id, r]));
-  const out: T[] = [];
-  for (const id of ids) {
-    const row = map.get(id);
-    if (row) out.push(row);
-  }
-  return out;
-}
-
-async function rankedIdsOrNull(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  sb: { rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: any }> },
-  rpcName: string,
-  args: Record<string, unknown>,
-): Promise<string[] | null> {
-  const { data, error } = await sb.rpc(rpcName, args);
-  if (error) {
-    if (isMissingRpcError(error)) return null;
-    throw error;
-  }
-  return ((data ?? []) as Array<{ id: string }>).map((r) => String(r.id));
-}
-
 export async function searchGraph(
   q: string,
   limit = 20,
@@ -373,103 +349,69 @@ export async function searchGraph(
       contactIds = (cLinks.data ?? []).map((r) => String(r.contact_id));
     }
 
-    // Empty org scope → no hits for accounts/contacts.
-    if (accountIds && accountIds.length === 0 && contactIds && contactIds.length === 0) {
-      const jobRankedEmpty = await rankedIdsOrNull(sb, 'search_recruit_job_reqs_ranked', {
-        p_query: query,
-        p_limit: rowLimit,
-        p_org_id: orgId,
-      });
-      if (jobRankedEmpty && jobRankedEmpty.length === 0) return { hits: [] };
-    }
+    type AccountRow = {
+      id: string;
+      name: string;
+      canonical_domain: string | null;
+      rank?: number;
+    };
+    type ContactRow = {
+      id: string;
+      full_name: string;
+      primary_email: string | null;
+      title: string | null;
+      rank?: number;
+    };
+    type JobRow = {
+      id: string;
+      title: string;
+      req_number: string | null;
+      location: string | null;
+      account_id: string | null;
+      rank?: number;
+    };
 
-    // Empty org scope → no hits for accounts/contacts.
-    if (accountIds && accountIds.length === 0 && contactIds && contactIds.length === 0) {
-      const jobRankedEmpty = await rankedIdsOrNull(sb, 'search_recruit_job_reqs_ranked', {
-        p_query: query,
-        p_limit: rowLimit,
-        p_org_id: orgId,
-      });
-      if (jobRankedEmpty && jobRankedEmpty.length === 0) return { hits: [] };
-    }
+    const emptyAccounts = accountIds !== null && accountIds.length === 0;
+    const emptyContacts = contactIds !== null && contactIds.length === 0;
 
-    const [accountRanked, contactRanked, jobRanked] = await Promise.all([
-      accountIds && accountIds.length === 0
-        ? Promise.resolve([] as string[])
-        : rankedIdsOrNull(sb, 'search_accounts_ranked', {
+    const [aRpc, cRpc, jRpc] = await Promise.all([
+      emptyAccounts
+        ? Promise.resolve({ data: [] as AccountRow[], error: null })
+        : sb.rpc('search_accounts_ranked', {
             p_query: query,
             p_limit: rowLimit,
             p_ids: accountIds,
           }),
-      contactIds && contactIds.length === 0
-        ? Promise.resolve([] as string[])
-        : rankedIdsOrNull(sb, 'search_contacts_ranked', {
+      emptyContacts
+        ? Promise.resolve({ data: [] as ContactRow[], error: null })
+        : sb.rpc('search_contacts_ranked', {
             p_query: query,
             p_limit: rowLimit,
             p_ids: contactIds,
           }),
-      rankedIdsOrNull(sb, 'search_recruit_job_reqs_ranked', {
+      sb.rpc('search_recruit_job_reqs_ranked', {
         p_query: query,
         p_limit: rowLimit,
         p_org_id: orgId,
       }),
     ]);
 
-    const useRanked =
-      accountRanked !== null && contactRanked !== null && jobRanked !== null;
+    const rpcMissing =
+      isMissingRpcError(aRpc.error) ||
+      isMissingRpcError(cRpc.error) ||
+      isMissingRpcError(jRpc.error);
 
-    let accountsData: Array<{
-      id: string;
-      name: string;
-      canonical_domain: string | null;
-    }> = [];
-    let contactsData: Array<{
-      id: string;
-      full_name: string;
-      primary_email: string | null;
-      title: string | null;
-    }> = [];
-    let jobsData: Array<{
-      id: string;
-      title: string;
-      req_number: string | null;
-      location: string | null;
-      account_id: string | null;
-    }> = [];
+    let accountsData: AccountRow[] = [];
+    let contactsData: ContactRow[] = [];
+    let jobsData: JobRow[] = [];
 
-    if (useRanked) {
-      const [accounts, contacts, jobs] = await Promise.all([
-        accountRanked!.length
-          ? sb
-              .from('accounts')
-              .select('id, name, canonical_domain')
-              .in('id', accountRanked!)
-          : Promise.resolve({ data: [] as typeof accountsData }),
-        contactRanked!.length
-          ? sb
-              .from('contacts')
-              .select('id, full_name, primary_email, title')
-              .in('id', contactRanked!)
-          : Promise.resolve({ data: [] as typeof contactsData }),
-        jobRanked!.length
-          ? sb
-              .from('recruit_job_reqs')
-              .select('id, title, req_number, location, account_id')
-              .in('id', jobRanked!)
-          : Promise.resolve({ data: [] as typeof jobsData }),
-      ]);
-      accountsData = orderByIdList(
-        (accounts.data ?? []) as typeof accountsData,
-        accountRanked!,
-      );
-      contactsData = orderByIdList(
-        (contacts.data ?? []) as typeof contactsData,
-        contactRanked!,
-      );
-      jobsData = orderByIdList(
-        (jobs.data ?? []) as typeof jobsData,
-        jobRanked!,
-      );
+    if (!rpcMissing) {
+      if (aRpc.error) throw aRpc.error;
+      if (cRpc.error) throw cRpc.error;
+      if (jRpc.error) throw jRpc.error;
+      accountsData = (aRpc.data ?? []) as AccountRow[];
+      contactsData = (cRpc.data ?? []) as ContactRow[];
+      jobsData = (jRpc.data ?? []) as JobRow[];
     } else {
       // Unranked .textSearch fallback until phase109 RPCs are applied.
       const accountQ = sb
@@ -490,21 +432,21 @@ export async function searchGraph(
       if (orgId) jobQ = jobQ.eq('org_id', orgId);
 
       const [accounts, contacts, jobs] = await Promise.all([
-        accountIds && accountIds.length
-          ? accountQ.in('id', accountIds)
-          : accountIds
-            ? Promise.resolve({ data: [] as typeof accountsData })
+        emptyAccounts
+          ? Promise.resolve({ data: [] as AccountRow[] })
+          : accountIds?.length
+            ? accountQ.in('id', accountIds)
             : accountQ,
-        contactIds && contactIds.length
-          ? contactQ.in('id', contactIds)
-          : contactIds
-            ? Promise.resolve({ data: [] as typeof contactsData })
+        emptyContacts
+          ? Promise.resolve({ data: [] as ContactRow[] })
+          : contactIds?.length
+            ? contactQ.in('id', contactIds)
             : contactQ,
         jobQ,
       ]);
-      accountsData = (accounts.data ?? []) as typeof accountsData;
-      contactsData = (contacts.data ?? []) as typeof contactsData;
-      jobsData = (jobs.data ?? []) as typeof jobsData;
+      accountsData = (accounts.data ?? []) as AccountRow[];
+      contactsData = (contacts.data ?? []) as ContactRow[];
+      jobsData = (jobs.data ?? []) as JobRow[];
     }
 
     const hits: SearchHit[] = [];
