@@ -1,4 +1,11 @@
 import { requireSupabase } from './supabase';
+import {
+  TEXT_SEARCH_OPTS,
+  orderByIdList,
+  rankedSearchIds,
+  searchLimit,
+  toWebsearchQuery,
+} from './textSearch';
 import type { AccountType, SalesAccount, SalesContact, SalesLead } from './types';
 
 export type CreateAccountInput = {
@@ -13,25 +20,47 @@ export type UpdateAccountInput = Partial<Omit<CreateAccountInput, 'created_by'>>
   archived_at?: string | null;
 };
 
+const ACCOUNT_SELECT =
+  'id, name, website, account_type, notes, created_by, archived_at, created_at, updated_at';
+
 export async function listAccounts(opts?: {
   q?: string;
   includeArchived?: boolean;
   limit?: number;
 }): Promise<SalesAccount[]> {
-  let query = requireSupabase()
+  const fts = toWebsearchQuery(opts?.q ?? '');
+  const sb = requireSupabase();
+  const limit = searchLimit(opts?.limit, Boolean(fts));
+
+  if (fts) {
+    const ids = await rankedSearchIds(sb, 'search_sales_accounts_ranked', {
+      p_query: fts,
+      p_limit: limit,
+      p_include_archived: Boolean(opts?.includeArchived),
+    });
+    if (ids) {
+      if (ids.length === 0) return [];
+      const { data, error } = await sb
+        .from('sales_accounts')
+        .select(ACCOUNT_SELECT)
+        .in('id', ids);
+      if (error) throw error;
+      return orderByIdList((data ?? []) as SalesAccount[], ids);
+    }
+  }
+
+  let query = sb
     .from('sales_accounts')
-    .select('*')
+    .select(ACCOUNT_SELECT)
     .order('name', { ascending: true })
-    .limit(opts?.limit ?? 200);
+    .limit(limit);
 
   if (!opts?.includeArchived) {
     query = query.is('archived_at', null);
   }
 
-  const q = opts?.q?.trim();
-  if (q) {
-    const pattern = `%${q}%`;
-    query = query.or(`name.ilike.${pattern},website.ilike.${pattern}`);
+  if (fts) {
+    query = query.textSearch('search_vector', fts, TEXT_SEARCH_OPTS);
   }
 
   const { data, error } = await query;

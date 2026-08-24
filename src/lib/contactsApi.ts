@@ -1,4 +1,11 @@
 import { requireSupabase } from './supabase';
+import {
+  TEXT_SEARCH_OPTS,
+  orderByIdList,
+  rankedSearchIds,
+  searchLimit,
+  toWebsearchQuery,
+} from './textSearch';
 import type { LeadActivity, SalesContact, SalesLead } from './types';
 
 export type CreateContactInput = {
@@ -59,11 +66,33 @@ export async function listContacts(opts?: {
   includeArchived?: boolean;
   limit?: number;
 }): Promise<SalesContact[]> {
-  let query = requireSupabase()
+  const fts = toWebsearchQuery(opts?.q ?? '');
+  const sb = requireSupabase();
+  const limit = searchLimit(opts?.limit, Boolean(fts));
+
+  if (fts) {
+    const ids = await rankedSearchIds(sb, 'search_sales_contacts_ranked', {
+      p_query: fts,
+      p_limit: limit,
+      p_account_id: opts?.accountId ?? null,
+      p_include_archived: Boolean(opts?.includeArchived),
+    });
+    if (ids) {
+      if (ids.length === 0) return [];
+      const { data, error } = await sb
+        .from('sales_contacts')
+        .select(CONTACT_SELECT)
+        .in('id', ids);
+      if (error) throw error;
+      return orderByIdList((data ?? []) as SalesContact[], ids);
+    }
+  }
+
+  let query = sb
     .from('sales_contacts')
     .select(CONTACT_SELECT)
     .order('full_name', { ascending: true })
-    .limit(opts?.limit ?? 200);
+    .limit(limit);
 
   if (!opts?.includeArchived) {
     query = query.is('archived_at', null);
@@ -72,12 +101,8 @@ export async function listContacts(opts?: {
     query = query.eq('account_id', opts.accountId);
   }
 
-  const q = opts?.q?.trim();
-  if (q) {
-    const pattern = `%${q}%`;
-    query = query.or(
-      `full_name.ilike.${pattern},primary_email.ilike.${pattern},primary_phone.ilike.${pattern},company.ilike.${pattern}`,
-    );
+  if (fts) {
+    query = query.textSearch('search_vector', fts, TEXT_SEARCH_OPTS);
   }
 
   const { data, error } = await query;

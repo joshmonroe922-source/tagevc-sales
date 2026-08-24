@@ -295,24 +295,39 @@ export async function patchContactAsUser(input: {
 }
 
 export type SearchHit = {
-  type: 'account' | 'contact';
+  type: 'account' | 'contact' | 'job';
   id: string;
   label: string;
   sublabel: string | null;
   href: string;
 };
 
+/** Unranked fallback when ranked RPCs are not applied yet. */
+const FTS_OPTS = { type: 'websearch' as const, config: 'english' };
+
+function toWebsearchQuery(raw: string): string | null {
+  const q = raw.trim().replace(/[%\\]/g, ' ').replace(/\s+/g, ' ').trim();
+  return q.length >= 2 ? q : null;
+}
+
+function isMissingRpcError(error: unknown): boolean {
+  const msg =
+    error && typeof error === 'object' && 'message' in error
+      ? String((error as { message: unknown }).message)
+      : String(error ?? '');
+  return /could not find the function|schema cache|does not exist/i.test(msg);
+}
+
 export async function searchGraph(
   q: string,
   limit = 20,
 ): Promise<{ hits: SearchHit[]; error?: string }> {
-  const query = q.trim();
-  if (query.length < 2) return { hits: [] };
+  const query = toWebsearchQuery(q);
+  if (!query) return { hits: [] };
+  const rowLimit = Math.min(Math.max(limit, 1), 40);
   try {
     const sb = await createPersistClient({ mode: 'service' });
     const orgId = await resolveOrgIdBySlug(await getActiveOrgSlug());
-    const safe = query.replace(/[%_,.()]/g, ' ').trim();
-    const like = `%${safe}%`;
 
     // Org-scoped via link tables (app-level isolation until JWT claims RLS).
     let accountIds: string[] | null = null;
@@ -334,41 +349,108 @@ export async function searchGraph(
       contactIds = (cLinks.data ?? []).map((r) => String(r.contact_id));
     }
 
-    const accountQ = sb
-      .from('accounts')
-      .select('id, name, canonical_domain')
-      .ilike('name', like)
-      .limit(limit);
-    const contactQ = sb
-      .from('contacts')
-      .select('id, full_name, primary_email, title')
-      .or(`full_name.ilike.%${safe}%,title.ilike.%${safe}%`)
-      .limit(limit);
+    type AccountRow = {
+      id: string;
+      name: string;
+      canonical_domain: string | null;
+      rank?: number;
+    };
+    type ContactRow = {
+      id: string;
+      full_name: string;
+      primary_email: string | null;
+      title: string | null;
+      rank?: number;
+    };
+    type JobRow = {
+      id: string;
+      title: string;
+      req_number: string | null;
+      location: string | null;
+      account_id: string | null;
+      rank?: number;
+    };
 
-    const [accounts, contacts] = await Promise.all([
-      accountIds && accountIds.length
-        ? accountQ.in('id', accountIds)
-        : accountIds
-          ? Promise.resolve({ data: [] as Array<{
-              id: string;
-              name: string;
-              canonical_domain: string | null;
-            }> })
-          : accountQ,
-      contactIds && contactIds.length
-        ? contactQ.in('id', contactIds)
-        : contactIds
-          ? Promise.resolve({ data: [] as Array<{
-              id: string;
-              full_name: string;
-              primary_email: string | null;
-              title: string | null;
-            }> })
-          : contactQ,
+    const emptyAccounts = accountIds !== null && accountIds.length === 0;
+    const emptyContacts = contactIds !== null && contactIds.length === 0;
+
+    const [aRpc, cRpc, jRpc] = await Promise.all([
+      emptyAccounts
+        ? Promise.resolve({ data: [] as AccountRow[], error: null })
+        : sb.rpc('search_accounts_ranked', {
+            p_query: query,
+            p_limit: rowLimit,
+            p_ids: accountIds,
+          }),
+      emptyContacts
+        ? Promise.resolve({ data: [] as ContactRow[], error: null })
+        : sb.rpc('search_contacts_ranked', {
+            p_query: query,
+            p_limit: rowLimit,
+            p_ids: contactIds,
+          }),
+      sb.rpc('search_recruit_job_reqs_ranked', {
+        p_query: query,
+        p_limit: rowLimit,
+        p_org_id: orgId,
+      }),
     ]);
 
+    const rpcMissing =
+      isMissingRpcError(aRpc.error) ||
+      isMissingRpcError(cRpc.error) ||
+      isMissingRpcError(jRpc.error);
+
+    let accountsData: AccountRow[] = [];
+    let contactsData: ContactRow[] = [];
+    let jobsData: JobRow[] = [];
+
+    if (!rpcMissing) {
+      if (aRpc.error) throw aRpc.error;
+      if (cRpc.error) throw cRpc.error;
+      if (jRpc.error) throw jRpc.error;
+      accountsData = (aRpc.data ?? []) as AccountRow[];
+      contactsData = (cRpc.data ?? []) as ContactRow[];
+      jobsData = (jRpc.data ?? []) as JobRow[];
+    } else {
+      // Unranked .textSearch fallback until phase109 RPCs are applied.
+      const accountQ = sb
+        .from('accounts')
+        .select('id, name, canonical_domain')
+        .textSearch('search_vector', query, FTS_OPTS)
+        .limit(rowLimit);
+      const contactQ = sb
+        .from('contacts')
+        .select('id, full_name, primary_email, title')
+        .textSearch('search_vector', query, FTS_OPTS)
+        .limit(rowLimit);
+      let jobQ = sb
+        .from('recruit_job_reqs')
+        .select('id, title, req_number, location, account_id')
+        .textSearch('search_vector', query, FTS_OPTS)
+        .limit(rowLimit);
+      if (orgId) jobQ = jobQ.eq('org_id', orgId);
+
+      const [accounts, contacts, jobs] = await Promise.all([
+        emptyAccounts
+          ? Promise.resolve({ data: [] as AccountRow[] })
+          : accountIds?.length
+            ? accountQ.in('id', accountIds)
+            : accountQ,
+        emptyContacts
+          ? Promise.resolve({ data: [] as ContactRow[] })
+          : contactIds?.length
+            ? contactQ.in('id', contactIds)
+            : contactQ,
+        jobQ,
+      ]);
+      accountsData = (accounts.data ?? []) as AccountRow[];
+      contactsData = (contacts.data ?? []) as ContactRow[];
+      jobsData = (jobs.data ?? []) as JobRow[];
+    }
+
     const hits: SearchHit[] = [];
-    for (const a of accounts.data ?? []) {
+    for (const a of accountsData) {
       hits.push({
         type: 'account',
         id: a.id,
@@ -377,7 +459,7 @@ export async function searchGraph(
         href: `/shared-services/crm/accounts/${a.id}`,
       });
     }
-    for (const c of contacts.data ?? []) {
+    for (const c of contactsData) {
       hits.push({
         type: 'contact',
         id: c.id,
@@ -386,7 +468,18 @@ export async function searchGraph(
         href: `/shared-services/crm/contacts/${c.id}`,
       });
     }
-    return { hits: hits.slice(0, limit) };
+    for (const j of jobsData) {
+      hits.push({
+        type: 'job',
+        id: j.id,
+        label: j.title,
+        sublabel: [j.req_number, j.location].filter(Boolean).join(' · ') || null,
+        href: j.account_id
+          ? `/shared-services/crm/accounts/${j.account_id}`
+          : '/shared-services/crm',
+      });
+    }
+    return { hits: hits.slice(0, rowLimit) };
   } catch (e) {
     return {
       hits: [],

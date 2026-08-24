@@ -1,5 +1,11 @@
 import { requireSupabase } from './supabase';
 import {
+  TEXT_SEARCH_OPTS,
+  orderByIdList,
+  rankedSearchIds,
+  toWebsearchQuery,
+} from './textSearch';
+import {
   TICKET_ATTACHMENTS_BUCKET,
   type PortalTicket,
   type PortalTicketAttachment,
@@ -85,19 +91,33 @@ export async function listTickets(
     );
   }
 
+  let rankedIds: string[] | null = null;
   if (filter.search?.trim()) {
     const s = filter.search.trim().replace(/%/g, '');
     const asNum = Number(s.replace(/^#/, ''));
     if (Number.isFinite(asNum) && asNum > 0 && String(asNum) === s.replace(/^#/, '')) {
       q = q.eq('ticket_number', asNum);
     } else {
-      q = q.or(`title.ilike.%${s}%,description.ilike.%${s}%`);
+      const fts = toWebsearchQuery(s);
+      if (fts) {
+        rankedIds = await rankedSearchIds(sb, 'search_portal_tickets_ranked', {
+          p_query: fts,
+          p_limit: filter.limit ?? 200,
+        });
+        if (rankedIds) {
+          if (rankedIds.length === 0) return [];
+          q = q.in('id', rankedIds);
+        } else {
+          q = q.textSearch('search_vector', fts, TEXT_SEARCH_OPTS);
+        }
+      }
     }
   }
 
   const { data, error } = await q;
   if (error) throw new Error(error.message);
-  return (data ?? []).map((r) => mapTicket(r as Record<string, unknown>));
+  const rows = (data ?? []).map((r) => mapTicket(r as Record<string, unknown>));
+  return rankedIds ? orderByIdList(rows, rankedIds) : rows;
 }
 
 export async function countOpenTicketsByCategory(

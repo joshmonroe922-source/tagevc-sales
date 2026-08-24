@@ -1,4 +1,11 @@
 import { requireSupabase, supabase } from './supabase';
+import {
+  TEXT_SEARCH_OPTS,
+  orderByIdList,
+  rankedSearchIds,
+  searchLimit,
+  toWebsearchQuery,
+} from './textSearch';
 import type {
   CreateTaskResult,
   DealPath,
@@ -12,13 +19,43 @@ import type {
 } from './types';
 
 const LEAD_SELECT =
-  '*, sales_contacts(id, full_name, primary_email, primary_phone, company, title, account_id), sales_accounts(id, name, account_type, website)';
+  'id, name, email, phone, company, deal_path, source, stage, notes, assigned_rep_id, next_action_at, closed_at, created_at, updated_at, contact_id, account_id, sales_contacts(id, full_name, primary_email, primary_phone, company, title, account_id), sales_accounts(id, name, account_type, website)';
 
-export async function listLeads(): Promise<SalesLead[]> {
-  const { data, error } = await requireSupabase()
+export async function listLeads(opts?: {
+  q?: string;
+  limit?: number;
+}): Promise<SalesLead[]> {
+  const fts = toWebsearchQuery(opts?.q ?? '');
+  const sb = requireSupabase();
+  const limit = searchLimit(opts?.limit, Boolean(fts));
+
+  if (fts) {
+    const ids = await rankedSearchIds(sb, 'search_sales_leads_ranked', {
+      p_query: fts,
+      p_limit: limit,
+    });
+    if (ids) {
+      if (ids.length === 0) return [];
+      const { data, error } = await sb
+        .from('sales_leads')
+        .select(LEAD_SELECT)
+        .in('id', ids);
+      if (error) throw error;
+      return orderByIdList((data ?? []) as SalesLead[], ids);
+    }
+  }
+
+  let query = sb
     .from('sales_leads')
     .select(LEAD_SELECT)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (fts) {
+    query = query.textSearch('search_vector', fts, TEXT_SEARCH_OPTS);
+  }
+
+  const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as SalesLead[];
 }
