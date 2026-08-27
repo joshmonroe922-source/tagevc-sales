@@ -177,6 +177,36 @@ Recruit 619: src/lib/home/home-page-speed.test.ts
 
 Tage guardrail file: `src/lib/home/os-page-speed.test.ts`. Every new entity OS should ship an equivalent structural test before launch.
 
+## Active route highlighting (required on every entity OS)
+
+Sidebar links **and** horizontal tab bars must reflect the current page. Users should always see which section they are in.
+
+| Rule | Behavior |
+| --- | --- |
+| **Match** | Exact path or nested under `href/` (`isPathMatch`) |
+| **Siblings** | Longest match wins (`resolveActiveNavHref` / `isNavItemActive`) so hubs do not steal track/tab active state |
+| **Parents** | Accordion / label-only parents light when a descendant route is active; auto-expand ancestors |
+| **a11y** | Active links set `aria-current="page"` (or `aria-selected` on `role="tab"`) |
+| **Exact hubs** | Optional `{ exact: true }` for “Today” / index tabs that must not match children |
+
+### Copy targets (scaffold)
+
+```
+src/lib/platform/shell/nav-active.ts           # pathOnly · isPathMatch · resolveActiveNavHref · isNavItemActive
+src/lib/platform/shell/nav-active.test.ts
+src/components/layout/app-sidebar.tsx          # wire aria-current + parent active
+# Horizontal tabs (ECC, Deal Flow tracks, etc.) must use the same helpers
+```
+
+Smoke:
+
+```ts
+assert.match(navActive, /export function isPathMatch/);
+assert.match(navActive, /export function resolveActiveNavHref/);
+assert.match(sidebar, /aria-current=\{active \? 'page'/);
+assert.match(sidebar, /childActive/);
+```
+
 ## Reload scroll restore (required)
 
 Hard refresh keeps scroll position on the same path. Soft route changes still jump to top. Hash links win over saved Y.

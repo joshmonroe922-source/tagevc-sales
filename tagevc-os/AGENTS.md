@@ -67,6 +67,8 @@ Subsidiary portals (Recruit 619, Instant NDA, Signent HR, future clones) are **s
 
 App content is **full-width** by default (sidebar → viewport edge, `w-full max-w-none` + padding) via `AppMain` + `AppContentFrame`. `/messages` is full-bleed (no outer padding; scrolls inside the pane). Add future edge-to-edge tools via `FULL_BLEED_PREFIXES` in `src/lib/platform/shell/full-bleed-routes.ts`.
 
+Active routes: sidebar + horizontal tabs must light the current page (`aria-current="page"`). Portable helpers live in `src/lib/platform/shell/nav-active.ts` — copy with every new entity OS. See `docs/SUBSIDIARY_OS_SHELL.md` § Active route highlighting.
+
 ## Think Tank (multi-thread + uploads)
 
 Named AI threads persist in UDL (`os_think_tank_*`), scoped by **user + `portal_key` + `entity_os`**. Refresh / New thread must show the list — never wipe history. PDF/Word/Excel uploads are thread-only context (`os-think-tank` bucket).

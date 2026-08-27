@@ -14,6 +14,7 @@ copy `src/lib/platform/af/` the same way. See `docs/TAGE_VC_AF.md`.
 | `app-content-frame.tsx` | `components/layout/app-content-frame.tsx` — **default `w-full max-w-none`** (no centered `max-w-6xl`) |
 | `app-main.tsx` | `components/layout/app-main.tsx` |
 | `full-bleed-routes.ts` | Keep under `lib/platform/shell/`; start with `/messages` |
+| `nav-active.ts` | Keep under `lib/platform/shell/` — **required** for sidebar + horizontal tab active state |
 | `create-ticket-split-button.tsx` | Merge into `components/help-desk/create-ticket-modal.tsx` as `GlobalCreateTicketButton` |
 | `app-top-bar.tsx` | Keep under `lib/platform/shell/`; wire from `components/help-desk/help-desk-shell.tsx` via `AppTopBarShell` |
 | `alerts-bell.tsx` | `components/layout/alerts-bell.tsx` (swap data source) |
@@ -27,9 +28,10 @@ New entity portals must ship:
 1. **Full-width content frame** — sidebar to viewport edge (`w-full max-w-none` + padding). Messaging stays full-bleed via `FULL_BLEED_PREFIXES`.
 2. **Paint-first shell** — do not block `(app)/layout` on store bootstrap or badge counts; use `after()` + Suspense.
 3. **Streamed home / hubs** — header first; briefing / KPI bodies in Suspense; LLM briefing timeout + cache.
+4. **Active route highlighting** — sidebar + horizontal tabs use `nav-active.ts` (`isPathMatch` / `resolveActiveNavHref` / `isNavItemActive`); active links set `aria-current="page"`; accordion parents light when a child route is current.
 
-Canonical docs: `docs/SUBSIDIARY_OS_SHELL.md` §§ Full-width content shell, Page speed / first paint.
-Guardrails: Tage `src/lib/home/os-page-speed.test.ts`, Recruit 619 `src/lib/home/home-page-speed.test.ts`.
+Canonical docs: `docs/SUBSIDIARY_OS_SHELL.md` §§ Full-width content shell, Page speed / first paint, Active route highlighting.
+Guardrails: Tage `src/lib/home/os-page-speed.test.ts`, `src/lib/platform/shell/nav-active.test.ts`, Recruit 619 `src/lib/home/home-page-speed.test.ts`.
 
 ## Mobile header order (required)
 

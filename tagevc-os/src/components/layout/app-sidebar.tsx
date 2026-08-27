@@ -432,7 +432,11 @@ function NavGroup({
   const childGroupLabels = accordionSiblingLabels(children);
   const groupId = `nav-group-${item.label.replace(/\s+/g, '-').toLowerCase()}`;
   const nested = depth > 0;
-  const active = item.href ? isNavActive(pathname, item.href) : false;
+  const childActive = childRouteActive(pathname, children);
+  // Label-only parents still light when a descendant route is current.
+  const active = item.href
+    ? isNavActive(pathname, item.href)
+    : childActive;
 
   const chevron = (
     <ChevronRight
@@ -458,6 +462,7 @@ function NavGroup({
         >
           <Link
             href={item.href}
+            aria-current={active ? 'page' : undefined}
             className={cn(
               'flex min-w-0 flex-1 items-start gap-3 rounded-md px-3 py-2 text-left',
               nested && 'pl-0',
@@ -500,6 +505,7 @@ function NavGroup({
           id={groupId}
           aria-expanded={expanded}
           aria-controls={`${groupId}-panel`}
+          aria-current={active ? 'true' : undefined}
           onClick={onToggle}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
@@ -509,9 +515,11 @@ function NavGroup({
           }}
           className={cn(
             'flex w-full items-start gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors',
-            'text-sidebar-foreground/80 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground',
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring',
             nested && 'pl-9',
+            active
+              ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+              : 'text-sidebar-foreground/80 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground',
           )}
         >
           {!nested ? <GroupIcon className="mt-0.5 size-4 shrink-0" /> : null}
@@ -595,6 +603,7 @@ function NavLink({
   return (
     <Link
       href={item.href}
+      aria-current={active ? 'page' : undefined}
       className={cn(
         'flex items-start gap-3 rounded-md px-3 py-2.5 text-sm transition-colors',
         nested && (depth >= 2 ? 'py-2 pl-14' : 'py-2 pl-9'),

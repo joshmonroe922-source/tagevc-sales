@@ -54,6 +54,13 @@ describe('Tage OS first-paint speed', () => {
     assert.doesNotMatch(frame, /mx-auto max-w-6xl/);
   });
 
+  it('sidebar marks the current page with aria-current and parent active', () => {
+    const sidebar = read('src/components/layout/app-sidebar.tsx');
+    assert.match(sidebar, /aria-current=\{active \? 'page'/);
+    assert.match(sidebar, /childActive/);
+    assert.match(sidebar, /isNavActive/);
+  });
+
   it('Think Tank context skips a forced ticket SQL rehydrate', () => {
     const src = read('src/lib/think-tank/context.ts');
     assert.match(src, /listScopedTickets\(\{ forceSql: false \}\)/);
