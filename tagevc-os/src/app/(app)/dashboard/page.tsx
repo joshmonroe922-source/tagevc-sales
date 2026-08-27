@@ -52,7 +52,7 @@ import { roleHasPermission, type AppRole } from '@/lib/types/roles';
 import { PageSkeleton } from '@/components/ui/skeleton';
 
 type DashboardWorkspaceProps = {
-  role: AppRole | string;
+  role: AppRole;
   viewAsRole: AppRole;
   canSwitch: boolean;
   requestedScope: DashboardScopeMode;
