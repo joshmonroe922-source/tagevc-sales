@@ -1,3 +1,6 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 export const ENTITY_OS_SECTIONS = [
@@ -17,6 +20,15 @@ export function EntitySectionNav({
 }: {
   className?: string;
 }) {
+  const [hash, setHash] = useState('');
+
+  useEffect(() => {
+    const sync = () => setHash(window.location.hash.replace(/^#/, ''));
+    sync();
+    window.addEventListener('hashchange', sync);
+    return () => window.removeEventListener('hashchange', sync);
+  }, []);
+
   return (
     <nav
       className={cn(
@@ -25,15 +37,24 @@ export function EntitySectionNav({
       )}
       aria-label="Subsidiary OS sections"
     >
-      {ENTITY_OS_SECTIONS.map((s) => (
-        <a
-          key={s.id}
-          href={`#${s.id}`}
-          className="rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          {s.label}
-        </a>
-      ))}
+      {ENTITY_OS_SECTIONS.map((s) => {
+        const active = hash === s.id || (!hash && s.id === 'overview');
+        return (
+          <a
+            key={s.id}
+            href={`#${s.id}`}
+            aria-current={active ? 'true' : undefined}
+            className={cn(
+              'rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors',
+              active
+                ? 'bg-muted text-foreground'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+            )}
+          >
+            {s.label}
+          </a>
+        );
+      })}
     </nav>
   );
 }
