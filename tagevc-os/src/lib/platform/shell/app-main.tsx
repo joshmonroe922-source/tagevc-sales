@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Portable app `<main>` — constrained scroll vs full-bleed Messaging fill.
+ * Portable app `<main>` — full-width scroll vs full-bleed Messaging fill.
  * Copy with `app-content-frame.tsx` when cloning subsidiary shells.
  */
 import { usePathname } from 'next/navigation';

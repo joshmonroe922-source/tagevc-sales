@@ -49,42 +49,29 @@ import {
 import { getSessionContext } from '@/lib/rbac/session';
 import { redirect } from 'next/navigation';
 import { roleHasPermission, type AppRole } from '@/lib/types/roles';
+import { PageSkeleton } from '@/components/ui/skeleton';
 
-export default async function DashboardPage({
-  searchParams,
-}: {
-  searchParams?: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const session = await getSessionContext();
-  const dashRole = session?.profile.role ?? '';
-  if (
-    dashRole.startsWith('ssc_') ||
-    dashRole === 'service_lead' ||
-    dashRole === 'counsel_ops'
-  ) {
-    redirect('/to-do');
-  }
-  const canWrite = Boolean(
-    session && roleHasPermission(session.profile.role, 'write:portfolio_health'),
-  );
-  const sp = (await searchParams) ?? {};
-  const scopeRaw = typeof sp.scope === 'string' ? sp.scope : 'consolidated';
-  const entityRaw =
-    typeof sp.entity === 'string' ? normalizeEntityId(sp.entity.trim()) : '';
-  const requestedScope: DashboardScopeMode =
-    scopeRaw === 'company' && entityRaw
-      ? 'company'
-      : scopeRaw === 'by_company'
-        ? 'by_company'
-        : 'consolidated';
-  const asRaw = typeof sp.as === 'string' ? sp.as : '';
-  const role = session?.profile.role ?? 'admin';
-  const canSwitch = session?.realRole === 'visionary';
-  const viewAsRole: AppRole =
-    canSwitch && (DASHBOARD_VIEW_ROLES as readonly string[]).includes(asRaw)
-      ? (asRaw as AppRole)
-      : role;
+type DashboardWorkspaceProps = {
+  role: AppRole | string;
+  viewAsRole: AppRole;
+  canSwitch: boolean;
+  requestedScope: DashboardScopeMode;
+  entityRaw: string;
+  canWrite: boolean;
+  profileEntityId: string | null | undefined;
+  profileFullName: string | null | undefined;
+};
 
+async function DashboardWorkspace({
+  role,
+  viewAsRole,
+  canSwitch,
+  requestedScope,
+  entityRaw,
+  canWrite,
+  profileEntityId,
+  profileFullName,
+}: DashboardWorkspaceProps) {
   const [companies, entities, rollup, cadenceReport, iesReportRaw] =
     await Promise.all([
       listActivePortfolioCompanies(),
@@ -96,8 +83,8 @@ export default async function DashboardPage({
 
   const pnlAccess = resolvePnlScopeAccess({
     role: viewAsRole,
-    profileEntityId: session?.profile.entity_id,
-    profileFullName: session?.profile.full_name,
+    profileEntityId,
+    profileFullName,
     entities,
   });
   const enforced = enforcePnlDashboardScope({
@@ -166,25 +153,14 @@ export default async function DashboardPage({
 
   return (
     <div className="space-y-8">
-      <header className="space-y-2">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#3a414f]">
-            Dashboard
-          </h1>
-          <Badge variant="outline" className="font-normal">
-            Period {rollup.period}
-          </Badge>
-          <Badge variant="outline" className="font-normal capitalize">
-            {source === 'sql' ? 'Live' : source === 'seed+migrating' ? 'Updating' : 'Sample'}
-          </Badge>
-        </div>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          {isAdminOpsDash
-            ? 'Admin operations dashboard — users, tickets, SSC health, documents, and access. Not firm Visionary KPIs.'
-            : 'Role-based operating dashboard with goals vs actuals. Portfolio health and weekly review tools remain below. Use Cards | List on each board.'}
-        </p>
-        <ReportingTimeframeBar defaultPeriod="week" />
-      </header>
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="outline" className="font-normal">
+          Period {rollup.period}
+        </Badge>
+        <Badge variant="outline" className="font-normal capitalize">
+          {source === 'sql' ? 'Live' : source === 'seed+migrating' ? 'Updating' : 'Sample'}
+        </Badge>
+      </div>
 
       <Suspense fallback={null}>
         <RoleDashboardClient
@@ -295,6 +271,71 @@ export default async function DashboardPage({
           </p>
         </>
       ) : null}
+    </div>
+  );
+}
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const session = await getSessionContext();
+  const dashRole = session?.profile.role ?? '';
+  if (
+    dashRole.startsWith('ssc_') ||
+    dashRole === 'service_lead' ||
+    dashRole === 'counsel_ops'
+  ) {
+    redirect('/to-do');
+  }
+  const canWrite = Boolean(
+    session && roleHasPermission(session.profile.role, 'write:portfolio_health'),
+  );
+  const sp = (await searchParams) ?? {};
+  const scopeRaw = typeof sp.scope === 'string' ? sp.scope : 'consolidated';
+  const entityRaw =
+    typeof sp.entity === 'string' ? normalizeEntityId(sp.entity.trim()) : '';
+  const requestedScope: DashboardScopeMode =
+    scopeRaw === 'company' && entityRaw
+      ? 'company'
+      : scopeRaw === 'by_company'
+        ? 'by_company'
+        : 'consolidated';
+  const asRaw = typeof sp.as === 'string' ? sp.as : '';
+  const role = session?.profile.role ?? 'admin';
+  const canSwitch = session?.realRole === 'visionary';
+  const viewAsRole: AppRole =
+    canSwitch && (DASHBOARD_VIEW_ROLES as readonly string[]).includes(asRaw)
+      ? (asRaw as AppRole)
+      : (role as AppRole);
+  const isAdminOpsDash = viewAsRole === 'admin';
+
+  return (
+    <div className="space-y-8">
+      <header className="space-y-2">
+        <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#3a414f]">
+          Dashboard
+        </h1>
+        <p className="max-w-2xl text-sm text-muted-foreground">
+          {isAdminOpsDash
+            ? 'Admin operations dashboard — users, tickets, SSC health, documents, and access. Not firm Visionary KPIs.'
+            : 'Role-based operating dashboard with goals vs actuals. Portfolio health and weekly review tools remain below. Use Cards | List on each board.'}
+        </p>
+        <ReportingTimeframeBar defaultPeriod="week" />
+      </header>
+      <Suspense fallback={<PageSkeleton cards={6} showTable />}>
+        <DashboardWorkspace
+          role={role}
+          viewAsRole={viewAsRole}
+          canSwitch={canSwitch}
+          requestedScope={requestedScope}
+          entityRaw={entityRaw}
+          canWrite={canWrite}
+          profileEntityId={session?.profile.entity_id}
+          profileFullName={session?.profile.full_name}
+        />
+      </Suspense>
     </div>
   );
 }

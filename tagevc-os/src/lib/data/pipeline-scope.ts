@@ -1,14 +1,15 @@
 import { ensureMasterData } from '@/lib/data/master-data';
 import {
+  hydrateDealFlowStore,
   listActiveDeals,
   listActiveLeads,
   listAllLeads,
   listIcQueue,
   listOpenLeadTasks,
 } from '@/lib/data/deal-flow-store';
-import { listDocuments } from '@/lib/data/document-store';
-import { listActiveMaTargets } from '@/lib/data/ma-store';
-import { listActiveReDeals } from '@/lib/data/re-store';
+import { hydrateDocStore, listDocuments } from '@/lib/data/document-store';
+import { hydrateMaStore, listActiveMaTargets } from '@/lib/data/ma-store';
+import { hydrateReStore, listActiveReDeals } from '@/lib/data/re-store';
 import { hydrateTicketStore, listTickets } from '@/lib/data/ticket-store';
 import {
   filterMaTargetsAssignedToAssociate,
@@ -99,23 +100,33 @@ function allow(
 }
 
 export async function listScopedActiveLeads(): Promise<Lead[]> {
-  const scope = await getPipelineScope();
+  const [, scope] = await Promise.all([
+    hydrateDealFlowStore(),
+    getPipelineScope(),
+  ]);
   return listActiveLeads().filter((l) =>
     allow(scope, l.related_entity_id),
   );
 }
 
 export async function listScopedAllLeads(): Promise<Lead[]> {
-  const scope = await getPipelineScope();
+  const [, scope] = await Promise.all([
+    hydrateDealFlowStore(),
+    getPipelineScope(),
+  ]);
   return listAllLeads().filter((l) => allow(scope, l.related_entity_id));
 }
 
 export async function listScopedActiveDeals(): Promise<Deal[]> {
-  const scope = await getPipelineScope();
+  const [, scope] = await Promise.all([
+    hydrateDealFlowStore(),
+    getPipelineScope(),
+  ]);
   return listActiveDeals().filter((d) => allow(scope, d.entity_id));
 }
 
 export async function listScopedOpenLeadTasks(): Promise<LeadTask[]> {
+  await hydrateDealFlowStore();
   const [scope, leads] = await Promise.all([
     getPipelineScope(),
     listScopedActiveLeads(),
@@ -126,6 +137,7 @@ export async function listScopedOpenLeadTasks(): Promise<LeadTask[]> {
 }
 
 export async function listScopedIcQueue(): Promise<IcReview[]> {
+  await hydrateDealFlowStore();
   const [scope, deals] = await Promise.all([
     getPipelineScope(),
     listScopedActiveDeals(),
@@ -135,9 +147,12 @@ export async function listScopedIcQueue(): Promise<IcReview[]> {
   return listIcQueue().filter((r) => dealIds.has(r.deal_id));
 }
 
-export async function listScopedTickets(): Promise<Ticket[]> {
-  // Always re-read SQL so portal intake tickets appear without a cold start.
-  await hydrateTicketStore({ forceSql: true });
+export async function listScopedTickets(opts?: {
+  forceSql?: boolean;
+}): Promise<Ticket[]> {
+  // Default: re-read SQL so portal intake tickets appear without a cold start.
+  // Think Tank / briefing can skip the extra round-trip (`forceSql: false`).
+  await hydrateTicketStore({ forceSql: opts?.forceSql ?? true });
   const scope = await getPipelineScope();
   return listTickets().filter((t) => allow(scope, t.entity_id));
 }
@@ -145,7 +160,10 @@ export async function listScopedTickets(): Promise<Ticket[]> {
 export async function listScopedDocuments(
   entityId?: string,
 ): Promise<DocumentRecord[]> {
-  const scope = await getPipelineScope();
+  const [, scope] = await Promise.all([
+    hydrateDocStore(),
+    getPipelineScope(),
+  ]);
   return listDocuments(entityId).filter(
     (d) =>
       allow(scope, d.entity_id) && canViewDocumentForRole(scope.role, d),
@@ -153,7 +171,10 @@ export async function listScopedDocuments(
 }
 
 export async function listScopedActiveMaTargets(): Promise<MaTarget[]> {
-  const scope = await getPipelineScope();
+  const [, scope] = await Promise.all([
+    hydrateMaStore(),
+    getPipelineScope(),
+  ]);
   const entityScoped = listActiveMaTargets().filter((t) =>
     allow(scope, t.entity_id),
   );
@@ -178,7 +199,10 @@ export async function canAccessScopedMaTarget(
 }
 
 export async function listScopedActiveReDeals(): Promise<ReDeal[]> {
-  const scope = await getPipelineScope();
+  const [, scope] = await Promise.all([
+    hydrateReStore(),
+    getPipelineScope(),
+  ]);
   const entityScoped = listActiveReDeals().filter((d) =>
     allow(scope, d.entity_id),
   );

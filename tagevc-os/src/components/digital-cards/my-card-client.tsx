@@ -120,7 +120,7 @@ export function MyCardClient({ personas: initial, contacts, userName }: Props) {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 md:py-10">
+    <div className="space-y-8">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-medium tracking-[0.18em] text-[#B2A384] uppercase">

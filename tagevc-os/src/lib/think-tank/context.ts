@@ -151,7 +151,7 @@ async function safeRecentActivity(): Promise<{
 
 async function safeTickets() {
   try {
-    return await listScopedTickets();
+    return await listScopedTickets({ forceSql: false });
   } catch {
     return [];
   }

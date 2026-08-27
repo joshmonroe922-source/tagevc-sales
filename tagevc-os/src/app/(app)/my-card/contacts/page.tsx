@@ -19,7 +19,7 @@ export default async function MyCardContactsPage({
   const from = typeof sp.from === 'string' ? sp.from : null;
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8">
+    <div className="space-y-2">
       <PortalReturnBanner returnTo={returnTo} from={from} />
       <Link
         href="/my-card"

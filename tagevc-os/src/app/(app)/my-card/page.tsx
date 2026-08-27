@@ -58,7 +58,7 @@ export default async function MyCardPage({
   return (
     <>
       {returnTo ? (
-        <div className="mx-auto max-w-3xl px-4 pt-4">
+        <div className="pb-4">
           <PortalReturnBanner returnTo={returnTo} from={from} />
         </div>
       ) : null}

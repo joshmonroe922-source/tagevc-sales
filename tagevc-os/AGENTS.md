@@ -65,7 +65,7 @@ Top-left **Messaging** control lives in the `AppSidebar` brand header, above the
 
 Subsidiary portals (Recruit 619, Instant NDA, Signent HR, future clones) are **separate Next apps with their own `AppSidebar`** — they do *not* inherit this automatically. Copy the portable twin into each clone. Portals with no local chat pass `external` and point `href` at the Tage Message Center so the desk stays open in the current tab. See `docs/SUBSIDIARY_OS_SHELL.md` § Messaging control.
 
-`/messages` is full-bleed in the main pane (no `max-w-6xl`): `AppMain` + `AppContentFrame` in `(app)/layout.tsx`. Add future edge-to-edge tools via `FULL_BLEED_PREFIXES` in `src/lib/platform/shell/full-bleed-routes.ts`.
+Authenticated pages span sidebar → viewport edge (`w-full max-w-none` in `AppContentFrame`). `/messages` is full-bleed (no page padding) so the chat pane fills the main column. Add future edge-to-edge tools via `FULL_BLEED_PREFIXES` in `src/lib/platform/shell/full-bleed-routes.ts`.
 
 ## Think Tank (multi-thread + uploads)
 

@@ -26,6 +26,8 @@ import { getSessionContext } from '@/lib/rbac/session';
 import { roleHasPermission } from '@/lib/types/roles';
 import { APP_ROLE_LABELS } from '@/lib/types';
 import { redirect } from 'next/navigation';
+import { Suspense } from 'react';
+import { PageSkeleton } from '@/components/ui/skeleton';
 
 /** Align with nav.ts Command Center hiddenForRoles. */
 const COMMAND_CENTER_HIDDEN_ROLES = new Set([
@@ -64,13 +66,8 @@ const MODULE_QUICK_NAV = [
   { href: '/settings/notifications', label: 'Notifications' },
 ] as const;
 
-export default async function CommandCenterPage() {
+async function CommandCenterWorkspace() {
   const session = await getSessionContext();
-  const role = session?.profile.role;
-  if (role && COMMAND_CENTER_HIDDEN_ROLES.has(role)) {
-    redirect(role.startsWith('ssc_') || role === 'service_lead' ? '/to-do' : '/dashboard');
-  }
-
   const [snap, companies, activityResult, firmOps, iesReport] =
     await Promise.all([
       getCommandCenterSnapshot(),
@@ -79,7 +76,6 @@ export default async function CommandCenterPage() {
       getFirmOpsCommandPhase61Report(),
       getIesFinanceReport().catch(() => null),
     ]);
-  const profile = session?.profile ?? null;
   const activity = activityResult.events;
   const canWriteFirmOps = Boolean(
     session &&
@@ -94,42 +90,16 @@ export default async function CommandCenterPage() {
 
   return (
     <div className="space-y-8">
-      <header className="space-y-2">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#3a414f]">
-            Command Center
-          </h1>
-          <Badge variant="outline" className="font-normal">
-            {snap.freshness}
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="outline" className="font-normal">
+          {snap.freshness}
+        </Badge>
+        {snap.period ? (
+          <Badge variant="secondary" className="font-normal">
+            Period {snap.period}
           </Badge>
-          {snap.period ? (
-            <Badge variant="secondary" className="font-normal">
-              Period {snap.period}
-            </Badge>
-          ) : null}
-        </div>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          Firm health at a glance — funnel, capital, portfolio attention, and
-          action queues. Money is never auto-approved. Use Cards | List on each
-          board.
-          {profile ? (
-            <>
-              {' '}
-              Signed in as{' '}
-              <span className="text-foreground">
-                {APP_ROLE_LABELS[profile.role]}
-              </span>
-              .{' '}
-              <Link
-                href="/home"
-                className="font-medium text-foreground underline-offset-4 hover:underline"
-              >
-                Open Home / Think Tank →
-              </Link>
-            </>
-          ) : null}
-        </p>
-      </header>
+        ) : null}
+      </div>
 
       <FirmOpsCommandPhase61Client
         report={firmOps}
@@ -269,6 +239,49 @@ export default async function CommandCenterPage() {
           </ul>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+export default async function CommandCenterPage() {
+  const session = await getSessionContext();
+  const role = session?.profile.role;
+  if (role && COMMAND_CENTER_HIDDEN_ROLES.has(role)) {
+    redirect(role.startsWith('ssc_') || role === 'service_lead' ? '/to-do' : '/dashboard');
+  }
+  const profile = session?.profile ?? null;
+
+  return (
+    <div className="space-y-8">
+      <header className="space-y-2">
+        <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#3a414f]">
+          Command Center
+        </h1>
+        <p className="max-w-2xl text-sm text-muted-foreground">
+          Firm health at a glance — funnel, capital, portfolio attention, and
+          action queues. Money is never auto-approved. Use Cards | List on each
+          board.
+          {profile ? (
+            <>
+              {' '}
+              Signed in as{' '}
+              <span className="text-foreground">
+                {APP_ROLE_LABELS[profile.role]}
+              </span>
+              .{' '}
+              <Link
+                href="/home"
+                className="font-medium text-foreground underline-offset-4 hover:underline"
+              >
+                Open Home / Think Tank →
+              </Link>
+            </>
+          ) : null}
+        </p>
+      </header>
+      <Suspense fallback={<PageSkeleton cards={6} showTable />}>
+        <CommandCenterWorkspace />
+      </Suspense>
     </div>
   );
 }

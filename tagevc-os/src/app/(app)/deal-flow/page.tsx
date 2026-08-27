@@ -16,8 +16,10 @@ import {
   listScopedIcQueue,
 } from '@/lib/data/pipeline-scope';
 import { VIEW_MODE_DEFAULTS } from '@/lib/view-mode';
+import { Suspense } from 'react';
+import { PageSkeleton } from '@/components/ui/skeleton';
 
-export default async function DealFlowHubPage() {
+async function DealFlowTracks() {
   const [leads, deals, icQueue, ma, re] = await Promise.all([
     listScopedActiveLeads(),
     listScopedActiveDeals(),
@@ -63,18 +65,7 @@ export default async function DealFlowHubPage() {
   ];
 
   return (
-    <div className="space-y-8">
-      <header className="space-y-3">
-        <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#3a414f]">
-          Deal Flow
-        </h1>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          Venture, M&A, and real estate pipelines in one place. Use the tracks
-          below — or Lead Intake for new opportunities.
-        </p>
-        <DealFlowTrackTabs active="hub" />
-      </header>
-
+    <>
       <ViewModeLayout
         surface="deal-flow-tracks"
         defaultMode={VIEW_MODE_DEFAULTS['deal-flow-tracks']}
@@ -160,6 +151,26 @@ export default async function DealFlowHubPage() {
           Dashboard →
         </Link>
       </div>
+    </>
+  );
+}
+
+export default function DealFlowHubPage() {
+  return (
+    <div className="space-y-8">
+      <header className="space-y-3">
+        <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#3a414f]">
+          Deal Flow
+        </h1>
+        <p className="max-w-2xl text-sm text-muted-foreground">
+          Venture, M&A, and real estate pipelines in one place. Use the tracks
+          below — or Lead Intake for new opportunities.
+        </p>
+        <DealFlowTrackTabs active="hub" />
+      </header>
+      <Suspense fallback={<PageSkeleton cards={3} showTable={false} />}>
+        <DealFlowTracks />
+      </Suspense>
     </div>
   );
 }

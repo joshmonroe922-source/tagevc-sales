@@ -11,6 +11,8 @@ import { redirect } from 'next/navigation';
 import { getFirmHomeSnapshot } from '@/lib/firm-ops/firm-home';
 import { formatUsdK } from '@/lib/format';
 import { getSessionContext, requirePermission } from '@/lib/rbac/session';
+import { Suspense } from 'react';
+import { PageSkeleton } from '@/components/ui/skeleton';
 
 function Metric({
   label,
@@ -48,30 +50,11 @@ const LINKS = [
   { href: '/activity', label: 'Activity' },
 ] as const;
 
-export default async function FirmPage() {
-  await requirePermission('read:firm');
-  const session = await getSessionContext();
-  // COO (subsidiaries) — Assets-scoped; Firm hub is Visionary/partner ops.
-  if (session?.profile.role === 'coo') {
-    redirect('/dashboard');
-  }
+async function FirmSnapshot() {
   const firm = await getFirmHomeSnapshot();
 
   return (
-    <div className="space-y-8">
-      <header className="space-y-2">
-        <p className="text-xs font-medium tracking-[0.2em] text-muted-foreground uppercase">
-          Firm
-        </p>
-        <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#3a414f]">
-          Tage operating home
-        </h1>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          Parent snapshot across companies, shared services readiness,
-          leadership queues, and capital pulse — in plain language.
-        </p>
-      </header>
-
+    <>
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Metric
           label="Active companies"
@@ -312,6 +295,35 @@ export default async function FirmPage() {
           </CardContent>
         </Card>
       </section>
+    </>
+  );
+}
+
+export default async function FirmPage() {
+  await requirePermission('read:firm');
+  const session = await getSessionContext();
+  // COO (subsidiaries) — Assets-scoped; Firm hub is Visionary/partner ops.
+  if (session?.profile.role === 'coo') {
+    redirect('/dashboard');
+  }
+
+  return (
+    <div className="space-y-8">
+      <header className="space-y-2">
+        <p className="text-xs font-medium tracking-[0.2em] text-muted-foreground uppercase">
+          Firm
+        </p>
+        <h1 className="font-heading text-3xl font-semibold tracking-tight text-[#3a414f]">
+          Tage operating home
+        </h1>
+        <p className="max-w-2xl text-sm text-muted-foreground">
+          Parent snapshot across companies, shared services readiness,
+          leadership queues, and capital pulse — in plain language.
+        </p>
+      </header>
+      <Suspense fallback={<PageSkeleton cards={5} showTable />}>
+        <FirmSnapshot />
+      </Suspense>
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { isFullBleedPath } from '@/lib/platform/shell/full-bleed-routes';
 import { cn } from '@/lib/utils';
 
 /**
- * Shared app `<main>`: constrained pages scroll here; full-bleed tools
+ * Shared app `<main>`: full-width pages scroll here; full-bleed tools
  * (Messaging) fill the pane and scroll internally.
  */
 export function AppMain({ children }: { children: React.ReactNode }) {
