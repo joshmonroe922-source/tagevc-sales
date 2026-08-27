@@ -123,6 +123,60 @@ supabase/phase108_think_tank_office_mimes.sql  # Word/Excel MIME on os-think-tan
 
 Home TTFB: do not `await loadThinkTank()` in the server page — hydrate the desk on the client.
 
+## Full-width content shell (required on every entity OS)
+
+Authenticated app pages must span **sidebar → right viewport edge**. Do **not** ship a centered `max-w-6xl` / `max-w-7xl` / `mx-auto` middle column for the main content frame.
+
+| Surface | Required class pattern |
+| --- | --- |
+| **Default pages** | `w-full max-w-none px-4 py-6 sm:px-6 lg:px-8` |
+| **Full-bleed tools** (e.g. `/messages`) | Fill the main pane; no outer page padding; internal scroll |
+
+### Copy targets (scaffold)
+
+```
+src/lib/platform/shell/app-content-frame.tsx   # ShellAppContentFrame (portable twin)
+src/lib/platform/shell/app-main.tsx            # ShellAppMain
+src/lib/platform/shell/full-bleed-routes.ts    # FULL_BLEED_PREFIXES
+src/components/layout/app-content-frame.tsx    # portal wiring
+src/components/layout/app-main.tsx
+```
+
+Canonical reference: Tage OS + Recruit 619 `(app)/layout` content frame.
+
+Nested route layouts (ECC, admin hubs, etc.) must **not** re-introduce `mx-auto max-w-*` wrappers around the whole page. Narrow `max-w-*` on prose blurbs or modals is fine.
+
+Smoke:
+
+```ts
+assert.match(contentFrame, /w-full max-w-none/);
+assert.doesNotMatch(contentFrame, /mx-auto max-w-6xl/);
+assert.match(contentFrame, /data-content-frame=\{fullBleed \? 'full-bleed' : 'full-width'\}/);
+```
+
+## Page speed / first paint (required on every entity OS)
+
+New portals inherit the Recruit 619 / Tage paint-first conventions. Do not block the shell or home on secondary work.
+
+| Rule | Do this |
+| --- | --- |
+| **Shell chrome** | Session + sidebar first. Stream unread badges / suggestion counts / desk-user lists behind `<Suspense>`. |
+| **Store hydrate** | Never `await bootstrapDomainStores()` in `(app)/layout`. Use `after(() => void bootstrap…)` and hydrate each store on first read. |
+| **Home / AI briefing** | Paint welcome header (+ Think Tank client) first; stream briefing in Suspense. LLM call: **≤4s timeout** + short in-memory cache. |
+| **Hub pages** | Header paints immediately; KPI / workspace bodies stream in Suspense with a skeleton. |
+| **Queries** | Prefer head counts / slim column projections / bounded `.limit()` over `select('*')` and unbounded desk scans. |
+| **Think Tank** | Mount `<ThinkTankClient />` without awaiting thread lists on the server. |
+
+### Copy targets (scaffold)
+
+```
+src/lib/platform/shell/app-content-frame.tsx   # full-width default (above)
+src/lib/home/os-page-speed.test.ts             # Tage guardrails — mirror in each portal
+Recruit 619: src/lib/home/home-page-speed.test.ts
+```
+
+Tage guardrail file: `src/lib/home/os-page-speed.test.ts`. Every new entity OS should ship an equivalent structural test before launch.
+
 ## Reload scroll restore (required)
 
 Hard refresh keeps scroll position on the same path. Soft route changes still jump to top. Hash links win over saved Y.
