@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { after } from 'next/server';
 import { Suspense } from 'react';
 import { AppSidebar } from '@/components/layout/app-sidebar';
 import { EntityOsBanner } from '@/components/layout/entity-os-banner';
@@ -26,6 +27,30 @@ import { getDesktopPrefsAction } from '@/app/(app)/notifications/inbox-actions';
 
 export const dynamic = 'force-dynamic';
 
+async function AppChromeTopBar({
+  mobileNav,
+}: {
+  mobileNav: React.ReactNode;
+}) {
+  const [unread, desktopPrefs, suggestionCount, activeOrgSlug] =
+    await Promise.all([
+      countMyUnreadNotifications(),
+      getDesktopPrefsAction(),
+      countPendingSuggestions(),
+      getActiveOrgSlug(),
+    ]);
+  return (
+    <AppTopBar
+      unreadCount={unread}
+      suggestionCount={suggestionCount}
+      activeOrgSlug={activeOrgSlug}
+      desktopEnabled={desktopPrefs.desktopEnabled}
+      soundEnabled={desktopPrefs.soundEnabled}
+      mobileNav={mobileNav}
+    />
+  );
+}
+
 export default async function AppShellLayout({
   children,
 }: {
@@ -37,7 +62,11 @@ export default async function AppShellLayout({
     redirect('/login?error=auth&detail=Account%20inactive');
   }
 
-  await bootstrapDomainStores();
+  // Warm in-memory stores after the shell paints. Pages that read a store
+  // hydrate that collection on first use (see pipeline-scope).
+  after(() => {
+    void bootstrapDomainStores();
+  });
 
   const canImpersonate = session.realRole === 'visionary';
   const canSwitchOs = canSwitchEntityOs({
@@ -45,13 +74,6 @@ export default async function AppShellLayout({
     impersonatingAs: session.impersonatingAs,
     liveLookActive: session.liveLookActive,
   });
-  const [unread, desktopPrefs, suggestionCount, activeOrgSlug] =
-    await Promise.all([
-      countMyUnreadNotifications(),
-      getDesktopPrefsAction(),
-      countPendingSuggestions(),
-      getActiveOrgSlug(),
-    ]);
 
   const sidebarProps = {
     role: session.profile.role,
@@ -80,18 +102,25 @@ export default async function AppShellLayout({
         <TimezoneBootstrap />
         <AppSidebar {...sidebarProps} />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <AppTopBar
-            unreadCount={unread}
-            suggestionCount={suggestionCount}
-            activeOrgSlug={activeOrgSlug}
-            desktopEnabled={desktopPrefs.desktopEnabled}
-            soundEnabled={desktopPrefs.soundEnabled}
-            mobileNav={
-              <MobileNavDrawer>
-                <AppSidebar {...sidebarProps} variant="panel" />
-              </MobileNavDrawer>
+          <Suspense
+            fallback={
+              <AppTopBar
+                mobileNav={
+                  <MobileNavDrawer>
+                    <AppSidebar {...sidebarProps} variant="panel" />
+                  </MobileNavDrawer>
+                }
+              />
             }
-          />
+          >
+            <AppChromeTopBar
+              mobileNav={
+                <MobileNavDrawer>
+                  <AppSidebar {...sidebarProps} variant="panel" />
+                </MobileNavDrawer>
+              }
+            />
+          </Suspense>
           {session.liveLookTarget ? (
             <LiveLookBanner
               userName={session.liveLookTarget.fullName}

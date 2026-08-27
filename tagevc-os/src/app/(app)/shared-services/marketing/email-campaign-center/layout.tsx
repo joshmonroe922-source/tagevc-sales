@@ -7,8 +7,6 @@ export default async function EccLayout({ children }: { children: React.ReactNod
   const ctx = await getSessionContext();
   const entityId = ctx?.profile.entity_id || 'ENT-FIRM';
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
-      <EccShell entityLabel={entityDisplayName(entityId)}>{children}</EccShell>
-    </div>
+    <EccShell entityLabel={entityDisplayName(entityId)}>{children}</EccShell>
   );
 }

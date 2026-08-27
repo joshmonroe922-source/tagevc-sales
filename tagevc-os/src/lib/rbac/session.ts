@@ -1,3 +1,5 @@
+import { cache } from 'react';
+
 import { createClient } from '@/lib/supabase/server';
 import type { Profile } from '@/lib/types';
 import {
@@ -30,6 +32,10 @@ import {
   JOSH_MONROE_JOB_TITLE,
   staffJobTitleForEmail,
 } from '@/lib/org/staff-titles';
+
+/** Columns SessionContext / Profile actually use — avoid select('*'). */
+export const PROFILE_SESSION_COLUMNS =
+  'id, email, full_name, role, entity_id, avatar_url, active, job_title, manager_profile_id, created_at, updated_at';
 
 const DEV_PROFILE: Profile = {
   id: '00000000-0000-0000-0000-000000000001',
@@ -82,7 +88,7 @@ export async function getSessionUser() {
 }
 
 /** Real profile from DB / bootstrap — ignores impersonation cookie. */
-export async function getRealProfile(): Promise<Profile | null> {
+export const getRealProfile = cache(async function getRealProfile(): Promise<Profile | null> {
   if (isDevBypass()) {
     return DEV_PROFILE;
   }
@@ -95,7 +101,7 @@ export async function getRealProfile(): Promise<Profile | null> {
 
   const { data, error } = await supabase
     .from('profiles')
-    .select('*')
+    .select(PROFILE_SESSION_COLUMNS)
     .eq('id', user.id)
     .maybeSingle();
 
@@ -146,7 +152,7 @@ export async function getRealProfile(): Promise<Profile | null> {
   const { data: inserted, error: insertError } = await supabase
     .from('profiles')
     .upsert(bootstrap, { onConflict: 'id' })
-    .select('*')
+    .select(PROFILE_SESSION_COLUMNS)
     .maybeSingle();
 
   if (insertError) {
@@ -160,7 +166,7 @@ export async function getRealProfile(): Promise<Profile | null> {
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
-}
+});
 
 /**
  * Session with optional Visionary role impersonation or Live Look applied.
@@ -169,7 +175,7 @@ export async function getRealProfile(): Promise<Profile | null> {
  * Live Look and Role Switcher may coexist for Think Tank preview; Live Look
  * wins for the effective profile.
  */
-export async function getSessionContext(): Promise<SessionContext | null> {
+export const getSessionContext = cache(async function getSessionContext(): Promise<SessionContext | null> {
   const real = await getRealProfile();
   if (!real) return null;
 
@@ -261,7 +267,7 @@ export async function getSessionContext(): Promise<SessionContext | null> {
     liveLookActive,
     activeEntityOs,
   };
-}
+});
 
 /** Effective profile (impersonated role when active). Use for UI + permissions. */
 export async function getProfile(): Promise<Profile | null> {

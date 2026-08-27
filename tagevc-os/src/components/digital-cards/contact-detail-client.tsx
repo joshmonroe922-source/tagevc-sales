@@ -18,7 +18,7 @@ export function ContactDetailClient({ contact }: { contact: NetworkContact }) {
   const isRecruit = contact.entity_id === 'ENT-R619';
 
   return (
-    <div className="mx-auto max-w-xl px-4 py-8">
+    <div className="max-w-2xl space-y-1">
       <Link
         href="/my-card/contacts"
         className="text-sm text-muted-foreground underline-offset-4 hover:underline"

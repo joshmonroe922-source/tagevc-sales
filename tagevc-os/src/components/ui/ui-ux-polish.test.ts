@@ -102,13 +102,21 @@ describe('UI/UX polish primitives', () => {
     assert.match(layout, /overflow-hidden/);
     assert.match(layout, /MobileNavDrawer/);
 
-    // The main scroller moved into AppMain so full-bleed tools can opt out of it.
+    // The main scroller lives in AppMain so messaging can opt out of page scroll.
     const main = readFileSync(
       join(process.cwd(), 'src/components/layout/app-main.tsx'),
       'utf8',
     );
     assert.match(layout, /<AppMain>/);
     assert.match(main, /overflow-y-auto/);
+
+    const frame = readFileSync(
+      join(process.cwd(), 'src/components/layout/app-content-frame.tsx'),
+      'utf8',
+    );
+    assert.match(frame, /w-full max-w-none/);
+    assert.doesNotMatch(frame, /max-w-6xl/);
+    assert.doesNotMatch(frame, /mx-auto max-w-/);
   });
 
   it('ships phone Menu drawer in AppTopBar below md', () => {

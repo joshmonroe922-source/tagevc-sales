@@ -20,7 +20,7 @@ export default async function AdminDigitalCardsPage() {
   const insights = await insightsBySource({ days: 30 });
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8 px-4 py-8">
+    <div className="space-y-8">
       <div>
         <Link
           href="/admin"
