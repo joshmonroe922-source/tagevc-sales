@@ -40,6 +40,20 @@ describe('Tage OS first-paint speed', () => {
     assert.doesNotMatch(page, /generateHomeBriefing/);
   });
 
+  it('Home briefing uses LLM timeout and short cache (R619 pattern)', () => {
+    const src = read('src/lib/home/briefing.ts');
+    assert.match(src, /BRIEFING_LLM_MS/);
+    assert.match(src, /BRIEFING_CACHE_TTL_MS/);
+    assert.match(src, /briefingCache/);
+    assert.match(src, /withTimeout/);
+  });
+
+  it('content frame stays full-width for all non-bleed pages', () => {
+    const frame = read('src/components/layout/app-content-frame.tsx');
+    assert.match(frame, /w-full max-w-none/);
+    assert.doesNotMatch(frame, /mx-auto max-w-6xl/);
+  });
+
   it('Think Tank context skips a forced ticket SQL rehydrate', () => {
     const src = read('src/lib/think-tank/context.ts');
     assert.match(src, /listScopedTickets\(\{ forceSql: false \}\)/);

@@ -1,21 +1,35 @@
 # Platform shell — copy into subsidiary OS scaffolds
 
-Portable twins of Tage AppTopBar patterns. Copy these files into a new
-entity portal under the matching `src/components/...` paths, then wire
-entity-specific ticket create + alerts data sources.
+Portable twins of Tage AppTopBar + content-frame patterns. Copy these files
+into a new entity portal under the matching `src/components/...` paths, then
+wire entity-specific ticket create + alerts data sources.
 
-See `docs/SUBSIDIARY_OS_SHELL.md`.
+See `docs/SUBSIDIARY_OS_SHELL.md` (full-width shell + page-speed checklist).
 
 A&F spine (Accounting · Finance · Audit · Controls) is a sibling platform module —
 copy `src/lib/platform/af/` the same way. See `docs/TAGE_VC_AF.md`.
 
 | File | Portal destination |
 | --- | --- |
+| `app-content-frame.tsx` | `components/layout/app-content-frame.tsx` — **default `w-full max-w-none`** (no centered `max-w-6xl`) |
+| `app-main.tsx` | `components/layout/app-main.tsx` |
+| `full-bleed-routes.ts` | Keep under `lib/platform/shell/`; start with `/messages` |
 | `create-ticket-split-button.tsx` | Merge into `components/help-desk/create-ticket-modal.tsx` as `GlobalCreateTicketButton` |
 | `app-top-bar.tsx` | Keep under `lib/platform/shell/`; wire from `components/help-desk/help-desk-shell.tsx` via `AppTopBarShell` |
 | `alerts-bell.tsx` | `components/layout/alerts-bell.tsx` (swap data source) |
 | `mobile-nav-drawer.tsx` (from `components/layout/`) | `components/layout/mobile-nav-drawer.tsx` + copy `components/ui/sheet.tsx` |
 | AppSidebar `variant` | `desktop` (hidden below md) + `panel` inside `MobileNavDrawer` |
+
+## Full-width + first paint (required)
+
+New entity portals must ship:
+
+1. **Full-width content frame** — sidebar to viewport edge (`w-full max-w-none` + padding). Messaging stays full-bleed via `FULL_BLEED_PREFIXES`.
+2. **Paint-first shell** — do not block `(app)/layout` on store bootstrap or badge counts; use `after()` + Suspense.
+3. **Streamed home / hubs** — header first; briefing / KPI bodies in Suspense; LLM briefing timeout + cache.
+
+Canonical docs: `docs/SUBSIDIARY_OS_SHELL.md` §§ Full-width content shell, Page speed / first paint.
+Guardrails: Tage `src/lib/home/os-page-speed.test.ts`, Recruit 619 `src/lib/home/home-page-speed.test.ts`.
 
 ## Mobile header order (required)
 
