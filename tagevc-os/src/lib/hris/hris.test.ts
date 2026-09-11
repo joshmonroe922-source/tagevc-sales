@@ -365,3 +365,15 @@ describe('phase77 vault RLS + manager picker', () => {
     expect(graph).toContain('people picker');
   });
 });
+
+describe('automation mode labels', () => {
+  it('maps automation enum to operator-facing copy', async () => {
+    const { automationModeLabel, automationModeHint } = await import('./types');
+    expect(automationModeLabel('manual')).toBe('Manual');
+    expect(automationModeLabel('assist')).toBe('Assist');
+    expect(automationModeLabel('auto')).toBe('Auto');
+    expect(automationModeHint('assist', 'graph_provision')).toContain(
+      'graph_provision',
+    );
+  });
+});

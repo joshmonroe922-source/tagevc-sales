@@ -277,3 +277,35 @@ export function statusLabel(status: string): string {
 export function completionLabel(pct: number): string {
   return `${Math.round(pct)}%`;
 }
+
+/** Human-readable automation mode for checklist steps (template + run rows). */
+export function automationModeLabel(
+  automation: HrisAutomation | string | null | undefined,
+): string {
+  switch (automation) {
+    case 'auto':
+      return 'Auto';
+    case 'assist':
+      return 'Assist';
+    case 'manual':
+    default:
+      return 'Manual';
+  }
+}
+
+/** Short hint for operators — what happens when a step is marked done. */
+export function automationModeHint(
+  automation: HrisAutomation | string | null | undefined,
+  systemHook: string | null | undefined,
+): string {
+  if (automation === 'auto') {
+    return 'System-owned; may complete without a human click when wired.';
+  }
+  if (automation === 'assist' && systemHook) {
+    return `Mark done to run assist (${systemHook}); evidence may be written back.`;
+  }
+  if (automation === 'assist') {
+    return 'Mark done to trigger an assist when a hook is configured.';
+  }
+  return 'Human completes and marks done (or waives).';
+}

@@ -33,6 +33,8 @@ import { recruitPeopleHref } from '@/lib/hris/recruit-hook';
 import { isStepOverdue } from '@/lib/hris/timing';
 import type { HrisDocumentRow } from '@/lib/hris/documents';
 import {
+  automationModeHint,
+  automationModeLabel,
   bonusSummary,
   completionLabel,
   statusLabel,
@@ -740,6 +742,17 @@ export function HrisEmployeeDetailClient({
                         {overdue ? (
                           <Badge variant="destructive">Overdue</Badge>
                         ) : null}
+                        <Badge
+                          variant={
+                            step.automation === 'manual' ? 'secondary' : 'outline'
+                          }
+                          title={automationModeHint(
+                            step.automation,
+                            step.system_hook,
+                          )}
+                        >
+                          {automationModeLabel(step.automation)}
+                        </Badge>
                         <Badge variant="outline">
                           {statusLabel(step.status)}
                         </Badge>
