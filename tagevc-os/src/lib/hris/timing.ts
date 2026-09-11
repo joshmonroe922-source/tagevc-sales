@@ -47,13 +47,48 @@ export function computeDueDate(input: {
   return addDays(anchor.slice(0, 10), input.offset_days);
 }
 
+export const HRIS_DUE_SOON_DAYS = 7;
+
+const OPEN_STEP_STATUSES = ['pending', 'in_progress', 'blocked'] as const;
+
+export function isHrisStepOpen(status: string): boolean {
+  return (OPEN_STEP_STATUSES as readonly string[]).includes(status);
+}
+
 export function isStepOverdue(step: {
   due_at: string | null;
   status: string;
 }, today: string = new Date().toISOString().slice(0, 10)): boolean {
   if (!step.due_at) return false;
-  if (['done', 'waived', 'na'].includes(step.status)) return false;
+  if (!isHrisStepOpen(step.status)) return false;
   return step.due_at.slice(0, 10) < today;
+}
+
+/** Due-today / due-soon classification for cadence pings (America/Eastern calendar day via UTC date slice). */
+export function classifyHrisStepDue(
+  step: { due_at: string | null; status: string },
+  today: string = new Date().toISOString().slice(0, 10),
+  dueSoonDays: number = HRIS_DUE_SOON_DAYS,
+): {
+  closed: boolean;
+  overdue: boolean;
+  due_today: boolean;
+  due_soon: boolean;
+} {
+  const due = step.due_at?.slice(0, 10) ?? null;
+  if (!due || !isHrisStepOpen(step.status)) {
+    return {
+      closed: true,
+      overdue: false,
+      due_today: false,
+      due_soon: false,
+    };
+  }
+  const overdue = due < today;
+  const due_today = due === today;
+  const soonEnd = addDays(today, dueSoonDays);
+  const due_soon = !overdue && !due_today && due > today && due <= soonEnd;
+  return { closed: false, overdue, due_today, due_soon };
 }
 
 export function completionPct(

@@ -33,7 +33,8 @@ async function authorize(request: Request): Promise<
 
 function parseKind(request: Request): HrisCadenceKind {
   const raw = new URL(request.url).searchParams.get('kind')?.trim() ?? 'full';
-  if (raw === 'timing' || raw === 'escalate' || raw === 'full') return raw;
+  if (raw === 'timing' || raw === 'escalate' || raw === 'full' || raw === 'digest')
+    return raw;
   return 'full';
 }
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   addDays,
   assertRevokeFirstOrder,
+  classifyHrisStepDue,
   completionPct,
   computeDueDate,
   isStepOverdue,
@@ -55,6 +56,27 @@ describe('hris timing', () => {
     expect(
       isStepOverdue({ due_at: '2026-07-01', status: 'done' }, '2026-07-24'),
     ).toBe(false);
+  });
+
+  it('classifies due today and due soon', () => {
+    expect(
+      classifyHrisStepDue(
+        { due_at: '2026-07-24', status: 'pending' },
+        '2026-07-24',
+      ),
+    ).toMatchObject({ due_today: true, due_soon: false, overdue: false });
+    expect(
+      classifyHrisStepDue(
+        { due_at: '2026-07-28', status: 'in_progress' },
+        '2026-07-24',
+      ),
+    ).toMatchObject({ due_soon: true, due_today: false });
+    expect(
+      classifyHrisStepDue(
+        { due_at: '2026-07-20', status: 'pending' },
+        '2026-07-24',
+      ),
+    ).toMatchObject({ overdue: true });
   });
 
   it('computes completion percent', () => {
@@ -363,6 +385,20 @@ describe('phase77 vault RLS + manager picker', () => {
     );
     expect(graph).toContain('Document vault RLS');
     expect(graph).toContain('people picker');
+  });
+});
+
+describe('hris cadence notify config', () => {
+  it('defaults digest email to Josh work mail', async () => {
+    delete process.env.HRIS_CADENCE_NOTIFY_EMAIL;
+    const { hrisCadenceNotifyEmails, hrisCadenceEmailEnabled } = await import(
+      './due-digest'
+    );
+    expect(hrisCadenceEmailEnabled()).toBe(true);
+    expect(hrisCadenceNotifyEmails()).toEqual(['joshmonroe@tagevc.com']);
+    process.env.HRIS_CADENCE_EMAIL = '0';
+    expect(hrisCadenceEmailEnabled()).toBe(false);
+    delete process.env.HRIS_CADENCE_EMAIL;
   });
 });
 

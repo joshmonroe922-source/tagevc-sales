@@ -26,19 +26,16 @@ The employee detail UI shows an **Manual / Assist / Auto** badge per step (toolt
 1. **Create employee** (`createHrisEmployeeAction`) with `auto_start_onboarding: true` → `startProcessRun({ kind: 'onboarding' })`.
 2. Template slug: entity-specific (`signent-onboarding-v1`, `inda-onboarding-v1`, …) else fallback **`r619-onboarding-v1`** (~44 steps).
 3. **IT mirror:** fail-soft link to IT onboarding run (`linkItChildRun`, `auto_execute: false`).
-4. **Cadence:** `GET/POST /api/hris/cadence-worker` (cron secret) retimes due dates and **escalates overdue** steps to **P1 HR tickets** (`escalateOverdueHrisSteps` → Help Desk / Alerts).
+4. **Cadence:** `GET/POST /api/hris/cadence-worker` (cron secret) retimes due dates, **escalates overdue** steps to **P1 HR tickets** + **Alerts**, and on the daily **full** run sends a **due-today / due-soon email digest** to HR desk recipients (Josh by default).
 
 ## Manual step pings (current + recommended)
 
 | Channel | Today | Fit |
 | --- | --- | --- |
-| **Help Desk tickets** | Overdue steps → `[HRIS overdue]` P1 ticket + `escalated_ticket_id` on step | Already in stack; shows in Alerts |
-| **Platform email (Graph / Resend)** | Joiner invite to personal email after Graph provision | Use for owner-role “step due today” digests |
-| **In-app Alerts bell** | Ticket-driven | Primary operator surface |
-| **Slack** | Not wired for HRIS steps | Optional webhook on escalate only |
-| **Cursor automation** | N/A for hires | Use for internal eng tasks, not employee onboarding |
-
-Recommended next ping: **due-today digest** to step `owner_role` (email) + ticket if still open after due date (cadence already handles overdue).
+| **Help Desk tickets** | Overdue steps → `[HRIS overdue]` P1 ticket + `escalated_ticket_id` on step | Hard guarantee |
+| **In-app Alerts bell** | Overdue + due-today per step; daily digest summary (`writeHrisNotifications` → `app_notifications`, kind `hris_ops`) | Primary operator surface (Josh / firm SSC roles) |
+| **Platform email (Graph / Resend)** | Daily digest `[Tage OS] HR onboarding · …` to `HRIS_CADENCE_NOTIFY_EMAIL` (default `joshmonroe@tagevc.com`) | Due today + due within 7 days |
+| **Slack** | Not wired for HRIS steps | Optional later |
 
 ## Code map
 
@@ -46,4 +43,21 @@ Recommended next ping: **due-today digest** to step `owner_role` (email) + ticke
 - Run lifecycle: `src/lib/hris/runs.ts`
 - Assists: `src/lib/hris/step-assists.ts`
 - Escalation: `src/lib/hris/escalate.ts`
+- Due digest + email: `src/lib/hris/due-digest.ts`, `src/lib/hris/notify.ts`
 - Cadence: `src/lib/hris/cadence-runner.ts`, `src/app/api/hris/cadence-worker/route.ts`
+
+### Cron (Vercel)
+
+| Job | Schedule (UTC) | Path |
+| --- | --- | --- |
+| HRIS full (retime + digest email + overdue escalate) | `30 6 * * *` | `/api/hris/cadence-worker?kind=full` |
+| HRIS escalate only (overdue tickets + Alerts) | `35 */4 * * *` | `/api/hris/cadence-worker?kind=escalate` |
+
+### Env
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `HRIS_CADENCE_EMAIL` | `1` | Set `0` to disable digest email |
+| `HRIS_CADENCE_NOTIFY_EMAIL` | `joshmonroe@tagevc.com` | Comma-separated digest recipients |
+| `DIGEST_SECRET` / `CRON_SECRET` | — | Authorize manual/cron POST when not using bare `x-vercel-cron` |
+| Graph / `RESEND_API_KEY` | — | `sendPlatformEmail` transport for digest |
