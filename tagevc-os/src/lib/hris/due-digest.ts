@@ -90,7 +90,19 @@ export async function runHrisDueDigest(opts?: {
       .in('status', ['pending', 'in_progress', 'blocked'])
       .limit(80);
 
+    const { data: overdueSteps } = await sb
+      .from('os_hris_process_steps')
+      .select(
+        'id, title, due_at, status, owner_role, category, escalated_ticket_id, os_hris_process_runs!inner(kind, os_hris_employees!inner(id, full_name, entity_id))',
+      )
+      .lt('due_at', today)
+      .in('status', ['pending', 'in_progress', 'blocked'])
+      .limit(40);
+
     const rows = (steps ?? []) as unknown as StepRow[];
+    const overdueRows = (overdueSteps ?? []) as unknown as (StepRow & {
+      escalated_ticket_id?: string | null;
+    })[];
     result.scanned = rows.length;
 
     const dueTodayRows: StepRow[] = [];
@@ -126,7 +138,9 @@ export async function runHrisDueDigest(opts?: {
 
     if (
       hrisCadenceEmailEnabled() &&
-      (dueTodayRows.length > 0 || dueSoonRows.length > 0)
+      (dueTodayRows.length > 0 ||
+        dueSoonRows.length > 0 ||
+        overdueRows.length > 0)
     ) {
       const emailWindow = `hris-digest-email:${today}`;
       const { data: priorDigest } = await sb
@@ -139,6 +153,7 @@ export async function runHrisDueDigest(opts?: {
         const subjectParts = [
           dueTodayRows.length ? `${dueTodayRows.length} due today` : null,
           dueSoonRows.length ? `${dueSoonRows.length} due soon` : null,
+          overdueRows.length ? `${overdueRows.length} overdue` : null,
         ].filter(Boolean);
         const subject = `[Tage OS] HR onboarding · ${subjectParts.join(' · ')}`;
         const appUrl = platformEmailAppUrl();
@@ -155,6 +170,17 @@ export async function runHrisDueDigest(opts?: {
           lines.push(
             `Due within ${HRIS_DUE_SOON_DAYS} days:`,
             ...dueSoonRows.map(formatDigestLine),
+            '',
+          );
+        }
+        if (overdueRows.length) {
+          lines.push(
+            'Overdue (P1 tickets on escalate cadence):',
+            ...overdueRows.map((row) => {
+              const base = formatDigestLine(row);
+              const tid = row.escalated_ticket_id?.trim();
+              return tid ? `${base} · ticket ${tid}` : base;
+            }),
             '',
           );
         }
