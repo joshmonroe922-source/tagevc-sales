@@ -17,7 +17,12 @@ describe('Assets + COO / Subsidiary Leader nav gates', () => {
     expect(labels).not.toContain('C-Suite');
     expect(labels).not.toContain('Command Center');
     expect(labels).not.toContain('Firm');
-    expect(labels).not.toContain('Business Development');
+    expect(labels).not.toContain('Personal');
+    // No Shared Services desks (A&F / HR / Technology / Marketing / Legal).
+    expect(labels).not.toContain('Shared Services');
+    // Full BD + Grow are in scope for the subsidiaries COO.
+    expect(labels).toContain('Business Development');
+    expect(labels).toContain('Grow');
     expect(labels).toContain('Assets');
     expect(labels).toContain('Home');
     expect(labels).toContain('Dashboard');
@@ -25,6 +30,29 @@ describe('Assets + COO / Subsidiary Leader nav gates', () => {
     const assets = items.find((i) => i.label === 'Assets');
     const childLabels = assets?.children?.map((c) => c.label) ?? [];
     expect(childLabels).toEqual(['Businesses', 'Real Estate']);
+
+    const bd = items.find((i) => i.label === 'Business Development');
+    expect(bd?.children?.map((c) => c.label)).toEqual([
+      'Lead Intake',
+      'Deal Flow',
+      'My Networking Contacts',
+    ]);
+
+    const grow = items.find((i) => i.label === 'Grow');
+    expect(grow?.children?.map((c) => c.label)).toEqual([
+      'Tage VC Performance Management',
+      'Training & Development',
+    ]);
+  });
+
+  it('keeps Grow for SSC roles that still hold shared services access', () => {
+    // Grow moved to its own `grow` module — HR must not regress.
+    const items = filterNavForRole(MAIN_NAV, {
+      role: 'ssc_hr',
+      realRole: 'ssc_hr',
+      entityId: 'ENT-FIRM',
+    });
+    expect(items.map((i) => i.label)).toContain('Grow');
   });
 
   it('collapses Assets to the selected company while Visionary works in an entity OS', () => {

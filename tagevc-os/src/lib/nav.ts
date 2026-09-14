@@ -257,7 +257,7 @@ export const MAIN_NAV: NavItem[] = [
     module: 'deal_flow_vc',
     label: 'Business Development',
     description: 'Leads and deal pipelines',
-    hiddenForRoles: ['coo', ...HIDE_FOR_ADMIN, ...HIDE_FOR_SSC],
+    hiddenForRoles: [...HIDE_FOR_ADMIN, ...HIDE_FOR_SSC],
     children: [
       {
         module: 'deal_flow_vc',
@@ -266,7 +266,6 @@ export const MAIN_NAV: NavItem[] = [
         description: 'Incoming opportunities',
         /** Associate / VC Sourcer: BD collapses to VC + M&A sourcing portals. */
         hiddenForRoles: [
-          'coo',
           'associate',
           'ma_associate',
           're_sourcer',
@@ -280,7 +279,6 @@ export const MAIN_NAV: NavItem[] = [
         label: 'Deal Flow',
         description: 'VC · M&A · Real Estate',
         hiddenForRoles: [
-          'coo',
           'associate',
           'ma_associate',
           're_sourcer',
@@ -299,7 +297,6 @@ export const MAIN_NAV: NavItem[] = [
          * Roles that lose BD still have the global nav entry.
          */
         hiddenForRoles: [
-          'coo',
           'associate',
           'ma_associate',
           're_sourcer',
@@ -320,6 +317,12 @@ export const MAIN_NAV: NavItem[] = [
     label: 'Shared Services',
     description:
       'SSC Task List · Tage VC A&F · Human Resources · Vendor Management · Technology · Marketing · Legal · Admin',
+    /**
+     * COO of Subsidiaries has no SSC desks. Needed explicitly because the
+     * accordion has no href and its SSC Task List child is `command_center`,
+     * so the parent would otherwise survive on that child alone.
+     */
+    hiddenForRoles: ['coo'],
     children: [
       {
         module: 'command_center',
@@ -671,8 +674,12 @@ export const MAIN_NAV: NavItem[] = [
     ],
   },
   {
-    /** Grow spine — Performance Management + Training & Development (all entity OS clones). */
-    module: 'shared_services',
+    /**
+     * Grow spine — Performance Management + Training & Development (all entity
+     * OS clones). Uses the `grow` module, not `shared_services`, so roles can
+     * hold Grow without any SSC desk access (e.g. COO of Subsidiaries).
+     */
+    module: 'grow',
     label: 'Grow',
     description: 'Performance · training & development',
     hiddenForRoles: [
@@ -681,7 +688,7 @@ export const MAIN_NAV: NavItem[] = [
     ],
     children: [
       {
-        module: 'shared_services',
+        module: 'grow',
         href: '/eos',
         label: 'Tage VC Performance Management',
         description: 'Rocks · scorecard · IDS · L10 · V/TO · rollup',
@@ -691,7 +698,7 @@ export const MAIN_NAV: NavItem[] = [
         ],
       },
       {
-        module: 'shared_services',
+        module: 'grow',
         href: '/training',
         label: 'Training & Development',
         description: 'LMS · courses · progress',

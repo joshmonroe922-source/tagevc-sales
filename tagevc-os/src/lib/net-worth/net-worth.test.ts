@@ -205,13 +205,16 @@ describe('phase73 nav + sql + api surfaces', () => {
     expect(credit?.hiddenForRoles).toContain('think_tank');
   });
 
-  it('hides Command Center, Firm, and BD for COO role in nav config', () => {
+  it('hides Command Center, Firm, and Shared Services for COO role in nav config', () => {
     const commandCenter = MAIN_NAV.find((n) => n.label === 'Command Center');
     const firm = MAIN_NAV.find((n) => n.label === 'Firm');
+    const ssc = MAIN_NAV.find((n) => n.label === 'Shared Services');
     const bd = MAIN_NAV.find((n) => n.label === 'Business Development');
     expect(commandCenter?.hiddenForRoles).toContain('coo');
     expect(firm?.hiddenForRoles).toContain('coo');
-    expect(bd?.hiddenForRoles).toContain('coo');
+    expect(ssc?.hiddenForRoles).toContain('coo');
+    // COO of Subsidiaries owns BD outright.
+    expect(bd?.hiddenForRoles ?? []).not.toContain('coo');
   });
 
   it('ships SQL migration and permission API routes', () => {

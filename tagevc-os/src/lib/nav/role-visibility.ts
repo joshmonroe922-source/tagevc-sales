@@ -1,8 +1,10 @@
 /**
  * Role-aware nav filtering (impersonation / Live Look effective role).
  *
- * - COO: `hiddenForRoles` hides Command Center / Firm / BD; Assets keeps
- *   Businesses + Real Estate (Investments / Net Worth are Visionary-only).
+ * - COO (Subsidiaries): `hiddenForRoles` hides Command Center / Firm / Shared
+ *   Services; Assets keeps Businesses + Real Estate (Investments / Net Worth
+ *   are Visionary-only). Full BD (Lead Intake + Deal Flow + Networking) and
+ *   Grow via the `grow` module — no SSC desks, incl. Technology / Marketing.
  * - Subsidiary Leader: NO multi-company Assets — single top-level nav entry
  *   labeled with their led entity (e.g. "Recruit 619") → company overview.
  *   C-Suite + Command Center stay hidden. Assignment lists stay single-company.

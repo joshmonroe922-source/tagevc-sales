@@ -69,6 +69,8 @@ export const NAV_MODULES = [
   'deal_flow_re',
   'portfolio',
   'shared_services',
+  /** Grow spine (Performance Management + Training) — separate from SSC desks. */
+  'grow',
   'firm',
   'documents',
   'admin',
@@ -90,6 +92,7 @@ export type Permission =
   | 'write:portfolio_health'
   | 'read:shared_services'
   | 'write:shared_services'
+  | 'read:grow'
   | 'read:firm'
   | 'write:capital'
   | 'read:documents'
@@ -117,6 +120,7 @@ const ALL_READ: Permission[] = [
   'read:re_pipeline',
   'read:portfolio',
   'read:shared_services',
+  'read:grow',
   'read:firm',
   'read:documents',
 ];
@@ -128,6 +132,7 @@ const SSC_BASE: Permission[] = [
   'write:messages',
   'read:shared_services',
   'write:shared_services',
+  'read:grow',
   'read:documents',
   'write:documents',
 ];
@@ -202,22 +207,28 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     'write:ma_pipeline',
     'read:documents',
   ],
+  /**
+   * COO (Subsidiaries): all-subsidiary operating access + full BD pipelines.
+   * No Shared Services desks (incl. Technology / Marketing), no Firm, and no
+   * C-Suite / Investments / Net Worth / Personal (visionaryOnly in nav).
+   * Grow comes from `read:grow` so it survives without SSC access.
+   * `read:command_center` is kept only for Home + My Networking Contacts —
+   * the Command Center section is hidden via `hiddenForRoles`.
+   */
   coo: [
     'read:command_center',
     'read:messages',
     'write:messages',
+    'read:vc_pipeline',
+    'write:vc_pipeline',
+    'read:ma_pipeline',
+    'write:ma_pipeline',
+    'read:re_pipeline',
+    'write:re_pipeline',
     'read:portfolio',
     'write:portfolio_health',
-    'read:shared_services',
-    'write:shared_services',
-    'read:firm',
+    'read:grow',
     'read:documents',
-    'read:it_assets',
-    'write:it_assets',
-    'read:marketing',
-    'write:marketing',
-    'action:intune_retire',
-    'action:intune_manual_review',
   ],
   sub_lead: [
     'read:command_center',
@@ -293,6 +304,7 @@ export function roleCanAccessModule(role: AppRole, module: NavModule): boolean {
     deal_flow_re: 'read:re_pipeline',
     portfolio: 'read:portfolio',
     shared_services: 'read:shared_services',
+    grow: 'read:grow',
     firm: 'read:firm',
     documents: 'read:documents',
     admin: 'admin:users',
