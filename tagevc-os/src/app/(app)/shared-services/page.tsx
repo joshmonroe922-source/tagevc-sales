@@ -37,8 +37,7 @@ import {
 import { SloPolicyAdmin } from '@/components/shared-services/slo-policy-admin';
 import { listSloPolicyAdministration } from '@/lib/shared-services/slo-policy';
 import { getSscHubGlance } from '@/lib/shared-services/ssc-checklist/hub-glance';
-import { ensurePeriodInstances, seedAllCompanyAudits } from '@/lib/shared-services/ssc-checklist/engine';
-import { escalateOverdueSscTasks } from '@/lib/shared-services/ssc-checklist/escalate';
+import { scheduleSscSelfHeal } from '@/lib/shared-services/ssc-checklist/self-heal';
 import { VIEW_MODE_DEFAULTS } from '@/lib/view-mode';
 
 type Props = {
@@ -74,21 +73,9 @@ export default async function SharedServicesPage({ searchParams }: Props) {
       )
     : false;
 
-  // Best-effort: ensure current+next monthly instances, audits, escalations (parallel)
-  try {
-    await Promise.all([
-      ensurePeriodInstances({
-        function: 'all',
-        period_type: 'monthly',
-        scope_mode: 'parent_subs',
-        include_next: true,
-      }),
-      seedAllCompanyAudits(),
-    ]);
-    await escalateOverdueSscTasks({ actorId: ctx?.profile.id ?? null });
-  } catch {
-    // fail-soft — hub still loads
-  }
+  // Cadence generation, audit seeding, and escalation run after the response —
+  // the crons in vercel.json own this work. See `scheduleSscSelfHeal`.
+  scheduleSscSelfHeal(ctx?.profile.id ?? null);
 
   const [
     tickets,

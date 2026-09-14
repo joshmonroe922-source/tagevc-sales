@@ -169,8 +169,14 @@ export async function getSscPeriodTrends(input: {
   history?: number;
 }): Promise<SscFunctionTrend[]> {
   const history = input.history ?? 6;
-  // Ensure current history captured from live instances
-  await capturePeriodTrends({ ...input, history });
+
+  // Read-only on purpose. This used to call capturePeriodTrends first, which
+  // walks `history` periods and upserts one row per function per period —
+  // roughly 66 sequential round trips before a single byte of the Shared
+  // Services hub could render, on every page view. Capture is cron work
+  // (`/api/ssc/cadence-worker?kind=trends`, which covers every period type and
+  // scope, not just this caller's). A page asking "what are the trends" should
+  // not be the thing that computes them.
 
   try {
     const supabase = await createPersistClient();

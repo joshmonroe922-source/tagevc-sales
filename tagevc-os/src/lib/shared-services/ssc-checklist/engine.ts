@@ -580,6 +580,42 @@ async function loadAuditById(id: string): Promise<SscAuditRow | null> {
   }
 }
 
+/**
+ * Sum of open audit items for a scope, in one query.
+ *
+ * `listAuditsForScope` is the wrong tool for a summary number: it ensures two
+ * audits per entity, then hydrates every audit and every one of its items
+ * (drafting AI findings and writing recomputed counts back) — about 10s on the
+ * hub — so a caller can reduce it all down to a single integer.
+ *
+ * `open_item_count` is a stored column that both `loadAuditById` and the
+ * cadence cron keep current, so summing it is the head-count equivalent. A
+ * glance can be a period stale; the audit detail view still recomputes on open.
+ */
+export async function sumOpenAuditItemsForScope(input: {
+  scope_mode: SscScopeMode;
+  single_entity_id?: string | null;
+}): Promise<number> {
+  try {
+    const entityIds = resolveScopeEntityIds(
+      input.scope_mode,
+      input.single_entity_id,
+    );
+    if (!entityIds.length) return 0;
+    const supabase = await createPersistClient();
+    const { data } = await supabase
+      .from('os_ssc_audits')
+      .select('open_item_count')
+      .in('entity_id', entityIds);
+    return (data ?? []).reduce(
+      (sum, row) => sum + Number(row.open_item_count ?? 0),
+      0,
+    );
+  } catch {
+    return 0;
+  }
+}
+
 export async function listAuditsForScope(input: {
   scope_mode: SscScopeMode;
   single_entity_id?: string | null;

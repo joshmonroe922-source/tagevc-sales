@@ -4,7 +4,7 @@
 
 import { createPersistClient } from '@/lib/supabase/persist-client';
 import { getLatestCadenceRun } from './cadence-runner';
-import { listAuditsForScope } from './engine';
+import { sumOpenAuditItemsForScope } from './engine';
 import { periodBounds } from './period';
 import {
   getSscPeriodTrends,
@@ -73,7 +73,7 @@ export async function getSscHubGlance(): Promise<SscHubGlance> {
         history: 6,
       }),
       getLatestCadenceRun(),
-      listAuditsForScope({ scope_mode: 'parent_subs' }),
+      sumOpenAuditItemsForScope({ scope_mode: 'parent_subs' }),
     ]);
 
     const inst = instancesRes.data ?? [];
@@ -104,7 +104,7 @@ export async function getSscHubGlance(): Promise<SscHubGlance> {
       }
     }
 
-    const auditOpen = audits.reduce((s, a) => s + a.open_item_count, 0);
+    const auditOpen = audits;
     const pct = total === 0 ? 0 : Math.round((done / total) * 100);
     const risk_badge =
       overdue > 0 || blocked > 3 || pct < 40

@@ -96,4 +96,36 @@ describe('Tage OS first-paint speed', () => {
       /listScopedActiveLeads/,
     );
   });
+
+  /**
+   * The Shared Services hub took 46s warm because three layers each did cron
+   * work on the render path: the page awaited period generation, audit seeding
+   * and escalation; the trends reader captured six periods of history first;
+   * and the hub summary hydrated every audit and item to sum one integer.
+   * `/api/ssc/cadence-worker` already owns all of it on a schedule.
+   */
+  it('SSC hub does not run cadence writes on the render path', () => {
+    const page = read('src/app/(app)/shared-services/page.tsx');
+    assert.match(page, /scheduleSscSelfHeal/);
+    assert.doesNotMatch(page, /await ensurePeriodInstances/);
+    assert.doesNotMatch(page, /seedAllCompanyAudits/);
+    assert.doesNotMatch(page, /await escalateOverdueSscTasks/);
+
+    const selfHeal = read(
+      'src/lib/shared-services/ssc-checklist/self-heal.ts',
+    );
+    assert.match(selfHeal, /from 'next\/server'/);
+    assert.match(selfHeal, /after\(/);
+    assert.match(selfHeal, /SELF_HEAL_TTL_MS/);
+  });
+
+  it('SSC trends read does not capture, and the glance counts instead of hydrating', () => {
+    const trends = read('src/lib/shared-services/ssc-checklist/trends.ts');
+    const reader = trends.slice(trends.indexOf('export async function getSscPeriodTrends'));
+    assert.doesNotMatch(reader, /await capturePeriodTrends/);
+
+    const glance = read('src/lib/shared-services/ssc-checklist/hub-glance.ts');
+    assert.match(glance, /sumOpenAuditItemsForScope/);
+    assert.doesNotMatch(glance, /listAuditsForScope/);
+  });
 });
