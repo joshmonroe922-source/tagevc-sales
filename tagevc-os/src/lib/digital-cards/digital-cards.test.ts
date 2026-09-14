@@ -18,6 +18,7 @@ import { buildExchangeIdempotencyKey } from './exchange';
 import { generatePublicId } from './public-id';
 import {
   DIGITAL_CARD_PHOTO_MAX_BYTES,
+  DIGITAL_CARD_PHOTO_MIME,
   validateDigitalCardPhoto,
 } from './photo-upload-shared';
 import type { DigitalCardPersona } from './types';
@@ -315,6 +316,39 @@ describe('wallet passes (case 11)', () => {
         sizeBytes: DIGITAL_CARD_PHOTO_MAX_BYTES + 1,
       }).ok,
       false,
+    );
+  });
+
+  /**
+   * The bucket shipped missing for every user until phase111, so headshot
+   * uploads failed with "Photo storage unavailable" club-wide. Guard the two
+   * properties that silently break it again: a private bucket makes
+   * getPublicUrl return a URL that will not load for card visitors, and a MIME
+   * accepted by the app but absent from the bucket allowlist is rejected only
+   * at upload time.
+   */
+  it('declares an os-uploads bucket that accepts every allowed photo mime', () => {
+    const bucketSql = readFileSync(
+      join(process.cwd(), 'supabase/phase111_os_uploads_bucket.sql'),
+      'utf8',
+    );
+
+    assert.match(bucketSql, /'os-uploads',\s*'os-uploads',\s*true/);
+    assert.ok(
+      bucketSql.includes('bucket_id = \'os-uploads\''),
+      'expected storage.objects policies scoped to the bucket',
+    );
+
+    for (const mime of DIGITAL_CARD_PHOTO_MIME) {
+      assert.ok(
+        bucketSql.includes(`'${mime}'`),
+        `bucket allowlist is missing ${mime}`,
+      );
+    }
+
+    assert.ok(
+      DIGITAL_CARD_PHOTO_MAX_BYTES <= 10_485_760,
+      'app photo cap must fit inside the bucket file_size_limit',
     );
   });
 });
