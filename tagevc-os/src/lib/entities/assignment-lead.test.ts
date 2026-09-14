@@ -104,6 +104,28 @@ describe('assignment-to-lead (Assets Businesses / RE)', () => {
     ).toBe(false);
   });
 
+  it('COO of Subsidiaries sees all three operating companies', () => {
+    // Registry parity with phase110 — a null coo_owner silently hides the row,
+    // which is what limited the COO to Recruit 619.
+    const subsidiaries = ['ENT-R619', 'ENT-SIGNENT', 'ENT-INDA'].map((id) => ({
+      entity_id: id,
+      coo_owner: 'COO — Ops Lead' as string | null,
+      parent_entity_id: 'ENT-FIRM' as string | null,
+    }));
+
+    const visible = filterEntitiesAssignedToLead(subsidiaries, {
+      role: 'coo',
+      profileEntityId: 'ENT-FIRM',
+      profileFullName: 'Kelly Hipskind',
+    });
+
+    expect(visible.map((e) => e.entity_id)).toEqual([
+      'ENT-R619',
+      'ENT-SIGNENT',
+      'ENT-INDA',
+    ]);
+  });
+
   it('filterEntitiesAssignedToLead is a no-op for firm-wide roles', () => {
     const rows = [
       {
