@@ -58,15 +58,18 @@ function orderedBar(primaryId) {
 
 function render({ fullName, jobTitle, email, companyLine, entityId, phone }) {
   const primary = PORTFOLIO.find((p) => p.id === entityId) || PORTFOLIO[0];
+  // Navy contact lines first, gold site link last — keeps Josh's visual rhythm.
   const contact = [
     `<a href="mailto:${email}" style="color:${NAVY};text-decoration:none;">${email}</a>`,
-    `<a href="${primary.href}" style="color:${GOLD};text-decoration:none;" target="_blank">${primary.href.replace(/^https?:\/\//, '').replace(/\/$/, '')}</a>`,
   ];
   if (phone) {
     contact.push(
-      `<a href="tel:${phone.replace(/[^\\d+]/g, '')}" style="color:${NAVY};text-decoration:none;">${phone}</a>`,
+      `<a href="tel:${phone.replace(/[^\d+]/g, '')}" style="color:${NAVY};text-decoration:none;">${phone}</a>`,
     );
   }
+  contact.push(
+    `<a href="${primary.href}" style="color:${GOLD};text-decoration:none;" target="_blank">${primary.href.replace(/^https?:\/\//, '').replace(/\/$/, '')}</a>`,
+  );
   const body = `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;font-family:Calibri,Arial,Helvetica,sans-serif;font-size:14px;line-height:1.35;color:${NAVY};">
   <tr>
     <td style="padding:0 0 10px 0;">
@@ -132,6 +135,14 @@ const people = [
     companyLine: 'Tage VC',
     entityId: 'ENT-FIRM',
   },
+  {
+    fullName: 'Kelly Hipskind',
+    jobTitle: 'COO',
+    email: 'kellyhipskind@tagevc.com',
+    companyLine: 'Tage VC',
+    entityId: 'ENT-FIRM',
+    phone: '317-919-0229',
+  },
 ];
 
 for (const person of people) {
@@ -174,6 +185,7 @@ const readme = `# Email Signatures
 
 - **Josh Monroe** (Founder / CEO) — \`joshmonroe@tagevc.com\` / ENT-FIRM
 - **Lauren Monroe** (Principal Strategist) — \`laurenmonroe@tagevc.com\` / ENT-FIRM
+- **Kelly Hipskind** (COO) — \`kellyhipskind@tagevc.com\` / ENT-FIRM · cell 317-919-0229
 
 1. Open \`{Name} Email Signature.html\` in Chrome/Safari (double-click).
 2. Select all (⌘A) → Copy (⌘C).

@@ -4,6 +4,7 @@
 
 - **Josh Monroe** (Founder / CEO) — `joshmonroe@tagevc.com` / ENT-FIRM
 - **Lauren Monroe** (Principal Strategist) — `laurenmonroe@tagevc.com` / ENT-FIRM
+- **Kelly Hipskind** (COO) — `kellyhipskind@tagevc.com` / ENT-FIRM · cell 317-919-0229
 
 1. Open `{Name} Email Signature.html` in Chrome/Safari (double-click).
 2. Select all (⌘A) → Copy (⌘C).
