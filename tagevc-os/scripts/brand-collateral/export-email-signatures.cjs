@@ -143,6 +143,29 @@ const people = [
     entityId: 'ENT-FIRM',
     phone: '317-919-0229',
   },
+  {
+    fullName: 'Dennis McCall',
+    jobTitle: 'VP of Recruiting',
+    email: 'dennismccall@recruit619.com',
+    companyLine: 'Recruit 619',
+    entityId: 'ENT-R619',
+  },
+  {
+    fullName: 'Ginger Claremohr',
+    jobTitle: 'Recruiter',
+    email: 'gingerclaremohr@recruit619.com',
+    companyLine: 'Recruit 619',
+    entityId: 'ENT-R619',
+    phone: '(619) 555-0100',
+  },
+  {
+    fullName: 'Ian Hobson',
+    jobTitle: 'Recruiter',
+    email: 'ianhobson@recruit619.com',
+    companyLine: 'Recruit 619',
+    entityId: 'ENT-R619',
+    phone: '(619) 555-0100',
+  },
 ];
 
 for (const person of people) {
@@ -186,6 +209,9 @@ const readme = `# Email Signatures
 - **Josh Monroe** (Founder / CEO) — \`joshmonroe@tagevc.com\` / ENT-FIRM
 - **Lauren Monroe** (Principal Strategist) — \`laurenmonroe@tagevc.com\` / ENT-FIRM
 - **Kelly Hipskind** (COO) — \`kellyhipskind@tagevc.com\` / ENT-FIRM · cell 317-919-0229
+- **Dennis McCall** (VP of Recruiting) — \`dennismccall@recruit619.com\` / ENT-R619
+- **Ginger Claremohr** (Recruiter) — \`gingerclaremohr@recruit619.com\` / ENT-R619 · placeholder (619) 555-0100
+- **Ian Hobson** (Recruiter) — \`ianhobson@recruit619.com\` / ENT-R619 · placeholder (619) 555-0100
 
 1. Open \`{Name} Email Signature.html\` in Chrome/Safari (double-click).
 2. Select all (⌘A) → Copy (⌘C).

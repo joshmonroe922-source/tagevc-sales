@@ -5,6 +5,9 @@
 - **Josh Monroe** (Founder / CEO) — `joshmonroe@tagevc.com` / ENT-FIRM
 - **Lauren Monroe** (Principal Strategist) — `laurenmonroe@tagevc.com` / ENT-FIRM
 - **Kelly Hipskind** (COO) — `kellyhipskind@tagevc.com` / ENT-FIRM · cell 317-919-0229
+- **Dennis McCall** (VP of Recruiting) — `dennismccall@recruit619.com` / ENT-R619
+- **Ginger Claremohr** (Recruiter) — `gingerclaremohr@recruit619.com` / ENT-R619 · placeholder (619) 555-0100
+- **Ian Hobson** (Recruiter) — `ianhobson@recruit619.com` / ENT-R619 · placeholder (619) 555-0100
 
 1. Open `{Name} Email Signature.html` in Chrome/Safari (double-click).
 2. Select all (⌘A) → Copy (⌘C).

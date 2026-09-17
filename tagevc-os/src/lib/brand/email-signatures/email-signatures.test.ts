@@ -77,6 +77,35 @@ describe('email signature portfolio bar', () => {
     ).toBe(true);
   });
 
+  it('renders Recruit 619 recruiter signatures like Dennis — employer first, placeholder phone', () => {
+    for (const person of [
+      {
+        fullName: 'Ginger Claremohr',
+        jobTitle: 'Recruiter',
+        email: 'gingerclaremohr@recruit619.com',
+      },
+      {
+        fullName: 'Ian Hobson',
+        jobTitle: 'Recruiter',
+        email: 'ianhobson@recruit619.com',
+      },
+    ]) {
+      const html = renderEmailSignatureHtml({
+        ...person,
+        entityId: 'ENT-R619',
+        companyLine: 'Recruit 619',
+        phone: '(619) 555-0100',
+      });
+      expect(html).toContain(person.fullName);
+      expect(html).toContain('Recruiter');
+      expect(html).toContain(person.email);
+      expect(html).toContain('(619) 555-0100');
+      expect(html).toContain('tel:6195550100');
+      expect(html).toContain('recruit619.com');
+      expect(html.indexOf('recruit619.com')).toBeLessThan(html.indexOf('tagevc.com'));
+    }
+  });
+
   it('renders Lauren parent portfolio signature', () => {
     const html = renderEmailSignatureHtml({
       fullName: 'Lauren Monroe',
