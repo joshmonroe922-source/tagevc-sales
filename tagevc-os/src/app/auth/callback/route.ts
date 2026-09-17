@@ -1,5 +1,17 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
+import { LIVE_LOOK_COOKIE } from '@/lib/live-look/cookie';
+import { IMPERSONATION_COOKIE } from '@/lib/rbac/impersonation';
+
+/** Fresh Microsoft login is always the real profile — never leftover Role Switcher / Live Look. */
+function clearSessionPreviewCookies(response: NextResponse) {
+  const expired = {
+    path: '/',
+    maxAge: 0,
+  } as const;
+  response.cookies.set(IMPERSONATION_COOKIE, '', expired);
+  response.cookies.set(LIVE_LOOK_COOKIE, '', expired);
+}
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
@@ -42,6 +54,7 @@ export async function GET(request: NextRequest) {
 
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
+      clearSessionPreviewCookies(successRedirect);
       return successRedirect;
     }
     const detail = encodeURIComponent(error.message || 'session_exchange_failed');

@@ -17,6 +17,7 @@ export function isLaurenMonroeEmail(
 /** Josh Monroe mailbox emails (Tage + Recruit 619). */
 export const JOSH_MONROE_EMAILS = [
   'joshmonroe@tagevc.com',
+  'josh@tagevc.com',
   'joshmonroe@recruit619.com',
 ] as const;
 
@@ -28,6 +29,11 @@ export function isJoshMonroeEmail(
 ): boolean {
   const needle = (email ?? '').trim().toLowerCase();
   return (JOSH_MONROE_EMAILS as readonly string[]).includes(needle);
+}
+
+/** Josh’s OS role is always Visionary — never bootstrap or drift to Associate. */
+export function isJoshMonroeVisionary(email: string | null | undefined): boolean {
+  return isJoshMonroeEmail(email);
 }
 
 /**

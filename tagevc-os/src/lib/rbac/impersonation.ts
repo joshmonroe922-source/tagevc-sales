@@ -5,8 +5,10 @@ import {
   type Permission,
 } from '@/lib/types/roles';
 
-/** httpOnly cookie — only honored when the signed-in profile is Visionary. */
-export const IMPERSONATION_COOKIE = 'tagevc_impersonate_role';
+/** httpOnly cookie — only honored when the signed-in profile is Visionary.
+ *  v2: prior `tagevc_impersonate_role` survived Microsoft re-login and left
+ *  Josh in Associate / VC Sourcer after a normal sign-in. */
+export const IMPERSONATION_COOKIE = 'tagevc_impersonate_role_v2';
 
 /**
  * High-stakes actions blocked while Visionary is impersonating another role.

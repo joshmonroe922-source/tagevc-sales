@@ -50,7 +50,7 @@ export function buildTageThinkTankSystemPrompt(opts: {
 }): string {
   const who = opts.userName?.trim() || 'this Tage VC teammate';
   const impersonation = opts.impersonatingAsLabel
-    ? ` Note: the operator is currently impersonating role "${opts.impersonatingAsLabel}" (cookie tagevc_impersonate_role). Label advice carefully for that persona and do not assume elevated privileges beyond it. Break-glass capital / signing actions remain blocked while impersonating.`
+    ? ` Note: the operator is currently impersonating role "${opts.impersonatingAsLabel}" (cookie tagevc_impersonate_role_v2). Label advice carefully for that persona and do not assume elevated privileges beyond it. Break-glass capital / signing actions remain blocked while impersonating.`
     : '';
 
   const focus: Record<ThinkTankRoleBand, string[]> = {

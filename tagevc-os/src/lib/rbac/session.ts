@@ -28,6 +28,7 @@ import { readEntityOsCookie } from '@/lib/rbac/entity-os-cookie';
 import { resolveSubsidiaryLeaderEntityId } from '@/lib/entities/assignment-lead';
 import {
   isJoshMonroeEmail,
+  isJoshMonroeVisionary,
   isLaurenMonroeEmail,
   JOSH_MONROE_JOB_TITLE,
   staffJobTitleForEmail,
@@ -112,37 +113,43 @@ export const getRealProfile = cache(async function getRealProfile(): Promise<Pro
   if (data) {
     const profile = data as Profile;
     if (!profile.active) return null;
-    const canonical = staffJobTitleForEmail(profile.email, null);
-    // Keep Josh / Lauren display titles canonical when profile row drifts.
-    if (
-      canonical &&
-      (profile.job_title ?? '').trim() !== canonical &&
+    const canonicalTitle = staffJobTitleForEmail(profile.email, null);
+    const titleDrift =
+      Boolean(canonicalTitle) &&
+      (profile.job_title ?? '').trim() !== canonicalTitle &&
       (isJoshMonroeEmail(profile.email) ||
         (isLaurenMonroeEmail(profile.email) &&
-          !(profile.job_title ?? '').trim()))
-    ) {
-      const patched = {
+          !(profile.job_title ?? '').trim()));
+    const roleDrift =
+      isJoshMonroeVisionary(profile.email) && profile.role !== 'visionary';
+
+    if (titleDrift || roleDrift) {
+      const patched: Profile = {
         ...profile,
-        job_title: canonical,
+        ...(titleDrift && canonicalTitle ? { job_title: canonicalTitle } : {}),
+        ...(roleDrift ? { role: 'visionary' } : {}),
       };
-      void supabase
-        .from('profiles')
-        .update({ job_title: canonical })
-        .eq('id', profile.id);
+      const update: Record<string, string> = {};
+      if (titleDrift && canonicalTitle) update.job_title = canonicalTitle;
+      if (roleDrift) update.role = 'visionary';
+      void supabase.from('profiles').update(update).eq('id', profile.id);
       return patched;
     }
     return profile;
   }
 
+  const email = user.email ?? '';
   const bootstrap = {
     id: user.id,
-    email: user.email ?? '',
+    email,
     full_name:
       user.user_metadata?.full_name ??
       user.user_metadata?.name ??
       user.email?.split('@')[0] ??
       null,
-    role: (normalizeRole(user.user_metadata?.role) ?? 'associate') as AppRole,
+    role: (isJoshMonroeVisionary(email)
+      ? 'visionary'
+      : (normalizeRole(user.user_metadata?.role) ?? 'associate')) as AppRole,
     entity_id: null,
     avatar_url: user.user_metadata?.avatar_url ?? null,
     job_title: staffJobTitleForEmail(user.email, null),

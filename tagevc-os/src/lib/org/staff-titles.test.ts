@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   isJoshMonroeEmail,
+  isJoshMonroeVisionary,
   isLaurenMonroeEmail,
   JOSH_MONROE_JOB_TITLE,
   LAUREN_MONROE_JOB_TITLE,
@@ -18,8 +19,11 @@ describe('staff titles', () => {
   it('uses Founder / CEO only for Josh emails', () => {
     expect(JOSH_MONROE_JOB_TITLE).toBe('Founder / CEO');
     expect(isJoshMonroeEmail('joshmonroe@tagevc.com')).toBe(true);
+    expect(isJoshMonroeEmail('josh@tagevc.com')).toBe(true);
     expect(isJoshMonroeEmail('joshmonroe@recruit619.com')).toBe(true);
     expect(isJoshMonroeEmail('dennis@recruit619.com')).toBe(false);
+    expect(isJoshMonroeVisionary('joshmonroe@tagevc.com')).toBe(true);
+    expect(isJoshMonroeVisionary('dennis@recruit619.com')).toBe(false);
     expect(staffJobTitleForEmail('joshmonroe@tagevc.com')).toBe(
       'Founder / CEO',
     );

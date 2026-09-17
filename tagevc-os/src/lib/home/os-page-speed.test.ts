@@ -15,6 +15,7 @@ describe('Tage OS first-paint speed', () => {
     assert.match(src, /export const getRealProfile = cache\(/);
     assert.match(src, /PROFILE_SESSION_COLUMNS/);
     assert.match(src, /\.select\(PROFILE_SESSION_COLUMNS\)/);
+    assert.match(src, /isJoshMonroeVisionary/);
     assert.doesNotMatch(src, /\.select\('\*'\)/);
   });
 
