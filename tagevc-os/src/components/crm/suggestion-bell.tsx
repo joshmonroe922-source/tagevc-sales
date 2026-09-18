@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { afterIdle } from '@/lib/ui/after-idle';
 
 export function SuggestionBell({ initialCount = 0 }: { initialCount?: number }) {
   const [count, setCount] = useState(initialCount);
@@ -20,11 +21,15 @@ export function SuggestionBell({ initialCount = 0 }: { initialCount?: number }) 
         /* soft */
       }
     };
-    void tick();
-    const id = window.setInterval(tick, 60_000);
+    let intervalId: number | undefined;
+    const cancelIdle = afterIdle(() => {
+      void tick();
+      intervalId = window.setInterval(tick, 60_000);
+    }, 2400);
     return () => {
       cancelled = true;
-      window.clearInterval(id);
+      cancelIdle();
+      if (intervalId !== undefined) window.clearInterval(intervalId);
     };
   }, []);
 

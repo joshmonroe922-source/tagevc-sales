@@ -16,6 +16,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { afterIdle } from '@/lib/ui/after-idle';
 import { cn } from '@/lib/utils';
 
 /**
@@ -35,14 +36,7 @@ export function SidebarMessagingControl({
     pathname === '/messages' || pathname.startsWith('/messages/');
 
   useEffect(() => {
-    startTransition(async () => {
-      const avail = await getMyAvailabilityAction();
-      if (avail.ok) {
-        setStatus(avail.status);
-        setSource(avail.source);
-      }
-    });
-    const id = window.setInterval(() => {
+    function load() {
       startTransition(async () => {
         const avail = await getMyAvailabilityAction();
         if (avail.ok) {
@@ -50,8 +44,16 @@ export function SidebarMessagingControl({
           setSource(avail.source);
         }
       });
-    }, 30_000);
-    return () => window.clearInterval(id);
+    }
+    let intervalId: number | undefined;
+    const cancelIdle = afterIdle(() => {
+      load();
+      intervalId = window.setInterval(load, 60_000);
+    }, 2200);
+    return () => {
+      cancelIdle();
+      if (intervalId !== undefined) window.clearInterval(intervalId);
+    };
   }, []);
 
   function select(next: 'available' | 'dnd') {

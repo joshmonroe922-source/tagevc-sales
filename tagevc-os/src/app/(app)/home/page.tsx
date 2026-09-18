@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import { ThinkTankClient } from '@/components/think-tank/ThinkTankClient';
+import { ThinkTankLazy } from '@/components/think-tank/ThinkTankLazy';
 import { HomeBriefingCard } from '@/components/home/home-briefing-card';
 import { generateHomeBriefing } from '@/lib/home/briefing';
 import { getSessionContext } from '@/lib/rbac/session';
@@ -64,7 +64,7 @@ export default async function HomePage() {
         <HomeBriefingDeferred />
       </Suspense>
 
-      <ThinkTankClient
+      <ThinkTankLazy
         roleBand={thinkTankRoleBand(session.realRole)}
         viewAsLabel={
           session.impersonatingAs

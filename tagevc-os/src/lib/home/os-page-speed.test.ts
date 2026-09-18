@@ -34,7 +34,7 @@ describe('Tage OS first-paint speed', () => {
 
   it('Home paints the welcome shell before Grok briefing', () => {
     const src = read('src/app/(app)/home/page.tsx');
-    assert.match(src, /<ThinkTankClient/);
+    assert.match(src, /<ThinkTankLazy/);
     assert.match(src, /<Suspense fallback=\{<HomeBriefingSkeleton/);
     assert.match(src, /<HomeBriefingDeferred/);
     const page = src.slice(src.indexOf('export default async function HomePage'));
@@ -128,5 +128,44 @@ describe('Tage OS first-paint speed', () => {
     const glance = read('src/lib/shared-services/ssc-checklist/hub-glance.ts');
     assert.match(glance, /sumOpenAuditItemsForScope/);
     assert.doesNotMatch(glance, /listAuditsForScope/);
+  });
+
+  it('defers CmdK, presence, and ticket dialog off the first shell JS', () => {
+    const layout = read('src/app/(app)/layout.tsx');
+    assert.match(layout, /DeferredAppChrome/);
+    assert.match(layout, /NavPendingProvider/);
+    assert.match(layout, /NavProgressBar/);
+    assert.doesNotMatch(layout, /from '@\/components\/crm\/cmd-k'/);
+    assert.doesNotMatch(layout, /from '@\/components\/messaging\/message-presence-host'/);
+
+    const chrome = read('src/components/layout/deferred-app-chrome.tsx');
+    assert.match(chrome, /afterIdle/);
+    assert.match(chrome, /ssr: false/);
+
+    const modal = read('src/components/help-desk/create-ticket-modal.tsx');
+    assert.match(modal, /create-ticket-dialog/);
+    assert.match(modal, /ssr: false/);
+    assert.doesNotMatch(modal, /from '@\/components\/shared\/company-select'/);
+  });
+
+  it('shares sidebar badge fetches and waits for idle', () => {
+    const stores = read('src/components/layout/nav-badge-stores.ts');
+    assert.match(stores, /createIdleCountStore/);
+    assert.match(stores, /os-messaging-unread-badge-shared/);
+    assert.match(stores, /activity-notif-badge-shared/);
+    assert.match(stores, /os-network-inbox-badge-shared/);
+
+    const idle = read('src/lib/ui/idle-count-store.ts');
+    assert.match(idle, /afterIdle/);
+
+    const messages = read('src/components/messaging/messages-unread-badge.tsx');
+    assert.match(messages, /useIdleCount/);
+    assert.doesNotMatch(messages, /createClient/);
+  });
+
+  it('tree-shakes icon packages at the bundler', () => {
+    const config = read('next.config.ts');
+    assert.match(config, /optimizePackageImports/);
+    assert.match(config, /lucide-react/);
   });
 });

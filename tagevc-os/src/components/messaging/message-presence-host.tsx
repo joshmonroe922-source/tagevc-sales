@@ -8,6 +8,7 @@ import {
   syncCalendarPresenceAction,
 } from '@/app/(app)/messages/presence-actions';
 import { Button } from '@/components/ui/button';
+import { afterIdle } from '@/lib/ui/after-idle';
 import { cn } from '@/lib/utils';
 
 type AlertRow = {
@@ -42,12 +43,16 @@ export function MessagePresenceHost() {
   }
 
   useEffect(() => {
-    refresh();
-    const id = window.setInterval(refresh, 25_000);
+    let intervalId: number | undefined;
+    const cancelIdle = afterIdle(() => {
+      refresh();
+      intervalId = window.setInterval(refresh, 60_000);
+    }, 2400);
     const onFocus = () => refresh();
     window.addEventListener('focus', onFocus);
     return () => {
-      window.clearInterval(id);
+      cancelIdle();
+      if (intervalId !== undefined) window.clearInterval(intervalId);
       window.removeEventListener('focus', onFocus);
     };
   }, []);

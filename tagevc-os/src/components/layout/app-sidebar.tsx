@@ -45,6 +45,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { stopLiveLookAction } from '@/app/(app)/live-look/actions';
 import { canUseLiveLook } from '@/lib/live-look/access';
+import { useNavPendingHref } from '@/components/layout/nav-pending';
 
 const NAV_ACCORDION_STORAGE_KEY = 'tagevc.nav.accordion.v1';
 
@@ -648,6 +649,8 @@ export function AppSidebar({
   variant = 'desktop',
 }: Props & { variant?: SidebarVariant }) {
   const pathname = usePathname();
+  const pendingHref = useNavPendingHref();
+  const highlightPath = pendingHref ?? pathname;
   const router = useRouter();
   const items = useMemo(
     () =>
@@ -685,7 +688,7 @@ export function AppSidebar({
         next[item.label] = false;
       }
     }
-    applyActiveAccordionParents(items, pathname, next);
+    applyActiveAccordionParents(items, highlightPath, next);
     setAccordion(next);
     setAccordionReady(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate once; path effect below keeps active parents open
@@ -695,11 +698,11 @@ export function AppSidebar({
     if (!accordionReady) return;
     setAccordion((prev) => {
       const next = { ...prev };
-      const changed = applyActiveAccordionParents(items, pathname, next);
+      const changed = applyActiveAccordionParents(items, highlightPath, next);
       if (changed) writeAccordionState(next);
       return changed ? next : prev;
     });
-  }, [pathname, items, accordionReady]);
+  }, [highlightPath, items, accordionReady]);
 
   const topGroupLabels = useMemo(
     () => accordionSiblingLabels(items),
@@ -761,12 +764,12 @@ export function AppSidebar({
           if (item.children?.length) {
             const expanded = accordionReady
               ? Boolean(accordion[item.label])
-              : childRouteActive(pathname, item.children);
+              : childRouteActive(highlightPath, item.children);
             return (
               <NavGroup
                 key={item.label}
                 item={item}
-                pathname={pathname}
+                pathname={highlightPath}
                 expanded={expanded}
                 onToggle={() => toggleGroup(item.label, topGroupLabels)}
                 accordion={accordion}
@@ -778,7 +781,7 @@ export function AppSidebar({
             <NavLink
               key={item.href ?? item.label}
               item={item}
-              pathname={pathname}
+              pathname={highlightPath}
             />
           );
         })}
@@ -822,7 +825,7 @@ export function AppSidebar({
           href="/my-card"
           className={cn(
             'inline-flex h-8 w-full items-center justify-start gap-2 rounded-lg border border-sidebar-border bg-transparent px-3 text-sm text-sidebar-foreground hover:bg-sidebar-accent',
-            pathname === '/my-card' || pathname.startsWith('/my-card/')
+            highlightPath === '/my-card' || highlightPath.startsWith('/my-card/')
               ? 'bg-sidebar-accent'
               : null,
           )}
@@ -833,7 +836,7 @@ export function AppSidebar({
           href="/my-card/contacts"
           className={cn(
             'inline-flex h-8 w-full items-center justify-start gap-2 rounded-lg border border-sidebar-border bg-transparent px-3 text-sm text-sidebar-foreground hover:bg-sidebar-accent',
-            pathname.startsWith('/my-card/contacts')
+            highlightPath.startsWith('/my-card/contacts')
               ? 'bg-sidebar-accent'
               : null,
           )}

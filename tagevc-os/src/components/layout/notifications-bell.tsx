@@ -12,6 +12,7 @@ import {
 } from '@/app/(app)/notifications/inbox-actions';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { afterIdle } from '@/lib/ui/after-idle';
 import { cn } from '@/lib/utils';
 
 type Notif = {
@@ -57,9 +58,15 @@ export function NotificationsBell({
   }, []);
 
   useEffect(() => {
-    refresh();
-    const id = setInterval(refresh, 45_000);
-    return () => clearInterval(id);
+    let intervalId: ReturnType<typeof setInterval> | undefined;
+    const cancelIdle = afterIdle(() => {
+      refresh();
+      intervalId = setInterval(refresh, 60_000);
+    }, 2400);
+    return () => {
+      cancelIdle();
+      if (intervalId) clearInterval(intervalId);
+    };
   }, [refresh]);
 
   useEffect(() => {
@@ -68,43 +75,46 @@ export function NotificationsBell({
     }
     if (Notification.permission !== 'granted') return;
 
-    start(async () => {
-      const res = await listInboxNotificationsAction();
-      if (!res.ok) return;
-      for (const n of res.notifications as Notif[]) {
-        if (knownIds.current.has(n.notification_id)) continue;
-        if (n.read_at) continue;
-        knownIds.current.add(n.notification_id);
-        try {
-          new Notification(n.title, {
-            body: n.body ?? undefined,
-            tag: n.notification_id,
-          });
-        } catch {
-          /* ignore */
-        }
-        if (sound) {
+    const cancelIdle = afterIdle(() => {
+      start(async () => {
+        const res = await listInboxNotificationsAction();
+        if (!res.ok) return;
+        for (const n of res.notifications as Notif[]) {
+          if (knownIds.current.has(n.notification_id)) continue;
+          if (n.read_at) continue;
+          knownIds.current.add(n.notification_id);
           try {
-            if (!audioCtx.current) {
-              audioCtx.current = new AudioContext();
-            }
-            const ctx = audioCtx.current;
-            const o = ctx.createOscillator();
-            const g = ctx.createGain();
-            o.connect(g);
-            g.connect(ctx.destination);
-            o.frequency.value = 880;
-            g.gain.value = 0.04;
-            o.start();
-            o.stop(ctx.currentTime + 0.12);
+            new Notification(n.title, {
+              body: n.body ?? undefined,
+              tag: n.notification_id,
+            });
           } catch {
             /* ignore */
           }
+          if (sound) {
+            try {
+              if (!audioCtx.current) {
+                audioCtx.current = new AudioContext();
+              }
+              const ctx = audioCtx.current;
+              const o = ctx.createOscillator();
+              const g = ctx.createGain();
+              o.connect(g);
+              g.connect(ctx.destination);
+              o.frequency.value = 880;
+              g.gain.value = 0.04;
+              o.start();
+              o.stop(ctx.currentTime + 0.12);
+            } catch {
+              /* ignore */
+            }
+          }
         }
-      }
-      setItems(res.notifications as Notif[]);
-      setUnread(res.unread);
-    });
+        setItems(res.notifications as Notif[]);
+        setUnread(res.unread);
+      });
+    }, 2400);
+    return () => cancelIdle();
   }, [desktop, sound, open]);
 
   async function enableDesktop() {

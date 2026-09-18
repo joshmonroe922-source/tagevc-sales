@@ -10,8 +10,11 @@ import { TimezoneBootstrap } from '@/components/layout/timezone-bootstrap';
 import { HelpDeskShell, AppTopBar } from '@/components/help-desk/help-desk-shell';
 import { AppShellScrollLock } from '@/components/layout/app-shell-scroll-lock';
 import { AppMain } from '@/components/layout/app-main';
-import { MessagePresenceHost } from '@/components/messaging/message-presence-host';
-import { CmdKPalette } from '@/components/crm/cmd-k';
+import { DeferredAppChrome } from '@/components/layout/deferred-app-chrome';
+import {
+  NavPendingProvider,
+  NavProgressBar,
+} from '@/components/layout/nav-pending';
 import { bootstrapDomainStores } from '@/lib/data/bootstrap';
 import {
   canSwitchEntityOs,
@@ -92,53 +95,53 @@ export default async function AppShellLayout({
 
   return (
     <HelpDeskShell>
-      {/*
-        Viewport-locked shell: sidebar stays pinned on md+; only <main> scrolls.
-        Below md the sidebar collapses into AppTopBar MobileNavDrawer.
-        max-h + overflow-hidden prevent document scroll on long SSC lists.
-      */}
-      <div className="flex h-dvh max-h-dvh min-h-0 overflow-hidden bg-background">
-        <AppShellScrollLock />
-        <TimezoneBootstrap />
-        <AppSidebar {...sidebarProps} />
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <Suspense
-            fallback={
-              <AppTopBar
+      <NavPendingProvider>
+        <NavProgressBar />
+        {/*
+          Viewport-locked shell: sidebar stays pinned on md+; only <main> scrolls.
+          Below md the sidebar collapses into AppTopBar MobileNavDrawer.
+          max-h + overflow-hidden prevent document scroll on long SSC lists.
+        */}
+        <div className="flex h-dvh max-h-dvh min-h-0 overflow-hidden bg-background">
+          <AppShellScrollLock />
+          <TimezoneBootstrap />
+          <AppSidebar {...sidebarProps} />
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+            <Suspense
+              fallback={
+                <AppTopBar
+                  mobileNav={
+                    <MobileNavDrawer>
+                      <AppSidebar {...sidebarProps} variant="panel" />
+                    </MobileNavDrawer>
+                  }
+                />
+              }
+            >
+              <AppChromeTopBar
                 mobileNav={
                   <MobileNavDrawer>
                     <AppSidebar {...sidebarProps} variant="panel" />
                   </MobileNavDrawer>
                 }
               />
-            }
-          >
-            <AppChromeTopBar
-              mobileNav={
-                <MobileNavDrawer>
-                  <AppSidebar {...sidebarProps} variant="panel" />
-                </MobileNavDrawer>
-              }
-            />
-          </Suspense>
-          {session.liveLookTarget ? (
-            <LiveLookBanner
-              userName={session.liveLookTarget.fullName}
-              userEmail={session.liveLookTarget.email}
-              entityId={session.liveLookTarget.entityId}
-            />
-          ) : session.impersonatingAs ? (
-            <ImpersonationBanner role={session.impersonatingAs} />
-          ) : session.activeEntityOs ? (
-            <EntityOsBanner label={entityOsLabel(session.activeEntityOs)} />
-          ) : null}
-          <AppMain>{children}</AppMain>
+            </Suspense>
+            {session.liveLookTarget ? (
+              <LiveLookBanner
+                userName={session.liveLookTarget.fullName}
+                userEmail={session.liveLookTarget.email}
+                entityId={session.liveLookTarget.entityId}
+              />
+            ) : session.impersonatingAs ? (
+              <ImpersonationBanner role={session.impersonatingAs} />
+            ) : session.activeEntityOs ? (
+              <EntityOsBanner label={entityOsLabel(session.activeEntityOs)} />
+            ) : null}
+            <AppMain>{children}</AppMain>
+          </div>
+          <DeferredAppChrome />
         </div>
-        <Suspense fallback={null}>
-          <MessagePresenceHost />
-        </Suspense>
-        <CmdKPalette />
-      </div>
+      </NavPendingProvider>
     </HelpDeskShell>
   );
 }
