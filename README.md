@@ -3,7 +3,9 @@
 Internal **Tage Venture Capital** portals: **Deal Sourcing** (pipeline, follow-ups, nurture), **Due Diligence**, **New Start Up** / **New Mergers & Acquisitions** onboarding, **Manage Portfolio** (Entity Ops), **Legal** (shared compliance), **Human Resources** (employees / onboarding / offboarding / HR compliance), **Reporting**, **Marketing** (blog/social), plus stub shells for Executive, Accounting, and Technology.  
 Single-admin ready (Josh Monroe); schema supports multi-rep later. **No HubSpot.**
 
-Companion public site: [`tagevc-website`](../tagevc-website) (Next.js) — Launch / Partner / Exit landings + blog synced from published posts. Eventual domain: **tageventurecapital.com**.
+Companion public site: [`tagevc-website`](../tagevc-website) (Next.js) — Launch / Partner / Exit landings + blog synced from published posts. Domain: **tageventurecapital.com**.
+
+**Repos stay per company.** Recruit 619, Signent HR, and Instant NDA are not folders in this repo. Map + sale checklist: [`tagevc-os/docs/ENTITY_REPO_ARCHITECTURE.md`](./tagevc-os/docs/ENTITY_REPO_ARCHITECTURE.md).
 
 Stack: **Vite + React + TypeScript**, **Supabase** (Auth / Postgres / Storage / Edge Functions), **Resend**, deployable to **Vercel**.
 

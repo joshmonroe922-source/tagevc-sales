@@ -1,0 +1,13 @@
+---
+description: One legal entity per repo; shared data is APIs plus entity_id
+alwaysApply: true
+---
+
+# Entity repos
+
+Do not merge Tage, Recruit 619, Signent, or Instant NDA into one git repo or one Vercel project. This OS is the holding-company spine. Subsidiary portals are separate Next apps.
+
+- Cross-entity data: `entity_id` + HTTPS. Never import another company's portal.
+- Marketing sites stay in their own repos and POST only to their own OS.
+- Sale unit and map: `docs/ENTITY_REPO_ARCHITECTURE.md`, `docs/ENTITY_SALE_CHECKLIST.md`.
+- Signent local OS path is `signenthr-portal`, not `signent-hr-portal`.

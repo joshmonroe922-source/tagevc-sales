@@ -31,7 +31,8 @@ Website form → OS intake API → deal-flow lead
 
 ## Next
 
-- Subsidiary website forms (Signent / INDA / R619) → org slug mapping
+- Subsidiary website forms stay on **that brand’s** site and POST only to **that brand’s** OS (or inbox). Do not route Signent / Recruit / Instant leads through this Tage intake unless the visitor is on a Tage property. See `docs/ENTITY_REPO_ARCHITECTURE.md`.
+- Org slug mapping when a subsidiary later emits an event Tage is allowed to see
 - Qualification agent drafts on lead
 - CRM UI pages under Shared Services / BD for graph accounts
 - Cmd-K ranked FTS (`search_*_ranked` / `ts_rank_cd`) (C9) — code ready; apply phase109 SQL after review (see `docs/CRM_FULL_TEXT_SEARCH.md`)

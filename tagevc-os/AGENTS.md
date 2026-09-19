@@ -1,5 +1,11 @@
 # Tage OS — agent / contributor notes
 
+## One company per repo
+
+This repo is the **Tage VC holding OS** only. Recruit 619, Signent HR, and Instant NDA are separate Cursor projects and GitHub repos. They connect through `entity_id` and APIs, not a monorepo.
+
+Map + sale checklist: `docs/ENTITY_REPO_ARCHITECTURE.md`, `docs/ENTITY_SALE_CHECKLIST.md`.
+
 ## Entity labels in the UI
 
 **Never** show opaque entity codes (`ENT-FIRM`, `ENT-R619`, `ENT-SIGNENT`, `ENT-INDA`, …) as the primary human-facing label.
