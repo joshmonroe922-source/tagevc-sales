@@ -593,7 +593,7 @@ export const MAIN_NAV: NavItem[] = [
           {
             module: 'shared_services',
             href: '/shared-services/signent/clients',
-            label: 'Signent clients',
+            label: 'Signent accounts',
             description: 'Sales convert · client_org · ops seams',
             hiddenForRoles: [...HIDE_FOR_SSC],
           },

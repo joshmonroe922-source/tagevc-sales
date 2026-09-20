@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
+import { supabaseClientOptions } from '@/lib/supabase/supabase-options';
 import { LIVE_LOOK_COOKIE } from '@/lib/live-look/cookie';
 import { IMPERSONATION_COOKIE } from '@/lib/rbac/impersonation';
 
@@ -40,6 +41,7 @@ export async function GET(request: NextRequest) {
 
     const successRedirect = NextResponse.redirect(`${redirectBase}${next}`);
     const supabase = createServerClient(url, key, {
+      ...supabaseClientOptions,
       cookies: {
         getAll() {
           return request.cookies.getAll();

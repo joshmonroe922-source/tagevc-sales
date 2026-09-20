@@ -41,7 +41,7 @@ export default async function SignentClientDetailPage({ params }: Props) {
           href="/shared-services/signent/clients"
           className="underline underline-offset-2"
         >
-          ← Clients
+          ← Accounts
         </Link>
         {accountId ? (
           <Link

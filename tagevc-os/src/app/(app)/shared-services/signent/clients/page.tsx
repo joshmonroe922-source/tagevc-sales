@@ -15,12 +15,12 @@ export default async function SignentClientsPage() {
   return (
     <div className="space-y-6 p-6">
       <PageHeader
-        title="Signent client orgs"
-        description={`Sales → purchase → convert → ops at ${SIGNENT_PORTAL_URL}. No fake clients.`}
+        title="Signent accounts"
+        description={`Sales → purchase → convert → ops at ${SIGNENT_PORTAL_URL}. No fake accounts.`}
       />
 
       <section className="rounded-md border border-border p-4">
-        <h2 className="mb-3 text-sm font-semibold">Convert purchase → client</h2>
+        <h2 className="mb-3 text-sm font-semibold">Convert purchase → account</h2>
         <SignentConvertForm />
       </section>
 
@@ -54,7 +54,7 @@ export default async function SignentClientsPage() {
 
       <section className="rounded-md border border-border">
         <h2 className="border-b border-border px-4 py-3 text-sm font-semibold">
-          Clients ({rows.length})
+          Accounts ({rows.length})
         </h2>
         <ul className="divide-y divide-border text-sm">
           {rows.length === 0 ? (
