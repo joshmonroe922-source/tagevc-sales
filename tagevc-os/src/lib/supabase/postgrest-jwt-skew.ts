@@ -63,6 +63,10 @@ export function isPostgrestDataUrl(url: string): boolean {
   return url.includes('/rest/v1/') || url.includes('/storage/v1/');
 }
 
+export function isAuthUrl(url: string): boolean {
+  return url.includes('/auth/v1/');
+}
+
 export function decodeJwtIat(authorization: string | null | undefined): number | null {
   if (!authorization) return null;
   const token = authorization.replace(/^Bearer\s+/i, '').trim();
@@ -157,6 +161,12 @@ export function createPostgrestJwtSkewFetch(
       return inner(input, init);
     }
 
+    const url = requestUrl(input);
+    // Login / getUser / token exchange must never wait or retry.
+    if (!isPostgrestDataUrl(url) || isAuthUrl(url)) {
+      return inner(input, init);
+    }
+
     const roleKey = serviceRoleKey();
     const iat = decodeJwtIat(authorizationFrom(input, init));
     // Service-role fallback is instant — don't stall first paint waiting on iat.
@@ -169,7 +179,6 @@ export function createPostgrestJwtSkewFetch(
     let skewWait = await skewWaitFromResponse(res);
     if (skewWait == null) return res;
 
-    const url = requestUrl(input);
     if (roleKey && isPostgrestDataUrl(url)) {
       const swapped = applyServiceRoleAuth(input, init, roleKey);
       return inner(swapped.input, swapped.init);

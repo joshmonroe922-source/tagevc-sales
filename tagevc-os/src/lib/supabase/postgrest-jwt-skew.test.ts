@@ -5,6 +5,7 @@ import {
   authorizationFrom,
   createPostgrestJwtSkewFetch,
   decodeJwtIat,
+  isAuthUrl,
   isJwtSkewMessage,
   isPostgrestDataUrl,
   jwtSkewMitigationEnabled,
@@ -90,6 +91,30 @@ describe('postgrest-jwt-skew', () => {
     expect(isPostgrestDataUrl('https://x.supabase.co/rest/v1/jobs')).toBe(true);
     expect(isPostgrestDataUrl('https://x.supabase.co/storage/v1/object')).toBe(true);
     expect(isPostgrestDataUrl('https://x.supabase.co/auth/v1/user')).toBe(false);
+    expect(isAuthUrl('https://x.supabase.co/auth/v1/token')).toBe(true);
+    expect(isAuthUrl('https://x.supabase.co/rest/v1/jobs')).toBe(false);
+  });
+
+  it('does not wait or retry Auth URLs', async () => {
+    let calls = 0;
+    const inner = async () => {
+      calls += 1;
+      return new Response(
+        JSON.stringify({
+          code: 'PGRST303',
+          message: 'JWT issued at future by 35 seconds',
+        }),
+        { status: 401 },
+      );
+    };
+    const wrapped = createPostgrestJwtSkewFetch(inner as typeof fetch);
+    const started = Date.now();
+    const res = await wrapped('https://example.test/auth/v1/token', {
+      headers: { Authorization: `Bearer ${jwtWithIat(Math.floor(Date.now() / 1000) + 30)}` },
+    });
+    expect(res.status).toBe(401);
+    expect(calls).toBe(1);
+    expect(Date.now() - started).toBeLessThan(250);
   });
 
   it('reads Authorization from Request when init has none', () => {
