@@ -14,11 +14,16 @@ import {
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [timedOut, setTimedOut] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const detail = params.get('detail');
     const err = params.get('error');
+    if (err === 'timeout') {
+      setTimedOut(true);
+      return;
+    }
     if (!err && !detail) return;
     setError(
       detail
@@ -80,6 +85,19 @@ export default function LoginPage() {
           >
             {loading ? 'Redirecting to Microsoft…' : 'Continue with Microsoft'}
           </Button>
+          {timedOut ? (
+            <div
+              className="rounded-lg border border-[#d7d3c3] bg-[#ece9e6] px-3 py-2"
+              role="status"
+            >
+              <p className="text-sm font-medium text-[#3a414f]">
+                You have timed out of the system
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-[#535c63]">
+                Sign in again to continue.
+              </p>
+            </div>
+          ) : null}
           {error ? (
             <div
               className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2"

@@ -3,8 +3,9 @@
 import { useEffect } from 'react';
 
 import { SessionTimeoutScreen } from '@/components/auth/session-timeout-screen';
+import './globals.css';
 
-export default function AppError({
+export default function GlobalError({
   error,
 }: {
   error: Error & { digest?: string };
@@ -14,5 +15,11 @@ export default function AppError({
     console.error(error);
   }, [error]);
 
-  return <SessionTimeoutScreen productName="Tage Venture Capital" />;
+  return (
+    <html lang="en">
+      <body className="font-sans antialiased">
+        <SessionTimeoutScreen productName="Tage Venture Capital" />
+      </body>
+    </html>
+  );
 }

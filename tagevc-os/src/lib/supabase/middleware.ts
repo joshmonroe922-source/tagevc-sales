@@ -9,6 +9,7 @@ export async function updateSession(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const isPublic =
     path.startsWith('/login') ||
+    path.startsWith('/session-timeout') ||
     path.startsWith('/auth') ||
     path.startsWith('/api/docusign/webhook') ||
     // Machine-auth APIs (route handlers enforce secrets / signed tokens).

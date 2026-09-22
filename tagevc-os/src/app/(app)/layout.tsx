@@ -6,6 +6,7 @@ import { EntityOsBanner } from '@/components/layout/entity-os-banner';
 import { ImpersonationBanner } from '@/components/layout/impersonation-banner';
 import { LiveLookBanner } from '@/components/layout/live-look-banner';
 import { MobileNavDrawer } from '@/components/layout/mobile-nav-drawer';
+import { SessionTimeoutWatcher } from '@/components/auth/session-timeout-watcher';
 import { TimezoneBootstrap } from '@/components/layout/timezone-bootstrap';
 import { HelpDeskShell, AppTopBar } from '@/components/help-desk/help-desk-shell';
 import { AppShellScrollLock } from '@/components/layout/app-shell-scroll-lock';
@@ -105,6 +106,7 @@ export default async function AppShellLayout({
         <div className="flex h-dvh max-h-dvh min-h-0 overflow-hidden bg-background">
           <AppShellScrollLock />
           <TimezoneBootstrap />
+          <SessionTimeoutWatcher />
           <AppSidebar {...sidebarProps} />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <Suspense
