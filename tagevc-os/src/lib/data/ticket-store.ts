@@ -566,6 +566,11 @@ export function createTicket(input: CreateTicketInput): Ticket {
     ref_id: ticket.ticket_id,
     entity_id: ticket.entity_id ?? undefined,
   });
+  void import('@/lib/shared-services/notify-new-ticket-email')
+    .then(({ notifyTechSupportOfNewTicket }) =>
+      notifyTechSupportOfNewTicket(ticket),
+    )
+    .catch(() => null);
   return ticket;
 }
 
